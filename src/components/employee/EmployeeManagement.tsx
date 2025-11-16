@@ -1,0 +1,1697 @@
+"use client";
+
+import React, { useState, useEffect, useRef } from "react";
+import { apiClient } from "@/lib/apiClient";
+import { 
+  Plus, 
+  Eye, 
+  Pencil, 
+  Trash2, 
+  Filter, 
+  Search, 
+  MoreVertical, 
+  ChevronLeft,
+  ChevronRight,
+  X,
+  User,
+  Calendar,
+  Clock,
+  Building,
+  MapPin,
+  Mail,
+  Phone,
+  RefreshCw,
+  CheckCircle,
+  AlertCircle
+} from "lucide-react";
+
+// Types for dropdown datasets
+export type Department = { id: number; name: string };
+export type Role = { id: number; name: string; department_id: number };
+export type Site = { id: number; name: string; code: string };
+export type AttendancePolicy = {
+  id?: number;
+  policy_name: string;
+  policy_description?: string;
+  leave_cycle: "monthly" | "yearly";
+  total_annual_leaves: number;
+  max_leave_per_month: number;
+  max_carry_forward_leaves: number;
+  monthly_carry_forward_allowed: boolean;
+
+  standard_work_hours?: number;
+  grace_period_minutes?: number;
+  max_late_marks_per_month?: number;
+  late_logout_redeem_minutes?: number;
+  redeem_nextday_allowed?: boolean;
+  redeem_carry_forward_days?: number;
+
+  auto_convert_to_compoff?: boolean;
+  min_extra_work_for_compoff_minutes?: number;
+  compoff_requires_approval?: boolean;
+};
+
+// Simplified Employee model (UI only for now)
+export type Employee = {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone?: string;
+  department_id?: number | null;
+  role_id?: number | null;
+  designation?: string | null;
+  site_ids?: number[];
+  status?: 'active' | 'inactive';
+  created_at?: string;
+  work_type?: string;
+};
+
+const weeklyDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+// Normalize various date formats to HTML date input format (YYYY-MM-DD)
+const normalizeDateForInput = (val: unknown): string => {
+  if (!val) return "";
+  try {
+    if (typeof val === "string") {
+      const s = val.trim();
+      if (!s) return "";
+      // Already in yyyy-mm-dd
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      // ISO string with time
+      if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
+        const d = new Date(s);
+        return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
+      }
+      // dd/mm/yyyy
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+        const [dd, mm, yyyy] = s.split("/");
+        return `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+      }
+      // dd-mm-yyyy
+      if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
+        const [dd, mm, yyyy] = s.split("-");
+        return `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+      }
+      const d = new Date(s);
+      return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
+    }
+    if (typeof val === "number") {
+      const d = new Date(val);
+      return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
+    }
+    if (val instanceof Date) {
+      return Number.isNaN(val.getTime()) ? "" : val.toISOString().slice(0, 10);
+    }
+    return "";
+  } catch {
+    return "";
+  }
+};
+
+export default function EmployeeManagement() {
+  const [loading, setLoading] = React.useState<boolean>(false);
+  const [error, setError] = React.useState<string>("");
+  const [validationMessage, setValidationMessage] = React.useState<string>("");
+
+  const [employees, setEmployees] = React.useState<Employee[]>([]);
+  const [departments, setDepartments] = React.useState<Department[]>([]);
+  const [roles, setRoles] = React.useState<Role[]>([]);
+  const [sites, setSites] = React.useState<Site[]>([]);
+  const [policies, setPolicies] = React.useState<AttendancePolicy[]>([]);
+
+  const [showAdd, setShowAdd] = React.useState<boolean>(false);
+  const [step, setStep] = React.useState<number>(1);
+  const [editingEmployeeId, setEditingEmployeeId] = React.useState<number | null>(null);
+  const [showView, setShowView] = React.useState<boolean>(false);
+  const [viewLoading, setViewLoading] = React.useState<boolean>(false);
+  const [viewData, setViewData] = React.useState<any>(null);
+
+  // Form state
+  const [firstName, setFirstName] = React.useState<string>("");
+  const [lastName, setLastName] = React.useState<string>("");
+  const [gender, setGender] = React.useState<string>("");
+  const [dob, setDob] = React.useState<string>("");
+  const [phone, setPhone] = React.useState<string>("");
+  const [email, setEmail] = React.useState<string>("");
+
+  const [departmentId, setDepartmentId] = React.useState<number | "">("");
+  const [roleId, setRoleId] = React.useState<number | "">("");
+  const [reportingManagerId, setReportingManagerId] = React.useState<number | "">("");
+  const [designation, setDesignation] = React.useState<string>("");
+  const [workType, setWorkType] = React.useState<string>(""); // Full-time / Contract / Daily Wage / Intern
+  const [startDate, setStartDate] = React.useState<string>("");
+  const [assignedSiteIds, setAssignedSiteIds] = React.useState<Set<number>>(new Set());
+  const [inchargeSiteIds, setInchargeSiteIds] = React.useState<Set<number>>(new Set());
+  const [allowPunchFromHQ, setAllowPunchFromHQ] = React.useState<boolean>(false);
+  const [salaryType, setSalaryType] = React.useState<string>(""); // Monthly / Daily / Hourly
+  const [salaryAmount, setSalaryAmount] = React.useState<string>("");
+  const [yearlyPackage, setYearlyPackage] = React.useState<string>("");
+  const [salaryItems, setSalaryItems] = React.useState<{ name: string; type: "credit" | "debit"; amount: number }[]>([]);
+  const [bankAccountNo, setBankAccountNo] = React.useState<string>("");
+  const [ifscCode, setIfscCode] = React.useState<string>("");
+  const [bankName, setBankName] = React.useState<string>("");
+  const [bankBranch, setBankBranch] = React.useState<string>("");
+  const [panNumber, setPanNumber] = React.useState<string>("");
+  const [aadhaarNumber, setAadhaarNumber] = React.useState<string>("");
+  const [pfUan, setPfUan] = React.useState<string>("");
+  const [weeklyOff, setWeeklyOff] = React.useState<Set<string>>(new Set());
+  const [shiftStart, setShiftStart] = React.useState<string>(""); // time
+  const [shiftEnd, setShiftEnd] = React.useState<string>(""); // time
+  const [isFlexibleTime, setIsFlexibleTime] = React.useState<boolean>(false);
+  const [flexibleHours, setFlexibleHours] = React.useState<string>("");
+  const [policyId, setPolicyId] = React.useState<number | "">("");
+
+  const selectedPolicy = React.useMemo(() => {
+    const idNum = typeof policyId === "number" ? policyId : null;
+    return policies.find((p) => (p.id || null) === idNum) || null;
+  }, [policyId, policies]);
+  const isEditing = editingEmployeeId != null;
+
+  const [role, setRole] = React.useState<string | null>(null);
+  const [permissions, setPermissions] = React.useState<string[]>([]);
+  const hasPerm = (code: string | string[]) => {
+    const codes = Array.isArray(code) ? code : [code];
+    const upper = (permissions || []).map((p) => (p || "").toUpperCase());
+    return codes.some((c) => upper.includes((c || "").toUpperCase()));
+  };
+  // Role/permission helpers for site visibility
+  const isOrgAdmin = (role || "").toUpperCase() === "ORGADMIN";
+  const isHRMode = hasPerm("HR_MODE");
+
+  // Table UI state
+  const [searchQuery, setSearchQuery] = React.useState<string>("");
+  const [page, setPage] = React.useState<number>(1);
+  const [pageSize, setPageSize] = React.useState<number>(10);
+  const [filterDeptId, setFilterDeptId] = React.useState<number | "">("");
+  const [filterRoleId, setFilterRoleId] = React.useState<number | "">("");
+  const [filterSiteId, setFilterSiteId] = React.useState<number | "">("");
+  const [statusFilter, setStatusFilter] = React.useState<string>("all");
+  
+  const [actionLoading, setActionLoading] = React.useState<string | null>(null);
+  
+  const [totalEntries, setTotalEntries] = React.useState<number>(0);
+
+  // Auto-select first site for non-HR/non-OrgAdmin users on first load
+  React.useEffect(() => {
+    if (sites.length > 0 && !isHRMode && !isOrgAdmin && filterSiteId === "") {
+      const firstSiteId = sites[0]?.id;
+      if (firstSiteId) {
+        setFilterSiteId(firstSiteId);
+      }
+    }
+  }, [sites, isHRMode, isOrgAdmin, filterSiteId]);
+
+  const filtered = React.useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return employees.filter((e) => {
+      // Search
+      const matchesSearch = q
+        ? `${e.first_name || ""} ${e.last_name || ""}`.toLowerCase().includes(q) || 
+          (e.email || "").toLowerCase().includes(q) ||
+          (e.phone || "").includes(q)
+        : true;
+      // Filters
+      const matchesDept = typeof filterDeptId === "number" ? e.department_id === filterDeptId : true;
+      const matchesRole = typeof filterRoleId === "number" ? e.role_id === filterRoleId : true;
+      const matchesSite = typeof filterSiteId === "number" ? (e.site_ids || []).includes(filterSiteId) : true;
+      const matchesStatus = statusFilter !== "all" ? e.status === statusFilter : true;
+      
+      return matchesSearch && matchesDept && matchesRole && matchesSite && matchesStatus;
+    });
+  }, [employees, searchQuery, filterDeptId, filterRoleId, filterSiteId, statusFilter]);
+  
+  const totalPages = Math.max(1, Math.ceil((totalEntries || filtered.length) / pageSize));
+  const pageStart = (page - 1) * pageSize;
+  const pageSlice = filtered.slice(pageStart, pageStart + pageSize);
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const session = await apiClient<{ authenticated: boolean; role?: string; employee?: { permissions?: string[] } | null }>("/auth/session", { method: "GET" });
+        if (session?.authenticated) {
+          setRole((session.role || null) as string | null);
+          setPermissions(session.employee?.permissions || []);
+        }
+      } catch {}
+    })();
+  }, []);
+
+  const deleteEmployee = async (id: number) => {
+    if (!hasPerm("EMP_DELETE")) { 
+      setError("Not authorized to delete employees"); 
+      return; 
+    }
+    
+    if (!confirm('Are you sure you want to delete this employee? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      setActionLoading(String(id));
+      await apiClient(`/organization/employees/${id}`, { method: "DELETE" });
+      await fetchEmployees();
+      
+      // Show success notification
+      showNotification('Employee deleted successfully', 'success');
+    } catch (e: any) {
+      setError(e?.message || "Failed to delete employee");
+      showNotification(e?.message || "Failed to delete employee", 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Helper functions for modern notifications
+  const createNotificationContainer = () => {
+    const container = document.createElement('div');
+    container.id = 'notification-container';
+    container.style.position = 'fixed';
+    container.style.top = '20px';
+    container.style.right = '20px';
+    container.style.zIndex = '9999';
+    document.body.appendChild(container);
+    return container;
+  };
+  
+  const showNotification = (message: string, type: 'success' | 'error') => {
+    const container = document.getElementById('notification-container') || createNotificationContainer();
+    const notification = document.createElement('div');
+    notification.className = `p-4 mb-3 rounded-lg shadow-lg flex items-center space-x-3 ${
+      type === 'success' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+    }`;
+    
+    const icon = document.createElement('div');
+    icon.className = `p-2 rounded-full ${type === 'success' ? 'bg-green-100' : 'bg-red-100'}`;
+    icon.innerHTML = type === 'success' 
+      ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-600"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>'
+      : '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-600"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>';
+    
+    const content = document.createElement('div');
+    content.className = 'flex-1';
+    content.innerHTML = `<p class="${type === 'success' ? 'text-green-800' : 'text-red-800'} font-medium">${message}</p>`;
+    
+    notification.appendChild(icon);
+    notification.appendChild(content);
+    container.appendChild(notification);
+    
+    setTimeout(() => {
+      notification.style.opacity = '0';
+      notification.style.transition = 'opacity 0.5s ease';
+      setTimeout(() => {
+        if (container.contains(notification)) {
+          container.removeChild(notification);
+        }
+      }, 500);
+    }, 5000);
+  };
+
+  const toggleWeekly = (day: string) => {
+    setWeeklyOff((prev) => {
+      const next = new Set(prev);
+      if (next.has(day)) next.delete(day);
+      else next.add(day);
+      return next;
+    });
+  };
+
+  const toggleSite = (id: number) => {
+    setAssignedSiteIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+        // remove incharge if unassigned
+        setInchargeSiteIds((prevIncharge) => {
+          const ni = new Set(prevIncharge);
+          ni.delete(id);
+          return ni;
+        });
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleInchargeSite = (id: number) => {
+    if (!assignedSiteIds.has(id)) return;
+    setInchargeSiteIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const lookupIFSC = async () => {
+    const code = ifscCode.trim().toUpperCase();
+    const pattern = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+    if (!pattern.test(code)) {
+      setBankName("");
+      setBankBranch("");
+      return;
+    }
+    try {
+      const res = await fetch(`https://ifsc.razorpay.com/${code}`);
+      if (!res.ok) throw new Error("Invalid IFSC");
+      const data = await res.json();
+      setBankName((data as any).BANK || "");
+      setBankBranch((data as any).BRANCH || "");
+    } catch (_) {
+      setBankName("");
+      setBankBranch("");
+    }
+  };
+
+  const resetForm = () => {
+    setStep(1);
+    setFirstName("");
+    setLastName("");
+    setGender("");
+    setDob("");
+    setPhone("");
+    setEmail("");
+
+    setDepartmentId("");
+    setRoleId("");
+    setReportingManagerId("");
+    setDesignation("");
+    setWorkType("");
+    setStartDate("");
+    setAssignedSiteIds(new Set());
+    setInchargeSiteIds(new Set());
+    setAllowPunchFromHQ(false);
+    setSalaryType("");
+    setSalaryAmount("");
+    setYearlyPackage("");
+    setSalaryItems([]);
+    setBankAccountNo("");
+    setIfscCode("");
+    setBankName("");
+    setBankBranch("");
+    setPanNumber("");
+    setAadhaarNumber("");
+    setPfUan("");
+    setWeeklyOff(new Set());
+    setShiftStart("");
+    setShiftEnd("");
+    setIsFlexibleTime(false);
+    setFlexibleHours("");
+    setPolicyId("");
+  };
+
+  const openEdit = async (id: number) => {
+    if (!hasPerm("EMP_EDIT")) { 
+      setError("Not authorized to edit employees"); 
+      return; 
+    }
+    try {
+      setError("");
+      setValidationMessage("");
+      const data = await apiClient(`/organization/employees/${id}`, { method: "GET" });
+      resetForm();
+      setEditingEmployeeId(id);
+      setFirstName((data as any).first_name || "");
+      setLastName((data as any).last_name || "");
+      setGender((data as any).gender || "");
+      setDob(normalizeDateForInput((data as any).date_of_birth));
+      setPhone(((data as any).phone || "").replace(/\D/g, ""));
+      setEmail((data as any).email || "");
+      setDepartmentId((data as any).department_id || "");
+      setRoleId((data as any).role_id || "");
+      setReportingManagerId((data as any).reporting_manager_id || "");
+      setDesignation((data as any).designation || "");
+      setWorkType((data as any).work_type || "");
+      setStartDate(normalizeDateForInput((data as any).employment_start_date));
+      const sids = Array.isArray((data as any).site_ids) ? (data as any).site_ids : [];
+      setAssignedSiteIds(new Set(sids));
+      const siteArr = Array.isArray((data as any).sites) ? (data as any).sites : [];
+      const inchargeIds = siteArr.length
+        ? siteArr.filter((s: any) => !!s?.is_incharge).map((s: any) => Number(s.id)).filter((n: any) => Number.isFinite(n))
+        : (((data as any).incharge ? sids : []) as number[]);
+      setInchargeSiteIds(new Set(inchargeIds));
+      setAllowPunchFromHQ(!!(data as any).allow_punch_from_hq);
+      setShiftStart((data as any).shift_start_time || "");
+      setShiftEnd((data as any).shift_end_time || "");
+      setIsFlexibleTime(!!((data as any).flexible_time || false));
+      setFlexibleHours(((data as any).flexible_hours != null && !Number.isNaN(Number((data as any).flexible_hours))) ? String(Number((data as any).flexible_hours)) : "");
+      setPolicyId((data as any).attendance_policy_id || "");
+      setSalaryType((data as any).salary_type || "");
+      setSalaryAmount((data as any).salary_amount != null ? String(Number((data as any).salary_amount)) : "");
+      setYearlyPackage((data as any).yearly_package != null ? String(Number((data as any).yearly_package)) : "");
+      const sitems = Array.isArray((data as any).salary_breakdown)
+        ? (data as any).salary_breakdown.map((i: any) => ({ name: i.name, type: i.type, amount: Number(i.amount) }))
+        : [];
+      setSalaryItems(sitems);
+      const bd = (data as any).bank_details || {};
+      setBankAccountNo(bd.bank_account_no || "");
+      setIfscCode(bd.ifsc_code || "");
+      setBankName(bd.bank_name || "");
+      setBankBranch(bd.branch_name || "");
+      setPanNumber(bd.pan_number || "");
+      setAadhaarNumber(bd.aadhaar_number || "");
+      setPfUan(bd.pf_uan || "");
+      setWeeklyOff(new Set(Array.isArray((data as any).weekly_off_days) ? (data as any).weekly_off_days : []));
+      setStep(1);
+      setShowAdd(true);
+    } catch (e: any) {
+      setError(e?.message || "Failed to load employee details");
+    }
+  };
+
+  const fetchEmployees = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const params = new URLSearchParams();
+      params.set("format", "paginated");
+      params.set("page", String(page));
+      params.set("limit", String(pageSize));
+      
+      // Only HR Mode or OrgAdmin can filter by site
+      if (typeof filterSiteId === "number") {
+        params.set("site_id", String(filterSiteId));
+      }
+      
+      if (searchQuery.trim()) params.set("search", searchQuery.trim());
+      if (typeof filterDeptId === "number") params.set("department_id", String(filterDeptId));
+      if (typeof filterRoleId === "number") params.set("role_id", String(filterRoleId));
+
+      const data = await apiClient<{ items: Employee[]; total: number; page: number; limit: number; hasNext: boolean }>(`/organization/employees?${params.toString()}`, { method: "GET" });
+      const items = Array.isArray((data as any)?.items) ? (data as any).items : [];
+      setEmployees(items);
+      // Track server pagination meta for UI controls
+      const total = Number((data as any)?.total || 0);
+      setTotalEntries(total);
+    } catch (e: any) {
+      setEmployees([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch dropdowns on load
+  React.useEffect(() => {
+    fetchDropdowns().catch(() => {});
+  }, []);
+
+  // Initial load and reactive fetches
+  React.useEffect(() => {
+    fetchEmployees();
+  }, [page, pageSize, searchQuery, filterDeptId, filterRoleId, filterSiteId]);
+
+  const fetchDropdowns = async () => {
+    try {
+      const [deptData, roleData, sitesData, policyData] = await Promise.all([
+        apiClient<Department[]>("/organization/departments", { method: "GET" }).catch(() => []),
+        apiClient<Role[]>("/organization/roles", { method: "GET" }).catch(() => []),
+        apiClient<{ sites: any[] }>("/sites", { method: "GET" }).catch(() => ({ sites: [] })),
+        apiClient<AttendancePolicy[]>("/attendance/policies", { method: "GET" }).catch(() => []),
+      ]);
+      setDepartments(Array.isArray(deptData) ? deptData : []);
+      setRoles(Array.isArray(roleData) ? roleData : []);
+      const normalizedSites: Site[] = (sitesData.sites || []).map((s: any) => ({ id: s.id, name: s.name, code: s.code }));
+      setSites(normalizedSites);
+      setPolicies(Array.isArray(policyData) ? policyData : []);
+    } catch (_) {}
+  };
+
+  React.useEffect(() => {
+    fetchEmployees();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, filterDeptId, filterRoleId, filterSiteId, page, pageSize, statusFilter]);
+
+  React.useEffect(() => {
+    fetchDropdowns();
+  }, []);
+
+  const isValidEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
+  const isPersonalValid = () => {
+    return (
+      Boolean(firstName.trim()) &&
+      Boolean(lastName.trim()) &&
+      isValidEmail(email) &&
+      /^\d+$/.test(phone.trim())
+    );
+  };
+  const isJobValid = () => {
+    return Boolean(workType) && Boolean(startDate) && typeof departmentId === "number" && typeof roleId === "number";
+  };
+  const isAttendanceValid = () => {
+    if (weeklyOff.size === 0 || typeof policyId !== "number") return false;
+    if (isFlexibleTime) {
+      const hrs = Number(flexibleHours);
+      return Number.isFinite(hrs) && hrs > 0;
+    }
+    return Boolean(shiftStart) && Boolean(shiftEnd);
+  };
+  const isSalaryValid = () => {
+    const amt = Number(salaryAmount) || 0;
+    const total = salaryItems.reduce((t, i) => t + (Number(i.amount) || 0), 0);
+    return salaryItems.length > 0 && total === amt;
+  };
+
+  const next = () => {
+    if (step === 1 && !isPersonalValid()) { setValidationMessage("Please fill First Name, Last Name, and provide a valid Email and numeric Phone."); return; }
+    if (step === 2 && !isJobValid()) { setValidationMessage("Please select Department, Role, Work Type, and Employment Start Date."); return; }
+    if (step === 3 && !isAttendanceValid()) { setValidationMessage("Select Weekly Off Day(s), Shift Start/End, and a Policy."); return; }
+    if (step === 4 && !isSalaryValid()) { setValidationMessage("Enter Salary Type and Amount (ensure total breakdown equals amount)."); return; }
+    setValidationMessage("");
+    setStep((s) => Math.min(5, s + 1));
+  };
+  const back = () => setStep((s) => Math.max(1, s - 1));
+
+  const openView = async (id: number) => {
+    if (!hasPerm("EMP_VIEW")) { setError("Not authorized to view employees"); return; }
+    try {
+      setError("");
+      setViewLoading(true);
+      setShowView(true);
+      setViewData(null);
+      const data = await apiClient(`/organization/employees/${id}`, { method: "GET" });
+      setViewData(data);
+    } catch (e: any) {
+      setError(e?.message || "Failed to load employee details");
+    } finally {
+      setViewLoading(false);
+    }
+  };
+
+  const saveEmployee = async () => {
+    if (!hasPerm("EMP_ADD")) { 
+      setError("Not authorized to add employees"); 
+      return; 
+    }
+    const payload = {
+      first_name: firstName.trim(),
+      last_name: lastName.trim(),
+      gender: gender || null,
+      date_of_birth: dob || null,
+      phone: phone || null,
+      email: email.trim(),
+
+      department_id: typeof departmentId === "number" ? departmentId : null,
+      role_id: typeof roleId === "number" ? roleId : null,
+      reporting_manager_id: typeof reportingManagerId === "number" ? reportingManagerId : null,
+      designation: designation || null,
+      work_type: workType || null,
+      employment_start_date: startDate || null,
+      site_ids: Array.from(assignedSiteIds),
+      site_incharge_ids: Array.from(inchargeSiteIds),
+      site_assignments: Array.from(assignedSiteIds).map((id) => ({ site_id: id, is_incharge: inchargeSiteIds.has(id) })),
+      incharge: inchargeSiteIds.size > 0,
+      allow_punch_from_hq: allowPunchFromHQ,
+      salary_type: salaryType || null,
+      salary_amount: salaryAmount ? Number(salaryAmount) : null,
+      yearly_package: yearlyPackage ? Number(yearlyPackage) : null,
+      salary_breakdown: salaryItems.length ? salaryItems.map((si) => ({ name: si.name, type: si.type, amount: Number(si.amount) })) : [],
+      bank_account_no: bankAccountNo || null,
+      ifsc_code: ifscCode || null,
+      bank_name: bankName || null,
+      bank_branch: bankBranch || null,
+      pan_number: panNumber || null,
+      aadhaar_number: aadhaarNumber || null,
+      pf_uan: pfUan || null,
+      weekly_off_days: Array.from(weeklyOff),
+      flexible_time: isFlexibleTime,
+      flexible_hours: isFlexibleTime ? (flexibleHours ? Number(flexibleHours) : null) : null,
+      shift_start_time: isFlexibleTime ? null : (shiftStart || null),
+      shift_end_time: isFlexibleTime ? null : (shiftEnd || null),
+      attendance_policy_id: typeof policyId === "number" ? policyId : null,
+    };
+
+    try {
+      await apiClient("/organization/employees", { method: "POST", body: payload });
+      setShowAdd(false);
+      resetForm();
+      await fetchEmployees();
+      showNotification('Employee created successfully', 'success');
+    } catch (e: any) {
+      setError(e?.message || "Failed to save employee (endpoint may be unavailable)");
+      showNotification(e?.message || "Failed to save employee", 'error');
+    }
+  };
+
+  const updateEmployee = async () => {
+    if (!editingEmployeeId) return;
+    if (!hasPerm("EMP_EDIT")) { 
+      setError("Not authorized to edit employees"); 
+      return; 
+    }
+    const payload = {
+      first_name: firstName.trim(),
+      last_name: lastName.trim(),
+      gender: gender || null,
+      date_of_birth: dob || null,
+      phone: phone || null,
+      email: email.trim(),
+
+      department_id: typeof departmentId === "number" ? departmentId : null,
+      role_id: typeof roleId === "number" ? roleId : null,
+      reporting_manager_id: typeof reportingManagerId === "number" ? reportingManagerId : null,
+      designation: designation || null,
+      work_type: workType || null,
+      employment_start_date: startDate || null,
+      site_ids: Array.from(assignedSiteIds),
+      site_incharge_ids: Array.from(inchargeSiteIds),
+      site_assignments: Array.from(assignedSiteIds).map((id) => ({ site_id: id, is_incharge: inchargeSiteIds.has(id) })),
+      incharge: inchargeSiteIds.size > 0,
+      allow_punch_from_hq: allowPunchFromHQ,
+      salary_type: salaryType || null,
+      salary_amount: salaryAmount ? Number(salaryAmount) : null,
+      yearly_package: yearlyPackage ? Number(yearlyPackage) : null,
+      salary_breakdown: salaryItems.length ? salaryItems.map((si) => ({ name: si.name, type: si.type, amount: Number(si.amount) })) : [],
+      bank_account_no: bankAccountNo || null,
+      ifsc_code: ifscCode || null,
+      bank_name: bankName || null,
+      bank_branch: bankBranch || null,
+      pan_number: panNumber || null,
+      aadhaar_number: aadhaarNumber || null,
+      pf_uan: pfUan || null,
+      weekly_off_days: Array.from(weeklyOff),
+      flexible_time: isFlexibleTime,
+      flexible_hours: isFlexibleTime ? (flexibleHours ? Number(flexibleHours) : null) : null,
+      shift_start_time: isFlexibleTime ? null : (shiftStart || null),
+      shift_end_time: isFlexibleTime ? null : (shiftEnd || null),
+      attendance_policy_id: typeof policyId === "number" ? policyId : null,
+    };
+
+    try {
+      await apiClient(`/organization/employees/${editingEmployeeId}`, { method: "PUT", body: payload });
+      setShowAdd(false);
+      resetForm();
+      setEditingEmployeeId(null);
+      await fetchEmployees();
+      showNotification('Employee updated successfully', 'success');
+    } catch (e: any) {
+      setError(e?.message || "Failed to update employee");
+      showNotification(e?.message || "Failed to update employee", 'error');
+    }
+  };
+
+  const getStatusColor = (status: string = 'active') => {
+    switch (status) {
+      case 'active': return 'text-green-600 bg-green-50';
+      case 'inactive': return 'text-red-600 bg-red-50';
+      default: return 'text-gray-600 bg-gray-50';
+    }
+  };
+
+  const getStatusIcon = (status: string = 'active') => {
+    switch (status) {
+      case 'active': return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case 'inactive': return <AlertCircle className="w-4 h-4 text-red-500" />;
+      default: return <Clock className="w-4 h-4 text-gray-500" />;
+    }
+  };
+
+  const getWorkTypeColor = (workType: string = '') => {
+    switch (workType) {
+      case 'Full-time': return 'text-blue-600 bg-blue-50';
+      case 'Contract': return 'text-orange-600 bg-orange-50';
+      case 'Daily Wage': return 'text-purple-600 bg-purple-50';
+      case 'Intern': return 'text-green-600 bg-green-50';
+      default: return 'text-gray-600 bg-gray-50';
+    }
+  };
+
+  // Action Dropdown Component with improved positioning
+  const ActionDropdown = ({ employee }: { employee: Employee }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+        if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+          setIsOpen(false);
+        }
+      };
+
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }, []);
+
+    // Calculate if dropdown should open upwards
+    const getDropdownPosition = () => {
+      if (!dropdownRef.current) return {};
+      
+      const rect = dropdownRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const dropdownHeight = 160; // Approximate dropdown height
+      
+      if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
+        return { bottom: '100%', top: 'auto' };
+      }
+      return { top: '100%', bottom: 'auto' };
+    };
+
+    return (
+      <div className="relative" ref={dropdownRef}>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="p-2 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200"
+          disabled={actionLoading === String(employee.id)}
+        >
+          {actionLoading === String(employee.id) ? (
+            <RefreshCw className="w-4 h-4 animate-spin text-gray-400" />
+          ) : (
+            <MoreVertical className="w-4 h-4 text-gray-600" />
+          )}
+        </button>
+        
+        {isOpen && (
+          <div 
+            className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
+            style={getDropdownPosition()}
+          >
+            <div className="py-1">
+              <button
+                onClick={() => {
+                  openView(employee.id);
+                  setIsOpen(false);
+                }}
+                className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                <Eye className="w-4 h-4" />
+                <span>View Details</span>
+              </button>
+              
+              <button
+                onClick={() => {
+                  openEdit(employee.id);
+                  setIsOpen(false);
+                }}
+                className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                <Pencil className="w-4 h-4" />
+                <span>Edit</span>
+              </button>
+              
+              <div className="border-t border-gray-100 my-1" />
+              
+              <button
+                onClick={() => {
+                  deleteEmployee(employee.id);
+                  setIsOpen(false);
+                }}
+                className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Delete</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // View Employee Modal
+  const ViewEmployeeModal = () => {
+    if (!showView || !viewData) return null;
+    
+    return (
+      <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+        <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-semibold text-gray-900">Employee Details</h3>
+              <button
+                onClick={() => setShowView(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+          </div>
+          
+          <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+            {viewLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="w-8 h-8 animate-spin text-gray-400" />
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500">Personal Information</h4>
+                    <div className="mt-3 space-y-3">
+                      <div className="flex items-center space-x-3">
+                        <User className="w-4 h-4 text-gray-400" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            {`${viewData?.first_name || ""} ${viewData?.last_name || ""}`.trim() || "-"}
+                          </p>
+                          <p className="text-sm text-gray-500">Full Name</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <Mail className="w-4 h-4 text-gray-400" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{viewData?.email || "-"}</p>
+                          <p className="text-sm text-gray-500">Email</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <Phone className="w-4 h-4 text-gray-400" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{viewData?.phone || "-"}</p>
+                          <p className="text-sm text-gray-500">Phone</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500">Employment Details</h4>
+                    <div className="mt-3 space-y-3">
+                      <div className="flex items-center space-x-3">
+                        <Building className="w-4 h-4 text-gray-400" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            {departments.find(d => d.id === viewData?.department_id)?.name || "-"}
+                          </p>
+                          <p className="text-sm text-gray-500">Department</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <User className="w-4 h-4 text-gray-400" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            {roles.find(r => r.id === viewData?.role_id)?.name || "-"}
+                          </p>
+                          <p className="text-sm text-gray-500">Role</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <Calendar className="w-4 h-4 text-gray-400" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            {viewData?.employment_start_date ? new Date(viewData.employment_start_date).toLocaleDateString() : "-"}
+                          </p>
+                          <p className="text-sm text-gray-500">Start Date</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {Array.isArray(viewData?.site_ids) && viewData.site_ids.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500 mb-3">Assigned Sites</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {viewData.site_ids.map((siteId: number) => {
+                        const site = sites.find(s => s.id === siteId);
+                        return site ? (
+                          <span key={site.id} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            <MapPin className="w-3 h-3 mr-1" />
+                            {site.name}
+                          </span>
+                        ) : null;
+                      })}
+                    </div>
+                  </div>
+                )}
+                
+                {viewData?.designation && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500">Designation</h4>
+                    <p className="mt-1 text-sm text-gray-900">{viewData.designation}</p>
+                  </div>
+                )}
+                
+                {viewData?.work_type && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500">Work Type</h4>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getWorkTypeColor(viewData.work_type)} mt-1`}>
+                      {viewData.work_type}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          
+          <div className="p-6 border-t border-gray-200 flex justify-end space-x-3">
+            <button
+              onClick={() => {
+                setShowView(false);
+                openEdit(viewData.id);
+              }}
+              className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Edit Employee
+            </button>
+            <button
+              onClick={() => setShowView(false)}
+              className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Employee Management</h1>
+            <p className="text-gray-600 mt-1">Manage and monitor all employees</p>
+          </div>
+        </div>
+        
+        {/* Compact Stats Cards Skeleton */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+              <div className="animate-pulse">
+                <div className="h-3 bg-gray-200 rounded w-1/2 mb-2"></div>
+                <div className="h-5 bg-gray-200 rounded w-1/3"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Filters Skeleton */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+          <div className="animate-pulse">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-10 bg-gray-200 rounded"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Table Skeleton */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+          <div className="animate-pulse">
+            <div className="h-12 bg-gray-200"></div>
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-16 border-b border-gray-200"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Render modals */}
+      <ViewEmployeeModal />
+      
+      {/* Fixed Header Section */}
+      <div className="sticky top-0 z-30 bg-white pb-6 border-b border-gray-200">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Employee Management</h1>
+            <p className="text-gray-600 mt-1">Manage and monitor all employees</p>
+          </div>
+          <div className="flex items-center space-x-3">
+            {(hasPerm("EMP_ADD") || isOrgAdmin || isHRMode) && (
+              <button 
+                onClick={() => { resetForm(); setEditingEmployeeId(null); setShowAdd(true); }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Employee</span>
+              </button>
+            )}
+          </div>
+
+        </div>
+
+        {/* Compact Stats Cards - Single line layout */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm text-gray-700">
+                <span className="inline-block w-2 h-2 rounded-full bg-violet-500"></span> 
+                Total Employees
+              </div>
+              <div className="text-lg font-semibold">{totalEntries}</div>
+            </div>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm text-gray-700">
+                <span className="inline-block w-2 h-2 rounded-full bg-amber-500"></span> 
+                Departments
+              </div>
+              <div className="text-lg font-semibold">{departments.length}</div>
+            </div>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm text-gray-700">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span> 
+                Roles
+              </div>
+              <div className="text-lg font-semibold">{roles.length}</div>
+            </div>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm text-gray-700">
+                <span className="inline-block w-2 h-2 rounded-full bg-rose-500"></span> 
+                Sites
+              </div>
+              <div className="text-lg font-semibold">{sites.length}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Fixed Filters */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative w-full sm:w-auto sm:min-w-[220px]">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search employees..."
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+                className="pl-10 pr-3 py-1.5 text-sm w-full border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            <select
+              value={filterDeptId}
+              onChange={(e) => { const v = e.target.value; setFilterDeptId(v ? Number(v) : ""); setPage(1); }}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">All Departments</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+
+            <select
+              value={filterRoleId}
+              onChange={(e) => { const v = e.target.value; setFilterRoleId(v ? Number(v) : ""); setPage(1); }}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">All Roles</option>
+              {roles
+                .filter((r) => (typeof filterDeptId === "number" ? r.department_id === filterDeptId : true))
+                .map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+            </select>
+
+            <select
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+
+            <select
+                value={filterSiteId}
+                onChange={(e) => { const v = e.target.value; setFilterSiteId(v ? Number(v) : ""); setPage(1); }}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {isHRMode || isOrgAdmin ? <option value="">All Sites</option> : null}
+                {sites.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            
+
+            <button
+              onClick={() => { 
+                setFilterDeptId(""); 
+                setFilterRoleId(""); 
+                setFilterSiteId(""); 
+                setSearchQuery(""); 
+                setStatusFilter("all");
+                setPage(1); 
+              }}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center space-x-2"
+            >
+              <Filter className="w-4 h-4" />
+              <span>Reset Filters</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Scrollable Table Container */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+        <div className="overflow-x-auto max-h-[calc(100vh-400px)]">
+          <table className="w-full">
+            <thead className="bg-gray-50 sticky top-0 z-10">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {pageSlice.map((employee) => {
+                const deptName = departments.find((d) => d.id === employee.department_id)?.name || "-";
+                const roleName = roles.find((r) => r.id === employee.role_id)?.name || "-";
+                  
+                return (
+                  <tr key={employee.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {employee.first_name} {employee.last_name}
+                        </div>
+                        <div className="text-sm text-gray-500">{employee.email}</div>
+                        {employee.phone && (
+                          <div className="text-sm text-gray-500">{employee.phone}</div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-900">{deptName}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-900">{roleName}</div>
+                      {employee.designation && (
+                        <div className="text-sm text-gray-500">{employee.designation}</div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center space-x-2">
+                        {getStatusIcon(employee.status)}
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(employee.status)} capitalize`}>
+                          {employee.status || 'active'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <ActionDropdown employee={employee} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        
+        {filtered.length === 0 && (
+          <div className="text-center py-12">
+            <User className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No employees found</h3>
+            <p className="text-gray-500 mb-4">No employees match your current filters.</p>
+            {hasPerm("EMP_ADD") && (
+              <button 
+                onClick={() => { resetForm(); setEditingEmployeeId(null); setShowAdd(true); }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2 mx-auto">
+                <Plus className="w-4 h-4" />
+                <span>Add First Employee</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-gray-700">
+            Showing {pageStart + 1}-{Math.min(pageStart + pageSize, totalEntries || filtered.length)} of {totalEntries || filtered.length} employees
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setPage(Math.max(1, page - 1))}
+              disabled={page <= 1}
+              className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            
+            <div className="flex items-center space-x-1">
+              {[...Array(Math.min(5, totalPages))].map((_, i) => {
+                const pageNum = i + 1;
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setPage(pageNum)}
+                    className={`px-3 py-2 rounded-lg transition-colors ${
+                      page === pageNum
+                        ? 'bg-blue-600 text-white'
+                        : 'border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+            
+            <button
+              onClick={() => setPage(Math.min(totalPages, page + 1))}
+              disabled={page === totalPages}
+              className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit Employee Modal (existing code, kept as is) */}
+      {showAdd && (
+        <div className="fixed inset-0 bg-black/40 z-40 flex items-start justify-center p-4">
+          <div className="bg-white rounded shadow max-w-3xl w-full my-6 max-h-[80vh] overflow-y-auto">
+            <div className="border-b px-4 py-3 flex items-center justify-between">
+              <h3 className="text-base font-semibold">{isEditing ? "Edit Employee" : "Add Employee"}</h3>
+              <button onClick={() => setShowAdd(false)} className="text-gray-600 hover:text-gray-800 text-sm">Close</button>
+            </div>
+
+            <div className="px-4 py-4 my-6">
+              <div className="mb-4">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="px-2 py-1 rounded bg-gray-100">Step {step} / 5</span>
+                  <div className="text-gray-600">Fill all required details</div>
+                </div>
+                {validationMessage && (
+                  <div className="mt-2 text-sm text-red-600">{validationMessage}</div>
+                )}
+              </div>
+
+              {/* steps UI unchanged - keeping your existing form structure */}
+              {step === 1 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">First Name *</label>
+                    <input value={firstName} onChange={(e) => setFirstName(e.target.value)} className="w-full border rounded px-2 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Last Name *</label>
+                    <input value={lastName} onChange={(e) => setLastName(e.target.value)} className="w-full border rounded px-2 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Gender</label>
+                    <select value={gender} onChange={(e) => setGender(e.target.value)} className="w-full border rounded px-2 py-2">
+                      <option value="">Select</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Date of Birth</label>
+                    <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} className="w-full border rounded px-2 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Phone Number *</label>
+                    <input
+                      inputMode="numeric"
+                      pattern="^\\d*$"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                      className="w-full border rounded px-2 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Email *</label>
+                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full border rounded px-2 py-2" />
+                  </div>
+                </div>
+              )}
+
+              {step === 2 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Department *</label>
+                    <select
+                      value={departmentId}
+                      onChange={(e) => setDepartmentId(e.target.value ? Number(e.target.value) : "")}
+                      className="w-full border rounded px-2 py-2"
+                    >
+                      <option value="">Select Department</option>
+                      {departments.map((d) => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Role *</label>
+                    <select
+                      value={roleId}
+                      onChange={(e) => setRoleId(e.target.value ? Number(e.target.value) : "")}
+                      className="w-full border rounded px-2 py-2"
+                    >
+                      <option value="">Select Role</option>
+                      {roles
+                        .filter((r) => (typeof departmentId === "number" ? r.department_id === departmentId : true))
+                        .map((r) => (
+                          <option key={r.id} value={r.id}>{r.name}</option>
+                        ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Designation</label>
+                    <input value={designation} onChange={(e) => setDesignation(e.target.value)} className="w-full border rounded px-2 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Reporting Manager (optional)</label>
+                    <select
+                      value={reportingManagerId}
+                      onChange={(e) => setReportingManagerId(e.target.value ? Number(e.target.value) : "")}
+                      className="w-full border rounded px-2 py-2"
+                    >
+                      <option value="">None</option>
+                      {employees.map((emp) => {
+                        const deptName = departments.find((d) => d.id === emp.department_id)?.name || null;
+                        const roleName = roles.find((r) => r.id === emp.role_id)?.name || null;
+                        const name = `${emp.first_name} ${emp.last_name}`.trim();
+                        const label = [name, deptName, roleName, emp.designation || null].filter(Boolean).join(" | ");
+                        return (
+                          <option key={emp.id} value={emp.id}>{label}</option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Work Type *</label>
+                    <select value={workType} onChange={(e) => setWorkType(e.target.value)} className="w-full border rounded px-2 py-2">
+                      <option value="">Select</option>
+                      <option value="Full-time">Full-time</option>
+                      <option value="Contract">Contract</option>
+                      <option value="Daily Wage">Daily Wage</option>
+                      <option value="Intern">Intern</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Employment Start Date *</label>
+                    <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full border rounded px-2 py-2" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs text-gray-600 mb-2">Assigned Site(s)</label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {sites.map((s) => (
+                        <div key={s.id} className="flex items-center justify-between gap-2 text-sm">
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={assignedSiteIds.has(s.id)}
+                              onChange={() => toggleSite(s.id)}
+                            />
+                            <span>{s.name} ({s.code})</span>
+                          </label>
+                          <label className={`flex items-center gap-2 ${assignedSiteIds.has(s.id) ? '' : 'opacity-50'}`}>
+                            <input
+                              type="checkbox"
+                              disabled={!assignedSiteIds.has(s.id)}
+                              checked={inchargeSiteIds.has(s.id)}
+                              onChange={() => toggleInchargeSite(s.id)}
+                            />
+                            <span>Incharge</span>
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={allowPunchFromHQ} onChange={(e) => setAllowPunchFromHQ(e.target.checked)} />
+                      <span>Allow Punch from HQ</span>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {step === 3 && (
+                <section>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Weekly Off Day(s) *</label>
+                    <div className="flex flex-wrap gap-2">
+                      {weeklyDays.map((d) => (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => toggleWeekly(d)}
+                          className={`px-3 py-1 rounded border ${weeklyOff.has(d) ? "bg-blue-600 text-white" : "bg-white"}`}
+                        >
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs text-gray-600 mb-2">Flexible Time?</label>
+                    <div className="inline-flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={isFlexibleTime} onChange={(e) => setIsFlexibleTime(e.target.checked)} />
+                      <span>Enable flexible work hours instead of fixed shift</span>
+                    </div>
+                  </div>
+                  {isFlexibleTime ? (
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Flexible Work Hours *</label>
+                      <input
+                        type="number"
+                        min={1}
+                        placeholder="e.g., 8"
+                        value={flexibleHours}
+                        onChange={(e) => setFlexibleHours(e.target.value)}
+                        className="w-full border rounded px-2 py-2"
+                      />
+                      <div className="text-xs text-gray-500 mt-1">Specify required work hours per day.</div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Shift Timing Start *</label>
+                        <input type="time" value={shiftStart} onChange={(e) => setShiftStart(e.target.value)} className="w-full border rounded px-2 py-2" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Shift Timing End *</label>
+                        <input type="time" value={shiftEnd} onChange={(e) => setShiftEnd(e.target.value)} className="w-full border rounded px-2 py-2" />
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Leave & Attendance Policy *</label>
+                    <select value={policyId} onChange={(e) => setPolicyId(e.target.value ? Number(e.target.value) : "")} className="w-full border rounded px-2 py-2">
+                      <option value="">Select Policy</option>
+                      {policies.map((p) => (
+                        <option key={p.id} value={p.id}>{p.policy_name}</option>
+                      ))}
+                    </select>
+                  {selectedPolicy && (
+                    <div className="mt-2 text-xs text-gray-700 space-y-1">
+                      <div>
+                        <strong>Leaves Cycle:</strong> {selectedPolicy.leave_cycle || '—'}
+                      </div>
+
+                      {selectedPolicy.leave_cycle === 'monthly' ? (
+                        <>
+                          <div>
+                            <strong>Leave per Month:</strong> {selectedPolicy.max_leave_per_month || 0}
+                          </div>
+                          <div>
+                            <strong>Grace Period for Late Mark (minutes):</strong>{' '}
+                            {selectedPolicy.grace_period_minutes || 0}
+                          </div>
+                          <div>
+                            <strong>Late Logout Redeem Minutes:</strong>{' '}
+                            {selectedPolicy.late_logout_redeem_minutes || 0}
+                          </div>
+                        </>
+                      ) : selectedPolicy.leave_cycle === 'yearly' ? (
+                        <>
+                          <div>
+                            <strong>Total Annual Leaves:</strong> {selectedPolicy.total_annual_leaves || 0}
+                          </div>
+                          <div>
+                            <strong>Max Leave per Month:</strong> {selectedPolicy.max_leave_per_month || 0}
+                          </div>
+                          <div>
+                            <strong>Grace Period for Late Mark (minutes):</strong>{' '}
+                            {selectedPolicy.grace_period_minutes || 0}
+                          </div>
+                          <div>
+                            <strong>Late Logout Redeem Minutes:</strong>{' '}
+                            {selectedPolicy.late_logout_redeem_minutes || 0}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-gray-500 italic">No leave cycle defined.</div>
+                      )}
+                    </div>
+                  )}
+                  </div>
+                  </div>
+                </section>
+              )}
+
+              {step === 4 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Salary Type *</label>
+                    <select value={salaryType} onChange={(e) => setSalaryType(e.target.value)} className="w-full border rounded px-2 py-2">
+                      <option value="">Select</option>
+                      <option value="Monthly">Monthly</option>
+                      <option value="Daily">Daily</option>
+                      <option value="Hourly">Hourly</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Yearly Package</label>
+                    <input
+                      type="number"
+                      value={yearlyPackage}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setYearlyPackage(v);
+                        if (salaryType === "Monthly") {
+                          const y = Number(v);
+                          setSalaryAmount(y > 0 ? String(Math.round(y / 12)) : "");
+                        }
+                      }}
+                      className="w-full border rounded px-2 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Salary Amount *</label>
+                    <input type="number" value={salaryAmount} onChange={(e) => setSalaryAmount(e.target.value)} className="w-full border rounded px-2 py-2" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs text-gray-600 mb-1">Salary Breakdown *</label>
+                    <div className="space-y-2">
+                      {salaryItems.map((item, idx) => (
+                        <div key={idx} className="grid grid-cols-12 gap-2">
+                          <input
+                            placeholder="Item name"
+                            value={item.name}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setSalaryItems((prev) => {
+                                const next = [...prev];
+                                next[idx] = { ...next[idx], name: v };
+                                return next;
+                              });
+                            }}
+                            className="col-span-6 border rounded px-2 py-2"
+                          />
+                          <select
+                            value={item.type}
+                            onChange={(e) => {
+                              const v = e.target.value as "credit" | "debit";
+                              setSalaryItems((prev) => {
+                                const next = [...prev];
+                                next[idx] = { ...next[idx], type: v };
+                                return next;
+                              });
+                            }}
+                            className="col-span-3 border rounded px-2 py-2"
+                          >
+                            <option value="credit">Credit</option>
+                            <option value="debit">Debit</option>
+                          </select>
+                          <input
+                            type="number"
+                            placeholder="Amount"
+                            value={item.amount}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setSalaryItems((prev) => {
+                                const next = [...prev];
+                                next[idx] = { ...next[idx], amount: Number(v) };
+                                return next;
+                              });
+                            }}
+                            className="col-span-2 border rounded px-2 py-2"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSalaryItems((prev) => prev.filter((_, i) => i !== idx));
+                            }}
+                            className="col-span-1 border rounded px-1 py-1 text-xs"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => setSalaryItems((prev) => [...prev, { name: "", type: "credit", amount: 0 }])}
+                          className="text-xs px-2 py-1 border rounded"
+                        >
+                          Add item
+                        </button>
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        Total breakdown: {salaryItems.reduce((sum, i) => sum + (Number(i.amount) || 0), 0)} vs Amount: {Number(salaryAmount) || 0}
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Bank Account No.</label>
+                    <input value={bankAccountNo} onChange={(e) => setBankAccountNo(e.target.value)} className="w-full border rounded px-2 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">IFSC Code</label>
+                    <input value={ifscCode} onChange={(e) => setIfscCode(e.target.value.toUpperCase())} onBlur={lookupIFSC} className="w-full border rounded px-2 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Bank Name</label>
+                    <input value={bankName} disabled readOnly className="w-full border rounded px-2 py-2 bg-gray-100 cursor-not-allowed" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Branch</label>
+                    <input value={bankBranch} disabled readOnly className="w-full border rounded px-2 py-2 bg-gray-100 cursor-not-allowed" />
+                  </div>
+                </div>
+              )}
+
+              {step === 5 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">PAN Number</label>
+                    <input value={panNumber} onChange={(e) => setPanNumber(e.target.value)} className="w-full border rounded px-2 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Aadhaar Number</label>
+                    <input value={aadhaarNumber} onChange={(e) => setAadhaarNumber(e.target.value)} className="w-full border rounded px-2 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">PF UAN</label>
+                    <input value={pfUan} onChange={(e) => setPfUan(e.target.value)} className="w-full border rounded px-2 py-2" />
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-6 flex items-center justify-between">
+                <button onClick={back} className="px-3 py-2 text-sm rounded border">Back</button>
+                {step < 5 ? (
+                  <button onClick={next} className="px-3 py-2 text-sm bg-black text-white rounded hover:bg-gray-900">Continue</button>
+                ) : (
+                  <button
+                    onClick={isEditing ? updateEmployee : saveEmployee}
+                    disabled={isEditing ? !hasPerm("EMP_EDIT") : !hasPerm("EMP_ADD")}
+                    className="px-3 py-2 text-sm bg-black text-white rounded disabled:opacity-60 disabled:cursor-not-allowed hover:bg-gray-900"
+                  >
+                    {isEditing ? "Save Changes" : "Save Employee"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
