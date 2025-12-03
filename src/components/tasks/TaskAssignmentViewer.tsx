@@ -46,6 +46,58 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
   const [total, setTotal] = React.useState<number>(0);
   const [hasNext, setHasNext] = React.useState<boolean>(false);
 
+  const [showExportModal, setShowExportModal] = React.useState(false);
+  const [exportMode, setExportMode] = React.useState<'local' | 'email'>('local');
+  const [exportFrom, setExportFrom] = React.useState('');
+  const [exportTo, setExportTo] = React.useState('');
+  const [exportEmails, setExportEmails] = React.useState('');
+  const [exporting, setExporting] = React.useState(false);
+  const [toast, setToast] = React.useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  React.useEffect(() => { if (toast) { const t = setTimeout(() => setToast(null), 4000); return () => clearTimeout(t); } }, [toast]);
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => setToast({ message, type });
+
+  const doExport = async () => {
+    if (!exportFrom || !exportTo) { showToast('Please select From and To dates', 'error'); return; }
+    setExporting(true);
+    try {
+      if (exportMode === 'local') {
+        const base = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3002/api/v1';
+        const url = `${base}/tasks/${taskId}/assignments/export`;
+        const res = await fetch(url, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+          body: JSON.stringify({ mode: 'local', date_from: exportFrom, date_to: exportTo }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const blob = await res.blob();
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        const ct = res.headers.get('content-type') || '';
+        const ext = ct.includes('spreadsheetml') ? 'xlsx' : 'xls';
+        link.download = `task_${taskId}_assignments_${exportFrom}_${exportTo}.${ext}`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setShowExportModal(false);
+      } else {
+        const emails = exportEmails.split(',').map((s) => s.trim()).filter(Boolean);
+        if (!emails.length) { showToast('Please enter one or more emails', 'error'); setExporting(false); return; }
+        await apiClient(`/tasks/${taskId}/assignments/export`, {
+          method: 'POST',
+          withAuth: true,
+          body: { mode: 'email', date_from: exportFrom, date_to: exportTo, emails },
+        });
+        setShowExportModal(false);
+        showToast('Export will be sent by email', 'success');
+      }
+    } catch (e: any) {
+      showToast(e?.message || 'Export failed', 'error');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const load = React.useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -211,6 +263,13 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
               <span className="text-sm font-medium text-gray-700">{assignments.length} Assignments</span>
             </div>
+            <button
+              onClick={() => setShowExportModal(true)}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-900 text-white hover:bg-black transition-all duration-200 border border-gray-800"
+            >
+              <Download className="w-4 h-4" />
+              <span className="text-sm font-medium">Export</span>
+            </button>
             {loading && (
               <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-gray-200 shadow-sm">
                 <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
@@ -521,6 +580,60 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
           </div>
         </div>
       )}
+
+      {/* Export Modal */}
+      {showExportModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Export Assignments</h2>
+              <button onClick={() => setShowExportModal(false)} className="p-2 rounded-lg hover:bg-gray-100">
+                <X className="w-4 h-4 text-gray-600" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2">
+                  <input type="radio" name="exportMode" checked={exportMode === 'local'} onChange={() => setExportMode('local')} />
+                  <span className="text-sm text-gray-700">Download locally</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="radio" name="exportMode" checked={exportMode === 'email'} onChange={() => setExportMode('email')} />
+                  <span className="text-sm text-gray-700">Send by email</span>
+                </label>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">From</label>
+                  <input type="date" value={exportFrom} onChange={(e) => setExportFrom(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">To</label>
+                  <input type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                </div>
+              </div>
+              {exportMode === 'email' && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Emails (comma-separated)</label>
+                  <input type="text" value={exportEmails} onChange={(e) => setExportEmails(e.target.value)} placeholder="user@example.com, manager@example.com" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-2 sticky bottom-0 bg-white">
+              <button onClick={() => setShowExportModal(false)} className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+              <button onClick={doExport} disabled={exporting || !exportFrom || !exportTo} className={`px-4 py-2 rounded-lg ${(!exporting && exportFrom && exportTo) ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-400 text-gray-200'}`}>{exporting ? 'Exporting...' : 'Export'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-4 right-4 z-[60]">
+          <div className={`px-4 py-3 rounded-xl shadow-lg border text-sm ${toast.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : toast.type === 'error' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-gray-50 border-gray-200 text-gray-800'}`}> 
+            {toast.message}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -575,13 +688,13 @@ function SubmissionReadOnly({ data, approvals, expandedGps, setExpandedGps }: {
         {imgs.map((s, idx) => {
           const src = s.startsWith('http') ? s : (isDataUrl(s) ? s : decodeBase64(s));
           return (
-            <div key={idx} className="relative border border-gray-200 rounded-xl overflow-hidden bg-gray-50 hover:shadow-md transition-all duration-200">
+            <a key={idx} href={src} target="_blank" rel="noreferrer" className="relative border border-gray-200 rounded-xl overflow-hidden bg-gray-50 hover:shadow-md transition-all duration-200">
               <img 
                 src={src} 
                 className={`${isSignature ? 'object-contain h-32' : 'object-cover h-28'} w-full`} 
                 alt="Submission image" 
               />
-            </div>
+            </a>
           );
         })}
       </div>
@@ -650,9 +763,15 @@ function SubmissionReadOnly({ data, approvals, expandedGps, setExpandedGps }: {
     return (
       <div className="flex flex-wrap gap-1">
         {items.filter(Boolean).map((item, idx) => (
-          <span key={idx} className="inline-flex items-center px-2.5 py-1 bg-gray-100 text-gray-700 rounded-lg text-sm">
-            {item}
-          </span>
+          item.startsWith('http') ? (
+            <a key={idx} href={item} target="_blank" rel="noreferrer" className="inline-flex items-center px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-sm border border-indigo-200">
+              View {idx + 1}
+            </a>
+          ) : (
+            <span key={idx} className="inline-flex items-center px-2.5 py-1 bg-gray-100 text-gray-700 rounded-lg text-sm">
+              {item}
+            </span>
+          )
         ))}
       </div>
     );

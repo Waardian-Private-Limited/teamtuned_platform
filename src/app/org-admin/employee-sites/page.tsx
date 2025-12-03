@@ -19,16 +19,16 @@ export default function EmployeeSitesPage() {
           setRole((session.role || null) as string | null);
           setPermissions(session.employee?.permissions || []);
         }
-      } catch {}
+      } catch { }
       setLoading(false);
     })();
   }, []);
 
   const isEmployee = (role || "").toLowerCase() === "employee";
-  const hasPerm = (code: string) => !isEmployee || (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
+  const hasPerm = (...codes: string[]) => !isEmployee || codes.some(code => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase()));
 
   if (loading) return <div className="text-sm text-gray-600">Loading...</div>;
-  if (isEmployee && !hasPerm("EMPLOYEE_ASSIGN_SITE")) {
+  if (isEmployee && !hasPerm("EMPLOYEE_ASSIGN_SITE", "EMPSITE_VIEW")) {
     return <div className="text-sm text-red-600">You do not have permission to assign sites to employees.</div>;
   }
 

@@ -1,6 +1,8 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   TrendingUp,
   BarChart3,
@@ -56,7 +58,7 @@ const WIDGET_TYPES = {
   count: { label: "Count Card", icon: <Hash size={18} />, description: "Count of items" },
   sum: { label: "Sum Card", icon: <Hash size={18} />, description: "Sum of numeric values" },
   percentage: { label: "Percentage Card", icon: <TrendingUp size={18} />, description: "Percentage calculation" },
-  
+
   // Charts
   line: { label: "Line Chart", icon: <TrendingUp size={18} />, description: "Trend analysis over time" },
   area: { label: "Area Chart", icon: <Layers size={18} />, description: "Cumulative trends" },
@@ -68,11 +70,11 @@ const WIDGET_TYPES = {
   histogram: { label: "Histogram", icon: <BarChart3 size={18} />, description: "Distribution analysis" },
   scatter: { label: "Scatter Plot", icon: <TrendingUp size={18} />, description: "Correlation analysis" },
   bubble: { label: "Bubble Chart", icon: <TrendingUp size={18} />, description: "3D data visualization" },
-  
+
   // Data Views
   table: { label: "Data Table", icon: <FileText size={18} />, description: "Tabular data view" },
   gallery: { label: "Image Gallery", icon: <Image size={18} />, description: "Image collection view" },
-  
+
   // Specialized
   map: { label: "Map Clustering", icon: <MapPin size={18} />, description: "GPS data clustering" },
   heatmap: { label: "Calendar Heatmap", icon: <Calendar size={18} />, description: "Activity heatmap" },
@@ -109,6 +111,12 @@ const FILTER_OPERATORS = [
   { value: 'greaterThan', label: 'Greater Than' },
   { value: 'lessThan', label: 'Less Than' },
   { value: 'dateRange', label: 'Date Range' },
+];
+
+const SYSTEM_FIELDS = [
+  { id: 'sys_status', field_key: 'status', label: 'Submission Status', field_type: 'choice' },
+  { id: 'sys_submitted_at', field_key: 'submitted_at', label: 'Submission Date', field_type: 'datetime' },
+  { id: 'sys_submitted_by', field_key: 'submitted_by', label: 'Submitted By', field_type: 'text' },
 ];
 
 interface Widget {
@@ -150,12 +158,18 @@ interface Template {
 }
 
 export default function DashboardBuilder({
-  dashboardId,
+  dashboardId: propDashboardId,
   onBack,
+  readOnly: propReadOnly,
 }: {
   dashboardId?: string;
   onBack?: () => void;
+  readOnly?: boolean;
 }) {
+  const searchParams = useSearchParams();
+  const dashboardId = propDashboardId || searchParams.get("id");
+  const readOnly = propReadOnly || searchParams.get("mode") === "view";
+
   const [widgets, setWidgets] = React.useState<Widget[]>([]);
   const [selectedWidget, setSelectedWidget] = React.useState<string | null>(null);
   const [selectedTemplate, setSelectedTemplate] = React.useState<Template | null>(null);
@@ -181,12 +195,12 @@ export default function DashboardBuilder({
   const loadTemplates = async () => {
     try {
       const response = await apiClient<any>("/templates", { method: "GET", withAuth: true });
-      const templateData = response?.templates || [];
+      const templateData = Array.isArray(response) ? response : (response?.templates || []);
       setTemplates(templateData.map((t: any) => ({
-        id: t.id,
+        id: String(t.id),
         name: t.name,
         description: t.description,
-        fields: t.fields || []
+        fields: []
       })));
     } catch (error) {
       console.error("Failed to load templates:", error);
@@ -241,8 +255,20 @@ export default function DashboardBuilder({
     setDirty(true);
   };
 
-  const handleTemplateSelect = (template: Template) => {
-    setSelectedTemplate(template);
+  const handleTemplateSelect = async (template: Template) => {
+    try {
+      const res = await apiClient<any>(`/templates/${template.id}`, { method: "GET", withAuth: true });
+      const fields = (res?.fields || []).map((f: any) => ({
+        id: String(f.id),
+        field_key: String(f.field_key),
+        label: String(f.label || f.field_key),
+        field_type: String(f.field_type),
+        options: Array.isArray(f.options) ? f.options : []
+      }));
+      setSelectedTemplate({ ...template, fields });
+    } catch (e) {
+      setSelectedTemplate(template);
+    }
     setShowTemplateModal(false);
     setShowCanvasModal(true);
   };
@@ -262,7 +288,7 @@ export default function DashboardBuilder({
       const canvasRect = e.currentTarget.getBoundingClientRect();
       const newX = e.clientX - canvasRect.left - dragOffset.x;
       const newY = e.clientY - canvasRect.top - dragOffset.y;
-      
+
       updateWidget(draggedWidget, {
         position: { x: Math.max(0, newX), y: Math.max(0, newY) }
       });
@@ -275,16 +301,37 @@ export default function DashboardBuilder({
   };
 
   const getCompatibleFields = (widgetType: keyof typeof WIDGET_TYPES) => {
-    if (!selectedTemplate) return [];
-    return selectedTemplate.fields.filter(field => {
+    const allFields = [...(selectedTemplate?.fields || []), ...SYSTEM_FIELDS];
+    return allFields.filter(field => {
       const compatibleTypes = FIELD_COMPATIBILITY[field.field_type as keyof typeof FIELD_COMPATIBILITY] || [];
       return compatibleTypes.includes(widgetType);
     });
   };
 
+  const handleFieldDrop = (widgetId: string, fieldKey: string, target: 'xAxis' | 'yAxis' | 'value') => {
+    const widget = widgets.find(w => w.id === widgetId);
+    if (!widget) return;
+
+    const allFields = [...(selectedTemplate?.fields || []), ...SYSTEM_FIELDS];
+    const field = allFields.find(f => f.field_key === fieldKey);
+    const label = field?.label || fieldKey;
+
+    const newConfig = { ...widget.config };
+
+    if (target === 'xAxis') {
+      newConfig.xAxis = { field: fieldKey, label };
+    } else if (target === 'yAxis') {
+      newConfig.yAxis = { field: fieldKey, label };
+    } else if (target === 'value') {
+      newConfig.valueField = fieldKey;
+    }
+
+    updateWidget(widgetId, { config: newConfig });
+  };
+
   const fetchWidgetData = async (widget: Widget) => {
     if (!selectedTemplate) return;
-    
+
     try {
       const response = await apiClient(`/dashboards/widget-data`, {
         method: "POST",
@@ -295,7 +342,7 @@ export default function DashboardBuilder({
           config: widget.config
         }
       });
-      
+
       return response?.data || [];
     } catch (error) {
       console.error("Failed to fetch widget data:", error);
@@ -333,8 +380,8 @@ export default function DashboardBuilder({
   };
 
   const saveDashboard = async () => {
-    if (!dashboardName.trim() || !selectedTemplate) {
-      alert("Please provide a dashboard name and select a template");
+    if (!dashboardName.trim() || !dashboardDescription.trim() || !selectedTemplate) {
+      alert("Please provide a dashboard name, description, and select a template");
       return;
     }
 
@@ -368,7 +415,7 @@ export default function DashboardBuilder({
           body: dashboardData
         });
       }
-      
+
       setDirty(false);
       alert("Dashboard saved successfully!");
     } catch (error) {
@@ -379,103 +426,105 @@ export default function DashboardBuilder({
 
   return (
     <div className="h-screen w-full flex flex-col bg-slate-50">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200 shadow-sm">
-        <div className="flex items-center gap-4">
-          <button
-            className="flex items-center gap-2 px-4 py-2.5 text-slate-700 hover:bg-slate-100 rounded-lg transition-colors border border-slate-300"
-            onClick={() => {
-              if (dirty) {
-                if (confirm("You have unsaved changes. Are you sure you want to leave?")) {
+      {/* Header (hidden when builder or template is open) */}
+      {(!showTemplateModal && !showCanvasModal) && (
+        <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200 shadow-sm">
+          <div className="flex items-center gap-4">
+            <button
+              className="flex items-center gap-2 px-4 py-2.5 text-slate-700 hover:bg-slate-100 rounded-lg transition-colors border border-slate-300"
+              onClick={() => {
+                if (dirty) {
+                  if (confirm("You have unsaved changes. Are you sure you want to leave?")) {
+                    onBack?.();
+                  }
+                } else {
                   onBack?.();
                 }
-              } else {
-                onBack?.();
-              }
-            }}
-          >
-            <ChevronLeft size={18} />
-            Back
-          </button>
-          <div className="flex items-center gap-3">
-            <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-            <div className="text-lg font-semibold text-slate-900">Dashboard Builder</div>
-          </div>
-        </div>
-        
-        <button
-          className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-          onClick={createNewDashboard}
-        >
-          <Plus size={18} />
-          Create Dashboard
-        </button>
-      </div>
-
-      {/* Dashboards List */}
-      <div className="flex-1 overflow-auto p-6">
-        {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="text-slate-500">Loading dashboards...</div>
-          </div>
-        ) : dashboards.length === 0 ? (
-          <div className="border-2 border-dashed border-slate-300 rounded-2xl p-12 text-center bg-white">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-200 flex items-center justify-center">
-              <BarChart3 size={24} className="text-slate-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-slate-700 mb-2">No Dashboards Yet</h3>
-            <p className="text-slate-500 mb-6 max-w-md mx-auto">
-              Create your first dashboard to start visualizing your task data.
-            </p>
-            <button
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors mx-auto"
-              onClick={createNewDashboard}
+              }}
             >
-              <Plus size={18} />
-              Create First Dashboard
+              <ChevronLeft size={18} />
+              Back
             </button>
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+              <div className="text-lg font-semibold text-slate-900">Dashboard Builder</div>
+            </div>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {dashboards.map((dashboard) => (
-              <div key={dashboard.id} className="bg-white rounded-xl border border-slate-200 p-6 hover:shadow-lg transition-shadow">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-slate-900 mb-1">{dashboard.name}</h3>
-                    <p className="text-sm text-slate-600">{dashboard.description}</p>
+
+          <button
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            onClick={createNewDashboard}
+          >
+            <Plus size={18} />
+            Create Dashboard
+          </button>
+        </div>
+      )}
+
+      {/* Main Content */}
+      {!showTemplateModal && !showCanvasModal && (
+        <div className="flex-1 overflow-auto p-6">
+          {loading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-slate-500">Loading dashboards...</div>
+            </div>
+          ) : dashboards.length === 0 ? (
+            <div className="border-2 border-dashed border-slate-300 rounded-2xl p-12 text-center bg-white">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-200 flex items-center justify-center">
+                <BarChart3 size={24} className="text-slate-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-slate-700 mb-2">No Dashboards Yet</h3>
+              <p className="text-slate-500 mb-6 max-w-md mx-auto">
+                Create your first dashboard to start visualizing your task data.
+              </p>
+              <button
+                className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors mx-auto"
+                onClick={createNewDashboard}
+              >
+                <Plus size={18} />
+                Create First Dashboard
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {dashboards.map((dashboard) => (
+                <div key={dashboard.id} className="bg-white rounded-xl border border-slate-200 p-6 hover:shadow-lg transition-shadow">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-slate-900 mb-1">{dashboard.name}</h3>
+                      <p className="text-sm text-slate-600">{dashboard.description}</p>
+                    </div>
+                    <button
+                      className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+                      onClick={() => editDashboard(dashboard)}
+                    >
+                      <Settings size={16} />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between text-sm text-slate-500">
+                    <span>{dashboard.layout?.widgets?.length || 0} widgets</span>
+                    <span className="text-xs bg-slate-100 px-2 py-1 rounded">
+                      {templates.find(t => t.id === dashboard.template_id)?.name || 'Unknown Template'}
+                    </span>
                   </div>
                   <button
-                    className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+                    className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors"
                     onClick={() => editDashboard(dashboard)}
                   >
-                    <Settings size={16} />
+                    <Eye size={16} />
+                    View Dashboard
                   </button>
                 </div>
-                
-                <div className="flex items-center justify-between text-sm text-slate-500">
-                  <span>{dashboard.layout?.widgets?.length || 0} widgets</span>
-                  <span className="text-xs bg-slate-100 px-2 py-1 rounded">
-                    {templates.find(t => t.id === dashboard.template_id)?.name || 'Unknown Template'}
-                  </span>
-                </div>
-                
-                <button
-                  className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors"
-                  onClick={() => editDashboard(dashboard)}
-                >
-                  <Eye size={16} />
-                  View Dashboard
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* Canvas Modal */}
+      {/* Full-screen Canvas */}
       {showCanvasModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full h-full max-w-[95vw] max-h-[95vh] shadow-xl overflow-hidden flex flex-col">
+        <div className="flex-1 overflow-hidden p-0">
+          <div className="bg-white w-full h-full overflow-hidden flex flex-col">
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200 shadow-sm">
               <div className="flex items-center gap-4">
@@ -496,11 +545,11 @@ export default function DashboardBuilder({
                 </button>
                 <div className="flex items-center gap-3">
                   <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-                  <div className="text-lg font-semibold text-slate-900">
-                    {dashboardName || "Dashboard Builder"}
+                  <div className="text-lg font-semibold text-slate-900 truncate max-w-xs" title={dashboardName || "Untitled Dashboard"}>
+                    {dashboardName || "Untitled Dashboard"}
                   </div>
-                  {selectedTemplate && (
-                    <div className="text-sm text-slate-500">— {selectedTemplate.name}</div>
+                  {dashboardDescription && (
+                    <div className="text-sm text-slate-500 hidden md:block">— {dashboardDescription}</div>
                   )}
                 </div>
                 {dirty && (
@@ -510,75 +559,129 @@ export default function DashboardBuilder({
                   </div>
                 )}
               </div>
-              
+
               <div className="flex items-center gap-3">
-                <button
-                  className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition-colors"
-                  onClick={() => setShowTemplateModal(true)}
-                >
-                  <Settings size={18} />
-                  Change Template
-                </button>
-                
-                <button
-                  className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-                  onClick={saveDashboard}
-                >
-                  <Save size={18} />
-                  Save Dashboard
-                </button>
+                {!readOnly && (
+                  <>
+                    <button
+                      className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition-colors"
+                      onClick={() => setShowTemplateModal(true)}
+                    >
+                      <Settings size={18} />
+                      Change Template
+                    </button>
+
+                    <button
+                      className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                      onClick={saveDashboard}
+                    >
+                      <Save size={18} />
+                      Save Dashboard
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
             {/* Modal Content */}
             <div className="flex flex-1 overflow-hidden">
               {/* Left Sidebar - Fields Panel */}
-              <aside className="w-80 border-r border-slate-200 bg-white overflow-y-auto">
-                <div className="p-6 border-b border-slate-200">
-                  <h2 className="text-lg font-semibold text-slate-900 mb-2">Template Fields</h2>
-                  <p className="text-sm text-slate-600">Drag fields to widgets to configure data</p>
-                </div>
-                
-                {selectedTemplate ? (
-                  <div className="p-4 space-y-3">
-                    {selectedTemplate.fields.map((field) => (
-                      <div
-                        key={field.id}
-                        className="p-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition-colors cursor-move"
-                        draggable
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData("field/id", field.id);
-                          e.dataTransfer.setData("field/key", field.field_key);
-                          e.dataTransfer.setData("field/label", field.label);
-                          e.dataTransfer.setData("field/type", field.field_type);
-                        }}
-                      >
-                        <div className="flex items-center gap-3">
-                          <GripVertical size={16} className="text-slate-400" />
-                          <div className="flex-1">
-                            <div className="font-medium text-slate-900 text-sm">{field.label}</div>
-                            <div className="text-xs text-slate-500 capitalize">{field.field_type}</div>
-                          </div>
-                        </div>
+              {!readOnly && (
+                <aside className="w-80 border-r border-slate-200 bg-white overflow-y-auto">
+                  <div className="p-6 border-b border-slate-200">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-lg font-semibold text-slate-900 mb-1">Template Fields</h2>
+                        <p className="text-sm text-slate-600">Drag fields to widgets to configure data</p>
                       </div>
-                    ))}
+                      {selectedTemplate && (
+                        <a
+                          href={`/org-admin/form-builder?id=${encodeURIComponent(selectedTemplate.id)}&name=${encodeURIComponent(selectedTemplate.name)}&description=${encodeURIComponent(selectedTemplate.description || "")}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-sm px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700"
+                        >
+                          Open Form Builder
+                        </a>
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  <div className="p-8 text-center">
-                    <div className="text-sm text-slate-500">No template selected</div>
+
+                  <div className="p-4 space-y-6">
+                    {/* System Fields */}
+                    <div>
+                      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">System Fields</h3>
+                      <div className="space-y-2">
+                        {SYSTEM_FIELDS.map((field) => (
+                          <div
+                            key={field.id}
+                            className="p-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-white transition-colors cursor-move flex items-center gap-3 group"
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData("field/id", field.id);
+                              e.dataTransfer.setData("field/key", field.field_key);
+                              e.dataTransfer.setData("field/label", field.label);
+                              e.dataTransfer.setData("field/type", field.field_type);
+                            }}
+                          >
+                            <div className="p-1.5 rounded bg-slate-200 text-slate-600 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
+                              <Hash size={14} />
+                            </div>
+                            <div className="flex-1">
+                              <div className="font-medium text-slate-900 text-sm">{field.label}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Template Fields */}
+                    <div>
+                      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Form Fields</h3>
+                      {selectedTemplate ? (
+                        <div className="space-y-2">
+                          {selectedTemplate.fields.length === 0 ? (
+                            <div className="text-sm text-slate-500 italic">No fields available</div>
+                          ) : null}
+                          {selectedTemplate.fields.map((field) => (
+                            <div
+                              key={field.id}
+                              className="p-3 rounded-lg border border-slate-200 bg-white hover:border-blue-300 transition-colors cursor-move flex items-center gap-3 group"
+                              draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData("field/id", field.id);
+                                e.dataTransfer.setData("field/key", field.field_key);
+                                e.dataTransfer.setData("field/label", field.label);
+                                e.dataTransfer.setData("field/type", field.field_type);
+                              }}
+                            >
+                              <GripVertical size={16} className="text-slate-400 group-hover:text-blue-500" />
+                              <div className="flex-1">
+                                <div className="font-medium text-slate-900 text-sm">{field.label}</div>
+                                <div className="text-xs text-slate-500 capitalize">{field.field_type}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-slate-500 italic">No template selected</div>
+                      )}
+                    </div>
                   </div>
-                )}
-              </aside>
+                </aside>
+              )}
 
               {/* Center Canvas */}
-              <main 
+              <main
                 className="flex-1 overflow-auto p-6 bg-slate-100 relative"
                 onDrop={handleCanvasDrop}
                 onDragOver={handleCanvasDragOver}
               >
                 <div className="mb-6">
-                  <h2 className="text-xl font-semibold text-slate-900 mb-2">Dashboard Canvas</h2>
-                  <p className="text-sm text-slate-600">Drag widgets from the right sidebar to build your dashboard</p>
+                  <h2 className="text-xl font-semibold text-slate-900 mb-2">
+                    {readOnly ? dashboardName || "Dashboard" : "Dashboard Canvas"}
+                  </h2>
+                  {!readOnly && <p className="text-sm text-slate-600">Drag widgets from the right sidebar to build your dashboard</p>}
                 </div>
 
                 {widgets.length === 0 ? (
@@ -597,8 +700,8 @@ export default function DashboardBuilder({
                       <WidgetCard
                         key={widget.id}
                         widget={widget}
-                        isSelected={selectedWidget === widget.id}
-                        onSelect={() => setSelectedWidget(widget.id)}
+                        isSelected={selectedWidget === widget.id && !readOnly}
+                        onSelect={() => !readOnly && setSelectedWidget(widget.id)}
                         onRemove={() => removeWidget(widget.id)}
                         onConfigure={() => {
                           setConfigWidget(widget);
@@ -606,6 +709,8 @@ export default function DashboardBuilder({
                         }}
                         onDragStart={(e) => handleWidgetDragStart(e, widget.id)}
                         compatibleFields={getCompatibleFields(widget.type)}
+                        onFieldDrop={(fieldKey, target) => handleFieldDrop(widget.id, fieldKey, target)}
+                        readOnly={readOnly}
                       />
                     ))}
                   </div>
@@ -618,7 +723,7 @@ export default function DashboardBuilder({
                   <h2 className="text-lg font-semibold text-slate-900 mb-2">Widget Library</h2>
                   <p className="text-sm text-slate-600">Drag widgets to the canvas</p>
                 </div>
-                
+
                 <div className="p-4 space-y-6">
                   {/* KPI Cards */}
                   <div className="space-y-3">
@@ -727,23 +832,23 @@ export default function DashboardBuilder({
                           onClick={() => addWidget(type as keyof typeof WIDGET_TYPES)}
                           draggable
                           onDragStart={(e) => {
-                          e.dataTransfer.setData("widget/type", type);
-                        }}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-orange-100 text-orange-600">
-                            {WIDGET_TYPES[type as keyof typeof WIDGET_TYPES].icon}
-                          </div>
-                          <div className="flex-1">
-                            <div className="font-medium text-slate-900 text-sm">
-                              {WIDGET_TYPES[type as keyof typeof WIDGET_TYPES].label}
+                            e.dataTransfer.setData("widget/type", type);
+                          }}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-orange-100 text-orange-600">
+                              {WIDGET_TYPES[type as keyof typeof WIDGET_TYPES].icon}
                             </div>
-                            <div className="text-xs text-slate-500">
-                              {WIDGET_TYPES[type as keyof typeof WIDGET_TYPES].description}
+                            <div className="flex-1">
+                              <div className="font-medium text-slate-900 text-sm">
+                                {WIDGET_TYPES[type as keyof typeof WIDGET_TYPES].label}
+                              </div>
+                              <div className="text-xs text-slate-500">
+                                {WIDGET_TYPES[type as keyof typeof WIDGET_TYPES].description}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </button>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -754,10 +859,10 @@ export default function DashboardBuilder({
         </div>
       )}
 
-      {/* Template Selection Modal */}
+      {/* Full-screen Template Selection */}
       {showTemplateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full shadow-xl max-h-[80vh] overflow-y-auto">
+        <div className="flex-1 overflow-auto p-6">
+          <div className="bg-white rounded-2xl p-6 w-full shadow-sm">
             <div className="mb-6">
               <h2 className="text-2xl font-semibold text-slate-900 mb-2">Create New Dashboard</h2>
               <p className="text-slate-600">Select a task template and configure your dashboard</p>
@@ -773,7 +878,7 @@ export default function DashboardBuilder({
                   placeholder="Enter dashboard name"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Description</label>
                 <textarea
@@ -792,18 +897,15 @@ export default function DashboardBuilder({
                 {templates.map((template) => (
                   <button
                     key={template.id}
-                    className={`p-4 rounded-xl border-2 text-left transition-all ${
-                      selectedTemplate?.id === template.id
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-slate-200 hover:border-slate-300 bg-white"
-                    }`}
+                    className={`p-4 rounded-xl border-2 text-left transition-all ${selectedTemplate?.id === template.id
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-slate-200 hover:border-slate-300 bg-white"
+                      }`}
                     onClick={() => handleTemplateSelect(template)}
                   >
                     <div className="font-semibold text-slate-900 mb-1">{template.name}</div>
                     <div className="text-sm text-slate-600 mb-2">{template.description}</div>
-                    <div className="text-xs text-slate-500">
-                      {template.fields.length} fields
-                    </div>
+                    <div className="text-xs text-slate-500">{template.fields.length ? `${template.fields.length} fields` : `Select to load fields`}</div>
                   </button>
                 ))}
               </div>
@@ -824,7 +926,7 @@ export default function DashboardBuilder({
               <button
                 className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={() => setShowTemplateModal(false)}
-                disabled={!selectedTemplate || !dashboardName.trim()}
+                disabled={!selectedTemplate || !dashboardName.trim() || !dashboardDescription.trim()}
               >
                 Create Dashboard
               </button>
@@ -862,6 +964,8 @@ const WidgetCard = ({
   onConfigure,
   onDragStart,
   compatibleFields,
+  onFieldDrop,
+  readOnly,
 }: {
   widget: Widget;
   isSelected: boolean;
@@ -870,7 +974,45 @@ const WidgetCard = ({
   onConfigure: () => void;
   onDragStart: (e: React.DragEvent) => void;
   compatibleFields: Field[];
+  onFieldDrop: (fieldKey: string, target: 'xAxis' | 'yAxis' | 'value') => void;
+  readOnly?: boolean;
 }) => {
+  const [dragOverZone, setDragOverZone] = React.useState<'xAxis' | 'yAxis' | 'value' | null>(null);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const width = rect.width;
+    const height = rect.height;
+
+    // Define zones
+    // Bottom 20% -> X Axis
+    // Left 20% -> Y Axis
+    // Center -> Value
+
+    if (y > height * 0.8) {
+      setDragOverZone('xAxis');
+    } else if (x < width * 0.2) {
+      setDragOverZone('yAxis');
+    } else {
+      setDragOverZone('value');
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const fieldKey = e.dataTransfer.getData("field/key");
+    if (fieldKey && dragOverZone) {
+      onFieldDrop(fieldKey, dragOverZone);
+    }
+    setDragOverZone(null);
+  };
+
   const renderChart = () => {
     if (!widget.data || widget.data.length === 0) {
       return (
@@ -899,10 +1041,10 @@ const WidgetCard = ({
             </div>
             <div className="text-sm text-slate-600 text-center">
               {widget.config.aggregation === 'count' ? 'Total Count' :
-               widget.config.aggregation === 'sum' ? 'Total Sum' :
-               widget.config.aggregation === 'avg' ? 'Average' :
-               widget.config.aggregation === 'min' ? 'Minimum' :
-               widget.config.aggregation === 'max' ? 'Maximum' : 'Value'}
+                widget.config.aggregation === 'sum' ? 'Total Sum' :
+                  widget.config.aggregation === 'avg' ? 'Average' :
+                    widget.config.aggregation === 'min' ? 'Minimum' :
+                      widget.config.aggregation === 'max' ? 'Maximum' : 'Value'}
             </div>
           </div>
         );
@@ -958,7 +1100,7 @@ const WidgetCard = ({
                 outerRadius={80}
                 innerRadius={widget.type === 'donut' ? 40 : 0}
                 dataKey="value"
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                label={(entry) => `${String(entry?.name ?? 'Unknown')} ${(((entry?.percent ?? 0) * 100)).toFixed(0)}%`}
               >
                 {chartData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={`hsl(${index * 45}, 70%, 60%)`} />
@@ -1017,9 +1159,8 @@ const WidgetCard = ({
 
   return (
     <div
-      className={`absolute group cursor-move ${
-        isSelected ? "ring-2 ring-blue-500" : ""
-      }`}
+      className={`absolute group cursor-move ${isSelected ? "ring-2 ring-blue-500" : ""
+        }`}
       style={{
         left: widget.position.x,
         top: widget.position.y,
@@ -1027,10 +1168,10 @@ const WidgetCard = ({
         height: widget.size.height,
       }}
       onClick={onSelect}
-      draggable
+      draggable={!readOnly}
       onDragStart={onDragStart}
     >
-      <div className="h-full bg-white rounded-lg shadow-lg border border-slate-200 overflow-hidden">
+      <div className={`h-full bg-white rounded-lg shadow-lg border border-slate-200 overflow-hidden ${readOnly ? 'hover:shadow-md transition-shadow' : ''}`}>
         {/* Widget Header */}
         <div className="flex items-center justify-between p-3 bg-slate-50 border-b border-slate-200">
           <div className="flex items-center gap-2">
@@ -1039,34 +1180,63 @@ const WidgetCard = ({
             </div>
             <span className="font-medium text-slate-900 text-sm">{widget.title}</span>
           </div>
-          
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              className="p-1 text-slate-400 hover:text-blue-600 transition-colors"
-              onClick={(e) => {
-                e.stopPropagation();
-                onConfigure();
-              }}
-              title="Configure"
-            >
-              <Settings size={14} />
-            </button>
-            <button
-              className="p-1 text-slate-400 hover:text-red-500 transition-colors"
-              onClick={(e) => {
-                e.stopPropagation();
-                onRemove();
-              }}
-              title="Delete"
-            >
-              <Trash2 size={14} />
-            </button>
-          </div>
+
+          {!readOnly && (
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                className="p-1 text-slate-400 hover:text-blue-600 transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onConfigure();
+                }}
+                title="Configure"
+              >
+                <Settings size={14} />
+              </button>
+              <button
+                className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemove();
+                }}
+                title="Delete"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Widget Content */}
-        <div className="h-full" style={{ height: 'calc(100% - 48px)' }}>
+        <div
+          className="h-full relative"
+          style={{ height: 'calc(100% - 48px)' }}
+          onDragOver={handleDragOver}
+          onDragLeave={() => setDragOverZone(null)}
+          onDrop={handleDrop}
+        >
           {renderChart()}
+
+          {/* Drop Zones Overlay */}
+          {dragOverZone && !readOnly && (
+            <div className="absolute inset-0 bg-blue-50/50 pointer-events-none z-10">
+              {dragOverZone === 'xAxis' && (
+                <div className="absolute bottom-0 left-0 right-0 h-[20%] bg-blue-500/20 border-t-2 border-blue-500 flex items-center justify-center text-blue-700 font-semibold">
+                  Set X-Axis
+                </div>
+              )}
+              {dragOverZone === 'yAxis' && (
+                <div className="absolute top-0 left-0 bottom-0 w-[20%] bg-blue-500/20 border-r-2 border-blue-500 flex items-center justify-center text-blue-700 font-semibold writing-mode-vertical">
+                  Set Y-Axis
+                </div>
+              )}
+              {dragOverZone === 'value' && (
+                <div className="absolute inset-[20%] bg-blue-500/20 border-2 border-blue-500 flex items-center justify-center text-blue-700 font-semibold">
+                  Set Value
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1127,24 +1297,27 @@ const WidgetConfigModal = ({
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-semibold text-slate-900 mb-3">Data Configuration</h3>
-              
+
               {/* X-Axis Configuration */}
               {['line', 'area', 'bar', 'bar_horizontal', 'stacked', 'scatter', 'bubble', 'histogram'].includes(widget.type) && (
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">X-Axis Field</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Group By (X-Axis)
+                    <span className="block text-xs text-slate-500 font-normal mt-0.5">Select the field to group your data by (e.g. Date, Employee, Department)</span>
+                  </label>
                   <select
                     className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     value={config.xAxis?.field || ""}
                     onChange={(e) => {
                       const field = e.target.value;
-                      const fieldData = template.fields.find(f => f.field_key === field);
+                      const fieldData = template.fields.find(f => f.field_key === field) || SYSTEM_FIELDS.find(f => f.field_key === field);
                       setConfig(prev => ({
                         ...prev,
                         xAxis: { field, label: fieldData?.label || field }
                       }));
                     }}
                   >
-                    <option value="">Select X-Axis field</option>
+                    <option value="">Select grouping field</option>
                     {compatibleFields.map(field => (
                       <option key={field.field_key} value={field.field_key}>
                         {field.label} ({field.field_type})
@@ -1157,13 +1330,16 @@ const WidgetConfigModal = ({
               {/* Y-Axis Configuration */}
               {['line', 'area', 'bar', 'bar_horizontal', 'stacked', 'scatter', 'bubble', 'histogram', 'kpi', 'sum', 'count', 'percentage'].includes(widget.type) && (
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Y-Axis / Value Field</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Measure (Y-Axis)
+                    <span className="block text-xs text-slate-500 font-normal mt-0.5">Select the value you want to measure</span>
+                  </label>
                   <select
                     className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     value={config.yAxis?.field || config.valueField || ""}
                     onChange={(e) => {
                       const field = e.target.value;
-                      const fieldData = template.fields.find(f => f.field_key === field);
+                      const fieldData = template.fields.find(f => f.field_key === field) || SYSTEM_FIELDS.find(f => f.field_key === field);
                       if (['line', 'area', 'bar', 'bar_horizontal', 'stacked', 'scatter', 'bubble', 'histogram'].includes(widget.type)) {
                         setConfig(prev => ({
                           ...prev,
@@ -1188,7 +1364,7 @@ const WidgetConfigModal = ({
               )}
 
               {/* Aggregation */}
-              {['kpi', 'sum', 'count', 'percentage'].includes(widget.type) && (
+              {['kpi', 'sum', 'count', 'percentage', 'bar', 'bar_horizontal', 'line', 'area', 'pie', 'donut'].includes(widget.type) && (
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-slate-700 mb-2">Aggregation</label>
                   <select
@@ -1196,11 +1372,41 @@ const WidgetConfigModal = ({
                     value={config.aggregation || "count"}
                     onChange={(e) => setConfig(prev => ({ ...prev, aggregation: e.target.value as any }))}
                   >
-                    <option value="count">Count</option>
-                    <option value="sum">Sum</option>
-                    <option value="avg">Average</option>
-                    <option value="min">Minimum</option>
-                    <option value="max">Maximum</option>
+                    <option value="count">Count of Responses</option>
+
+                    {/* Show numeric aggregations only if field is numeric */}
+                    {(() => {
+                      const fieldKey = config.yAxis?.field || config.valueField;
+                      const field = template.fields.find(f => f.field_key === fieldKey);
+                      if (field?.field_type === 'numeric') {
+                        return (
+                          <>
+                            <option value="sum">Sum</option>
+                            <option value="avg">Average</option>
+                            <option value="min">Minimum</option>
+                            <option value="max">Maximum</option>
+                          </>
+                        );
+                      }
+                      return null;
+                    })()}
+
+                    {/* Show Yes/No aggregations if field is toggle/choice */}
+                    {(() => {
+                      const fieldKey = config.yAxis?.field || config.valueField;
+                      const field = template.fields.find(f => f.field_key === fieldKey);
+                      if (field?.field_type === 'toggle' || field?.field_type === 'choice') {
+                        return (
+                          <>
+                            <option value="count_yes">Count of Yes/Checked</option>
+                            <option value="count_no">Count of No/Unchecked</option>
+                            <option value="percentage_yes">% Yes/Checked</option>
+                            <option value="percentage_no">% No/Unchecked</option>
+                          </>
+                        );
+                      }
+                      return null;
+                    })()}
                   </select>
                 </div>
               )}
@@ -1211,7 +1417,7 @@ const WidgetConfigModal = ({
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-semibold text-slate-900 mb-3">Filters</h3>
-              
+
               <div className="space-y-3 mb-4">
                 {config.filters?.map((filter, index) => (
                   <div key={index} className="p-3 bg-slate-50 rounded-lg border border-slate-200">
@@ -1249,7 +1455,7 @@ const WidgetConfigModal = ({
                       </option>
                     ))}
                   </select>
-                  
+
                   <select
                     className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
                     value={newFilter.operator}
@@ -1259,7 +1465,7 @@ const WidgetConfigModal = ({
                       <option key={op.value} value={op.value}>{op.label}</option>
                     ))}
                   </select>
-                  
+
                   <input
                     type="text"
                     className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
@@ -1267,7 +1473,7 @@ const WidgetConfigModal = ({
                     value={newFilter.value}
                     onChange={(e) => setNewFilter(prev => ({ ...prev, value: e.target.value }))}
                   />
-                  
+
                   <button
                     className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded px-3 py-2 text-sm transition-colors"
                     onClick={addFilter}

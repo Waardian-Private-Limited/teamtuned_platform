@@ -1,503 +1,621 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Home,
-  ChevronDown,
-  ChevronRight,
-  LogOut,
-  Menu,
-  Users,
-  Building2,
-  Building,
-  MapPin,
-  Calendar,
-  UserCog,
-  Wallet,
-  BarChart3,
+    Home,
+    ChevronDown,
+    ChevronRight,
+    LogOut,
+    Menu,
+    Users,
+    Building2,
+    Building,
+    MapPin,
+    Calendar,
+    UserCog,
+    Wallet,
+    BarChart3,
+    LayoutDashboard,
+    Package,
+    FileText,
+    X,
+    Shield,
+    DollarSign,
+    Clock,
+    CheckSquare,
+    AlertCircle,
+    Settings,
+    TrendingUp,
+    ClipboardList,
+    UserCheck,
+    Briefcase,
+    Heart,
+    ListChecks,
+    LayoutGrid,
+    ArrowUpCircle,
+    Receipt,
+    Cog,
 } from "lucide-react";
+import { apiClient } from "@/lib/apiClient";
 
 export default function OrgSidebar({
-  isCollapsed,
-  setIsCollapsed,
-  orgName,
-  orgLogoUrl,
-  features,
-  role,
-  permissions,
-  onLogout,
+    isCollapsed,
+    setIsCollapsed,
+    orgName,
+    orgLogoUrl,
+    onLogout,
+    permissions,
+    role,
 }: {
-  isCollapsed: boolean;
-  setIsCollapsed: (val: boolean) => void;
-  orgName?: string | null;
-  orgLogoUrl?: string | null;
-  features?: { id: number; code: string; name: string }[];
-  role?: string | null;
-  permissions?: string[];
-  onLogout: () => void;
+    isCollapsed: boolean;
+    setIsCollapsed: (val: boolean) => void;
+    orgName?: string | null;
+    orgLogoUrl?: string | null;
+    onLogout: () => void;
+    permissions?: string[];
+    role?: string | null;
 }) {
-  const pathname = usePathname();
-  const [mainOpen, setMainOpen] = React.useState(true);
-  const [managementOpen, setManagementOpen] = React.useState(true);
-  const [walletOpen, setWalletOpen] = React.useState(true);
-  const [taskOpen, setTaskOpen] = React.useState(true);
+    const pathname = usePathname();
+    const [mainOpen, setMainOpen] = React.useState(true);
+    const [inventoryOpen, setInventoryOpen] = React.useState(false);
+    const [masterDataOpen, setMasterDataOpen] = React.useState(false);
+    const [coreOpen, setCoreOpen] = React.useState(false);
+    const [transactionsOpen, setTransactionsOpen] = React.useState(false);
+    const [walletOpen, setWalletOpen] = React.useState(false);
+    const [taskOpen, setTaskOpen] = React.useState(false);
+    const [insuranceOpen, setInsuranceOpen] = React.useState(false);
+    const [salaryAdvanceOpen, setSalaryAdvanceOpen] = React.useState(false);
+    const [dashboardOpen, setDashboardOpen] = React.useState(false);
+    const [managementOpen, setManagementOpen] = React.useState(false);
+    const [dashboards, setDashboards] = React.useState<any[]>([]);
 
-  // ✅ Log all allowed features
-  useEffect(() => {
-    console.group("✅ Allowed Features for this Organization");
-    if (features && features.length > 0) {
-      features.forEach((f) => {
-        console.log(`• ${f.code} — ${f.name}`);
-      });
-    } else {
-      console.log("No features assigned to this organization.");
-    }
-    console.groupEnd();
-  }, [features]);
+    React.useEffect(() => {
+        const fetchDashboards = async () => {
+            try {
+                const response = await apiClient<any>('/dashboards', { method: 'GET', withAuth: true });
+                setDashboards(response?.dashboards || []);
+            } catch (error) {
+                console.error("Failed to fetch dashboards:", error);
+            }
+        };
+        fetchDashboards();
+    }, []);
 
-  const hasFeature = (code: string) => {
-    const lc = code.toLowerCase();
-    return (features || []).some((f) => (f.code || "").toLowerCase() === lc);
-  };
-  const isEmployee = (role || "") === "Employee";
-  const hasPerm = (code: string) => {
-    const lc = code.toLowerCase();
-    return (permissions || []).some((p) => (p || "").toLowerCase() === lc);
-  };
-
-  const Item = ({
-    icon: Icon,
-    label,
-    href,
-    active,
-  }: {
-    icon: React.ComponentType<{ size?: number; className?: string }>;
-    label: string;
-    href: string;
-    active: boolean;
-  }) => (
-    <Link
-      href={href}
-      className={`group flex items-center gap-3 w-full px-2.5 py-2 rounded-lg transition-all duration-150 ${
-        active
-          ? "bg-indigo-50 ring-1 ring-indigo-100"
-          : "hover:bg-slate-100"
-      }`}
-      title={label}
-      aria-current={active ? "page" : undefined}
-    >
-      <Icon
-        size={18}
-        className={`shrink-0 ${active ? "text-indigo-600" : "text-slate-700"}`}
-      />
-      {!isCollapsed && (
-        <span
-          className={`text-sm font-medium truncate ${
-            active ? "text-indigo-700" : "text-slate-800"
-          }`}
+    const Item = ({
+        icon: Icon,
+        label,
+        href,
+        active,
+    }: {
+        icon: React.ComponentType<{ size?: number; className?: string }>;
+        label: string;
+        href: string;
+        active: boolean;
+    }) => (
+        <Link
+            href={href}
+            className={`group flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-all duration-200 ${active
+                ? "bg-black text-white font-medium shadow-md"
+                : "text-black hover:bg-gray-100"
+                }`}
+            title={isCollapsed ? label : undefined}
         >
-          {label}
-        </span>
-      )}
-    </Link>
-  );
-
-  const dashboardPath = role === "OrgAdmin" ? "/org-admin" : "/employee";
-  const showEmployeeManagement = (isEmployee ? hasPerm("EMPLOYEE_VIEW") : true) && hasFeature("payroll_system");
-  const canViewSites = isEmployee ? hasPerm("SITE_VIEW") : true;
-  const canViewDepartments = isEmployee ? hasPerm("DEPT_VIEW") : true;
-  const canViewRoles = isEmployee ? hasPerm("ROLE_VIEW") : true;
-  const canViewPolicies = isEmployee ? hasPerm("POLICY_VIEW") : true;
-  const canViewAttendanceConfig = (role || "") === "OrgAdmin";
-  const canAssignEmployeeSites = isEmployee ? hasPerm("EMPLOYEE_ASSIGN_SITE") : true;
-  const canViewWallet = (role || "") === "OrgAdmin";
-  const canViewEmployeeAttendance = (role || "") === "OrgAdmin" || hasPerm("ATTEND_VIEW") || hasPerm("ATTEND_ADD") || hasPerm("ATTEND_EDIT");
-  const canViewVerificationIssues = (role || "") === "OrgAdmin" || hasPerm("ATTVERIFY_VIEW") || hasPerm("ATTVERIFY_APPROVE");
-  const canViewFormBuilder = (role || "") === "OrgAdmin";
-  const showTask = canViewFormBuilder;
-
-  return (
-    <aside
-      className={`h-screen border-r border-slate-200 bg-white ${
-        isCollapsed ? "w-16" : "w-64"
-      } flex flex-col justify-between overflow-y-auto shadow-sm`}
-    >
-      <div>
-        <div className="flex items-center justify-between p-3 border-b border-slate-200 bg-white/70 backdrop-blur">
-          {!isCollapsed && (
-            <div className="flex items-center gap-3">
-              {orgLogoUrl ? (
-                <img
-                  src={orgLogoUrl}
-                  alt="Org Logo"
-                  className="w-8 h-8 rounded-md object-cover shadow-sm"
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-md bg-slate-200" />
-              )}
-              <span
-                className="text-sm font-semibold text-slate-900 truncate"
-                title={orgName || "Organization"}
-              >
-                {orgName || "Organization"}
-              </span>
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-2 rounded-md hover:bg-slate-100 transition-colors"
-            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            title={isCollapsed ? "Expand" : "Collapse"}
-          >
-            <Menu size={18} className="text-slate-800" />
-          </button>
-        </div>
-
-        {/* Dashboard (top-level) */}
-        <div className="p-3">
-          <Item
-            icon={Home}
-            label="Dashboard"
-            href={dashboardPath}
-            active={pathname === dashboardPath}
-          />
-        </div>
-
-        {/* Organization Main */}
-        <div className="p-3">
-          <button
-            type="button"
-            onClick={() => setMainOpen(!mainOpen)}
-            className="flex items-center justify-between w-full px-2 py-2 rounded-md hover:bg-slate-100"
-            aria-expanded={mainOpen}
-          >
-            <span className="flex items-center gap-2 text-sm font-semibold text-black">
-              {mainOpen ? (
-                <ChevronDown size={18} className="text-slate-800" />
-              ) : (
-                <ChevronRight size={18} className="text-slate-800" />
-              )}
-              {!isCollapsed && "Main"}
-            </span>
-          </button>
-
-          {mainOpen && (
-            <div className="mt-2 space-y-1.5 relative pl-4 before:absolute before:left-2 before:top-0 before:bottom-0 before:w-px before:bg-slate-200">
-              {canViewSites && (
-                <div className="relative pl-3 before:content-[''] before:absolute before:left-0 before:top-1/2 before:w-3 before:h-px before:bg-slate-200">
-                  <Item
-                    icon={Building2}
-                    label="Organization Profile"
-                    href="/org-admin/profile"
-                    active={pathname?.startsWith("/org-admin/profile") || false}
-                  />
-                </div>
-              )}
-              {canViewSites && (
-                <div className="relative pl-3 before:content-[''] before:absolute before:left-0 before:top-1/2 before:w-3 before:h-px before:bg-slate-200">
-                  <Item
-                    icon={MapPin}
-                    label="Sites"
-                    href="/org-admin/sites"
-                    active={pathname?.startsWith("/org-admin/sites") || false}
-                  />
-                </div>
-              )}
-              {canViewDepartments && (
-                <div className="relative pl-3 before:content-[''] before:absolute before:left-0 before:top-1/2 before:w-3 before:h-px before:bg-slate-200">
-                  <Item
-                    icon={Building}
-                    label="Departments"
-                    href="/org-admin/departments"
-                    active={pathname?.startsWith("/org-admin/departments") || false}
-                  />
-                </div>
-              )}
-              {canViewRoles && (
-                <div className="relative pl-3 before:content-[''] before:absolute before:left-0 before:top-1/2 before:w-3 before:h-px before:bg-slate-200">
-                  <Item
-                    icon={UserCog}
-                    label="Roles"
-                    href="/org-admin/roles"
-                    active={pathname?.startsWith("/org-admin/roles") || false}
-                  />
-                </div>
-              )}
-              {canViewPolicies && (
-                <div className="relative pl-3 before:content-[''] before:absolute before:left-0 before:top-1/2 before:w-3 before:h-px before:bg-slate-200">
-                  <Item
-                    icon={Calendar}
-                    label="Policies"
-                    href="/org-admin/attendance-rules"
-                    active={pathname?.startsWith("/org-admin/attendance-rules") || false}
-                  />
-                </div>
-              )}
-              {canViewAttendanceConfig && (
-                <div className="relative pl-3 before:content-[''] before:absolute before:left-0 before:top-1/2 before:w-3 before:h-px before:bg-slate-200">
-                  <Item
-                    icon={MapPin}
-                    label="Attendance Configuration"
-                    href="/org-admin/attendance-config"
-                    active={pathname?.startsWith("/org-admin/attendance-config") || false}
-                  />
-                </div>
-              )}
-              {(role || "") === "OrgAdmin" && (
-                <div className="relative pl-3 before:content-[''] before:absolute before:left-0 before:top-1/2 before:w-3 before:h-px before:bg-slate-200">
-                  <Item
-                    icon={Calendar}
-                    label="Holiday Calendar"
-                    href="/org-admin/holiday-calendar"
-                    active={pathname?.startsWith("/org-admin/holiday-calendar") || false}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Management */}
-        <div className="p-3">
-          <button
-            type="button"
-            onClick={() => setManagementOpen(!managementOpen)}
-            className="flex items-center justify-between w-full px-2 py-2 rounded-md hover:bg-slate-100"
-            aria-expanded={managementOpen}
-          >
-            <span className="flex items-center gap-2 text-sm font-semibold text-black">
-              {managementOpen ? (
-                <ChevronDown size={18} className="text-slate-800" />
-              ) : (
-                <ChevronRight size={18} className="text-slate-800" />
-              )}
-              {!isCollapsed && "Management"}
-            </span>
-          </button>
-
-          {managementOpen && (
-            <div className="mt-2 space-y-1.5 relative pl-4 before:absolute before:left-2 before:top-0 before:bottom-0 before:w-px before:bg-slate-200">
-              {showEmployeeManagement && (
-                <div className="relative pl-3 before:content-[''] before:absolute before:left-0 before:top-1/2 before:w-3 before:h-px before:bg-slate-200">
-                  <Item
-                    icon={Users}
-                    label="Employee Management"
-                    href="/org-admin/employee-management"
-                    active={pathname?.startsWith("/org-admin/employee-management") || false}
-                  />
-                </div>
-              )}
-              {canAssignEmployeeSites && (
-                <div className="relative pl-3 before:content-[''] before:absolute before:left-0 before:top-1/2 before:w-3 before:h-px before:bg-slate-200">
-                  <Item
-                    icon={Users}
-                    label="Employee Sites"
-                    href="/org-admin/employee-sites"
-                    active={pathname?.startsWith("/org-admin/employee-sites") || false}
-                  />
-                </div>
-              )}
-              {(role || "") === "OrgAdmin" && (
-                <div className="relative pl-3 before:content-[''] before:absolute before:left-0 before:top-1/2 before:w-3 before:h-px before:bg-slate-200">
-                  <Item
-                    icon={Calendar}
-                    label="Employee Leaves Request"
-                    href="/org-admin/leave-requests"
-                    active={pathname?.startsWith("/org-admin/leave-requests") || false}
-                  />
-                </div>
-              )}
-              {(role || "") === "OrgAdmin" && (
-                <div className="relative pl-3 before:content-[''] before:absolute before:left-0 before:top-1/2 before:w-3 before:h-px before:bg-slate-200">
-                  <Item
-                    icon={Users}
-                    label="Regularize Requests"
-                    href="/org-admin/regularize-requests"
-                    active={pathname?.startsWith("/org-admin/regularize-requests") || false}
-                  />
-                </div>
-              )}
-              {canViewEmployeeAttendance && (
-                <div className="relative pl-3 before:content-[''] before:absolute before:left-0 before:top-1/2 before:w-3 before:h-px before:bg-slate-200">
-                  <Item
-                    icon={Calendar}
-                    label="Employee Attendance"
-                    href="/org-admin/employee-attendance"
-                    active={pathname?.startsWith("/org-admin/employee-attendance") || false}
-                  />
-                </div>
-              )}
-              {canViewVerificationIssues && (
-                <div className="relative pl-3 before:content-[''] before:absolute before:left-0 before:top-1/2 before:w-3 before:h-px before:bg-slate-200">
-                  <Item
-                    icon={UserCog}
-                    label="Verification Issues"
-                    href="/org-admin/verification-issues"
-                    active={pathname?.startsWith("/org-admin/verification-issues") || false}
-                  />
-                </div>
-              )}
-              
-            </div>
-          )}
-        </div>
-
-        {/* Task Category */}
-        {showTask && (
-          <div className="p-3">
-            <button
-              type="button"
-              onClick={() => setTaskOpen(!taskOpen)}
-              className="flex items-center justify-between w-full px-2 py-2 rounded-md hover:bg-slate-100"
-              aria-expanded={taskOpen}
-            >
-              <span className="flex items-center gap-2 text-sm font-semibold text-black">
-                {taskOpen ? (
-                  <ChevronDown size={18} className="text-slate-800" />
-                ) : (
-                  <ChevronRight size={18} className="text-slate-800" />
-                )}
-                {!isCollapsed && "Task"}
-              </span>
-            </button>
-
-            {taskOpen && (
-              <div className="mt-2 space-y-1.5 relative pl-4 before:absolute before:left-2 before:top-0 before:bottom-0 before:w-px before:bg-slate-200">
-                <div className="relative pl-3 before:content-[''] before:absolute before:left-0 before:top-1/2 before:w-3 before:h-px before:bg-slate-200">
-                  <Item
-                    icon={Calendar}
-                    label="Task Templates"
-                    href="/org-admin/tasks"
-                    active={pathname?.startsWith("/org-admin/tasks") || false}
-                  />
-                </div>
-                <div className="relative pl-3 before:content-[''] before:absolute before:left-0 before:top-1/2 before:w-3 before:h-px before:bg-slate-200">
-                  <Item
-                    icon={Calendar}
-                    label="Task Assignments"
-                    href="/org-admin/task-assignments"
-                    active={pathname?.startsWith("/org-admin/task-assignments") || false}
-                  />
-                </div>
-                <div className="relative pl-3 before:content-[''] before:absolute before:left-0 before:top-1/2 before:w-3 before:h-px before:bg-slate-200">
-                  <Item
-                    icon={Calendar}
-                    label="Task Dashboard"
-                    href="/org-admin/task-dashboard"
-                    active={pathname?.startsWith("/org-admin/task-dashboard") || false}
-                  />
-                </div>
-                <div className="relative pl-3 before:content-[''] before:absolute before:left-0 before:top-1/2 before:w-3 before:h-px before:bg-slate-200">
-                  <Item
-                    icon={BarChart3}
-                    label="Dashboard Builder"
-                    href="/org-admin/dashboard-builder"
-                    active={pathname?.startsWith("/org-admin/dashboard-builder") || false}
-                  />
-                </div>
-                {/* Generate Task link removed per request; use Task Assignments button/modal instead */}
-              </div>
+            <Icon size={20} className={`shrink-0 transition-colors ${active ? "text-white" : "text-black group-hover:text-gray-700"}`} />
+            {!isCollapsed && (
+                <span className="text-sm truncate">{label}</span>
             )}
-          </div>
-        )}
+        </Link>
+    );
 
-        {/* Wallet Category */}
-        <div className="p-3">
-          <button
-            type="button"
-            onClick={() => setWalletOpen(!walletOpen)}
-            className="flex items-center justify-between w-full px-2 py-2 rounded-md hover:bg-slate-100"
-            aria-expanded={walletOpen}
-          >
-            <span className="flex items-center gap-2 text-sm font-semibold text-black">
-              {walletOpen ? (
-                <ChevronDown size={18} className="text-slate-800" />
-              ) : (
-                <ChevronRight size={18} className="text-slate-800" />
-              )}
-              {!isCollapsed && "Wallet"}
-            </span>
-          </button>
-
-          {walletOpen && (
-            <div className="mt-2 space-y-1.5 relative pl-4 before:absolute before:left-2 before:top-0 before:bottom-0 before:w-px before:bg-slate-200">
-              {canViewWallet && (
-                <div className="relative pl-3 before:content-[''] before:absolute before:left-0 before:top-1/2 before:w-3 before:h-px before:bg-slate-200">
-                  <Item
-                    icon={Wallet}
-                    label="Wallet list"
-                    href="/org-admin/petty-cash"
-                    active={pathname?.startsWith("/org-admin/petty-cash") || false}
-                  />
-                </div>
-              )}
-              {canViewWallet && (
-                <div className="relative pl-3 before:content-[''] before:absolute before:left-0 before:top-1/2 before:w-3 before:h-px before:bg-slate-200">
-                  <Item
-                    icon={Wallet}
-                    label="Wallet expenses"
-                    href="/org-admin/wallet-expenses"
-                    active={pathname?.startsWith("/org-admin/wallet-expenses") || false}
-                  />
-                </div>
-              )}
-              {canViewWallet && (
-                <div className="relative pl-3 before:content-[''] before:absolute before:left-0 before:top-1/2 before:w-3 before:h-px before:bg-slate-200">
-                  <Item
-                    icon={Wallet}
-                    label="Wallet topup"
-                    href="/org-admin/wallet-topups"
-                    active={pathname?.startsWith("/org-admin/wallet-topups") || false}
-                  />
-                </div>
-              )}
-              {canViewWallet && (
-                <div className="relative pl-3 before:content-[''] before:absolute before:left-0 before:top-1/2 before:w-3 before:h-px before:bg-slate-200">
-                  <Item
-                    icon={Wallet}
-                    label="Wallet Config"
-                    href="/org-admin/wallet-config"
-                    active={pathname?.startsWith("/org-admin/wallet-config") || false}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Optional: show allowed features list visually */}
-        {/* {!isCollapsed && features && (
-          <div className="px-3 py-2 border-t border-gray-100">
-            <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">
-              Allowed Features
-            </h4>
-            <ul className="text-xs text-gray-700 space-y-0.5">
-              {features.map((f) => (
-                <li key={f.id}>
-                  • <span className="font-medium">{f.name}</span> ({f.code})
-                </li>
-              ))}
-            </ul>
-          </div>
-        )} */}
-      </div>
-
-      <div className="p-3 border-t border-gray-200">
+    const CategoryButton = ({
+        label,
+        isOpen,
+        onClick,
+    }: {
+        label: string;
+        isOpen: boolean;
+        onClick: () => void;
+    }) => (
         <button
-          type="button"
-          onClick={onLogout}
-          className="flex items-center gap-3 w-full px-3 py-2 rounded-md hover:bg-gray-100"
-          title="Logout"
+            type="button"
+            onClick={onClick}
+            className="flex items-center justify-between w-full px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors group mt-2 mb-1"
+            title={isCollapsed ? label : undefined}
         >
-          <LogOut size={20} className="text-black" />
-          {!isCollapsed && (
-            <span className="text-sm font-medium text-black">Logout</span>
-          )}
+            {!isCollapsed && (
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">{label}</span>
+            )}
+            {!isCollapsed && (
+                isOpen ? (
+                    <ChevronDown size={14} className="text-gray-500 group-hover:text-gray-700" />
+                ) : (
+                    <ChevronRight size={14} className="text-gray-500 group-hover:text-gray-700" />
+                )
+            )}
         </button>
-      </div>
-    </aside>
-  );
+    );
+
+    const dashboardPath = "/org-admin";
+
+    return (
+        <aside
+            className={`h-screen bg-gray-50 ${isCollapsed ? "w-16" : "w-64"
+                } flex flex-col transition-all duration-300 ease-in-out z-50`}
+        >
+            {/* Header - No top border, clean layout */}
+            <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} px-5 pt-6 pb-4 min-h-[80px]`}>
+                {!isCollapsed && (
+                    <div className="flex items-center gap-3 min-w-0">
+                        {orgLogoUrl ? (
+                            <img
+                                src={orgLogoUrl}
+                                alt="Logo"
+                                className="w-10 h-10 rounded-xl object-cover shadow-sm ring-1 ring-gray-100"
+                            />
+                        ) : (
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center shadow-sm">
+                                <Building2 size={20} className="text-gray-400" />
+                            </div>
+                        )}
+                        <div className="flex flex-col min-w-0">
+                            <span className="text-sm font-bold text-black truncate leading-tight">
+                                {orgName || "Organization"}
+                            </span>
+                            <span className="text-xs text-gray-500 truncate">
+                                Organization Portal
+                            </span>
+                        </div>
+                    </div>
+                )}
+                <button
+                    type="button"
+                    onClick={() => setIsCollapsed(!isCollapsed)}
+                    className={`p-2 rounded-xl hover:bg-gray-100 text-black hover:text-black transition-all ${isCollapsed ? '' : 'ml-2'}`}
+                    title={isCollapsed ? "Expand" : "Collapse"}
+                >
+                    {isCollapsed ? <Menu size={20} /> : <X size={20} />}
+                </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
+
+                {/* Dashboard */}
+                <Item
+                    icon={Home}
+                    label="Dashboard"
+                    href={dashboardPath}
+                    active={pathname === dashboardPath}
+                />
+
+                {/* Main Section */}
+                <div className="mt-4">
+                    {!isCollapsed && (
+                        <CategoryButton
+                            label="Main"
+                            isOpen={mainOpen}
+                            onClick={() => setMainOpen(!mainOpen)}
+                        />
+                    )}
+                    {mainOpen && (
+                        <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                            <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                                <Item
+                                    icon={Building2}
+                                    label="Organization Profile"
+                                    href="/org-admin/orgProfile"
+                                    active={pathname?.startsWith("/org-admin/orgProfile") || false}
+                                />
+                                <Item
+                                    icon={MapPin}
+                                    label="Sites"
+                                    href="/org-admin/sites"
+                                    active={pathname?.startsWith("/org-admin/sites") || false}
+                                />
+                                <Item
+                                    icon={Building}
+                                    label="Departments"
+                                    href="/org-admin/departments"
+                                    active={pathname?.startsWith("/org-admin/departments") || false}
+                                />
+                                <Item
+                                    icon={UserCog}
+                                    label="Roles"
+                                    href="/org-admin/roles"
+                                    active={pathname?.startsWith("/org-admin/roles") || false}
+                                />
+                                <Item
+                                    icon={ClipboardList}
+                                    label="Policies"
+                                    href="/org-admin/attendance-rules"
+                                    active={pathname?.startsWith("/org-admin/attendance-rules") || false}
+                                />
+                                <Item
+                                    icon={Settings}
+                                    label="Attendance Config"
+                                    href="/org-admin/attendance-config"
+                                    active={pathname?.startsWith("/org-admin/attendance-config") || false}
+                                />
+                                <Item
+                                    icon={Calendar}
+                                    label="Holiday Calendar"
+                                    href="/org-admin/holiday-calendar"
+                                    active={pathname?.startsWith("/org-admin/holiday-calendar") || false}
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Management Section */}
+                <div className="mt-2">
+                    {!isCollapsed && (
+                        <CategoryButton
+                            label="Management"
+                            isOpen={managementOpen}
+                            onClick={() => setManagementOpen(!managementOpen)}
+                        />
+                    )}
+                    {managementOpen && (
+                        <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                            <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                                <Item
+                                    icon={Users}
+                                    label="Employees"
+                                    href="/org-admin/employee-management"
+                                    active={pathname?.startsWith("/org-admin/employee-management") || false}
+                                />
+                                <Item
+                                    icon={MapPin}
+                                    label="Employee Sites"
+                                    href="/org-admin/employee-sites"
+                                    active={pathname?.startsWith("/org-admin/employee-sites") || false}
+                                />
+                                <Item
+                                    icon={Calendar}
+                                    label="Leave Requests"
+                                    href="/org-admin/leave-requests"
+                                    active={pathname?.startsWith("/org-admin/leave-requests") || false}
+                                />
+                                <Item
+                                    icon={Clock}
+                                    label="Regularize Requests"
+                                    href="/org-admin/regularize-requests"
+                                    active={pathname?.startsWith("/org-admin/regularize-requests") || false}
+                                />
+                                <Item
+                                    icon={BarChart3}
+                                    label="Attendance Dashboard"
+                                    href="/org-admin/attendance-dashboard"
+                                    active={pathname?.startsWith("/org-admin/attendance-dashboard") || false}
+                                />
+                                <Item
+                                    icon={AlertCircle}
+                                    label="Verification Issues"
+                                    href="/org-admin/verification-issues"
+                                    active={pathname?.startsWith("/org-admin/verification-issues") || false}
+                                />
+                                <Item
+                                    icon={DollarSign}
+                                    label="Payroll"
+                                    href="/org-admin/payroll"
+                                    active={pathname?.startsWith("/org-admin/payroll") || false}
+                                />
+
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Insurance Section */}
+                <div className="mt-2">
+                    {!isCollapsed && (
+                        <CategoryButton
+                            label="Insurance"
+                            isOpen={insuranceOpen}
+                            onClick={() => setInsuranceOpen(!insuranceOpen)}
+                        />
+                    )}
+                    {insuranceOpen && (
+                        <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                            <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                                <Item
+                                    icon={LayoutGrid}
+                                    label="Dashboard"
+                                    href="/org-admin/insurance/dashboard"
+                                    active={pathname?.startsWith("/org-admin/insurance/dashboard") || false}
+                                />
+                                <Item
+                                    icon={Building2}
+                                    label="Providers"
+                                    href="/org-admin/insurance/providers"
+                                    active={pathname?.startsWith("/org-admin/insurance/providers") || false}
+                                />
+                                <Item
+                                    icon={Shield}
+                                    label="Policies"
+                                    href="/org-admin/insurance/policies"
+                                    active={pathname?.startsWith("/org-admin/insurance/policies") || false}
+                                />
+                                <Item
+                                    icon={UserCheck}
+                                    label="Enrollment"
+                                    href="/org-admin/insurance/enrollment"
+                                    active={pathname?.startsWith("/org-admin/insurance/enrollment") || false}
+                                />
+                                <Item
+                                    icon={Users}
+                                    label="Dependents"
+                                    href="/org-admin/insurance/dependents"
+                                    active={pathname?.startsWith("/org-admin/insurance/dependents") || false}
+                                />
+                                <Item
+                                    icon={Heart}
+                                    label="Beneficiaries"
+                                    href="/org-admin/insurance/beneficiaries"
+                                    active={pathname?.startsWith("/org-admin/insurance/beneficiaries") || false}
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Salary Advance Section */}
+                <div className="mt-2">
+                    {!isCollapsed && (
+                        <CategoryButton
+                            label="Salary Advance"
+                            isOpen={salaryAdvanceOpen}
+                            onClick={() => setSalaryAdvanceOpen(!salaryAdvanceOpen)}
+                        />
+                    )}
+                    {salaryAdvanceOpen && (
+                        <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                            <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                                <Item
+                                    icon={ClipboardList}
+                                    label="All Requests"
+                                    href="/org-admin/salary-advance/requests"
+                                    active={pathname?.startsWith("/org-admin/salary-advance/requests") || false}
+                                />
+                                <Item
+                                    icon={CheckSquare}
+                                    label="Approval Queue"
+                                    href="/org-admin/salary-advance/approvals"
+                                    active={pathname?.startsWith("/org-admin/salary-advance/approvals") || false}
+                                />
+                                <Item
+                                    icon={Calendar}
+                                    label="Repayment Schedule"
+                                    href="/org-admin/salary-advance/repayments"
+                                    active={pathname?.startsWith("/org-admin/salary-advance/repayments") || false}
+                                />
+                                <Item
+                                    icon={TrendingUp}
+                                    label="Analytics"
+                                    href="/org-admin/salary-advance/analytics"
+                                    active={pathname?.startsWith("/org-admin/salary-advance/analytics") || false}
+                                />
+                                <Item
+                                    icon={Settings}
+                                    label="Policy Configuration"
+                                    href="/org-admin/salary-advance/policy"
+                                    active={pathname?.startsWith("/org-admin/salary-advance/policy") || false}
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Wallets Section */}
+                <div className="mt-2">
+                    {!isCollapsed && (
+                        <CategoryButton
+                            label="Wallets"
+                            isOpen={walletOpen}
+                            onClick={() => setWalletOpen(!walletOpen)}
+                        />
+                    )}
+                    {walletOpen && (
+                        <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                            <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                                <Item
+                                    icon={DollarSign}
+                                    label="Petty Cash"
+                                    href="/org-admin/petty-cash"
+                                    active={pathname?.startsWith("/org-admin/petty-cash") || false}
+                                />
+                                <Item
+                                    icon={Receipt}
+                                    label="Wallet Expenses"
+                                    href="/org-admin/wallet-expenses"
+                                    active={pathname?.startsWith("/org-admin/wallet-expenses") || false}
+                                />
+                                <Item
+                                    icon={Cog}
+                                    label="Wallet Config"
+                                    href="/org-admin/wallet-config"
+                                    active={pathname?.startsWith("/org-admin/wallet-config") || false}
+                                />
+                                <Item
+                                    icon={ArrowUpCircle}
+                                    label="Wallet Topups"
+                                    href="/org-admin/wallet-topups"
+                                    active={pathname?.startsWith("/org-admin/wallet-topups") || false}
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Inventory Section */}
+                <div className="mt-2">
+                    {!isCollapsed && (
+                        <CategoryButton
+                            label="Inventory"
+                            isOpen={inventoryOpen}
+                            onClick={() => setInventoryOpen(!inventoryOpen)}
+                        />
+                    )}
+                    {inventoryOpen && (
+                        <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                            <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                                {/* Master Data Submenu */}
+                                <div className="mt-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => setMasterDataOpen(!masterDataOpen)}
+                                        className="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            {masterDataOpen ? (
+                                                <ChevronDown size={16} className="text-gray-600" />
+                                            ) : (
+                                                <ChevronRight size={16} className="text-gray-600" />
+                                            )}
+                                            {!isCollapsed && (
+                                                <span className="text-gray-700 font-medium">Master Data</span>
+                                            )}
+                                        </div>
+                                    </button>
+
+                                    {masterDataOpen && (
+                                        <div className={`mt-0.5 space-y-0.5 ${isCollapsed ? "pl-0" : "pl-4"}`}>
+                                            <div className={`relative ${isCollapsed ? "" : "ml-2 pl-2 border-l border-gray-100"}`}>
+                                                <Item icon={Package} label="Onboarding" href="/org-admin/inventory/onboarding" active={pathname?.startsWith("/org-admin/inventory/onboarding") || false} />
+                                                <Item icon={Building2} label="Site Config" href="/org-admin/inventory/sites" active={pathname?.startsWith("/org-admin/inventory/sites") || false} />
+                                                <Item icon={Package} label="Categories" href="/org-admin/inventory/categories" active={pathname?.startsWith("/org-admin/inventory/categories") || false} />
+                                                <Item icon={Package} label="Subcategories" href="/org-admin/inventory/subcategories" active={pathname?.startsWith("/org-admin/inventory/subcategories") || false} />
+                                                <Item icon={Building2} label="Vendors" href="/org-admin/inventory/vendors" active={pathname?.startsWith("/org-admin/inventory/vendors") || false} />
+                                                <Item icon={Package} label="Items" href="/org-admin/inventory/items" active={pathname?.startsWith("/org-admin/inventory/items") || false} />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* CORE Submenu */}
+                                <div className="mt-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => setCoreOpen(!coreOpen)}
+                                        className="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            {coreOpen ? (
+                                                <ChevronDown size={16} className="text-gray-600" />
+                                            ) : (
+                                                <ChevronRight size={16} className="text-gray-600" />
+                                            )}
+                                            {!isCollapsed && (
+                                                <span className="text-gray-700 font-medium">CORE</span>
+                                            )}
+                                        </div>
+                                    </button>
+
+                                    {coreOpen && (
+                                        <div className={`mt-0.5 space-y-0.5 ${isCollapsed ? "pl-0" : "pl-4"}`}>
+                                            <div className={`relative ${isCollapsed ? "" : "ml-2 pl-2 border-l border-gray-100"}`}>
+                                                <Item icon={Package} label="Store Selection" href="/org-admin/inventory/stores" active={pathname?.startsWith("/org-admin/inventory/stores") || false} />
+                                                <Item icon={Package} label="Store Stock" href="/org-admin/inventory/stock" active={pathname?.startsWith("/org-admin/inventory/stock") || false} />
+                                                <Item icon={Package} label="Store Batch" href="/org-admin/inventory/batches" active={pathname?.startsWith("/org-admin/inventory/batches") || false} />
+                                                <Item icon={Package} label="Store Serials" href="/org-admin/inventory/serials" active={pathname?.startsWith("/org-admin/inventory/serials") || false} />
+                                                <Item icon={Package} label="Stock Ledger" href="/org-admin/inventory/ledger" active={pathname?.startsWith("/org-admin/inventory/ledger") || false} />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Transactions Submenu */}
+                                <div className="mt-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => setTransactionsOpen(!transactionsOpen)}
+                                        className="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            {transactionsOpen ? (
+                                                <ChevronDown size={16} className="text-gray-600" />
+                                            ) : (
+                                                <ChevronRight size={16} className="text-gray-600" />
+                                            )}
+                                            {!isCollapsed && (
+                                                <span className="text-gray-700 font-medium">Transactions</span>
+                                            )}
+                                        </div>
+                                    </button>
+
+                                    {transactionsOpen && (
+                                        <div className={`mt-0.5 space-y-0.5 ${isCollapsed ? "pl-0" : "pl-4"}`}>
+                                            <div className={`relative ${isCollapsed ? "" : "ml-2 pl-2 border-l border-gray-100"}`}>
+                                                <Item icon={Package} label="GRN" href="/org-admin/inventory/grn" active={pathname?.startsWith("/org-admin/inventory/grn") || false} />
+                                                <Item icon={FileText} label="RFQ" href="/org-admin/rfq" active={pathname?.startsWith("/org-admin/rfq") || false} />
+                                                <Item icon={FileText} label="Purchase Request" href="/org-admin/pr" active={pathname?.startsWith("/org-admin/pr") || false} />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Task Section */}
+                <div className="mt-2">
+                    {!isCollapsed && (
+                        <CategoryButton
+                            label="Task"
+                            isOpen={taskOpen}
+                            onClick={() => setTaskOpen(!taskOpen)}
+                        />
+                    )}
+                    {taskOpen && (
+                        <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                            <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                                <Item
+                                    icon={FileText}
+                                    label="Templates"
+                                    href="/org-admin/tasks"
+                                    active={pathname?.startsWith("/org-admin/tasks") || false}
+                                />
+                                <Item
+                                    icon={ListChecks}
+                                    label="Assignments"
+                                    href="/org-admin/task-assignments"
+                                    active={pathname?.startsWith("/org-admin/task-assignments") || false}
+                                />
+                                <Item
+                                    icon={LayoutGrid}
+                                    label="Dashboard"
+                                    href="/org-admin/task-dashboard"
+                                    active={pathname?.startsWith("/org-admin/task-dashboard") || false}
+                                />
+                                <Item
+                                    icon={Settings}
+                                    label="Builder"
+                                    href="/org-admin/dashboard-builder"
+                                    active={pathname?.startsWith("/org-admin/dashboard-builder") || false}
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+            </div>
+
+            {/* Footer */}
+            <div className="p-4">
+                <button
+                    type="button"
+                    onClick={onLogout}
+                    className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-red-600 text-white hover:bg-red-700 shadow-md hover:shadow-lg transition-all duration-200 group ${isCollapsed ? 'justify-center' : ''}`}
+                    title={isCollapsed ? "Logout" : undefined}
+                >
+                    <LogOut size={20} className="shrink-0 text-white" />
+                    {!isCollapsed && <span className="text-sm font-medium">Logout</span>}
+                </button>
+            </div>
+        </aside>
+    );
 }

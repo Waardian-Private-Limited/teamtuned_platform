@@ -3,17 +3,17 @@
 import React from "react";
 import { apiClient } from "@/lib/apiClient";
 import { useOrgContext } from "../shared/OrgContext";
-import { 
-  Plus, 
-  Upload, 
-  ScanLine, 
-  X, 
-  Calendar, 
-  Wallet, 
-  Building2, 
-  Trash2, 
-  Eye, 
-  ZoomIn, 
+import {
+  Plus,
+  Upload,
+  ScanLine,
+  X,
+  Calendar,
+  Wallet,
+  Building2,
+  Trash2,
+  Eye,
+  ZoomIn,
   Search,
   Download,
   MoreVertical,
@@ -34,13 +34,12 @@ type ExpenseRow = {
   id: number;
   invoice_no?: string;
   description?: string;
-  seller_name?: string;
-  vendor_name?: string;
   date?: string;
   created_at?: string;
   grand_total?: number;
   payment_mode?: string;
   status?: string;
+  category_name?: string;
 };
 
 type Summary = {
@@ -90,7 +89,7 @@ function ensureIsoDate(raw?: string) {
     }
     const dt = new Date(s);
     if (!isNaN(dt.getTime())) return dt.toISOString().slice(0, 10);
-  } catch {}
+  } catch { }
   return new Date().toISOString().slice(0, 10);
 }
 
@@ -113,17 +112,23 @@ export default function WalletExpenses() {
   const [detail, setDetail] = React.useState<any | null>(null);
   const [searchTerm, setSearchTerm] = React.useState<string>("");
   const [paymentMode, setPaymentMode] = React.useState<string>("");
+  const [statusFilter, setStatusFilter] = React.useState<string>("");
   const [dateFrom, setDateFrom] = React.useState<string>("");
   const [dateTo, setDateTo] = React.useState<string>("");
+  const [invoiceDateFrom, setInvoiceDateFrom] = React.useState<string>("");
+  const [invoiceDateTo, setInvoiceDateTo] = React.useState<string>("");
+  const [categories, setCategories] = React.useState<{ id: number; name: string }[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = React.useState<number | null>(null);
   const [actionLoading, setActionLoading] = React.useState<string | null>(null);
   const [exporting, setExporting] = React.useState(false);
   const [showExportDropdown, setShowExportDropdown] = React.useState(false);
+  const [showExportModal, setShowExportModal] = React.useState(false);
 
   const hasPerm = React.useCallback((code: string) => {
     const list = (permissions || []).map((p) => (p || "").toUpperCase());
     return list.includes((code || "").toUpperCase());
   }, [permissions]);
-  
+
   const isOrgAdmin = (role || "").toLowerCase() === "orgadmin";
   const isWalletAdmin = hasPerm("WALLET_ADMIN");
   const canAddExpense = isOrgAdmin || hasPerm("EXPENSE_ADD");
@@ -179,19 +184,23 @@ export default function WalletExpenses() {
       }
       if (searchTerm) listParams.q = searchTerm;
       if (paymentMode) listParams.payment_mode = paymentMode;
+      if (statusFilter) listParams.status = statusFilter;
       if (dateFrom) listParams.date_from = dateFrom;
       if (dateTo) listParams.date_to = dateTo;
+      if (invoiceDateFrom) listParams.invoice_date_from = invoiceDateFrom;
+      if (invoiceDateTo) listParams.invoice_date_to = invoiceDateTo;
+      if (selectedCategoryId != null) listParams.category_id = String(selectedCategoryId);
 
       const list = await apiClient<any>("/expenses/list", { method: "GET", params: listParams, withAuth: true });
       const rws: ExpenseRow[] = (list?.expenses || []).map((e: any) => ({
         id: Number(e.id),
         invoice_no: String(e.invoice_no || "-"),
         description: e.description || undefined,
-        seller_name: e.seller_name || e.vendor_name || e.vendor_name || undefined,
-        date: e.date || e.created_at,
+        date: e.updated_at || e.date || e.created_at,
         grand_total: Number(String(e.grand_total || e.total_amount || 0).replace(/,/g, "")),
         payment_mode: e.payment_mode || undefined,
         status: (e.status || "-") as string,
+        category_name: e.category_name || undefined,
       }));
       setRows(rws);
       setTotal(Number(list?.total || rws.length));
@@ -199,7 +208,7 @@ export default function WalletExpenses() {
       console.error("Failed to load expenses:", error);
       setError("Failed to load expenses");
     }
-  }, [isOrgAdmin, isWalletAdmin, selectedSiteId, page, limit, searchTerm, paymentMode, dateFrom, dateTo]);
+  }, [isOrgAdmin, isWalletAdmin, selectedSiteId, page, limit, searchTerm, paymentMode, statusFilter, dateFrom, dateTo, invoiceDateFrom, invoiceDateTo, selectedCategoryId]);
 
   const loadData = React.useCallback(async () => {
     try {
@@ -220,16 +229,21 @@ export default function WalletExpenses() {
         const session = await apiClient<{ role?: string; authenticated: boolean; employee?: { permissions?: string[] } | null }>("/auth/session", { method: "GET", withAuth: true });
         setRole(session?.role || null);
         setPermissions(session?.employee?.permissions || []);
-      } catch {}
+      } catch { }
 
       await loadSites();
+      try {
+        const catRes = await apiClient<any>("/wallet-config/categories", { method: "GET", withAuth: true });
+        const cats = Array.isArray(catRes?.categories) ? catRes.categories.map((c: any) => ({ id: Number(c.id), name: String(c.name || c.id) })) : [];
+        setCategories(cats);
+      } catch { }
       await loadData();
     })();
   }, [loadSites, loadData]);
 
   React.useEffect(() => {
     loadData();
-  }, [selectedSiteId, page, limit, searchTerm, paymentMode, dateFrom, dateTo, loadData]);
+  }, [selectedSiteId, page, limit, searchTerm, paymentMode, statusFilter, dateFrom, dateTo, invoiceDateFrom, invoiceDateTo, selectedCategoryId, loadData]);
 
   const openDetail = async (id: number) => {
     try {
@@ -250,7 +264,7 @@ export default function WalletExpenses() {
     if (!confirm('Are you sure you want to delete this expense? This action cannot be undone.')) {
       return;
     }
-    
+
     try {
       setActionLoading(String(expenseId));
       await apiClient(`/expenses/${expenseId}`, { method: "DELETE", withAuth: true });
@@ -267,24 +281,24 @@ export default function WalletExpenses() {
   const handleExport = async (format: 'pdf' | 'excel') => {
     try {
       setShowExportDropdown(false);
-      
+
       const email = prompt('Please enter your email address to receive the exported file:');
       if (!email) {
         return;
       }
-      
+
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email)) {
         showNotification('Please enter a valid email address.', 'error');
         return;
       }
-      
+
       setExporting(true);
       showNotification(`Exporting expenses to ${format.toUpperCase()}...`, 'success');
-      
+
       // Simulate export API call
       await new Promise(resolve => setTimeout(resolve, 2000));
-      
+
       showNotification(`Expenses exported to ${format.toUpperCase()} successfully! Check your email (${email}) for the file.`, 'success');
     } catch (error: any) {
       console.error(`Failed to export expenses to ${format}:`, error);
@@ -297,24 +311,23 @@ export default function WalletExpenses() {
   const showNotification = (message: string, type: 'success' | 'error') => {
     const notificationContainer = document.getElementById('notification-container') || createNotificationContainer();
     const notification = document.createElement('div');
-    notification.className = `p-4 mb-3 rounded-lg shadow-lg flex items-center space-x-3 ${
-      type === 'success' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
-    }`;
-    
+    notification.className = `p-4 mb-3 rounded-lg shadow-lg flex items-center space-x-3 ${type === 'success' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+      }`;
+
     const icon = document.createElement('div');
     icon.className = `p-2 rounded-full ${type === 'success' ? 'bg-green-100' : 'bg-red-100'}`;
-    icon.innerHTML = type === 'success' 
+    icon.innerHTML = type === 'success'
       ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-600"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>'
       : '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-600"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>';
-    
+
     const content = document.createElement('div');
     content.className = 'flex-1';
     content.innerHTML = `<p class="${type === 'success' ? 'text-green-800' : 'text-red-800'} font-medium">${message}</p>`;
-    
+
     notification.appendChild(icon);
     notification.appendChild(content);
     notificationContainer.appendChild(notification);
-    
+
     setTimeout(() => {
       notification.style.opacity = '0';
       notification.style.transition = 'opacity 0.5s ease';
@@ -339,16 +352,16 @@ export default function WalletExpenses() {
 
   const getStatusIcon = (status: string) => {
     switch (status?.toLowerCase()) {
-      case 'approved': 
-      case 'completed': 
-      case 'published': 
+      case 'approved':
+      case 'completed':
+      case 'published':
         return <CheckCircle className="w-4 h-4 text-green-500" />;
-      case 'pending': 
-      case 'draft': 
+      case 'pending':
+      case 'draft':
         return <Clock className="w-4 h-4 text-yellow-500" />;
-      case 'rejected': 
-      case 'cancelled': 
-      case 'archived': 
+      case 'rejected':
+      case 'cancelled':
+      case 'archived':
         return <AlertCircle className="w-4 h-4 text-red-500" />;
       default: return <Clock className="w-4 h-4 text-gray-500" />;
     }
@@ -356,16 +369,16 @@ export default function WalletExpenses() {
 
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
-      case 'approved': 
-      case 'completed': 
-      case 'published': 
+      case 'approved':
+      case 'completed':
+      case 'published':
         return 'text-green-600 bg-green-50';
-      case 'pending': 
-      case 'draft': 
+      case 'pending':
+      case 'draft':
         return 'text-yellow-600 bg-yellow-50';
-      case 'rejected': 
-      case 'cancelled': 
-      case 'archived': 
+      case 'rejected':
+      case 'cancelled':
+      case 'archived':
         return 'text-red-600 bg-red-50';
       default: return 'text-gray-600 bg-gray-50';
     }
@@ -382,9 +395,15 @@ export default function WalletExpenses() {
     }
   };
 
+  const [rowExportOpen, setRowExportOpen] = React.useState<boolean>(false);
+  const [rowExportEmails, setRowExportEmails] = React.useState<string>("");
+  const [rowExportExpenseId, setRowExportExpenseId] = React.useState<number | null>(null);
+
   const ActionDropdown = ({ expense }: { expense: ExpenseRow }) => {
     const [isOpen, setIsOpen] = React.useState(false);
     const dropdownRef = React.useRef<HTMLDivElement>(null);
+    const buttonRef = React.useRef<HTMLButtonElement>(null);
+    const [menuPos, setMenuPos] = React.useState<{ top: number; left: number } | null>(null);
 
     React.useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
@@ -402,6 +421,7 @@ export default function WalletExpenses() {
     return (
       <div className="relative" ref={dropdownRef}>
         <button
+          ref={buttonRef}
           onClick={() => setIsOpen(!isOpen)}
           className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
           disabled={actionLoading === String(expense.id)}
@@ -412,71 +432,85 @@ export default function WalletExpenses() {
             <MoreVertical className="w-4 h-4 text-gray-600" />
           )}
         </button>
-        
+
         {isOpen && (
           <>
-            <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
-            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
-              <div className="py-1">
-                <button
-                  onClick={() => {
-                    openDetail(expense.id);
-                    setIsOpen(false);
-                  }}
-                  className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setIsOpen(false)}
+            />
+            {(() => {
+              if (!menuPos && buttonRef.current) {
+                const rect = buttonRef.current.getBoundingClientRect();
+                const width = 192; // w-48
+                const top = rect.bottom + 8;
+                const left = Math.max(8, rect.right - width);
+                setMenuPos({ top, left });
+              }
+              const style = menuPos ? { top: menuPos.top, left: menuPos.left } : {};
+              return (
+                <div
+                  style={style as React.CSSProperties}
+                  className="fixed w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
                 >
-                  <Eye className="w-4 h-4" />
-                  <span>View Details</span>
-                </button>
-                
-                <button
-                  onClick={() => {
-                    // Edit functionality - could open edit modal
-                    showNotification('Edit functionality would be implemented here', 'success');
-                    setIsOpen(false);
-                  }}
-                  className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  <FileText className="w-4 h-4" />
-                  <span>Edit Expense</span>
-                </button>
-                
-                <div className="border-t border-gray-100 my-1" />
-                
-                <button
-                  onClick={() => {
-                    handleDeleteExpense(expense.id);
-                    setIsOpen(false);
-                  }}
-                  className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span>Delete</span>
-                </button>
-              </div>
-            </div>
+                  <div className="py-1">
+                    <button
+                      onClick={() => {
+                        openDetail(expense.id);
+                        setIsOpen(false);
+                        setMenuPos(null);
+                      }}
+                      className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      <Eye className="w-4 h-4" />
+                      <span>View Details</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        showNotification('Edit functionality would be implemented here', 'success');
+                        setIsOpen(false);
+                        setMenuPos(null);
+                      }}
+                      className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      <FileText className="w-4 h-4" />
+                      <span>Edit Expense</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setRowExportExpenseId(expense.id);
+                        setRowExportOpen(true);
+                        setIsOpen(false);
+                        setMenuPos(null);
+                      }}
+                      className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Export</span>
+                    </button>
+                    <div className="border-t border-gray-100 my-1" />
+                    <button
+                      onClick={() => {
+                        handleDeleteExpense(expense.id);
+                        setIsOpen(false);
+                        setMenuPos(null);
+                      }}
+                      className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Delete</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </>
         )}
       </div>
     );
   };
 
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (!target.closest('.export-dropdown-container')) {
-        setShowExportDropdown(false);
-      }
-    };
-
-    if (showExportDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showExportDropdown]);
+  // No dropdown for export now; using modal
 
   if (loading && rows.length === 0) {
     return (
@@ -507,41 +541,16 @@ export default function WalletExpenses() {
           <p className="text-gray-600 mt-1">Manage and track all expense transactions</p>
         </div>
         <div className="flex items-center space-x-3">
-          {/* Export Button with Dropdown */}
-          <div className="relative export-dropdown-container">
-            <button
-              onClick={() => setShowExportDropdown(!showExportDropdown)}
-              disabled={exporting}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Download className="w-4 h-4" />
-              <span>{exporting ? 'Exporting...' : 'Export'}</span>
-            </button>
-            
-            {showExportDropdown && (
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-                <div className="py-1">
-                  <button
-                    onClick={() => handleExport('pdf')}
-                    disabled={exporting}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-                  >
-                    <span>📄</span>
-                    <span>Export as PDF</span>
-                  </button>
-                  <button
-                    onClick={() => handleExport('excel')}
-                    disabled={exporting}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-                  >
-                    <span>📊</span>
-                    <span>Export as Excel</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-          
+          {/* Export Button opens modal */}
+          <button
+            onClick={() => setShowExportModal(true)}
+            disabled={exporting}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="w-4 h-4" />
+            <span>{exporting ? 'Exporting...' : 'Export'}</span>
+          </button>
+
           {canAddExpense && (
             <button
               onClick={() => setShowModal(true)}
@@ -625,33 +634,32 @@ export default function WalletExpenses() {
 
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Search invoices, vendors..."
+              placeholder="Search invoices, descriptions"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="pl-8 pr-3 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             />
           </div>
-          
+
           <select
             value={selectedSiteId ?? ""}
             onChange={(e) => setSelectedSiteId(e.target.value ? Number(e.target.value) : null)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
           >
             {(isOrgAdmin || isWalletAdmin) && (<option value="">All Sites</option>)}
             {(siteOptions || []).map((s) => (
               <option key={s.id} value={s.id}>{s.name || s.id}</option>
             ))}
           </select>
-
           <select
             value={paymentMode}
             onChange={(e) => setPaymentMode(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
           >
             <option value="">All Payment Modes</option>
             <option value="Cash">Cash</option>
@@ -661,36 +669,89 @@ export default function WalletExpenses() {
             <option value="Cheque">Cheque</option>
           </select>
 
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
-        
-        <div className="flex items-center justify-between mt-4">
-          <button
-            onClick={() => { 
-              setSearchTerm(""); 
-              setPaymentMode(""); 
-              setDateFrom(""); 
-              setDateTo(""); 
-              setPage(1); 
-            }}
-            className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2"
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
           >
-            <RefreshCw className="w-4 h-4" />
-            <span>Reset Filters</span>
-          </button>
-          
+            <option value="">All Statuses</option>
+            <option value="PENDING">Pending</option>
+            <option value="APPROVED">Approved</option>
+            <option value="REJECTED">Rejected</option>
+            <option value="DRAFT">Draft</option>
+            <option value="CANCELLED">Cancelled</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="PUBLISHED">Published</option>
+            <option value="ARCHIVED">Archived</option>
+          </select>
+
+          <select
+            value={selectedCategoryId != null ? String(selectedCategoryId) : ""}
+            onChange={(e) => setSelectedCategoryId(e.target.value ? Number(e.target.value) : null)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+          >
+            <option value="">All Categories</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">Updated</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            />
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">Invoice</span>
+            <input
+              type="date"
+              value={invoiceDateFrom}
+              onChange={(e) => setInvoiceDateFrom(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            />
+            <input
+              type="date"
+              value={invoiceDateTo}
+              onChange={(e) => setInvoiceDateTo(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            />
+          </div>
+
+          <div className="flex items-center justify-start lg:justify-end">
+            <button
+              onClick={() => {
+                setSearchTerm("");
+                setPaymentMode("");
+                setStatusFilter("");
+                setDateFrom("");
+                setDateTo("");
+                setInvoiceDateFrom("");
+                setInvoiceDateTo("");
+                setSelectedCategoryId(null);
+                setPage(1);
+              }}
+              className="px-3 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2 text-sm"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Reset Filters</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end mt-3">
           <div className="text-sm text-gray-600">
             Showing {rows.length} of {total} expenses
           </div>
@@ -703,48 +764,42 @@ export default function WalletExpenses() {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendor</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Updated</th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {rows.map((row) => (
                 <tr key={row.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-2">
                     <div className="text-sm font-medium text-gray-900">{row.invoice_no}</div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-2">
                     <div className="text-sm text-gray-900 max-w-xs truncate" title={row.description || "-"}>
                       {row.description || "-"}
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900 max-w-xs truncate" title={row.seller_name || "-"}>
-                      {row.seller_name || "-"}
+                  <td className="px-4 py-2">
+                    <div className="text-sm text-gray-900 max-w-[160px] truncate" title={row.category_name || "-"}>
+                      {row.category_name || "-"}
                     </div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-2">
                     <div className="text-sm text-gray-900">
                       {formatDateFlexible(row.date)}
                     </div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-2 text-right">
                     <div className="text-sm font-semibold text-emerald-700">
                       {formatCurrency(row.grand_total)}
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPaymentModeColor(row.payment_mode || '')}`}>
-                      {row.payment_mode || "-"}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-2">
                     <div className="flex items-center space-x-2">
                       {getStatusIcon(row.status || '')}
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(row.status || '')} capitalize`}>
@@ -752,7 +807,7 @@ export default function WalletExpenses() {
                       </span>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-2">
                     <ActionDropdown expense={row} />
                   </td>
                 </tr>
@@ -760,14 +815,14 @@ export default function WalletExpenses() {
             </tbody>
           </table>
         </div>
-        
+
         {rows.length === 0 && !loading && (
           <div className="text-center py-12">
             <Wallet className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No expenses found</h3>
             <p className="text-gray-500 mb-4">No expenses match your current filters.</p>
             {canAddExpense && (
-              <button 
+              <button
                 onClick={() => setShowModal(true)}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2 mx-auto"
               >
@@ -793,7 +848,7 @@ export default function WalletExpenses() {
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                
+
                 <div className="flex items-center space-x-1">
                   {[...Array(Math.min(5, Math.ceil(total / limit)))].map((_, i) => {
                     const pageNum = i + 1;
@@ -801,18 +856,17 @@ export default function WalletExpenses() {
                       <button
                         key={pageNum}
                         onClick={() => setPage(pageNum)}
-                        className={`px-3 py-2 rounded-lg transition-colors ${
-                          page === pageNum
-                            ? 'bg-blue-600 text-white'
-                            : 'border border-gray-300 hover:bg-gray-50'
-                        }`}
+                        className={`px-3 py-2 rounded-lg transition-colors ${page === pageNum
+                          ? 'bg-blue-600 text-white'
+                          : 'border border-gray-300 hover:bg-gray-50'
+                          }`}
                       >
                         {pageNum}
                       </button>
                     );
                   })}
                 </div>
-                
+
                 <button
                   onClick={() => setPage(Math.min(Math.ceil(total / limit), page + 1))}
                   disabled={page >= Math.ceil(total / limit)}
@@ -839,7 +893,7 @@ export default function WalletExpenses() {
           }}
         />
       )}
-      
+
       {detailModalOpen && (
         <ExpenseDetailModal
           loading={detailLoading}
@@ -848,13 +902,43 @@ export default function WalletExpenses() {
           onClose={() => setDetailModalOpen(false)}
         />
       )}
+
+      {showExportModal && (
+        <ExportModal
+          current={{
+            siteId: selectedSiteId,
+            categoryId: selectedCategoryId,
+            paymentMode,
+            status: statusFilter,
+            dateFrom,
+            dateTo,
+            invoiceDateFrom,
+            invoiceDateTo,
+          }}
+          searchTerm={searchTerm}
+          notify={showNotification}
+          categories={categories}
+          siteOptions={siteOptions}
+          onClose={() => setShowExportModal(false)}
+        />
+      )}
+
+      {rowExportOpen && (
+        <RowExportModal
+          expenseId={rowExportExpenseId}
+          emails={rowExportEmails}
+          notify={showNotification}
+          onChangeEmails={setRowExportEmails}
+          onClose={() => { setRowExportOpen(false); setRowExportEmails(''); setRowExportExpenseId(null); }}
+        />
+      )}
     </div>
   );
 }
 
 // AddExpenseModal Component (preserving all original functionality)
 function AddExpenseModal({ siteId, onClose, onSubmitted }: { siteId: number | null; onClose: () => void; onSubmitted: () => void; }) {
-  const steps = ["Upload Invoice", "Basic Info", "Seller/Buyer", "Items & Charges", "Payment", "Review"]; 
+  const steps = ["Upload Invoice", "Basic Info", "Seller/Buyer", "Items & Charges", "Payment", "Review"];
   const [step, setStep] = React.useState<number>(0);
   const [uploading, setUploading] = React.useState<boolean>(false);
   const [submitting, setSubmitting] = React.useState<boolean>(false);
@@ -868,7 +952,7 @@ function AddExpenseModal({ siteId, onClose, onSubmitted }: { siteId: number | nu
   );
   const [previewZoomSrc, setPreviewZoomSrc] = React.useState<string | null>(null);
 
-  const expenseTypeOptions = ["General","Transport","Labour","Utilities","Supplies","Maintenance"];
+  const expenseTypeOptions = ["General", "Transport", "Labour", "Utilities", "Supplies", "Maintenance"];
   const normalizeExpenseType = (raw?: string) => {
     const s = (raw || "").toLowerCase().trim();
     if (!s) return "General";
@@ -1088,7 +1172,7 @@ function AddExpenseModal({ siteId, onClose, onSubmitted }: { siteId: number | nu
       <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h3 className="text-xl font-semibold text-gray-900">Add Expense</h3>
-          <button 
+          <button
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             onClick={onClose}
           >
@@ -1100,13 +1184,12 @@ function AddExpenseModal({ siteId, onClose, onSubmitted }: { siteId: number | nu
           {/* Progress Steps */}
           <div className="flex items-center gap-2 flex-wrap mb-6">
             {steps.map((s, i) => (
-              <button 
-                key={s} 
-                className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
-                  step === i 
-                    ? "bg-blue-600 text-white border-blue-600" 
-                    : "border-gray-300 text-gray-700 hover:bg-gray-50"
-                }`} 
+              <button
+                key={s}
+                className={`px-3 py-2 text-sm rounded-lg border transition-colors ${step === i
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                  }`}
                 onClick={() => setStep(i)}
               >
                 {s}
@@ -1118,18 +1201,17 @@ function AddExpenseModal({ siteId, onClose, onSubmitted }: { siteId: number | nu
           {step === 0 && (
             <div className="space-y-4">
               <div className="text-sm text-gray-600">Upload invoice image (optional), then scan to auto-fill fields.</div>
-              
+
               <div
-                className={`relative border-2 ${
-                  invoiceDragActive ? "border-blue-400 bg-blue-50" : "border-dashed border-gray-300"
-                } rounded-lg p-6 text-center cursor-pointer transition-colors`}
+                className={`relative border-2 ${invoiceDragActive ? "border-blue-400 bg-blue-50" : "border-dashed border-gray-300"
+                  } rounded-lg p-6 text-center cursor-pointer transition-colors`}
                 onDragOver={(e) => { e.preventDefault(); setInvoiceDragActive(true); }}
                 onDragLeave={() => setInvoiceDragActive(false)}
-                onDrop={(e) => { 
-                  e.preventDefault(); 
-                  setInvoiceDragActive(false); 
-                  const f = e.dataTransfer.files?.[0]; 
-                  if (f && f.type.startsWith("image/")) setInvoiceFile(f); 
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setInvoiceDragActive(false);
+                  const f = e.dataTransfer.files?.[0];
+                  if (f && f.type.startsWith("image/")) setInvoiceFile(f);
                 }}
                 onClick={() => document.getElementById("invoice-file-input")?.click()}
               >
@@ -1143,7 +1225,7 @@ function AddExpenseModal({ siteId, onClose, onSubmitted }: { siteId: number | nu
                         <img src={URL.createObjectURL(invoiceFile)} alt="invoice preview" className="w-16 h-16 object-cover rounded-lg" />
                         <button
                           type="button"
-                          className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 rounded-lg transition-opacity"
+                          className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 rounded-lg transition-opacity"
                           onClick={(e) => { e.stopPropagation(); setPreviewZoomSrc(URL.createObjectURL(invoiceFile)); }}
                           title="Zoom"
                         >
@@ -1151,7 +1233,7 @@ function AddExpenseModal({ siteId, onClose, onSubmitted }: { siteId: number | nu
                         </button>
                       </div>
                       <div className="text-sm text-gray-600 truncate max-w-[12rem]">{invoiceFile.name}</div>
-                      <button 
+                      <button
                         className="px-3 py-1 text-sm rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
                         onClick={(e) => { e.stopPropagation(); setInvoiceFile(null); }}
                       >
@@ -1161,7 +1243,7 @@ function AddExpenseModal({ siteId, onClose, onSubmitted }: { siteId: number | nu
                   )}
                 </div>
               </div>
-              
+
               <div className="flex items-center gap-3">
                 <button
                   type="button"
@@ -1174,16 +1256,16 @@ function AddExpenseModal({ siteId, onClose, onSubmitted }: { siteId: number | nu
                 </button>
                 <div className="text-sm text-gray-500">AI may make mistakes — please verify.</div>
               </div>
-              
+
               <div className="flex items-center justify-end">
-                <button 
+                <button
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   onClick={() => setStep(1)}
                 >
                   Next
                 </button>
               </div>
-              
+
               {error && <div className="text-sm text-red-600">{error}</div>}
             </div>
           )}
@@ -1195,21 +1277,21 @@ function AddExpenseModal({ siteId, onClose, onSubmitted }: { siteId: number | nu
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Expense Type</label>
-                  <select 
+                  <select
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    value={structured.expense.expense_type} 
+                    value={structured.expense.expense_type}
                     onChange={(e) => {
                       const val = e.target.value;
                       setStructured((p: any) => {
                         const sugg = suggestInvoiceFields(val);
-                        return { 
-                          ...p, 
-                          expense: { 
-                            ...p.expense, 
-                            expense_type: val, 
-                            invoice_name: p.expense.invoice_name || sugg.invoice_name, 
-                            description: p.expense.description || sugg.description 
-                          } 
+                        return {
+                          ...p,
+                          expense: {
+                            ...p.expense,
+                            expense_type: val,
+                            invoice_name: p.expense.invoice_name || sugg.invoice_name,
+                            description: p.expense.description || sugg.description
+                          }
                         };
                       });
                     }}
@@ -1219,64 +1301,62 @@ function AddExpenseModal({ siteId, onClose, onSubmitted }: { siteId: number | nu
                     ))}
                   </select>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                  <input 
-                    type="date" 
+                  <input
+                    type="date"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    value={structured.expense.date} 
-                    onChange={(e) => setStructured((p: any) => ({ ...p, expense: { ...p.expense, date: e.target.value } }))} 
+                    value={structured.expense.date}
+                    onChange={(e) => setStructured((p: any) => ({ ...p, expense: { ...p.expense, date: e.target.value } }))}
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Invoice No <span className="text-red-500">*</span>
                   </label>
-                  <input 
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      validation.invoiceNo ? "border-red-500" : "border-gray-300"
-                    }`}
-                    value={structured.expense.invoice_no} 
-                    onChange={(e) => setStructured((p: any) => ({ ...p, expense: { ...p.expense, invoice_no: e.target.value } }))} 
+                  <input
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validation.invoiceNo ? "border-red-500" : "border-gray-300"
+                      }`}
+                    value={structured.expense.invoice_no}
+                    onChange={(e) => setStructured((p: any) => ({ ...p, expense: { ...p.expense, invoice_no: e.target.value } }))}
                   />
                   {validation.invoiceNo && <div className="text-sm text-red-600 mt-1">Invoice number is required</div>}
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Invoice Name <span className="text-red-500">*</span>
                   </label>
-                  <input 
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      validation.invoiceName ? "border-red-500" : "border-gray-300"
-                    }`}
-                    value={structured.expense.invoice_name} 
-                    onChange={(e) => setStructured((p: any) => ({ ...p, expense: { ...p.expense, invoice_name: e.target.value } }))} 
+                  <input
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validation.invoiceName ? "border-red-500" : "border-gray-300"
+                      }`}
+                    value={structured.expense.invoice_name}
+                    onChange={(e) => setStructured((p: any) => ({ ...p, expense: { ...p.expense, invoice_name: e.target.value } }))}
                   />
                   {validation.invoiceName && <div className="text-sm text-red-600 mt-1">Invoice name is required</div>}
                 </div>
-                
+
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                  <textarea 
+                  <textarea
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     rows={3}
-                    value={structured.expense.description} 
-                    onChange={(e) => setStructured((p: any) => ({ ...p, expense: { ...p.expense, description: e.target.value } }))} 
+                    value={structured.expense.description}
+                    onChange={(e) => setStructured((p: any) => ({ ...p, expense: { ...p.expense, description: e.target.value } }))}
                   />
                 </div>
               </div>
-              
+
               <div className="flex items-center justify-between pt-4">
-                <button 
+                <button
                   className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                   onClick={() => setStep(0)}
                 >
                   Back
                 </button>
-                <button 
+                <button
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   onClick={() => setStep(2)}
                 >
@@ -1292,11 +1372,11 @@ function AddExpenseModal({ siteId, onClose, onSubmitted }: { siteId: number | nu
         </div>
 
         {previewZoomSrc && (
-          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setPreviewZoomSrc(null)}>
+          <div className="fixed inset-0 flex items-center justify-center z-50" onClick={() => setPreviewZoomSrc(null)}>
             <div className="max-w-4xl max-h-[80vh] p-4 bg-white rounded-xl shadow-2xl" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
                 <h4 className="text-lg font-semibold">Image Preview</h4>
-                <button 
+                <button
                   className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                   onClick={() => setPreviewZoomSrc(null)}
                 >
@@ -1320,7 +1400,7 @@ function ExpenseDetailModal({ loading, error, detail, onClose }: { loading: bool
   const charges: any[] = Array.isArray(detail?.charges) ? detail!.charges! : (Array.isArray(detail?.data?.charges) ? detail!.data!.charges! : []);
   const exp = (detail?.expense ?? detail ?? {}) as any;
   const [zoomSrc, setZoomSrc] = React.useState<string | null>(null);
-  
+
   const sanitizeUrl = (u?: any) => {
     if (!u) return null;
     try {
@@ -1329,15 +1409,15 @@ function ExpenseDetailModal({ loading, error, detail, onClose }: { loading: bool
       return s;
     } catch { return null; }
   };
-  
+
   const get = (k: string, fallback?: any) => {
     const top = (detail ?? {}) as any;
     return exp?.[k] ?? top?.[k] ?? top?.data?.[k] ?? fallback;
   };
-  
+
   const getAttachmentUrl = (att: any) => sanitizeUrl(att?.attachment_url || att?.file_url || att?.url || att?.signed_url || att?.download_url || null);
   const isImage = (att: any) => String(att?.mime_type || att?.content_type || att?.file_type || "").toLowerCase().startsWith("image");
-  
+
   const seller = (detail as any)?.party?.role === "vendor" ? (detail as any).party : Array.isArray((detail as any)?.parties) ? (detail as any).parties.find((p: any) => (p?.role || "").toLowerCase() === "vendor") : null;
   const buyer = (detail as any)?.buyer?.role === "buyer" ? (detail as any).buyer : Array.isArray((detail as any)?.parties) ? (detail as any).parties.find((p: any) => (p?.role || "").toLowerCase() === "buyer") : null;
 
@@ -1346,7 +1426,7 @@ function ExpenseDetailModal({ loading, error, detail, onClose }: { loading: bool
       <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h3 className="text-xl font-semibold text-gray-900">Expense Details</h3>
-          <button 
+          <button
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             onClick={onClose}
           >
@@ -1360,14 +1440,14 @@ function ExpenseDetailModal({ loading, error, detail, onClose }: { loading: bool
               <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
             </div>
           )}
-          
+
           {error && !loading && (
             <div className="text-center py-8">
               <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
               <p className="text-red-600">{error}</p>
             </div>
           )}
-          
+
           {!loading && !error && detail && (
             <div className="space-y-6">
               {/* Header Info */}
@@ -1417,7 +1497,7 @@ function ExpenseDetailModal({ loading, error, detail, onClose }: { loading: bool
                     <p className="text-sm"><span className="font-medium">GST:</span> {seller?.gstin || get("seller_gst") || "-"}</p>
                   </div>
                 </div>
-                
+
                 <div className="p-4 rounded-lg bg-gray-50">
                   <h4 className="text-sm font-semibold text-gray-700 mb-3">Buyer Information</h4>
                   <div className="space-y-2">
@@ -1571,7 +1651,7 @@ function ExpenseDetailModal({ loading, error, detail, onClose }: { loading: bool
         </div>
 
         <div className="flex items-center justify-end p-6 border-t border-gray-200">
-          <button 
+          <button
             className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             onClick={onClose}
           >
@@ -1580,11 +1660,11 @@ function ExpenseDetailModal({ loading, error, detail, onClose }: { loading: bool
         </div>
 
         {zoomSrc && (
-          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setZoomSrc(null)}>
+          <div className="fixed inset-0 flex items-center justify-center z-50" onClick={() => setZoomSrc(null)}>
             <div className="max-w-4xl max-h-[80vh] p-4 bg-white rounded-xl shadow-2xl" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
                 <h4 className="text-lg font-semibold">Image Preview</h4>
-                <button 
+                <button
                   className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                   onClick={() => setZoomSrc(null)}
                 >
@@ -1595,6 +1675,149 @@ function ExpenseDetailModal({ loading, error, detail, onClose }: { loading: bool
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+function ExportModal({ current, searchTerm, notify, categories, siteOptions, onClose }: { current: { siteId: number | null; categoryId: number | null; paymentMode: string; status: string; dateFrom: string; dateTo: string; invoiceDateFrom: string; invoiceDateTo: string; }; searchTerm: string; notify: (message: string, type: 'success' | 'error') => void; categories: { id: number; name: string }[]; siteOptions: { id: number; name: string }[]; onClose: () => void; }) {
+  const [emailsInput, setEmailsInput] = React.useState<string>("");
+  const [local, setLocal] = React.useState({ ...current });
+  const [submitting, setSubmitting] = React.useState<boolean>(false);
+  const submit = async () => {
+    try {
+      setSubmitting(true);
+      const emails = emailsInput.split(/[,\s]+/).map((e) => e.trim()).filter(Boolean);
+      const body: any = {
+        emails,
+        site_id: local.siteId,
+        category_id: local.categoryId,
+        payment_mode: local.paymentMode,
+        status: local.status,
+        date_from: local.dateFrom,
+        date_to: local.dateTo,
+        invoice_date_from: local.invoiceDateFrom,
+        invoice_date_to: local.invoiceDateTo,
+        q: searchTerm,
+      };
+      await apiClient<any>("/expenses/export", { method: "POST", withAuth: true, body: body });
+      notify("Export requested. You will receive the email shortly.", "success");
+      onClose();
+    } catch (err) {
+      console.error(err);
+      notify("Failed to request export", "error");
+    } finally { setSubmitting(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="fixed inset-0 bg-opacity-30" onClick={onClose} />
+      <div className="relative bg-white rounded-xl shadow-xl w-full max-w-2xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Export Expenses</h3>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Site</label>
+            <select value={local.siteId ?? ""} onChange={(e) => setLocal({ ...local, siteId: e.target.value ? Number(e.target.value) : null })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+              <option value="">All Sites</option>
+              {siteOptions.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Category</label>
+            <select value={local.categoryId != null ? String(local.categoryId) : ""} onChange={(e) => setLocal({ ...local, categoryId: e.target.value ? Number(e.target.value) : null })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+              <option value="">All Categories</option>
+              {categories.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Updated From</label>
+            <input type="date" value={local.dateFrom} onChange={(e) => setLocal({ ...local, dateFrom: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Updated To</label>
+            <input type="date" value={local.dateTo} onChange={(e) => setLocal({ ...local, dateTo: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Invoice From</label>
+            <input type="date" value={local.invoiceDateFrom} onChange={(e) => setLocal({ ...local, invoiceDateFrom: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Invoice To</label>
+            <input type="date" value={local.invoiceDateTo} onChange={(e) => setLocal({ ...local, invoiceDateTo: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Payment Mode</label>
+            <select value={local.paymentMode} onChange={(e) => setLocal({ ...local, paymentMode: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+              <option value="">All</option>
+              <option value="Cash">Cash</option>
+              <option value="UPI">UPI</option>
+              <option value="BankTransfer">Bank Transfer</option>
+              <option value="Card">Card</option>
+              <option value="Cheque">Cheque</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Status</label>
+            <select value={local.status} onChange={(e) => setLocal({ ...local, status: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+              <option value="">All Statuses</option>
+              <option value="PENDING">Pending</option>
+              <option value="APPROVED">Approved</option>
+              <option value="REJECTED">Rejected</option>
+              <option value="DRAFT">Draft</option>
+              <option value="CANCELLED">Cancelled</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="PUBLISHED">Published</option>
+              <option value="ARCHIVED">Archived</option>
+            </select>
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-xs text-gray-500 mb-1">Emails (comma separated)</label>
+            <input type="text" value={emailsInput} onChange={(e) => setEmailsInput(e.target.value)} placeholder="user1@example.com, user2@example.com" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+          </div>
+        </div>
+        <div className="flex items-center justify-end mt-4 gap-2">
+          <button onClick={onClose} className="px-3 py-2 border border-gray-300 rounded-lg">Cancel</button>
+          <button onClick={submit} disabled={submitting} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
+            {submitting ? 'Submitting...' : 'Send Export'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RowExportModal({ expenseId, emails, notify, onChangeEmails, onClose }: { expenseId: number | null; emails: string; notify: (message: string, type: 'success' | 'error') => void; onChangeEmails: (s: string) => void; onClose: () => void; }) {
+  const [submitting, setSubmitting] = React.useState<boolean>(false);
+  const submit = async () => {
+    try {
+      setSubmitting(true);
+      const emailsArr = emails.split(/[,\s]+/).map((e) => e.trim()).filter(Boolean);
+      const body: any = { emails: emailsArr, expense_id: expenseId };
+      await apiClient<any>("/expenses/export", { method: "POST", withAuth: true, body: body });
+      notify("Export requested.", "success");
+      onClose();
+    } catch (err) {
+      console.error(err);
+      notify("Failed to request export", "error");
+    } finally { setSubmitting(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="fixed inset-0 bg-opacity-30" onClick={onClose} />
+      <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Export Expense</h3>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-4 h-4" /></button>
+        </div>
+        <label className="block text-xs text-gray-500 mb-1">Emails (comma separated)</label>
+        <input type="text" value={emails} onChange={(e) => onChangeEmails(e.target.value)} placeholder="user1@example.com, user2@example.com" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+        <div className="flex items-center justify-end mt-4 gap-2">
+          <button onClick={onClose} className="px-3 py-2 border border-gray-300 rounded-lg">Cancel</button>
+          <button onClick={submit} disabled={submitting} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
+            {submitting ? 'Submitting...' : 'Send Export'}
+          </button>
+        </div>
       </div>
     </div>
   );

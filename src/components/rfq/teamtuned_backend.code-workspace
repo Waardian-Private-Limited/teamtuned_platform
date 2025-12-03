@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "../../../../teamtuned_backend"
+		},
+		{
+			"path": "../../.."
+		},
+		{
+			"path": "../../../../teamtuned"
+		}
+	],
+	"settings": {}
+}
