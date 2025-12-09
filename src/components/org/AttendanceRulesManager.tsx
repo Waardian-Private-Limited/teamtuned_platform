@@ -37,6 +37,7 @@ export type AttendancePolicy = {
   // Payroll fields
   salary_payment_cycle?: "monthly" | "biweekly" | "weekly";
   salary_date_day?: number;
+  slip_day?: number;
   payment_cycle_start?: number;
   payment_cycle_end?: number;
 
@@ -78,6 +79,7 @@ const defaultPolicy: AttendancePolicy = {
   leave_cycle: "yearly",
   salary_payment_cycle: "monthly",
   salary_date_day: 1,
+  slip_day: undefined,
   payment_cycle_start: undefined,
   payment_cycle_end: undefined,
 
@@ -900,7 +902,7 @@ export default function AttendanceRulesManager() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Salary Date (Day)<span className="text-red-500 ml-1">*</span>
+                          Salary Date (Day of Month)
                         </label>
                         <input
                           type="number"
@@ -914,7 +916,23 @@ export default function AttendanceRulesManager() {
                         {formErrors.salary_date_day && (
                           <p className="mt-1 text-sm text-red-600">{formErrors.salary_date_day}</p>
                         )}
-                        <p className="mt-1 text-xs text-gray-500">Day of month for salary (1-31).</p>
+                        <p className="mt-1 text-xs text-gray-500">Day when salary is paid (1-31).</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Slip Available Day (Optional)
+                        </label>
+                        <input
+                          type="number"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          min={1}
+                          max={31}
+                          value={policy.slip_day || ''}
+                          onChange={(e) => setField("slip_day", e.target.value ? Number(e.target.value) : undefined)}
+                          placeholder="e.g., 5"
+                        />
+                        <p className="mt-1 text-xs text-gray-500">Day when salary slip becomes available (1-31). Leave empty if same as salary date.</p>
                       </div>
 
                       <div>
