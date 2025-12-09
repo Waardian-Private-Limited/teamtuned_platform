@@ -63,7 +63,13 @@ function useCountUp(target: number, duration = 800) {
   return v;
 }
 
+import { useFeatures } from "@/lib/hooks/useFeatures";
+
 export default function EmployeeSiteAssignment() {
+  // Features
+  const { hasFeature } = useFeatures();
+  const hasCoreFeature = hasFeature('PAYROLL_FEATURE');
+
   // Permissions
   const [role, setRole] = useState<string | null>(null);
   const [permissions, setPermissions] = useState<string[]>([]);
@@ -350,8 +356,8 @@ export default function EmployeeSiteAssignment() {
     );
   }
 
-  // Permission Denied
-  if (!isOrgAdmin && !hasPerm("EMPLOYEE_ASSIGN_SITE") && !isHRMode) {
+  // Permission Denied or Feature Disabled
+  if ((!isOrgAdmin && !hasPerm("EMPLOYEE_ASSIGN_SITE") && !isHRMode) || !hasCoreFeature) {
     return (
       <div className="space-y-4">
         <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -364,7 +370,11 @@ export default function EmployeeSiteAssignment() {
         <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
           <MapPin className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">Access Denied</h3>
-          <p className="text-gray-500">You do not have permission to manage site assignments.</p>
+          <p className="text-gray-500">
+            {!hasCoreFeature
+              ? "This feature (PAYROLL_FEATURE) is not enabled for your organization."
+              : "You do not have permission to manage site assignments."}
+          </p>
         </div>
       </div>
     );

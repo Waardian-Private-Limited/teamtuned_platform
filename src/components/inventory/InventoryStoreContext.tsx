@@ -44,9 +44,9 @@ export function InventoryStoreProvider({ children }: { children: React.ReactNode
         }
 
         // If no stored selection, try auto-select for store managers
-        if (!autoSelectAttempted) {
-            autoSelectStore();
-        }
+        // if (!autoSelectAttempted) {
+        //     autoSelectStore();
+        // }
     }, [autoSelectAttempted]);
 
     const autoSelectStore = async () => {

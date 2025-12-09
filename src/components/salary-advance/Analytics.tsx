@@ -9,7 +9,7 @@ import {
 import {
     TrendingUp, DollarSign, Users, Calendar, Filter, RefreshCw,
     PieChart as PieChartIcon, ArrowUpRight, ArrowDownRight, Building,
-    Activity, CheckCircle, AlertCircle, Clock
+    Activity, CheckCircle, AlertCircle, Clock, Shield
 } from "lucide-react";
 import CardSkeleton from "./CardSkeleton";
 import ChartSkeleton from "./ChartSkeleton";
@@ -84,15 +84,42 @@ export default function SalaryAdvanceAnalytics() {
     const [departmentFilter, setDepartmentFilter] = useState("");
     const [employeePage, setEmployeePage] = useState(1);
 
+    // Permission state
+    const [userRole, setUserRole] = useState<string | null>(null);
+    const [permissions, setPermissions] = useState<string[]>([]);
+    const [checkingPerms, setCheckingPerms] = useState(true);
+
     useEffect(() => {
-        fetchDepartments();
+        (async () => {
+            try {
+                const session = await apiClient<any>("/auth/session", { method: "GET" });
+                if (session?.authenticated) {
+                    setUserRole(session.role);
+                    setPermissions(session.employee?.permissions || []);
+                }
+            } catch (_) { } finally {
+                setCheckingPerms(false);
+            }
+        })();
     }, []);
 
+    const isOrgAdmin = (userRole || "").toLowerCase() === "orgadmin";
+    const canView = isOrgAdmin || permissions.includes("SALADV_VIEW");
+
     useEffect(() => {
-        fetchAnalytics();
-    }, [startDate, endDate, departmentFilter, employeePage]);
+        if (!checkingPerms && canView) {
+            fetchDepartments();
+        }
+    }, [checkingPerms, canView]);
+
+    useEffect(() => {
+        if (!checkingPerms && canView) {
+            fetchAnalytics();
+        }
+    }, [startDate, endDate, departmentFilter, employeePage, checkingPerms, canView]);
 
     const fetchDepartments = async () => {
+        // if (!canView) return; // Optional check here as effect handles it
         try {
             const res = await apiClient<Department[] | { departments: Department[] }>("/organization/departments", { withAuth: true });
             if (Array.isArray(res)) {
@@ -106,6 +133,7 @@ export default function SalaryAdvanceAnalytics() {
     };
 
     const fetchAnalytics = async () => {
+        if (!canView) return;
         setLoading(true);
         try {
             const params: any = { page: employeePage, limit: 10 };
@@ -128,6 +156,18 @@ export default function SalaryAdvanceAnalytics() {
     const formatCurrency = (amount: number) => {
         return `₹${Number(amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
     };
+
+    if (checkingPerms) return <div className="p-8 text-center text-gray-500">Checking access...</div>;
+
+    if (!canView) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 text-center text-gray-500">
+                <Shield size={48} className="mb-4 text-gray-300" />
+                <h2 className="text-xl font-semibold text-gray-900">Access Denied</h2>
+                <p className="mt-2">You do not have permission to view salary advance analytics.</p>
+            </div>
+        );
+    }
 
     if (loading && !data) {
         return (

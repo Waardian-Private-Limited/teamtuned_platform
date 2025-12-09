@@ -9,6 +9,8 @@ import { OrgProvider } from "@/components/shared/OrgContext";
 import { InventoryStoreProvider } from "@/components/inventory/InventoryStoreContext";
 import { apiClient } from "@/lib/apiClient";
 
+import { useUserStore } from "@/lib/store/userStore";
+
 export default function OrgAdminLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const [isCollapsed, setIsCollapsed] = React.useState(false);
@@ -18,6 +20,9 @@ export default function OrgAdminLayout({ children }: { children: React.ReactNode
     const [lastName, setLastName] = React.useState<string | null>(null);
     const [permissions, setPermissions] = React.useState<string[]>([]);
     const [role, setRole] = React.useState<string | null>(null);
+    const [features, setFeatures] = React.useState<string[]>([]);
+    const [isLoading, setIsLoading] = React.useState(true);
+    const { setUser } = useUserStore();
 
     React.useEffect(() => {
         (async () => {
@@ -28,35 +33,52 @@ export default function OrgAdminLayout({ children }: { children: React.ReactNode
                     user?: { id: string; email: string; name?: string; first_name?: string | null; last_name?: string | null };
                     organization?: { name?: string | null; logo_url?: string | null } | null;
                     employee?: { permissions?: string[] } | null;
+                    organization_features?: { code: string }[];
                 }>("/auth/session", { method: "GET" });
 
-                if (session?.authenticated) {
-                    setOrgName(session.organization?.name || null);
-                    setOrgLogoUrl(session.organization?.logo_url || null);
-                    setFirstName(session.user?.first_name || null);
-                    setLastName(session.user?.last_name || null);
-                    setPermissions(session.employee?.permissions || []);
-                    setRole(session.role || null);
+                if (session?.authenticated && session.role) {
+                    const userRole = session.role.toLowerCase();
 
-                    // OrgAdmin only in this layout
-                    if (session.role !== "OrgAdmin" && session.role !== "superAdmin") {
-                        // If strictly enforcing OrgAdmin, redirect employees
-                        if (session.role === "employee") {
-                            router.replace("/employee");
-                            return;
-                        }
+                    // Allow superadmin and orgadmin
+                    if (userRole === "superadmin" || userRole === "orgadmin") {
+                        setOrgName(session.organization?.name || null);
+                        setOrgLogoUrl(session.organization?.logo_url || null);
+                        setFirstName(session.user?.first_name || null);
+                        setLastName(session.user?.last_name || null);
+                        setPermissions(session.employee?.permissions || []);
+                        setRole(session.role);
+
+                        const featureCodes = (session.organization_features || []).map(f => f.code);
+                        setFeatures(featureCodes);
+
+                        setUser({
+                            id: session.user?.id || "",
+                            email: session.user?.email || "",
+                            role: session.role,
+                            name: session.user?.name || "",
+                            features: featureCodes,
+                        });
+
+                        setIsLoading(false);
+                        return;
+                    }
+
+                    // Redirect employees
+                    if (userRole === "employee") {
+                        router.replace("/employee");
+                        return;
                     }
                 }
-                else {
-                    try { await apiClient("/auth/logout", { method: "POST" }); } catch { }
-                    router.replace("/login");
-                    return;
-                }
+
+                // Default fallback for unauthenticated or unknown roles
+                try { await apiClient("/auth/logout", { method: "POST" }); } catch { }
+                router.replace("/login");
+
             } catch (e) {
-                // ignore
+                router.replace("/login");
             }
         })();
-    }, []);
+    }, [router, setUser]);
 
     const handleLogout = async () => {
         try {
@@ -64,6 +86,14 @@ export default function OrgAdminLayout({ children }: { children: React.ReactNode
         } catch { }
         router.replace("/login");
     };
+
+    if (isLoading) {
+        return (
+            <div className="flex h-screen w-full items-center justify-center bg-gray-50">
+                <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600" />
+            </div>
+        );
+    }
 
     return (
         <OrgProvider defaultHQ={true}>
@@ -80,6 +110,7 @@ export default function OrgAdminLayout({ children }: { children: React.ReactNode
                         onLogout={handleLogout}
                         permissions={permissions}
                         role={role || undefined}
+                        features={features}
                     />
                     <div className="flex flex-col h-screen overflow-hidden relative bg-gray-50">
                         <GlobalHeader

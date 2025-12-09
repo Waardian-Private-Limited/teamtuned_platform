@@ -10,6 +10,7 @@ export interface RequestOptions {
   headers?: Record<string, string>;
   params?: Record<string, string>;
   withAuth?: boolean; // Adds Authorization header from localStorage
+  responseType?: 'json' | 'blob' | 'text';
 }
 
 export async function apiClient<T = any>(
@@ -22,6 +23,7 @@ export async function apiClient<T = any>(
     headers = {},
     params,
     withAuth = false,
+    responseType = 'json',
   } = options;
 
   const query = params ? `?${new URLSearchParams(params).toString()}` : '';
@@ -55,7 +57,7 @@ export async function apiClient<T = any>(
     if (res.status === 401 && typeof window !== 'undefined') {
       try {
         localStorage.removeItem('token');
-      } catch {}
+      } catch { }
       // Redirect to login immediately
       window.location.href = '/login';
     }
@@ -70,6 +72,12 @@ export async function apiClient<T = any>(
   }
 
   try {
+    if (responseType === 'blob') {
+      return await res.blob() as any;
+    }
+    if (responseType === 'text') {
+      return await res.text() as any;
+    }
     return await res.json();
   } catch {
     // Some endpoints may return empty body
@@ -111,6 +119,7 @@ export interface OtpVerificationResponse {
     name?: string;
   };
   accounts?: Account[];
+  organization_features?: { id: number; code: string; name: string }[];
   error?: string;
 }
 

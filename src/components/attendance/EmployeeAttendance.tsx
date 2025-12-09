@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { apiClient } from "@/lib/apiClient";
 import AttendanceCalendar from "@/components/attendance/AttendanceCalendar";
 import LeavesManagement from "@/components/leaves/LeavesManagement";
+import AttendanceDetailsModal from "./AttendanceDetailsModal";
 import RedeemHistory from "@/components/redeem/RedeemHistory";
 import {
   Search,
@@ -22,7 +23,21 @@ import {
   Gift,
   User,
   Shield,
-  Eye
+  Eye,
+  Plus,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle,
+  CheckCircle,
+  X,
+  Mail,
+  IdCard,
+  UserX,
+  Home,
+  LogOut,
+  ArrowLeft,
+  Layers
 } from "lucide-react";
 
 type EmployeeItem = Record<string, any>;
@@ -43,13 +58,13 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
   const [items, setItems] = React.useState<EmployeeItem[]>([]);
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [success, setSuccess] = React.useState<string | null>(null);
+  const [successTimer, setSuccessTimer] = React.useState<number>(0);
 
   // Detail views
   const [activeView, setActiveView] = React.useState<"list" | "attendance" | "leaves" | "redeems">("list");
   const [activeEmployee, setActiveEmployee] = React.useState<EmployeeItem | null>(null);
-  const [recentApps, setRecentApps] = React.useState<any[]>([]);
-  const [recentLoading, setRecentLoading] = React.useState<boolean>(false);
-  const [recentError, setRecentError] = React.useState<string | null>(null);
+  const [selectedEmployeeForDetails, setSelectedEmployeeForDetails] = React.useState<EmployeeItem | null>(null);
 
   // Floating action menu
   const [menuOpen, setMenuOpen] = React.useState<boolean>(false);
@@ -57,15 +72,18 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
   const [menuEmployee, setMenuEmployee] = React.useState<EmployeeItem | null>(null);
   const closeMenu = React.useCallback(() => { setMenuOpen(false); setMenuPos(null); setMenuEmployee(null); }, []);
 
-  React.useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") closeMenu(); };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [closeMenu]);
-
-  // Filters
+  // Filters & UI State
   const [search, setSearch] = React.useState<string>("");
   const [department, setDepartment] = React.useState<string>("");
+  const [departments, setDepartments] = React.useState<any[]>([]);
+  const [statusFilter, setStatusFilter] = React.useState<string>("all");
+  const [date, setDate] = React.useState<string>(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  });
 
   // Session-based permission gating
   const [role, setRole] = React.useState<string | null>(null);
@@ -74,31 +92,100 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
   const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
   const canHRMode = !isEmployee || hasPerm("HR_MODE");
   const canViewAttendance = !isEmployee || ["ATTEND_VIEW", "ATTEND_ADD", "ATTEND_EDIT"].some((c) => hasPerm(c));
+  const canAddEmployee = !isEmployee || hasPerm("EMPLOYEE_ADD");
 
-  // Client-side pagination
-  const [page, setPage] = React.useState<number>(1);
+  // Pagination
+  const [currentPage, setCurrentPage] = React.useState<number>(1);
   const [pageSize, setPageSize] = React.useState<number>(10);
-  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const [totalPages, setTotalPages] = React.useState<number>(1);
+  const [totalItems, setTotalItems] = React.useState<number>(0);
+
+  React.useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") closeMenu(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [closeMenu]);
+
+  // Fetch Departments
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res = await apiClient<any>("/organization/departments", { method: "GET", withAuth: true });
+        const list = Array.isArray(res) ? res : (Array.isArray(res?.departments) ? res.departments : []);
+        setDepartments(list);
+      } catch (e) {
+        console.error("Failed to fetch departments", e);
+      }
+    })();
+  }, []);
+
+  // Auto-dismiss success messages
+  React.useEffect(() => {
+    if (success) {
+      setSuccessTimer(15);
+      const countdown = setInterval(() => {
+        setSuccessTimer((prev) => {
+          if (prev <= 1) {
+            clearInterval(countdown);
+            setSuccess(null);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(countdown);
+    } else {
+      setSuccessTimer(0);
+    }
+  }, [success]);
+
   const filteredItems = React.useMemo(() => {
     const s = search.trim().toLowerCase();
     const d = department.trim().toLowerCase();
     return items.filter((it) => {
       const name = String(it.name || `${it.first_name || ""} ${it.last_name || ""}`).toLowerCase();
       const dept = String(it.department_name || it.department || "").toLowerCase();
-      const passSearch = !s || name.includes(s) || String(it.phone || it.phone_number || "").toLowerCase().includes(s);
-      const passDept = !d || dept.includes(d);
-      return passSearch && passDept;
+      const status = String(it.current_status || "").toLowerCase();
+      const activeSession = it.attendance?.active_session_type;
+
+      const passSearch = !s || name.includes(s) ||
+        String(it.phone || it.phone_number || "").toLowerCase().includes(s) ||
+        String(it.email || "").toLowerCase().includes(s) ||
+        String(it.employee_id || "").toLowerCase().includes(s);
+
+      const passDept = !d || dept === d;
+
+      let passStatus = statusFilter === "all";
+
+      if (!passStatus) {
+        if (statusFilter === "present") {
+          passStatus = status === "checked_in" || status === "present" ||
+            activeSession === "working" || activeSession === "break" || activeSession === "outside_work";
+        } else if (statusFilter === "absent") {
+          passStatus = status === "absent";
+        } else if (statusFilter === "week_off") {
+          passStatus = status === "week_off";
+        } else if (statusFilter === "completed") {
+          passStatus = status === "checked_out" || status === "completed";
+        } else if (statusFilter === "late") {
+          passStatus = status.includes("late") || status === "late_checkin";
+        } else if (statusFilter === "half_day") {
+          passStatus = status === "half_day";
+        }
+      }
+
+      return passSearch && passDept && passStatus;
     });
-  }, [items, search, department]);
+  }, [items, search, department, statusFilter]);
 
   const pagedItems = React.useMemo(() => {
-    const start = (page - 1) * pageSize;
+    const start = (currentPage - 1) * pageSize;
     return filteredItems.slice(start, start + pageSize);
-  }, [filteredItems, page, pageSize]);
+  }, [filteredItems, currentPage, pageSize]);
 
   React.useEffect(() => {
     (async () => {
-      // Load session for role & permissions
       try {
         const session = await apiClient<{ authenticated: boolean; role?: string; employee?: { permissions?: string[] } | null }>("/auth/session", { method: "GET" });
         if (session?.authenticated) {
@@ -119,7 +206,6 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
         // ignore
       }
 
-      // If HR mode is available, fetch all sites
       try {
         if (canHRMode) {
           const res = await apiClient<{ sites?: any[]; data?: any[] }>("/sites", { method: "GET", withAuth: true, params: { incharge_only: "0" } });
@@ -130,7 +216,6 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
     })();
   }, []);
 
-  // Reactively fetch all sites when HR capability becomes available
   React.useEffect(() => {
     (async () => {
       if (!canHRMode || allSites.length > 0) return;
@@ -162,39 +247,302 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
         params["site_id"] = String(effSite);
       }
 
+      if (date) params["date"] = date;
+
+      // Filters
+      const s = search.trim();
+      if (s) params["search"] = s;
+      if (department) {
+        const dep = departments.find(d => String(d.name) === department);
+        if (dep?.id != null) params["department_id"] = String(dep.id);
+      }
+      if (statusFilter && statusFilter !== "all") params["status"] = statusFilter;
+
       const res = await apiClient<any>("/attendance/employee-management", { method: "GET", params, withAuth: true });
       const list: any[] = Array.isArray(res?.items) ? res.items : (Array.isArray(res) ? res : (res?.data || []));
       setItems(list.map((e: any) => ({ ...(e || {}) })));
-      setPage(1);
+      const total = res?.pagination?.totalItems ?? list.length;
+      const totalPagesFromApi = res?.pagination?.totalPages ?? Math.ceil(total / pageSize);
+      setTotalItems(total);
+      setTotalPages(totalPagesFromApi);
+      setCurrentPage(1);
     } catch (e: any) {
       setError(e?.message || "Failed to load employee attendance");
     } finally {
       setLoading(false);
     }
-  }, [hqMode, selectedSiteId, canHRMode, externalControl, extHq, extSiteId]);
+  }, [hqMode, selectedSiteId, canHRMode, externalControl, extHq, extSiteId, date, search, department, statusFilter, departments]);
 
   React.useEffect(() => {
     fetchList();
   }, [fetchList]);
 
-  React.useEffect(() => {
-    (async () => {
-      if (activeView !== "leaves" || !activeEmployee) return;
-      setRecentLoading(true);
-      setRecentError(null);
-      try {
-        const targetIdRaw = (activeEmployee as any)?.id;
-        const targetId = typeof targetIdRaw === 'number' ? targetIdRaw : parseInt(String(targetIdRaw)) || 0;
-        const res = await apiClient<any>('/leaves/applications', { method: 'GET', withAuth: true, params: { limit: '3', employee_id: String(targetId || '') } });
-        const list: any[] = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
-        setRecentApps(list);
-      } catch (e: any) {
-        setRecentError(e?.message || 'Failed to load recent applications');
-      } finally {
-        setRecentLoading(false);
+  const applyFilters = () => {
+    setCurrentPage(1);
+    fetchList();
+  };
+
+  const clearFilters = () => {
+    setSearch("");
+    setDepartment("");
+    setStatusFilter("all");
+    setCurrentPage(1);
+    fetchList();
+  };
+
+  const formatStatus = (status: string): string => {
+    const s = (status || "").toLowerCase().trim();
+
+    if (s.includes("checked-out") || s.includes("completed") || s.includes("finished")) {
+      return "Completed";
+    }
+    if (s.includes("checked-in") || s.includes("present") || s.includes("active")) {
+      return "Present";
+    }
+    if (s.includes("absent") || s === "absent") {
+      return "Absent";
+    }
+    if (s.includes("not_started") || s === "not_started") {
+      return "Not Started";
+    }
+    if (s.includes("week_off") || s.includes("weekoff") || s.includes("day_off")) {
+      return "Week Off";
+    }
+    if (s.includes("half_day") || s.includes("halfday") || s.includes("half-day")) {
+      return "Half Day";
+    }
+    if (s.includes("late") || s.includes("late_checkin")) {
+      return "Late";
+    }
+    if (s.includes("early") || s.includes("early_checkout")) {
+      return "Early";
+    }
+    if (s.includes("holiday") || s.includes("public_holiday")) {
+      return "Holiday";
+    }
+    if (s.includes("leave") || s.includes("on_leave")) {
+      return "On Leave";
+    }
+    if (s.includes("work_from_home") || s.includes("wfh")) {
+      return "WFH";
+    }
+    if (s.includes("break") || s.includes("on_break")) {
+      return "On Break";
+    }
+    if (s.includes("outside_work") || s.includes("outside work")) {
+      return "Outside Work";
+    }
+
+    return s.split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ') || "Unknown";
+  };
+
+  const getStatusColor = (status: string) => {
+    const formattedStatus = formatStatus(status).toLowerCase();
+
+    if (formattedStatus.includes("completed") || formattedStatus.includes("present")) {
+      return {
+        text: "text-emerald-700",
+        bg: "bg-emerald-50",
+        border: "border-emerald-200",
+      };
+    }
+    if (formattedStatus.includes("absent")) {
+      return {
+        text: "text-rose-700",
+        bg: "bg-rose-50",
+        border: "border-rose-200",
+      };
+    }
+    if (formattedStatus.includes("not started")) {
+      return {
+        text: "text-slate-700",
+        bg: "bg-slate-50",
+        border: "border-slate-200",
+      };
+    }
+    if (formattedStatus.includes("week off")) {
+      return {
+        text: "text-slate-600",
+        bg: "bg-slate-50",
+        border: "border-slate-200",
+      };
+    }
+    if (formattedStatus.includes("half day")) {
+      return {
+        text: "text-amber-700",
+        bg: "bg-amber-50",
+        border: "border-amber-200",
+      };
+    }
+    if (formattedStatus.includes("late")) {
+      return {
+        text: "text-orange-700",
+        bg: "bg-orange-50",
+        border: "border-orange-200",
+      };
+    }
+    if (formattedStatus.includes("early")) {
+      return {
+        text: "text-violet-700",
+        bg: "bg-violet-50",
+        border: "border-violet-200",
+      };
+    }
+    if (formattedStatus.includes("holiday")) {
+      return {
+        text: "text-sky-700",
+        bg: "bg-sky-50",
+        border: "border-sky-200",
+      };
+    }
+    if (formattedStatus.includes("on leave")) {
+      return {
+        text: "text-indigo-700",
+        bg: "bg-indigo-50",
+        border: "border-indigo-200",
+      };
+    }
+    if (formattedStatus.includes("wfh")) {
+      return {
+        text: "text-teal-700",
+        bg: "bg-teal-50",
+        border: "border-teal-200",
+      };
+    }
+    if (formattedStatus.includes("on break")) {
+      return {
+        text: "text-amber-600",
+        bg: "bg-amber-50",
+        border: "border-amber-200",
+      };
+    }
+    if (formattedStatus.includes("outside work")) {
+      return {
+        text: "text-cyan-700",
+        bg: "bg-cyan-50",
+        border: "border-cyan-200",
+      };
+    }
+
+    return {
+      text: "text-slate-700",
+      bg: "bg-slate-50",
+      border: "border-slate-200",
+    };
+  };
+
+  const getStatusIcon = (status: string) => {
+    const formattedStatus = formatStatus(status).toLowerCase();
+
+    if (formattedStatus.includes("completed")) return <CheckCircle className="w-3 h-3" />;
+    if (formattedStatus.includes("present")) return <CheckCircle className="w-3 h-3" />;
+    if (formattedStatus.includes("absent")) return <X className="w-3 h-3" />;
+    if (formattedStatus.includes("not started")) return <Clock className="w-3 h-3" />;
+    if (formattedStatus.includes("week off")) return <Calendar className="w-3 h-3" />;
+    if (formattedStatus.includes("half day")) return <Clock className="w-3 h-3" />;
+    if (formattedStatus.includes("late")) return <Clock className="w-3 h-3" />;
+    if (formattedStatus.includes("early")) return <Clock className="w-3 h-3" />;
+    if (formattedStatus.includes("holiday")) return <Gift className="w-3 h-3" />;
+    if (formattedStatus.includes("on leave")) return <Leaf className="w-3 h-3" />;
+    if (formattedStatus.includes("wfh")) return <Home className="w-3 h-3" />;
+    if (formattedStatus.includes("on break")) return <Clock className="w-3 h-3" />;
+    if (formattedStatus.includes("outside work")) return <MapPin className="w-3 h-3" />;
+
+    return <AlertCircle className="w-3 h-3" />;
+  };
+
+  // Action Dropdown Component
+  const ActionDropdown = ({ employee }: { employee: EmployeeItem }) => {
+    const [isOpen, setIsOpen] = React.useState(false);
+    const [placeUp, setPlaceUp] = React.useState(false);
+    const dropdownRef = React.useRef<HTMLDivElement>(null);
+    const triggerRef = React.useRef<HTMLButtonElement>(null);
+
+    React.useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+        if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+          setIsOpen(false);
+        }
+      };
+
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }, []);
+
+    React.useEffect(() => {
+      if (isOpen) {
+        const rect = triggerRef.current?.getBoundingClientRect();
+        const spaceBelow = typeof window !== 'undefined' ? (window.innerHeight - (rect?.bottom || 0)) : 0;
+        const approxMenuHeight = 200;
+        setPlaceUp(spaceBelow < approxMenuHeight + 16);
       }
-    })();
-  }, [activeView, activeEmployee]);
+    }, [isOpen]);
+
+    const name = String(employee.name || `${employee.first_name || ""} ${employee.last_name || ""}` || `Employee #${employee.id || "-"}`);
+
+    return (
+      <div className="relative" ref={dropdownRef}>
+        <button
+          ref={triggerRef}
+          onClick={() => setIsOpen((o) => !o)}
+          className="p-1.5 rounded-md hover:bg-slate-100 transition-colors"
+        >
+          <MoreVertical className="w-4 h-4 text-slate-600" />
+        </button>
+        {isOpen && (
+          <>
+            <div className="fixed inset-0 z-[100]" onClick={() => setIsOpen(false)} />
+            <div className={`fixed ${placeUp ? 'bottom-auto' : 'top-auto'} w-52 bg-white rounded-lg shadow-lg border border-slate-200 z-[101]`}
+              style={{
+                left: triggerRef.current ? `${triggerRef.current.getBoundingClientRect().right - 208}px` : '0',
+                top: placeUp ? 'auto' : triggerRef.current ? `${triggerRef.current.getBoundingClientRect().bottom + 4}px` : '0',
+                bottom: placeUp && triggerRef.current ? `${window.innerHeight - triggerRef.current.getBoundingClientRect().top + 4}px` : 'auto'
+              }}
+            >
+              <div className="py-1.5">
+                <button
+                  onClick={() => { setActiveEmployee(employee); setActiveView("attendance"); setIsOpen(false); }}
+                  className="flex items-center gap-3 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <Calendar className="w-4 h-4 text-slate-500" />
+                  <span>View Attendance</span>
+                </button>
+                <button
+                  onClick={() => { setActiveEmployee(employee); setActiveView("leaves"); setIsOpen(false); }}
+                  className="flex items-center gap-3 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <Leaf className="w-4 h-4 text-slate-500" />
+                  <span>View Leaves</span>
+                </button>
+                <button
+                  onClick={() => { setActiveEmployee(employee); setActiveView("redeems"); setIsOpen(false); }}
+                  className="flex items-center gap-3 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <Gift className="w-4 h-4 text-slate-500" />
+                  <span>View Redeems</span>
+                </button>
+                <div className="border-t border-slate-100 my-1.5" />
+                <button
+                  onClick={() => {
+                    setSelectedEmployeeForDetails(employee);
+                    setIsOpen(false);
+                  }}
+                  className="flex items-center gap-3 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <Eye className="w-4 h-4 text-slate-500" />
+                  <span>View Details</span>
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
 
   // Render detail view when active
   if (activeView !== "list" && activeEmployee) {
@@ -214,42 +562,116 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
     const ViewIcon = viewIcons[activeView];
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/20 p-4 lg:p-6">
-        <div className="max-w-7xl mx-auto space-y-6">
-          {/* Header */}
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => { setActiveView("list"); setActiveEmployee(null); }}
-              className="p-2 rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 hover:scale-105"
-            >
-              <ChevronLeft className="w-5 h-5 text-gray-600" />
-            </button>
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
-                <User className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">{nameLabel}</h1>
-                <div className="flex items-center gap-2 mt-1">
-                  <ViewIcon className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm text-gray-600 capitalize">
-                    {activeView === "attendance" ? "Attendance Calendar" :
-                      activeView === "leaves" ? "Leave Management" : "Redeem History"}
-                  </span>
+      <div className="h-screen flex flex-col bg-white overflow-hidden">
+        {/* Header */}
+        {activeView !== "attendance" && (
+          <div className="bg-white border-b border-slate-200 pb-3 px-6 pt-4 shrink-0 z-10">
+            <div className="max-w-7xl mx-auto w-full">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => { setActiveView("list"); setActiveEmployee(null); }}
+                    className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
+                  >
+                    <ArrowLeft className="w-4 h-4 text-slate-600" />
+                  </button>
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+                      <User className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h1 className="text-lg font-semibold text-slate-900">{nameLabel}</h1>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <ViewIcon className="w-3.5 h-3.5 text-blue-600" />
+                        <span className="text-xs text-slate-600">
+                          {activeView === "leaves" ? "Leave Management" : "Redeem History"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
+        )}
 
-          {/* Content */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-            {activeView === "attendance" && <AttendanceCalendar employeeId={idVal} employeeName={nameLabel} />}
+        {/* Content */}
+        <div className="flex-1 overflow-hidden bg-slate-50">
+          <div className="h-full max-w-7xl mx-auto w-full">
+            {activeView === "attendance" && (
+              <AttendanceCalendar
+                employeeId={idVal}
+                employeeName={nameLabel}
+                onBack={() => { setActiveView("list"); setActiveEmployee(null); }}
+              />
+            )}
             {activeView === "leaves" && (
-              <div className="space-y-4">
+              <div className="h-full overflow-y-auto p-6">
                 <LeavesManagement employeeId={idVal} employeeName={nameLabel} />
               </div>
             )}
-            {activeView === "redeems" && <RedeemHistory employeeId={idVal} employeeName={nameLabel} />}
+            {activeView === "redeems" && (
+              <div className="h-full">
+                <RedeemHistory employeeId={idVal} employeeName={nameLabel} />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading State
+  if (loading && items.length === 0) {
+    return (
+      <div className="min-h-screen bg-white p-6">
+        <div className="max-w-7xl mx-auto space-y-5">
+
+
+          <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+            <div className="bg-slate-50 border-b border-slate-200">
+              <div className="grid grid-cols-6 gap-4 px-5 py-3">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="h-3 bg-slate-200 rounded w-20 animate-pulse"></div>
+                ))}
+              </div>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="grid grid-cols-6 gap-4 px-5 py-3.5 animate-pulse">
+                  <div className="space-y-2">
+                    <div className="h-3 bg-slate-100 rounded w-32"></div>
+                    <div className="h-2.5 bg-slate-100 rounded w-24"></div>
+                  </div>
+                  <div className="h-4 bg-slate-100 rounded w-28"></div>
+                  <div className="h-4 bg-slate-100 rounded w-20"></div>
+                  <div className="h-4 bg-slate-100 rounded w-24"></div>
+                  <div className="h-4 bg-slate-100 rounded w-28"></div>
+                  <div className="h-5 bg-slate-100 rounded w-8 justify-self-end"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Permission Denied
+  if (isEmployee && !canViewAttendance) {
+    return (
+      <div className="min-h-screen bg-white p-6">
+        <div className="max-w-7xl mx-auto space-y-5">
+          <div className="bg-white border-b border-slate-200 pb-5">
+            <div>
+              <h1 className="text-lg font-semibold text-slate-900">Employee Attendance Management</h1>
+              <p className="text-xs text-slate-500 mt-1">Track and manage employee attendance records</p>
+            </div>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-lg p-12 text-center">
+            <Shield className="w-14 h-14 text-slate-300 mx-auto mb-4" />
+            <h3 className="font-medium text-slate-900 mb-2">Access Denied</h3>
+            <p className="text-sm text-slate-500">You do not have permission to view employee attendance.</p>
           </div>
         </div>
       </div>
@@ -257,411 +679,502 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/20 p-4 lg:p-2">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {isEmployee && !canViewAttendance && (
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center gap-3">
-            <Shield className="w-5 h-5 text-red-600" />
-            <div className="text-red-700 font-medium">You do not have permission to view Attendance.</div>
-          </div>
-        )}
+    <div className="h-[calc(100vh-9rem)] bg-white flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 p-0">
+        <div className="flex flex-col h-full gap-0">
+          {/* Filters Section */}
+          <div className="bg-white border-b border-slate-200 p-1 flex-shrink-0 z-20">
+            <div className="grid grid-cols-12 gap-1">
+              {/* HR Mode Toggle */}
+              {!externalControl && showHQToggle && canHRMode && (
+                <div className="col-span-12 sm:col-span-6 md:col-span-2">
+                  <label className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={hqMode && canHRMode}
+                      onChange={(e) => setHqMode(e.target.checked)}
+                      disabled={!canHRMode}
+                      className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-2 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-slate-700">HR Mode</span>
+                  </label>
+                </div>
+              )}
 
-        {/* Filters Card */}
-        <div className="bg-white rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-4">
-            <Filter className="w-5 h-5 text-blue-600" />
-            <h2 className="text-base font-semibold text-gray-900">Filters & Search</h2>
+              {/* Site Selection */}
+              {!externalControl && (
+                <div className="col-span-12 sm:col-span-6 md:col-span-2">
+                  <div className="relative">
+                    <Layers className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <select
+                      value={selectedSiteId == null ? "" : String(selectedSiteId)}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (raw === "") {
+                          setSelectedSiteId(null);
+                          return;
+                        }
+                        const val = parseInt(raw, 10);
+                        setSelectedSiteId(Number.isNaN(val) ? null : val);
+                      }}
+                      className="w-full pl-10 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none"
+                    >
+                      {hqMode && canHRMode ? (
+                        <option value="">All Sites</option>
+                      ) : (
+                        <option value="">Select Site</option>
+                      )}
+                      {(canHRMode ? allSites : inchargeSites).length === 0 && <option value="">No sites</option>}
+                      {(canHRMode ? allSites : inchargeSites).map((s) => (
+                        <option key={String(s.id)} value={String(s.id)}>
+                          {String(s.name || s.site_name || s.id)}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+                </div>
+              )}
+
+              {/* Date Picker */}
+              <div className="col-span-12 sm:col-span-6 md:col-span-2">
+                <div className="relative">
+                  <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Department Filter */}
+              <div className="col-span-12 sm:col-span-6 md:col-span-2">
+                <div className="relative">
+                  <Building className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <select
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
+                    className="w-full pl-10 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none"
+                  >
+                    <option value="">All Departments</option>
+                    {departments.map((dept) => (
+                      <option key={dept.id} value={dept.name}>
+                        {dept.name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Status Filter */}
+              <div className="col-span-12 sm:col-span-6 md:col-span-2">
+                <div className="relative">
+                  <Filter className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="w-full pl-10 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="present">Present</option>
+                    <option value="completed">Completed</option>
+                    <option value="absent">Absent</option>
+                    <option value="week_off">Week Off</option>
+                    <option value="half_day">Half Day</option>
+                    <option value="late">Late</option>
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Search */}
+              <div className="col-span-12 md:col-span-2">
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Search..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons Row */}
+            <div className="flex items-center gap-2 mt-3 pt-0 border-slate-100">
+              <button
+                onClick={applyFilters}
+                className="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all text-sm"
+              >
+                <Filter className="w-3.5 h-3.5" />
+                <span>Apply Filters</span>
+              </button>
+              <button
+                onClick={clearFilters}
+                className="inline-flex items-center gap-2 px-4 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-all text-sm"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Clear</span>
+              </button>
+              <button
+                onClick={fetchList}
+                disabled={loading}
+                className="inline-flex items-center gap-2 px-4 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
+              </button>
+
+              {/* Results Count */}
+              <div className="ml-auto text-xs text-slate-500">
+                Showing <span className="font-medium text-slate-700">{filteredItems.length}</span> of <span className="font-medium text-slate-700">{totalItems}</span> employees
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 items-end">
-            {/* HR Mode Toggle */}
-            {!externalControl && showHQToggle && canHRMode && (
-              <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-200">
-                <input
-                  type="checkbox"
-                  checked={hqMode && canHRMode}
-                  onChange={(e) => setHqMode(e.target.checked)}
-                  disabled={!canHRMode}
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                />
-                <div>
-                  <div className="text-sm font-medium text-blue-900">HR Mode</div>
-                  <div className="text-xs text-blue-700">View all employees</div>
+          {/* Alert Messages */}
+          {error && (
+            <div className="bg-rose-50 border border-rose-200 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0" />
+                <p className="text-sm text-rose-700">{error}</p>
+              </div>
+            </div>
+          )}
+
+          {success && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                  <p className="text-sm text-emerald-700">{success}</p>
+                  {successTimer > 0 && (
+                    <span className="text-xs text-emerald-600">
+                      ({successTimer}s)
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => setSuccess(null)}
+                  className="text-emerald-600 hover:text-emerald-800 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Table Section */}
+          <div className="bg-white border border-slate-200 rounded-lg overflow-hidden flex flex-col flex-1 min-h-0 relative">
+            {/* Fixed Header */}
+            <div className="bg-slate-50 border-b border-slate-200 flex-shrink-0 z-10">
+              <div className="grid grid-cols-6 gap-4 px-5 py-3">
+                <div className="col-span-2 text-xs font-medium text-slate-600 uppercase tracking-wide">Employee</div>
+                <div className="text-xs font-medium text-slate-600 uppercase tracking-wide">Department</div>
+                <div className="text-xs font-medium text-slate-600 uppercase tracking-wide">Status</div>
+                <div className="text-xs font-medium text-slate-600 uppercase tracking-wide">Site</div>
+                <div className="text-xs font-medium text-slate-600 uppercase tracking-wide text-right">Actions</div>
+              </div>
+            </div>
+
+            {/* Table Body */}
+            <div className="divide-y divide-slate-100 overflow-y-auto flex-1">
+              {pagedItems.length === 0 && !loading ? (
+                <div className="text-center py-16">
+                  <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                  <h3 className="text-sm font-medium text-slate-900 mb-1">No employees found</h3>
+                  <p className="text-xs text-slate-500 mb-4">Try adjusting your filters or search criteria</p>
+                  <button
+                    onClick={clearFilters}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all text-sm"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Clear Filters</span>
+                  </button>
+                </div>
+              ) : (
+                pagedItems.map((employee) => {
+                  const status = employee.attendance?.active_session_type
+                    ? (employee.attendance.active_session_type === 'working' ? 'Present' :
+                      employee.attendance.active_session_type === 'break' ? 'On Break' :
+                        employee.attendance.active_session_type === 'outside_work' ? 'Outside Work' :
+                          formatStatus(employee.current_status))
+                    : formatStatus(employee.current_status);
+
+                  const statusColor = getStatusColor(status);
+                  const StatusIcon = getStatusIcon(status);
+                  const redeemBadge = (employee.badges || []).find((b: any) => b.type === 'redeem');
+
+                  return (
+                    <div key={employee.id} className="grid grid-cols-6 gap-4 px-5 py-3.5 hover:bg-slate-50 transition-colors items-center">
+                      {/* Employee Info */}
+                      <div className="col-span-2 flex items-center gap-3">
+                        <div className="relative flex-shrink-0">
+                          {employee.attendance?.punch_in_image_url ? (
+                            <img
+                              src={employee.attendance.punch_in_image_url}
+                              alt=""
+                              className="w-10 h-10 rounded-lg object-cover border border-slate-200"
+                            />
+                          ) : employee.profile_image_url ? (
+                            <img
+                              src={employee.profile_image_url}
+                              alt=""
+                              className="w-10 h-10 rounded-lg object-cover border border-slate-200"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center border border-slate-200">
+                              <User className="w-5 h-5 text-slate-400" />
+                            </div>
+                          )}
+                          {redeemBadge && (
+                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full border-2 border-white flex items-center justify-center shadow-sm" title={redeemBadge.label}>
+                              <Gift className="w-2.5 h-2.5 text-white" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-slate-900 truncate">
+                            {employee.first_name} {employee.last_name}
+                          </div>
+                          <div className="text-xs text-slate-500 mt-0.5 space-y-0.5">
+                            {employee.attendance?.punch_in_time ? (
+                              <>
+                                <div className="flex items-center gap-1.5">
+                                  <Clock className="w-3 h-3 text-emerald-600" />
+                                  <span className="text-emerald-700">
+                                    {new Date(employee.attendance.punch_in_time).toLocaleTimeString('en-IN', {
+                                      hour: '2-digit', minute: '2-digit', hour12: true
+                                    })}
+                                  </span>
+                                </div>
+                                {employee.attendance.punch_out_time && (
+                                  <div className="flex items-center gap-1.5">
+                                    <LogOut className="w-3 h-3 text-rose-500" />
+                                    <span className="text-rose-600">
+                                      {new Date(employee.attendance.punch_out_time).toLocaleTimeString('en-IN', {
+                                        hour: '2-digit', minute: '2-digit', hour12: true
+                                      })}
+                                    </span>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-slate-500">#{employee.employee_id}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Department */}
+                      <div className="text-sm text-slate-700 truncate">
+                        {employee.department_name || "-"}
+                      </div>
+
+                      {/* Status */}
+                      <div className="flex flex-col gap-1.5">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ${statusColor.bg} ${statusColor.text} border ${statusColor.border} w-fit`}>
+                          {StatusIcon}
+                          <span>{status}</span>
+                        </span>
+
+                        {/* Session Badges */}
+                        {employee.badges?.map((badge: any) => {
+                          if (badge.type === 'break') {
+                            return (
+                              <span key={badge.type} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200 w-fit">
+                                <Clock className="w-3 h-3" />
+                                {badge.label}
+                              </span>
+                            );
+                          }
+                          if (badge.type === 'break_availed') {
+                            return (
+                              <span key={badge.type} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200 w-fit">
+                                <Clock className="w-3 h-3" />
+                                {badge.label}
+                              </span>
+                            );
+                          }
+                          if (badge.type === 'outside_work') {
+                            return (
+                              <span key={badge.type} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-cyan-50 text-cyan-700 border border-cyan-200 w-fit">
+                                <MapPin className="w-3 h-3" />
+                                {badge.label}
+                              </span>
+                            );
+                          }
+                          return null;
+                        })}
+                      </div>
+
+                      {/* Site */}
+                      <div className="text-sm text-slate-700 truncate">
+                        {employee.attendance?.punch_in_site_name || "-"}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex justify-end">
+                        <ActionDropdown employee={employee} />
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Pagination */}
+            {totalItems > 0 && (
+              <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 flex-shrink-0 z-20">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-slate-600">
+                    Showing <span className="font-medium text-slate-900">{(currentPage - 1) * pageSize + 1}</span> to{" "}
+                    <span className="font-medium text-slate-900">{Math.min(currentPage * pageSize, filteredItems.length)}</span> of{" "}
+                    <span className="font-medium text-slate-900">{filteredItems.length}</span> results
+                  </div>
+                  <div className="flex items-center gap-4">
+                    {/* Rows per page */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-600">Rows per page:</span>
+                      <select
+                        value={pageSize}
+                        onChange={(e) => {
+                          setPageSize(Number(e.target.value));
+                          setCurrentPage(1);
+                        }}
+                        className="px-2 py-1 border border-slate-200 rounded-md text-xs text-slate-700 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value={10}>10</option>
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                      </select>
+                    </div>
+
+                    {/* Page navigation */}
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                        disabled={currentPage === 1}
+                        className="p-1.5 border border-slate-200 rounded-md hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <ChevronLeft className="w-4 h-4 text-slate-600" />
+                      </button>
+
+                      <div className="flex items-center gap-1">
+                        {(() => {
+                          const pages = [];
+                          const maxVisible = 5;
+                          let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+                          let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+                          if (endPage - startPage + 1 < maxVisible) {
+                            startPage = Math.max(1, endPage - maxVisible + 1);
+                          }
+                          if (startPage > 1) {
+                            pages.push(
+                              <button
+                                key={1}
+                                onClick={() => setCurrentPage(1)}
+                                className={`px-3 py-1.5 rounded-md text-xs transition-colors ${currentPage === 1
+                                  ? "bg-blue-600 text-white"
+                                  : "border border-slate-200 text-slate-700 hover:bg-white"
+                                  }`}
+                              >
+                                1
+                              </button>
+                            );
+                            if (startPage > 2) {
+                              pages.push(
+                                <span key="ellipsis1" className="px-1 text-slate-400 text-xs">
+                                  ...
+                                </span>
+                              );
+                            }
+                          }
+                          for (let page = startPage; page <= endPage; page++) {
+                            pages.push(
+                              <button
+                                key={page}
+                                onClick={() => setCurrentPage(page)}
+                                className={`px-3 py-1.5 rounded-md text-xs transition-colors ${currentPage === page
+                                  ? "bg-blue-600 text-white"
+                                  : "border border-slate-200 text-slate-700 hover:bg-white"
+                                  }`}
+                              >
+                                {page}
+                              </button>
+                            );
+                          }
+                          if (endPage < totalPages) {
+                            if (endPage < totalPages - 1) {
+                              pages.push(
+                                <span key="ellipsis2" className="px-1 text-slate-400 text-xs">
+                                  ...
+                                </span>
+                              );
+                            }
+                            pages.push(
+                              <button
+                                key={totalPages}
+                                onClick={() => setCurrentPage(totalPages)}
+                                className={`px-3 py-1.5 rounded-md text-xs transition-colors ${currentPage === totalPages
+                                  ? "bg-blue-600 text-white"
+                                  : "border border-slate-200 text-slate-700 hover:bg-white"
+                                  }`}
+                              >
+                                {totalPages}
+                              </button>
+                            );
+                          }
+                          return pages;
+                        })()}
+                      </div>
+
+                      <button
+                        onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                        disabled={currentPage === totalPages}
+                        className="p-1.5 border border-slate-200 rounded-md hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <ChevronRight className="w-4 h-4 text-slate-600" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
-
-            {/* Search */}
-            <div className="lg:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Search Employees</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search by name or phone..."
-                />
-              </div>
-            </div>
-
-            {/* Department */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
-              <input
-                type="text"
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
-                placeholder="e.g., Sales"
-              />
-            </div>
-
-            {/* Site Selection */}
-            {!externalControl && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Site</label>
-                <select
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
-                  value={selectedSiteId == null ? "" : String(selectedSiteId)}
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    if (raw === "") {
-                      setSelectedSiteId(null);
-                      return;
-                    }
-                    const val = parseInt(raw, 10);
-                    setSelectedSiteId(Number.isNaN(val) ? null : val);
-                  }}
-                >
-                  {hqMode && canHRMode ? (
-                    <option value="">All Sites</option>
-                  ) : (
-                    <option value="">Select Site</option>
-                  )}
-                  {(canHRMode ? allSites : inchargeSites).length === 0 && <option value="">No sites available</option>}
-                  {(canHRMode ? allSites : inchargeSites).map((s) => (
-                    <option key={String(s.id)} value={String(s.id)}>
-                      {String(s.name || s.site_name || s.id)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Page Size */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Page Size</label>
-              <select
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
-                value={String(pageSize)}
-                onChange={(e) => setPageSize(parseInt(e.target.value) || 10)}
-              >
-                <option value="10">10 per page</option>
-                <option value="20">20 per page</option>
-                <option value="50">50 per page</option>
-              </select>
-            </div>
           </div>
         </div>
-
-        {/* Error Display */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center gap-3">
-            <Shield className="w-5 h-5 text-red-600" />
-            <div className="text-red-700 font-medium">{error}</div>
-          </div>
-        )}
-
-        {/* Employee Table */}
-        <div className="bg-white rounded-xl overflow-hidden">
-          <div className="px-6 py-3 bg-gradient-to-r from-gray-50 to-blue-50/30">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-gray-900">Employee List</h2>
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <span>Showing {pagedItems.length} of {filteredItems.length}</span>
-                {loading && <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />}
-              </div>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Employee</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Contact</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Department</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Badges</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Sites</th>
-                  <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {pagedItems.length === 0 && !loading && (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center">
-                      <div className="flex flex-col items-center justify-center text-gray-500">
-                        <Users className="w-16 h-16 text-gray-300 mb-4" />
-                        <div className="text-lg font-medium text-gray-900">No employees found</div>
-                        <div className="text-sm text-gray-600 mt-1">
-                          {items.length === 0 ? "No employees available." : "No employees match your filters."}
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-
-                {pagedItems.map((employee) => {
-                  const name = String(employee.name || `${employee.first_name || ""} ${employee.last_name || ""}` || `Employee #${employee.id || "-"}`);
-                  const phone = String(employee.phone || employee.phone_number || "-");
-                  const dept = String(employee.department_name || employee.department || "-");
-                  const status = String(employee.current_status || employee.status || employee.status_timeline || "-");
-                  const sitesStr = String(employee.assigned_sites || (Array.isArray(employee.site_ids) ? employee.site_ids.join(", ") : employee.site_ids || "-"));
-
-                  const getStatusConfig = (status: string) => {
-                    const s = status.toLowerCase();
-                    if (s.includes("absent")) return { color: "text-red-600", bg: "bg-red-50", border: "border-red-200" };
-                    if (s.includes("half") || s.includes("late") || s.includes("early")) return { color: "text-yellow-600", bg: "bg-yellow-50", border: "border-yellow-200" };
-                    if (s.includes("present") || s.includes("checked")) return { color: "text-green-600", bg: "bg-green-50", border: "border-green-200" };
-                    if (s.includes("work")) return { color: "text-indigo-600", bg: "bg-indigo-50", border: "border-indigo-200" };
-                    return { color: "text-gray-600", bg: "bg-gray-50", border: "border-gray-200" };
-                  };
-
-                  const statusConfig = getStatusConfig(status);
-
-                  return (
-                    <tr key={String(employee.id)} className="hover:bg-gray-50 transition-colors duration-150 group">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-                            <User className="w-5 h-5 text-white" />
-                          </div>
-                          <div>
-                            <div className="font-semibold text-gray-900">{name}</div>
-                            <div className="text-xs text-gray-500 flex items-center gap-1">
-                              <span>ID: {String(employee.id || "-")}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <Phone className="w-4 h-4 text-gray-400" />
-                          <span className="text-gray-700">{phone}</span>
-                        </div>
-                      </td>
-
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <Building className="w-4 h-4 text-gray-400" />
-                          <span className="text-gray-700">{dept}</span>
-                        </div>
-                      </td>
-
-                      {/* Badges - Now includes Absent status */}
-                      <td className="px-6 py-4">
-                        <div className="flex flex-wrap gap-1">
-                          {(() => {
-                            const badges = employee.badges || [];
-                            const currentStatus = String(employee.current_status || "").toLowerCase();
-                            const hasAttendance = employee.attendance && (employee.attendance.punch_in_time || employee.attendance.total_work_minutes > 0);
-
-                            // If absent, show Absent badge
-                            if (currentStatus === "absent" || (!hasAttendance && currentStatus !== "week_off" && currentStatus !== "holiday")) {
-                              return (
-                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-rose-100 text-rose-700 border border-rose-200">
-                                  Absent
-                                </span>
-                              );
-                            }
-
-                            // If week_off but has attendance, show Overtime badge
-                            if (currentStatus === "week_off" && hasAttendance) {
-                              return (
-                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-indigo-100 text-indigo-700 border border-indigo-200">
-                                  Overtime
-                                </span>
-                              );
-                            }
-
-                            // If week_off without attendance, show Week Off badge
-                            if (currentStatus === "week_off" && !hasAttendance) {
-                              return (
-                                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                                  Week Off
-                                </span>
-                              );
-                            }
-
-                            // Format and display backend badges
-                            return badges.map((badge: any, idx: number) => {
-                              const label = String(badge.label || badge.type || "")
-                                .replace(/_/g, " ")
-                                .split(" ")
-                                .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-                                .join(" ");
-
-                              const color = badge.color || "#6B7280";
-                              const bgColor = `${color}15`; // 15 is hex for ~8% opacity
-
-                              return (
-                                <span
-                                  key={idx}
-                                  className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium border"
-                                  style={{
-                                    backgroundColor: bgColor,
-                                    color: color,
-                                    borderColor: `${color}40`
-                                  }}
-                                >
-                                  {label}
-                                </span>
-                              );
-                            });
-                          })()}
-                        </div>
-                      </td>
-
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <MapPin className="w-4 h-4 text-gray-400" />
-                          <span className="text-gray-700 text-sm">{sitesStr || "No sites"}</span>
-                        </div>
-                      </td>
-
-                      <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const padding = 8;
-                            let x = Math.min(rect.left, window.innerWidth - 200 - padding);
-                            let y = rect.bottom + padding;
-                            const menuHeight = 160;
-                            if (y + menuHeight > window.innerHeight) {
-                              y = rect.top - menuHeight - padding;
-                            }
-                            setMenuEmployee(employee);
-                            setMenuPos({ x, y });
-                            setMenuOpen(true);
-                          }}
-                          className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-all duration-200 hover:scale-105 group-hover:bg-gray-200"
-                        >
-                          <MoreVertical className="w-4 h-4 text-gray-600" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Pagination */}
-        {filteredItems.length > 0 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white rounded-xl p-4">
-            <div className="text-sm text-gray-600">
-              Showing <span className="font-semibold text-gray-900">{(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filteredItems.length)}</span> of{" "}
-              <span className="font-semibold text-gray-900">{filteredItems.length}</span> employees
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-all duration-200"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                <span className="text-sm font-medium">Previous</span>
-              </button>
-
-              <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  const pageNum = i + 1;
-                  if (totalPages <= 5) {
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => setPage(pageNum)}
-                        className={`w-10 h-10 rounded-lg text-sm font-medium transition-all duration-200 ${page === pageNum
-                          ? "bg-blue-600 text-white shadow-sm"
-                          : "text-gray-600 hover:bg-gray-100"
-                          }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  }
-                  return null;
-                })}
-
-                {totalPages > 5 && (
-                  <>
-                    <span className="px-2 text-gray-400">...</span>
-                    <button
-                      onClick={() => setPage(totalPages)}
-                      className={`w-10 h-10 rounded-lg text-sm font-medium transition-all duration-200 ${page === totalPages
-                        ? "bg-blue-600 text-white shadow-sm"
-                        : "text-gray-600 hover:bg-gray-100"
-                        }`}
-                    >
-                      {totalPages}
-                    </button>
-                  </>
-                )}
-              </div>
-
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-all duration-200"
-              >
-                <span className="text-sm font-medium">Next</span>
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Actions Menu Portal */}
-      {
-        menuOpen && menuPos && menuEmployee && createPortal(
-          <div className="fixed inset-0 z-50" onClick={closeMenu}>
-            <div
-              className="absolute w-48 border border-gray-200 rounded-2xl bg-white shadow-lg shadow-gray-200/50 text-sm overflow-hidden animate-in fade-in-90 zoom-in-90"
-              style={{ left: `${menuPos.x}px`, top: `${menuPos.y}px` }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                className="w-full text-left px-4 py-3 hover:bg-blue-50 text-gray-700 hover:text-blue-700 transition-colors duration-150 flex items-center gap-3"
-                onClick={() => { setActiveEmployee(menuEmployee); setActiveView("attendance"); closeMenu(); }}
-              >
-                <Calendar className="w-4 h-4" />
-                <span>View Attendance</span>
-              </button>
-              <button
-                className="w-full text-left px-4 py-3 hover:bg-green-50 text-gray-700 hover:text-green-700 transition-colors duration-150 flex items-center gap-3"
-                onClick={() => { setActiveEmployee(menuEmployee); setActiveView("leaves"); closeMenu(); }}
-              >
-                <Leaf className="w-4 h-4" />
-                <span>View Leaves</span>
-              </button>
-              <button
-                className="w-full text-left px-4 py-3 hover:bg-purple-50 text-gray-700 hover:text-purple-700 transition-colors duration-150 flex items-center gap-3"
-                onClick={() => { setActiveEmployee(menuEmployee); setActiveView("redeems"); closeMenu(); }}
-              >
-                <Gift className="w-4 h-4" />
-                <span>View Redeems</span>
-              </button>
-            </div>
-          </div>,
-          document.body
-        )
-      }
-    </div >
+      {/* Details Modal */}
+      {selectedEmployeeForDetails && (
+        <AttendanceDetailsModal
+          record={{
+            ...selectedEmployeeForDetails,
+            ...(selectedEmployeeForDetails.attendance || {}),
+            // Map IDs
+            attendance_id: selectedEmployeeForDetails.attendance?.id,
+            // Map images from backend format (url) to modal format
+            punch_in_image: selectedEmployeeForDetails.attendance?.punch_in_image_url || selectedEmployeeForDetails.attendance?.punch_in_image,
+            punch_out_image: selectedEmployeeForDetails.attendance?.punch_out_image_url || selectedEmployeeForDetails.attendance?.punch_out_image,
+            // Map status
+            status: selectedEmployeeForDetails.attendance?.status ||
+              (selectedEmployeeForDetails.current_status === 'checked_in' || selectedEmployeeForDetails.current_status === 'checked_out' ? 'Present' :
+                selectedEmployeeForDetails.current_status === 'absent' ? 'Absent' :
+                  selectedEmployeeForDetails.current_status === 'week_off' ? 'Week Off' :
+                    selectedEmployeeForDetails.current_status === 'holiday' ? 'Holiday' :
+                      selectedEmployeeForDetails.current_status),
+            attendance_date: date || selectedEmployeeForDetails.attendance_date, // Ensure date from filter is used
+            sessions: selectedEmployeeForDetails.attendance?.sessions || selectedEmployeeForDetails.sessions || []
+          }}
+          onClose={() => setSelectedEmployeeForDetails(null)}
+        />
+      )}
+    </div>
   );
 }

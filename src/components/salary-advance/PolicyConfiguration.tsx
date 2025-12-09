@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { apiClient } from "@/lib/apiClient";
 import { showSuccess, showError } from "@/lib/toast";
-import { Settings, Save, AlertCircle, DollarSign } from "lucide-react";
+import { Settings, Save, AlertCircle, DollarSign, Shield } from "lucide-react";
 
 type Policy = {
     id?: number;
@@ -234,11 +234,151 @@ function WorkflowDesigner({ workflow, onChange, emiDecisionMode }: WorkflowDesig
     );
 }
 
+type AccountsConfigurationProps = {
+    accounts: { type: 'role' | 'employee', id: number | null }[];
+    onChange: (accounts: { type: 'role' | 'employee', id: number | null }[]) => void;
+    isEditing: boolean;
+};
+
+function AccountsConfiguration({ accounts, onChange, isEditing }: AccountsConfigurationProps) {
+    const [roles, setRoles] = useState<any[]>([]);
+    const [employees, setEmployees] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        fetchOptions();
+    }, []);
+
+    const fetchOptions = async () => {
+        setLoading(true);
+        try {
+            const wfOptions = await apiClient<any>("/salary-advance/workflow-options", { withAuth: true });
+            setRoles(wfOptions.roles || []);
+            setEmployees(wfOptions.employees || []);
+        } catch (error) {
+            console.error("Failed to fetch workflow options:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const addAccount = () => {
+        onChange([...accounts, { type: 'employee', id: null }]);
+    };
+
+    const removeAccount = (index: number) => {
+        const newAccounts = [...accounts];
+        newAccounts.splice(index, 1);
+        onChange(newAccounts);
+    };
+
+    const updateAccount = (index: number, field: 'type' | 'id', value: any) => {
+        const newAccounts = [...accounts];
+        newAccounts[index] = { ...newAccounts[index], [field]: value };
+
+        // Reset ID if type changes
+        if (field === 'type') {
+            newAccounts[index].id = null;
+        }
+
+        onChange(newAccounts);
+    };
+
+    if (loading) return <div className="p-4 text-center text-gray-500">Loading options...</div>;
+
+    return (
+        <div className="bg-white rounded-xl border border-gray-200 p-6 mt-6">
+            <div className="flex items-center justify-between mb-4">
+                <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Accounts Access</h2>
+                    <p className="text-sm text-gray-600">Configure who can manage salary advance disbursement</p>
+                </div>
+            </div>
+
+            {accounts.length === 0 && !isEditing ? (
+                <div className="p-8 text-center bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                    <p className="text-gray-600">No access rules configured.</p>
+                </div>
+            ) : (
+                <div className="space-y-3 max-h-96 overflow-y-auto p-1">
+                    {accounts.map((account, index) => (
+                        <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                            <div className="w-1/3">
+                                <select
+                                    value={account.type}
+                                    onChange={(e) => updateAccount(index, 'type', e.target.value)}
+                                    disabled={!isEditing}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-500"
+                                >
+                                    <option value="employee">Specific Employee</option>
+                                    <option value="role">Role</option>
+                                </select>
+                            </div>
+
+                            <div className="flex-1">
+                                {account.type === 'role' ? (
+                                    <select
+                                        value={account.id || ""}
+                                        onChange={(e) => updateAccount(index, 'id', Number(e.target.value))}
+                                        disabled={!isEditing}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-500"
+                                    >
+                                        <option value="">Select role...</option>
+                                        {roles.map((role) => (
+                                            <option key={role.id} value={role.id}>
+                                                {role.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                ) : (
+                                    <select
+                                        value={account.id || ""}
+                                        onChange={(e) => updateAccount(index, 'id', Number(e.target.value))}
+                                        disabled={!isEditing}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-500"
+                                    >
+                                        <option value="">Select employee...</option>
+                                        {employees.map((emp) => (
+                                            <option key={emp.id} value={emp.id}>
+                                                {emp.first_name} {emp.last_name} ({emp.email})
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
+                            </div>
+
+                            {isEditing && (
+                                <button
+                                    onClick={() => removeAccount(index)}
+                                    className="text-red-600 hover:text-red-700 p-2"
+                                    title="Remove access"
+                                >
+                                    <AlertCircle size={18} />
+                                </button>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {isEditing && (
+                <button
+                    onClick={addAccount}
+                    className="w-full py-2 mt-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-indigo-500 hover:text-indigo-600 transition-colors font-medium"
+                >
+                    + Add Access Rule
+                </button>
+            )}
+        </div>
+    );
+}
+
 export default function PolicyConfiguration() {
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [hasExistingPolicy, setHasExistingPolicy] = useState(false);
+    const [accounts, setAccounts] = useState<{ type: 'role' | 'employee', id: number | null }[]>([]);
     const [policy, setPolicy] = useState<Policy>({
         max_percentage_of_earned_salary: null,
         max_requests_per_month: null,
@@ -264,21 +404,47 @@ export default function PolicyConfiguration() {
         emi_decision_mode: 'policy_level',
     });
 
+    // Permission state
+    const [userRole, setUserRole] = useState<string | null>(null);
+    const [permissions, setPermissions] = useState<string[]>([]);
+    const [checkingPerms, setCheckingPerms] = useState(true);
+
     useEffect(() => {
-        fetchPolicy();
+        (async () => {
+            try {
+                const session = await apiClient<any>("/auth/session", { method: "GET" });
+                if (session?.authenticated) {
+                    setUserRole(session.role);
+                    setPermissions(session.employee?.permissions || []);
+                }
+            } catch (_) { } finally {
+                setCheckingPerms(false);
+            }
+        })();
     }, []);
 
-    const fetchPolicy = async () => {
+    const isOrgAdmin = (userRole || "").toLowerCase() === "orgadmin";
+    const canView = isOrgAdmin || permissions.includes("SALADV_POLICY");
+
+    useEffect(() => {
+        if (!checkingPerms && canView) {
+            fetchPolicyAndAccounts();
+        }
+    }, [checkingPerms, canView]);
+
+    const fetchPolicyAndAccounts = async () => {
+        if (!canView) return;
         setLoading(true);
         try {
-            const data = await apiClient<{ policy: Policy | null }>(
-                "/salary-advance/policy",
-                { withAuth: true }
-            );
-            if (data.policy) {
+            const [policyData, accountsRes] = await Promise.all([
+                apiClient<{ policy: Policy | null }>("/salary-advance/policy", { withAuth: true }),
+                apiClient<any>("/salary-advance/accounts", { withAuth: true })
+            ]);
+
+            if (policyData.policy) {
                 setPolicy({
-                    ...data.policy,
-                    workflow_definition: data.policy.workflow_definition || { workflowName: "Salary Advance", levels: [] }
+                    ...policyData.policy,
+                    workflow_definition: policyData.policy.workflow_definition || { workflowName: "Salary Advance", levels: [] }
                 });
                 setHasExistingPolicy(true);
                 setIsEditing(false);
@@ -286,8 +452,16 @@ export default function PolicyConfiguration() {
                 setHasExistingPolicy(false);
                 setIsEditing(true); // Auto-enable edit mode if no policy exists
             }
+
+            // Map existing accounts to state
+            const existingAccounts = accountsRes.accounts?.map((a: any) => ({
+                type: a.type,
+                id: a.id
+            })) || [];
+            setAccounts(existingAccounts);
+
         } catch (error) {
-            console.error("Failed to fetch policy:", error);
+            console.error("Failed to fetch policy or accounts:", error);
         } finally {
             setLoading(false);
         }
@@ -297,17 +471,23 @@ export default function PolicyConfiguration() {
         e.preventDefault();
         setSaving(true);
         try {
+            // Filter out incomplete accounts
+            const validAccounts = accounts.filter(a => a.id);
+
             await apiClient("/salary-advance/policy", {
                 method: "POST",
                 withAuth: true,
-                body: policy,
+                body: {
+                    ...policy,
+                    accounts: validAccounts
+                },
             });
-            showSuccess("Policy saved successfully");
+            showSuccess("Policy and accounts configuration saved successfully");
             setIsEditing(false);
             setHasExistingPolicy(true);
-            fetchPolicy();
+            fetchPolicyAndAccounts();
         } catch (error: any) {
-            showError(error.message || "Failed to save policy");
+            showError(error.message || "Failed to save configuration");
         } finally {
             setSaving(false);
         }
@@ -316,6 +496,18 @@ export default function PolicyConfiguration() {
     const updateField = (field: keyof Policy, value: any) => {
         setPolicy({ ...policy, [field]: value });
     };
+
+    if (checkingPerms) return <div className="p-8 text-center text-gray-500">Checking access...</div>;
+
+    if (!canView) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 text-center text-gray-500">
+                <Shield size={48} className="mb-4 text-gray-300" />
+                <h2 className="text-xl font-semibold text-gray-900">Access Denied</h2>
+                <p className="mt-2">You do not have permission to configure salary advance policy.</p>
+            </div>
+        );
+    }
 
     if (loading) {
         return (
@@ -347,6 +539,15 @@ export default function PolicyConfiguration() {
                         </button>
                     )}
                 </div>
+
+                {/* Accounts Configuration Card */}
+                <AccountsConfiguration
+                    accounts={accounts}
+                    onChange={setAccounts}
+                    isEditing={isEditing}
+                />
+
+                <div className="h-6"></div>
 
                 {/* Readonly View */}
                 {hasExistingPolicy && !isEditing && (
@@ -887,7 +1088,7 @@ export default function PolicyConfiguration() {
                                     type="button"
                                     onClick={() => {
                                         setIsEditing(false);
-                                        fetchPolicy(); // Reset to original policy
+                                        fetchPolicyAndAccounts(); // Reset to original policy
                                     }}
                                     className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
                                 >

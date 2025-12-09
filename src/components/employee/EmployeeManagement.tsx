@@ -66,7 +66,9 @@ export type Employee = {
   role_id?: number | null;
   designation?: string | null;
   site_ids?: number[];
-  status?: 'active' | 'inactive';
+  status?: 'active' | 'inactive' | 'invited' | 'Invited';
+  onboarding_token?: string | null;
+  onboarding_token_expires_at?: string | null;
   created_at?: string;
   work_type?: string;
 };
@@ -135,12 +137,16 @@ export default function EmployeeManagement() {
   // Permissions
   const [role, setRole] = useState<string | null>(null);
   const [permissions, setPermissions] = useState<string[]>([]);
+
+  const isOrgAdmin = (role || "").toLowerCase() === "orgadmin";
+
   const hasPerm = (code: string | string[]) => {
+    if (isOrgAdmin) return true;
     const check = (c: string) => (permissions || []).some((p) => (p || "").toUpperCase() === c.toUpperCase());
     if (Array.isArray(code)) return code.some(check);
     return check(code);
   };
-  const isOrgAdmin = role === "OrgAdmin";
+
   const isHRMode = hasPerm("HR_MODE");
 
   // State
@@ -196,6 +202,7 @@ export default function EmployeeManagement() {
   const [panNumber, setPanNumber] = useState<string>("");
   const [aadhaarNumber, setAadhaarNumber] = useState<string>("");
   const [pfUan, setPfUan] = useState<string>("");
+  const [employerPfAmount, setEmployerPfAmount] = useState<string>("");
   const [weeklyOff, setWeeklyOff] = useState<Set<string>>(new Set());
   const [shiftStart, setShiftStart] = useState<string>(""); // time
   const [shiftEnd, setShiftEnd] = useState<string>(""); // time
@@ -410,6 +417,7 @@ export default function EmployeeManagement() {
     setPanNumber("");
     setAadhaarNumber("");
     setPfUan("");
+    setEmployerPfAmount("");
     setWeeklyOff(new Set());
     setShiftStart("");
     setShiftEnd("");
@@ -469,6 +477,7 @@ export default function EmployeeManagement() {
       setPanNumber(bd.pan_number || "");
       setAadhaarNumber(bd.aadhaar_number || "");
       setPfUan(bd.pf_uan || "");
+      setEmployerPfAmount(bd.employer_pf_amount != null ? String(Number(bd.employer_pf_amount)) : "");
       setWeeklyOff(new Set(Array.isArray((data as any).weekly_off_days) ? (data as any).weekly_off_days : []));
       setStep(1);
       setShowAdd(true);
@@ -517,7 +526,7 @@ export default function EmployeeManagement() {
   // Initial load and reactive fetches
   useEffect(() => {
     fetchEmployees();
-  }, [page, pageSize, searchQuery, filterDeptId, filterRoleId, filterSiteId]);
+  }, [page, pageSize, searchQuery, filterDeptId, filterRoleId, filterSiteId, statusFilter]);
 
   const fetchDropdowns = async () => {
     try {
@@ -571,7 +580,7 @@ export default function EmployeeManagement() {
     return Boolean(workType) && Boolean(startDate) && typeof departmentId === "number" && typeof roleId === "number";
   };
   const isAttendanceValid = () => {
-    if (weeklyOff.size === 0 || typeof policyId !== "number") return false;
+    if (typeof policyId !== "number") return false;
     if (isFlexibleTime) {
       const hrs = Number(flexibleHours);
       return Number.isFinite(hrs) && hrs > 0;
@@ -646,6 +655,7 @@ export default function EmployeeManagement() {
       pan_number: panNumber || null,
       aadhaar_number: aadhaarNumber || null,
       pf_uan: pfUan || null,
+      employer_pf_amount: employerPfAmount ? Number(employerPfAmount) : null,
       weekly_off_days: Array.from(weeklyOff),
       flexible_time: isFlexibleTime,
       flexible_hours: isFlexibleTime ? (flexibleHours ? Number(flexibleHours) : null) : null,
@@ -705,6 +715,7 @@ export default function EmployeeManagement() {
       pan_number: panNumber || null,
       aadhaar_number: aadhaarNumber || null,
       pf_uan: pfUan || null,
+      employer_pf_amount: employerPfAmount ? Number(employerPfAmount) : null,
       weekly_off_days: Array.from(weeklyOff),
       flexible_time: isFlexibleTime,
       flexible_hours: isFlexibleTime ? (flexibleHours ? Number(flexibleHours) : null) : null,
@@ -728,7 +739,49 @@ export default function EmployeeManagement() {
     }
   };
 
-  const getStatusColor = (status: string = 'active') => {
+  const handleResendInvite = async (id: number) => {
+    try {
+      setActionLoading(String(id));
+      await apiClient(`/organization/employees/${id}/resend-invitation`, { method: "POST" });
+      showNotification("Invitation resent successfully", "success");
+      await fetchEmployees();
+    } catch (e: any) {
+      showNotification(e.message || "Failed to resend invitation", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleToggleStatus = async (id: number, currentStatus: string) => {
+    // If invited, we might be activating them manually or deactivating?
+    // "make inactive active" -> toggle Active <-> Inactive.
+    // Normalized status:
+    const s = (currentStatus || "").toLowerCase();
+    const newStatus = s === "active" ? "Inactive" : "Active";
+
+    if (!confirm(`Are you sure you want to mark this employee as ${newStatus}?`)) return;
+
+    try {
+      setActionLoading(String(id));
+      await apiClient(`/organization/employees/${id}/toggle-status`, { method: "POST", body: { status: newStatus } });
+      showNotification(`Employee marked as ${newStatus}`, "success");
+      await fetchEmployees();
+    } catch (e: any) {
+      showNotification(e.message || "Failed to update status", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const getStatusColor = (employee: Employee) => {
+    const status = (employee.status || 'active').toLowerCase();
+
+    if (status === 'invited') {
+      const isExpired = employee.onboarding_token_expires_at && new Date(employee.onboarding_token_expires_at) < new Date();
+      if (isExpired) return 'text-orange-800 bg-orange-50 border border-orange-200';
+      return 'text-blue-700 bg-blue-50 border border-blue-200';
+    }
+
     switch (status) {
       case 'active': return 'text-green-700 bg-green-50 border border-green-200';
       case 'inactive': return 'text-red-700 bg-red-50 border border-red-200';
@@ -736,7 +789,15 @@ export default function EmployeeManagement() {
     }
   };
 
-  const getStatusIcon = (status: string = 'active') => {
+  const getStatusIcon = (employee: Employee) => {
+    const status = (employee.status || 'active').toLowerCase();
+
+    if (status === 'invited') {
+      const isExpired = employee.onboarding_token_expires_at && new Date(employee.onboarding_token_expires_at) < new Date();
+      if (isExpired) return <AlertCircle className="w-3 h-3 text-orange-600" />;
+      return <Mail className="w-3 h-3 text-blue-500" />;
+    }
+
     switch (status) {
       case 'active': return <CheckCircle className="w-3 h-3 text-green-500" />;
       case 'inactive': return <AlertCircle className="w-3 h-3 text-red-500" />;
@@ -858,20 +919,48 @@ export default function EmployeeManagement() {
                   </button>
                 )}
 
-                {canDelete && (
+                {/* Delete Removed as per request */}
+
+                {canEdit && (
                   <>
                     <div className="border-t border-gray-100 my-1" />
+                    {/* Resend Invitation Logic */}
+                    {(employee.status?.toLowerCase() === 'invited') && (
+                      <button
+                        onClick={() => {
+                          handleResendInvite(employee.id);
+                          setIsOpen(false);
+                        }}
+                        className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-blue-700 hover:bg-blue-50"
+                      >
+                        <Mail className="w-4 h-4" />
+                        <span>Resend Invite</span>
+                      </button>
+                    )}
 
-                    <button
-                      onClick={() => {
-                        deleteEmployee(employee.id);
-                        setIsOpen(false);
-                      }}
-                      className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>Delete</span>
-                    </button>
+                    {/* Toggle Active/Inactive */}
+                    {employee.status?.toLowerCase() !== 'invited' && (
+                      <button
+                        onClick={() => {
+                          handleToggleStatus(employee.id, employee.status || 'Active');
+                          setIsOpen(false);
+                        }}
+                        className={`flex items-center space-x-2 w-full px-4 py-2 text-sm hover:bg-gray-50 ${(employee.status || '').toLowerCase() === 'active' ? 'text-red-700' : 'text-green-700'
+                          }`}
+                      >
+                        {(employee.status || '').toLowerCase() === 'active' ? (
+                          <>
+                            <X className="w-4 h-4" />
+                            <span>Deactivate</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Activate</span>
+                          </>
+                        )}
+                      </button>
+                    )}
                   </>
                 )}
               </div>
@@ -1346,9 +1435,16 @@ export default function EmployeeManagement() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center space-x-1.5">
-                        {getStatusIcon(employee.status)}
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(employee.status)} capitalize`}>
-                          {employee.status || "active"}
+                        {getStatusIcon(employee)}
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(employee)} capitalize`}>
+                          {(() => {
+                            const st = (employee.status || "active");
+                            if (st.toLowerCase() === 'invited') {
+                              const isExpired = employee.onboarding_token_expires_at && new Date(employee.onboarding_token_expires_at) < new Date();
+                              return isExpired ? "Invited (Expired)" : "Invited";
+                            }
+                            return st;
+                          })()}
                         </span>
                       </div>
                     </td>
@@ -1845,10 +1941,21 @@ export default function EmployeeManagement() {
                         </button>
                       </div>
                       <div className="text-xs text-gray-600">
-                        Total breakdown: {salaryItems.reduce((sum, i) => sum + (Number(i.amount) || 0), 0)} vs Amount: {Number(salaryAmount) || 0}
+                        Total: {salaryItems.reduce((acc, item) => acc + (Number(item.amount) || 0), 0)}
                       </div>
                     </div>
                   </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Employer PF (Excluded from CTC)</label>
+                    <input
+                      type="number"
+                      value={employerPfAmount}
+                      onChange={(e) => setEmployerPfAmount(e.target.value)}
+                      placeholder="Amount"
+                      className="w-full border rounded px-2 py-2"
+                    />
+                  </div>
+
                   <div>
                     <label className="block text-xs text-gray-600 mb-1">Bank Account No.</label>
                     <input value={bankAccountNo} onChange={(e) => setBankAccountNo(e.target.value)} className="w-full border rounded px-2 py-2" />
@@ -1901,21 +2008,24 @@ export default function EmployeeManagement() {
                 )}
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div >
+        </div >
+      )
+      }
 
       {/* Employee Leave History Modal */}
-      {showLeaveHistory && selectedHistoryEmployee && (
-        <EmployeeLeaveHistory
-          employeeId={selectedHistoryEmployee.id}
-          employeeName={selectedHistoryEmployee.name}
-          onClose={() => {
-            setShowLeaveHistory(false);
-            setSelectedHistoryEmployee(null);
-          }}
-        />
-      )}
-    </div>
+      {
+        showLeaveHistory && selectedHistoryEmployee && (
+          <EmployeeLeaveHistory
+            employeeId={selectedHistoryEmployee.id}
+            employeeName={selectedHistoryEmployee.name}
+            onClose={() => {
+              setShowLeaveHistory(false);
+              setSelectedHistoryEmployee(null);
+            }}
+          />
+        )
+      }
+    </div >
   );
 }

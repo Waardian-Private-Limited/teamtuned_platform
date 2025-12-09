@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { apiClient } from "@/lib/apiClient";
 import { showSuccess, showError } from "@/lib/toast";
-import { CheckCircle, XCircle, RefreshCw, MessageSquare, Eye } from "lucide-react";
+import { Shield, CheckCircle, XCircle, RefreshCw, MessageSquare, Eye } from "lucide-react";
 import RequestDetails from "./RequestDetails";
 
 type PendingApproval = {
@@ -41,6 +41,11 @@ export default function ApprovalQueue() {
     const [submitting, setSubmitting] = useState(false);
     const [policy, setPolicy] = useState<Policy | null>(null);
 
+    // Permission state
+    const [userRole, setUserRole] = useState<string | null>(null);
+    const [permissions, setPermissions] = useState<string[]>([]);
+    const [checkingPerms, setCheckingPerms] = useState(true);
+
     // EMI decision fields (for request_level mode)
     const [emiMethod, setEmiMethod] = useState<'auto' | 'percentage' | 'fixed_amount'>('auto');
     const [emiPercentage, setEmiPercentage] = useState<string>('');
@@ -48,11 +53,35 @@ export default function ApprovalQueue() {
     const [repaymentMonths, setRepaymentMonths] = useState<string>('');
 
     useEffect(() => {
-        fetchPendingApprovals();
-        fetchPolicy();
+        (async () => {
+            try {
+                const session = await apiClient<any>("/auth/session", { method: "GET" });
+                if (session?.authenticated) {
+                    setUserRole(session.role);
+                    setPermissions(session.employee?.permissions || []);
+                }
+                // Fetch data only if allowed
+                if ((session?.role || "").toLowerCase() === "orgadmin" || (session?.employee?.permissions || []).includes("SALADV_APPROVE")) {
+                    // Can safely fetch
+                }
+            } catch (_) { } finally {
+                setCheckingPerms(false);
+            }
+        })();
     }, []);
 
+    const isOrgAdmin = (userRole || "").toLowerCase() === "orgadmin";
+    const canApprove = isOrgAdmin || permissions.includes("SALADV_APPROVE");
+
+    useEffect(() => {
+        if (!checkingPerms && canApprove) {
+            fetchPendingApprovals();
+            fetchPolicy();
+        }
+    }, [checkingPerms, canApprove]);
+
     const fetchPendingApprovals = async () => {
+        if (!canApprove) return;
         setLoading(true);
         try {
             const data = await apiClient<{ approvals: PendingApproval[] }>(
@@ -79,6 +108,18 @@ export default function ApprovalQueue() {
             console.error("Failed to fetch policy:", error);
         }
     };
+
+    if (checkingPerms) return <div className="p-8 text-center text-gray-500">Checking access...</div>;
+
+    if (!canApprove) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 text-center text-gray-500">
+                <Shield size={48} className="mb-4 text-gray-300" />
+                <h2 className="text-xl font-semibold text-gray-900">Access Denied</h2>
+                <p className="mt-2">You do not have permission to view the approval queue.</p>
+            </div>
+        );
+    }
 
     const handleAction = async (type: 'approve' | 'reject') => {
         if (!actionModal) return;

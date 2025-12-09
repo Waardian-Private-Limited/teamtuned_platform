@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Building2, ChevronDown, ChevronRight, LogOut, Menu, Settings } from "lucide-react";
+import { Home, Building2, ChevronDown, ChevronRight, LogOut, Menu, Settings, BarChart2 } from "lucide-react";
 
 export default function SuperadminSidebar({
   isCollapsed,
@@ -31,9 +31,8 @@ export default function SuperadminSidebar({
   }) => (
     <Link
       href={href}
-      className={`flex items-center gap-3 w-full px-3 py-2 rounded-md transition-colors ${
-        active ? "bg-gray-100" : "hover:bg-gray-100"
-      }`}
+      className={`flex items-center gap-3 w-full px-3 py-2 rounded-md transition-colors ${active ? "bg-gray-100" : "hover:bg-gray-100"
+        }`}
       title={label}
     >
       <Icon size={20} className="text-black" />
@@ -43,9 +42,8 @@ export default function SuperadminSidebar({
 
   return (
     <aside
-      className={`h-screen border-r border-gray-200 bg-white ${
-        isCollapsed ? "w-16" : "w-64"
-      } flex flex-col justify-between`}
+      className={`h-screen border-r border-gray-200 bg-white ${isCollapsed ? "w-16" : "w-64"
+        } flex flex-col justify-between`}
     >
       <div>
         <div className="flex items-center justify-between p-3 border-b border-gray-200">
@@ -83,6 +81,7 @@ export default function SuperadminSidebar({
             <div className="mt-2 space-y-1">
               <Item icon={Home} label="Dashboard" href="/superadmin/dashboard" active={pathname === "/superadmin/dashboard"} />
               <Item icon={Building2} label="Organizations Management" href="/superadmin/organizations" active={pathname === "/superadmin/organizations"} />
+              <Item icon={BarChart2} label="Analytics" href="/superadmin/analytics" active={pathname === "/superadmin/analytics"} />
             </div>
           )}
         </div>
@@ -107,7 +106,10 @@ export default function SuperadminSidebar({
 
           {featuresOpen && (
             <div className="mt-2 space-y-1">
-              <Item icon={Settings} label="Feature Management" href="/superadmin/features" active={pathname === "/superadmin/features"} />
+              <Item icon={Settings} label="Our Features" href="/superadmin/features" active={pathname === "/superadmin/features"} />
+              <Item icon={Settings} label="Feature Categories" href="/superadmin/feature-categories" active={pathname === "/superadmin/feature-categories"} />
+              <Item icon={Settings} label="Permissions" href="/superadmin/permissions" active={pathname === "/superadmin/permissions"} />
+              <Item icon={Settings} label="Org Features" href="/superadmin/org-features" active={pathname === "/superadmin/org-features"} />
             </div>
           )}
         </div>

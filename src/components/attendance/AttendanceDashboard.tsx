@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { apiClient } from "@/lib/apiClient";
 import {
     BarChart3,
@@ -17,11 +17,41 @@ import {
     ChevronRight,
     Briefcase,
     Building2,
+    TrendingUp,
+    TrendingDown,
+    Search,
+    AlertTriangle,
+    MapPin,
+    ArrowUpRight,
+    ArrowDownRight,
+    MoreHorizontal,
+    PieChart as PieChartIcon,
+    Activity,
+    CalendarOff,
+    LogOut,
+    Coffee
 } from "lucide-react";
 import { format } from "date-fns";
 import { createPortal } from "react-dom";
+import {
+    AreaChart,
+    Area,
+    BarChart,
+    Bar,
+    PieChart,
+    Pie,
+    Cell,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Legend
+} from "recharts";
 
-type AttendanceStats = {
+const CHART_COLORS = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#a78bfa"];
+
+interface AttendanceStats {
     total: number;
     present: number;
     absent: number;
@@ -31,7 +61,29 @@ type AttendanceStats = {
     late: number;
     early_exit: number;
     overtime: number;
-};
+    outside_work: number;
+    on_break: number;
+    working_employees: number;
+    avg_logged_in_duration: number;
+    trends: {
+        present: number;
+    };
+}
+
+interface DashboardAnalytics {
+    trend: { attendance_date: string; present_count: number }[];
+    clock_in_distribution: { hour_of_day: number; count: number }[];
+    leave_distribution: Array<{ leave_type: string; count: number }>;
+    site_performance: Array<{ site_name: string; total_employees: number; present_count: number }>;
+    overtime_breakdown: Array<{ name: string; value: number }>;
+    leaderboard: {
+        early_arrivals: Array<{ first_name: string; last_name: string; punch_in_time: string; site_name: string }>;
+        most_hours: Array<{ first_name: string; last_name: string; total_work_minutes: number; site_name: string }>;
+    };
+    issues: {
+        late_comers: Array<{ first_name: string; last_name: string; late_by_minutes: number; site_name: string }>;
+    };
+}
 
 type Employee = {
     id: number;
@@ -48,11 +100,15 @@ type Employee = {
     late_minutes: number;
     early_exit_minutes: number;
     total_work_minutes: number;
+    summary: string;
+    punch_in_image?: string;
+    punch_out_image?: string;
 };
 
 export default function AttendanceDashboard() {
     const [loading, setLoading] = useState(false);
     const [stats, setStats] = useState<AttendanceStats | null>(null);
+    const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
     const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
 
     // Filters
@@ -77,6 +133,7 @@ export default function AttendanceDashboard() {
     const [employeesLoading, setEmployeesLoading] = useState(false);
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [searchQuery, setSearchQuery] = useState("");
 
     const isEmployee = (role || "").toLowerCase() === "employee";
     const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
@@ -133,7 +190,7 @@ export default function AttendanceDashboard() {
         })();
     }, []);
 
-    const fetchStats = useCallback(async () => {
+    const fetchData = useCallback(async () => {
         if (!canViewAttendance) return;
 
         const effHq = hqMode && canHRMode;
@@ -141,6 +198,7 @@ export default function AttendanceDashboard() {
 
         if (!effHq && (!effSite || Number(effSite) <= 0)) {
             setStats(null);
+            setAnalytics(null);
             return;
         }
 
@@ -151,24 +209,30 @@ export default function AttendanceDashboard() {
             if (selectedDepartmentId) params.department_id = String(selectedDepartmentId);
             if (selectedRoleId) params.role_id = String(selectedRoleId);
 
-            const res = await apiClient<any>("/attendance/stats-summary", { params, withAuth: true });
-            setStats(res.stats || null);
+            const [statsRes, analyticsRes] = await Promise.all([
+                apiClient<any>("/attendance/stats-summary", { params, withAuth: true }),
+                apiClient<any>("/attendance/dashboard-analytics", { params, withAuth: true })
+            ]);
+
+            setStats(statsRes.stats || null);
+            setAnalytics(analyticsRes.analytics || null);
         } catch (error) {
-            console.error("Failed to fetch attendance stats:", error);
+            console.error("Failed to fetch attendance data:", error);
             setStats(null);
+            setAnalytics(null);
         } finally {
             setLoading(false);
         }
     }, [selectedSiteId, selectedDepartmentId, selectedRoleId, date, hqMode, canHRMode, canViewAttendance]);
 
     useEffect(() => {
-        fetchStats();
-    }, [fetchStats]);
+        fetchData();
+    }, [fetchData]);
 
-    const fetchEmployees = useCallback(async (status: string, pageNum: number = 1) => {
+    const fetchEmployees = useCallback(async (status: string, pageNum: number = 1, search: string = "") => {
         setEmployeesLoading(true);
         try {
-            const params: any = { date, status, page: String(pageNum), limit: "20" };
+            const params: any = { date, status, page: String(pageNum), limit: "20", q: search };
             if (selectedSiteId) params.site_id = String(selectedSiteId);
             if (selectedDepartmentId) params.department_id = String(selectedDepartmentId);
             if (selectedRoleId) params.role_id = String(selectedRoleId);
@@ -187,258 +251,628 @@ export default function AttendanceDashboard() {
 
     const handleCardClick = (status: string) => {
         setSelectedStatus(status);
-        fetchEmployees(status, 1);
+        setSearchQuery("");
+        fetchEmployees(status, 1, "");
     };
 
     const closeModal = () => {
         setSelectedStatus(null);
         setEmployees([]);
         setPage(1);
+        setSearchQuery("");
     };
 
-    const StatCard = ({ title, value, icon: Icon, color, status, subtitle }: { title: string; value: number; icon: any; color: string; status: string; subtitle?: string }) => (
+    // Stats Configuration
+    const statsConfig = [
+        {
+            title: 'Total Employees',
+            statKey: 'total',
+            value: stats?.total || 0,
+            icon: Users,
+            color: 'from-blue-500 to-blue-600',
+            trend: null
+        },
+        {
+            title: 'Present Today',
+            statKey: 'present',
+            value: stats?.present || 0,
+            icon: UserCheck,
+            color: 'from-emerald-500 to-emerald-600',
+            trend: stats?.trends?.present ? (stats.trends.present > 0 ? `+${stats.trends.present}` : `${stats.trends.present}`) : null
+        },
+        {
+            title: 'Absent',
+            statKey: 'absent',
+            value: stats?.absent || 0,
+            icon: UserX,
+            color: 'from-red-500 to-red-600',
+            trend: null
+        },
+        {
+            title: 'Week Off',
+            statKey: 'week_off',
+            value: stats?.week_off || 0,
+            icon: Calendar,
+            color: 'from-indigo-500 to-indigo-600',
+            trend: null
+        },
+        {
+            title: 'On Leave',
+            statKey: 'on_leave',
+            value: stats?.on_leave || 0,
+            icon: CalendarOff,
+            color: 'from-orange-500 to-orange-600',
+            trend: null
+        },
+        {
+            title: 'Late Arrivals',
+            statKey: 'late',
+            value: stats?.late || 0,
+            icon: Clock,
+            color: 'from-yellow-500 to-yellow-600',
+            trend: null
+        },
+        {
+            title: 'Early Exits',
+            statKey: 'early_exit',
+            value: stats?.early_exit || 0,
+            icon: LogOut,
+            color: 'from-purple-500 to-purple-600',
+            trend: null
+        },
+        {
+            title: 'Outside Work',
+            statKey: 'outside_work',
+            value: stats?.outside_work || 0,
+            icon: Briefcase,
+            color: 'from-indigo-500 to-indigo-600',
+            trend: null
+        },
+        {
+            title: 'On Break',
+            statKey: 'on_break',
+            value: stats?.on_break || 0,
+            icon: Coffee,
+            color: 'from-pink-500 to-pink-600',
+            trend: null
+        },
+        {
+            title: 'Working Now',
+            statKey: 'working_employees',
+            value: stats?.working_employees || 0,
+            icon: Activity,
+            color: 'from-teal-500 to-teal-600',
+            trend: null
+        }
+    ];
+
+    // Prepare Chart Data
+    const trendData = useMemo(() => {
+        return (analytics?.trend || []).map(d => ({
+            date: new Date(d.attendance_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+            present: d.present_count
+        }));
+    }, [analytics]);
+
+    const clockInData = useMemo(() => {
+        return (analytics?.clock_in_distribution || []).map(d => ({
+            hour: `${d.hour_of_day}:00`,
+            count: d.count
+        }));
+    }, [analytics]);
+
+    const leaveData = useMemo(() => {
+        return (analytics?.leave_distribution || []).map((d, i) => ({
+            name: d.leave_type,
+            value: d.count,
+            color: CHART_COLORS[i % CHART_COLORS.length]
+        }));
+    }, [analytics]);
+
+    const StatCard = ({ title, value, icon: Icon, color, subtitle, trend, onClick }: { title: string; value: number; icon: any; color: string; subtitle?: string; trend?: number | string | null; onClick?: () => void }) => (
         <div
-            onClick={() => handleCardClick(status)}
-            className={`rounded-xl p-4 relative overflow-hidden group transition-all duration-300 hover:shadow-lg cursor-pointer ${color}`}
+            onClick={onClick}
+            className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${color} p-1 shadow-lg cursor-pointer transition-all hover:scale-[1.02]`}
         >
-            <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-10 translate-x-10"></div>
-            <div className="relative z-10">
-                <div className="flex items-center justify-between mb-2">
-                    <div className="p-2 rounded-lg bg-white/20">
-                        <Icon className="w-5 h-5 text-white" />
+            <div className="relative h-full bg-white/95 backdrop-blur-xl rounded-xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                    <div className="p-2.5 rounded-xl bg-gray-100">
+                        <Icon className="w-5 h-5 text-gray-700" />
                     </div>
+                    {trend !== undefined && trend !== 0 && (
+                        <div className={`flex items-center gap-1 text-xs font-medium ${trend && Number(trend) > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {trend && Number(trend) > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                            <span>{Math.abs(Number(trend))}</span>
+                        </div>
+                    )}
                 </div>
-                <div className="text-2xl font-bold text-white">{value}</div>
-                <div className="text-white/90 text-sm font-medium">{title}</div>
-                {subtitle && <div className="text-white/70 text-xs mt-0.5">{subtitle}</div>}
+                <div>
+                    <p className="text-2xl font-bold text-gray-900">{value}</p>
+                    <p className="text-sm font-medium text-gray-600 mt-1">{title}</p>
+                    {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
+                </div>
             </div>
         </div>
     );
 
     if (isEmployee && !canViewAttendance) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/20 p-4 lg:p-6">
-                <div className="max-w-7xl mx-auto">
-                    <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center gap-3">
-                        <Shield className="w-5 h-5 text-red-600" />
-                        <div className="text-red-700 font-medium">You do not have permission to view Attendance Dashboard.</div>
-                    </div>
+            <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
+                <div className="bg-white p-8 rounded-2xl shadow-xl text-center max-w-md">
+                    <Shield className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                    <h2 className="text-xl font-bold text-gray-900 mb-2">Access Denied</h2>
+                    <p className="text-gray-600">You do not have permission to view the Attendance Dashboard.</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30 p-4 lg:p-6">
-            <div className="max-w-7xl mx-auto space-y-6">
-                {/* Header */}
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-                            <BarChart3 className="w-8 h-8" />
-                            Attendance Dashboard
-                        </h1>
-                        <p className="text-gray-600 mt-2">Real-time attendance insights and metrics</p>
-                    </div>
-                    <button
-                        onClick={fetchStats}
-                        disabled={loading}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                    >
-                        <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-                        Refresh
-                    </button>
-                </div>
+        <>
+            {/* Background Effects */}
+            <div className="fixed inset-0 -z-10 overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-indigo-50" />
+                <div className="absolute top-0 left-0 w-96 h-96 bg-blue-400 rounded-full filter blur-3xl opacity-10 -translate-x-1/2 -translate-y-1/2" />
+                <div className="absolute bottom-0 right-0 w-96 h-96 bg-indigo-400 rounded-full filter blur-3xl opacity-10 translate-x-1/3 translate-y-1/3" />
+            </div>
 
-                {/* Filters */}
-                <div className="bg-white rounded-xl border border-gray-200 p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                        <Filter className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm font-medium text-gray-700">Filters</span>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="min-h-screen p-4 lg:p-6">
+                <div className="max-w-7xl mx-auto space-y-6">
+                    {/* Header */}
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                            <input
-                                type="date"
-                                value={date}
-                                onChange={(e) => setDate(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            />
+                            <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent flex items-center gap-2">
+                                <BarChart3 className="w-6 h-6 text-blue-600" />
+                                Attendance Dashboard
+                            </h1>
+                            <p className="text-sm text-gray-500 mt-1">Real-time workforce insights & analytics</p>
                         </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Site</label>
-                            <select
-                                value={selectedSiteId || ""}
-                                onChange={(e) => setSelectedSiteId(e.target.value ? Number(e.target.value) : null)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        <div className="flex items-center gap-3">
+                            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-1 flex items-center">
+                                <input
+                                    type="date"
+                                    value={date}
+                                    onChange={(e) => setDate(e.target.value)}
+                                    className="border-none text-sm font-medium text-gray-700 focus:ring-0 bg-transparent"
+                                />
+                            </div>
+                            <button
+                                onClick={fetchData}
+                                disabled={loading}
+                                className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all text-sm font-medium text-gray-700"
                             >
-                                {hqMode && canHRMode ? <option value="">All Sites</option> : <option value="">Select Site</option>}
-                                {(canHRMode && hqMode ? allSites : inchargeSites).map((site) => (
-                                    <option key={site.id} value={site.id}>{site.name}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-                            <select
-                                value={selectedDepartmentId || ""}
-                                onChange={(e) => setSelectedDepartmentId(e.target.value ? Number(e.target.value) : null)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            >
-                                <option value="">All Departments</option>
-                                {departments.map((dept) => (
-                                    <option key={dept.id} value={dept.id}>{dept.name}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                            <select
-                                value={selectedRoleId || ""}
-                                onChange={(e) => setSelectedRoleId(e.target.value ? Number(e.target.value) : null)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            >
-                                <option value="">All Roles</option>
-                                {roles.map((r) => (
-                                    <option key={r.id} value={r.id}>{r.name}</option>
-                                ))}
-                            </select>
+                                <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+                                Refresh
+                            </button>
                         </div>
                     </div>
 
-                    {canHRMode && (
-                        <div className="mt-4 flex items-center gap-2">
-                            <input
-                                type="checkbox"
-                                id="hrMode"
-                                checked={hqMode}
-                                onChange={(e) => setHqMode(e.target.checked)}
-                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                            />
-                            <label htmlFor="hrMode" className="text-sm font-medium text-gray-700">
-                                HR Mode (View all sites)
-                            </label>
+                    {/* Filters */}
+                    <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-gray-200 p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1.5">Site</label>
+                                <select
+                                    value={selectedSiteId || ""}
+                                    onChange={(e) => setSelectedSiteId(e.target.value ? Number(e.target.value) : null)}
+                                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                >
+                                    {hqMode && canHRMode ? <option value="">All Sites</option> : <option value="">Select Site</option>}
+                                    {(canHRMode && hqMode ? allSites : inchargeSites).map((site) => (
+                                        <option key={site.id} value={site.id}>{site.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1.5">Department</label>
+                                <select
+                                    value={selectedDepartmentId || ""}
+                                    onChange={(e) => setSelectedDepartmentId(e.target.value ? Number(e.target.value) : null)}
+                                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                >
+                                    <option value="">All Departments</option>
+                                    {departments.map((dept) => (
+                                        <option key={dept.id} value={dept.id}>{dept.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1.5">Role</label>
+                                <select
+                                    value={selectedRoleId || ""}
+                                    onChange={(e) => setSelectedRoleId(e.target.value ? Number(e.target.value) : null)}
+                                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                >
+                                    <option value="">All Roles</option>
+                                    {roles.map((r) => (
+                                        <option key={r.id} value={r.id}>{r.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            {canHRMode && (
+                                <div className="flex items-end pb-2">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={hqMode}
+                                            onChange={(e) => setHqMode(e.target.checked)}
+                                            className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                        />
+                                        <span className="text-sm font-medium text-gray-700">HQ Mode (All Sites)</span>
+                                    </label>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Stats Grid */}
+                    {stats && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                            {statsConfig.map((stat, index) => (
+                                <StatCard key={index} {...stat} onClick={() => handleCardClick(stat.statKey)} />
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Analytics Section */}
+                    {analytics && (
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            {/* Site Attendance Overview */}
+                            <div className="lg:col-span-2 bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-gray-200 p-6">
+                                <div className="flex items-center justify-between mb-6">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900">Site Attendance Overview</h3>
+                                        <p className="text-sm text-gray-500">Presence by site</p>
+                                    </div>
+                                    <div className="p-2 bg-blue-50 rounded-lg">
+                                        <BarChart3 className="w-5 h-5 text-blue-600" />
+                                    </div>
+                                </div>
+                                <div className="h-72">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={analytics?.site_performance || []} layout="vertical" margin={{ left: 20 }}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={false} stroke="#f0f0f0" />
+                                            <XAxis type="number" hide />
+                                            <YAxis dataKey="site_name" type="category" width={100} tick={{ fontSize: 12 }} />
+                                            <Tooltip
+                                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                                cursor={{ fill: '#f8fafc' }}
+                                            />
+                                            <Bar dataKey="present_count" name="Present" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+
+                            {/* Overtime Breakdown */}
+                            <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-gray-200 p-6">
+                                <div className="flex items-center justify-between mb-6">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900">Overtime Breakdown</h3>
+                                        <p className="text-sm text-gray-500">Distribution of overtime hours</p>
+                                    </div>
+                                    <div className="p-2 bg-indigo-50 rounded-lg">
+                                        <Clock className="w-5 h-5 text-indigo-600" />
+                                    </div>
+                                </div>
+                                <div className="h-64">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={analytics?.overtime_breakdown || []}
+                                                cx="50%"
+                                                cy="50%"
+                                                innerRadius={60}
+                                                outerRadius={80}
+                                                paddingAngle={5}
+                                                dataKey="value"
+                                                nameKey="name"
+                                            >
+                                                {(analytics?.overtime_breakdown || []).map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                                                ))}
+                                            </Pie>
+                                            <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                            <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+
+                            {/* Leave Distribution */}
+                            <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-gray-200 p-6">
+                                <div className="flex items-center justify-between mb-6">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900">Leave Distribution</h3>
+                                        <p className="text-sm text-gray-500">By leave type (Current Month)</p>
+                                    </div>
+                                    <div className="p-2 bg-purple-50 rounded-lg">
+                                        <PieChartIcon className="w-5 h-5 text-purple-600" />
+                                    </div>
+                                </div>
+                                <div className="h-64">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={analytics?.leave_distribution || []}
+                                                cx="50%"
+                                                cy="50%"
+                                                innerRadius={60}
+                                                outerRadius={80}
+                                                paddingAngle={5}
+                                                dataKey="count"
+                                                nameKey="leave_type"
+                                            >
+                                                {(analytics?.leave_distribution || []).map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                                                ))}
+                                            </Pie>
+                                            <Tooltip contentStyle={{ borderRadius: '8px', border: 'none' }} />
+                                            <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    {analytics && (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-gray-200 p-6">
+                                <div className="flex items-center justify-between mb-6">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900">Attendance Trend</h3>
+                                        <p className="text-sm text-gray-500">Present count over time</p>
+                                    </div>
+                                    <div className="p-2 bg-emerald-50 rounded-lg">
+                                        <TrendingUp className="w-5 h-5 text-emerald-600" />
+                                    </div>
+                                </div>
+                                <div className="h-64">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={trendData} margin={{ left: 10, right: 10 }}>
+                                            <defs>
+                                                <linearGradient id="colorPresent" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                                                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                                            <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                                            <YAxis tick={{ fontSize: 12 }} />
+                                            <Tooltip contentStyle={{ borderRadius: '8px', border: 'none' }} />
+                                            <Area type="monotone" dataKey="present" stroke="#10b981" fillOpacity={1} fill="url(#colorPresent)" />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                            <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-gray-200 p-6">
+                                <div className="flex items-center justify-between mb-6">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900">Clock-in Distribution</h3>
+                                        <p className="text-sm text-gray-500">Punch-ins by hour (Today)</p>
+                                    </div>
+                                    <div className="p-2 bg-sky-50 rounded-lg">
+                                        <Clock className="w-5 h-5 text-sky-600" />
+                                    </div>
+                                </div>
+                                <div className="h-64">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={clockInData} margin={{ left: 10, right: 10 }}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                                            <XAxis dataKey="hour" tick={{ fontSize: 12 }} />
+                                            <YAxis tick={{ fontSize: 12 }} />
+                                            <Tooltip contentStyle={{ borderRadius: '8px', border: 'none' }} />
+                                            <Bar dataKey="count" name="Punch-ins" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Leaderboards & Issues */}
+                    {analytics && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Top Early Arrivals */}
+                            <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-gray-200 p-6">
+                                <h3 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                    <TrendingUp className="w-4 h-4 text-emerald-500" />
+                                    Early Birds
+                                </h3>
+                                <div className="space-y-3">
+                                    {analytics?.leaderboard?.early_arrivals?.map((emp: any, i: number) => (
+                                        <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-xs">
+                                                    {emp.first_name[0]}{emp.last_name[0]}
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-semibold text-gray-900">{emp.first_name} {emp.last_name}</p>
+                                                    <p className="text-xs text-gray-500">{emp.site_name}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm font-bold text-gray-900">{format(new Date(emp.punch_in_time), "hh:mm a")}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {analytics?.leaderboard?.early_arrivals?.length === 0 && <p className="text-sm text-gray-500 text-center py-4">No data available</p>}
+                                </div>
+                            </div>
+
+                            {/* Late Comers */}
+                            <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-gray-200 p-6">
+                                <h3 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                    <AlertTriangle className="w-4 h-4 text-amber-500" />
+                                    Late Arrivals
+                                </h3>
+                                <div className="space-y-3">
+                                    {analytics?.issues?.late_comers?.map((emp: any, i: number) => (
+                                        <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold text-xs">
+                                                    {emp.first_name[0]}{emp.last_name[0]}
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-semibold text-gray-900">{emp.first_name} {emp.last_name}</p>
+                                                    <p className="text-xs text-gray-500">{emp.site_name}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-full">
+                                                    +{emp.late_by_minutes}m
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {analytics?.issues?.late_comers?.length === 0 && <p className="text-sm text-gray-500 text-center py-4">No late arrivals today</p>}
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>
 
-                {/* Statistics Cards */}
-                {stats && (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                        <StatCard title="Total" value={stats.total} icon={Users} color="bg-gradient-to-br from-blue-600 to-blue-700" status="all" subtitle="All employees" />
-                        <StatCard title="Present" value={stats.present} icon={UserCheck} color="bg-gradient-to-br from-green-600 to-green-700" status="present" subtitle="Checked in" />
-                        <StatCard title="Absent" value={stats.absent} icon={UserX} color="bg-gradient-to-br from-red-600 to-red-700" status="absent" subtitle="Not present" />
-                        <StatCard title="Week Off" value={stats.week_off} icon={Calendar} color="bg-gradient-to-br from-indigo-600 to-indigo-700" status="week_off" subtitle="Scheduled off" />
-                        <StatCard title="On Leave" value={stats.on_leave} icon={Calendar} color="bg-gradient-to-br from-purple-600 to-purple-700" status="on_leave" subtitle="Approved leave" />
-                        <StatCard title="Late" value={stats.late} icon={Clock} color="bg-gradient-to-br from-orange-600 to-orange-700" status="late" subtitle="Late entries" />
-                        <StatCard title="Early Exit" value={stats.early_exit} icon={Clock} color="bg-gradient-to-br from-pink-600 to-pink-700" status="early_exit" subtitle="Left early" />
-                        <StatCard title="Overtime" value={stats.overtime} icon={Clock} color="bg-gradient-to-br from-teal-600 to-teal-700" status="overtime" subtitle="Extra hours" />
-                    </div>
-                )}
 
                 {/* Employee Modal */}
-                {selectedStatus && createPortal(
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={closeModal}>
-                        <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-                                <h2 className="text-xl font-bold text-gray-900 capitalize">{selectedStatus.replace('_', ' ')} Employees</h2>
-                                <button onClick={closeModal} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                                    <X className="w-5 h-5" />
-                                </button>
-                            </div>
-
-                            <div className="overflow-y-auto max-h-[calc(90vh-200px)]">
-                                {employeesLoading ? (
-                                    <div className="flex items-center justify-center py-12">
-                                        <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+                {
+                    selectedStatus && createPortal(
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={closeModal}>
+                            <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                                    <div>
+                                        <h2 className="text-xl font-bold text-gray-900 capitalize flex items-center gap-2">
+                                            {selectedStatus.replace('_', ' ')} Employees
+                                            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">
+                                                {typeof stats?.[selectedStatus as keyof AttendanceStats] === 'number' ? stats[selectedStatus as keyof AttendanceStats] as number : 0}
+                                            </span>
+                                        </h2>
                                     </div>
-                                ) : employees.length === 0 ? (
-                                    <div className="text-center py-12">
-                                        <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                                        <p className="text-gray-500">No employees found</p>
-                                    </div>
-                                ) : (
-                                    <table className="min-w-full divide-y divide-gray-200">
-                                        <thead className="bg-gray-50">
-                                            <tr>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Site</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="bg-white divide-y divide-gray-200">
-                                            {employees.map((emp) => (
-                                                <tr key={`${emp.id}-${String((emp as any).site || '')}`} className="hover:bg-gray-50">
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <div className="text-sm font-medium text-gray-900">{emp.name}</div>
-                                                        <div className="text-xs text-gray-500">{emp.emp_code}</div>
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{emp.site || "-"}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{emp.department || "-"}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{emp.role || "-"}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        {(() => {
-                                                            const s = String(emp.status || '').toLowerCase();
-                                                            const cls = s.includes('absent')
-                                                                ? 'bg-rose-100 text-rose-700'
-                                                                : s.includes('late') || s.includes('half') || s.includes('early')
-                                                                    ? 'bg-yellow-100 text-yellow-700'
-                                                                    : s.includes('present') || s.includes('check')
-                                                                        ? 'bg-green-100 text-green-700'
-                                                                        : s.includes('overtime')
-                                                                            ? 'bg-indigo-100 text-indigo-700'
-                                                                            : 'bg-gray-100 text-gray-700';
-                                                            return (
-                                                                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${cls}`}>
-                                                                    {emp.status}
-                                                                </span>
-                                                            );
-                                                        })()}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                )}
-                            </div>
-
-                            {/* Pagination */}
-                            {(employees.length > 0) && (
-                                <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200">
-                                    <div className="text-sm text-gray-600">
-                                        Page {page} of {totalPages}
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => fetchEmployees(selectedStatus, page - 1)}
-                                            disabled={page <= 1}
-                                            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                                        >
-                                            <ChevronLeft className="w-4 h-4" />
-                                            Previous
-                                        </button>
-                                        <button
-                                            onClick={() => fetchEmployees(selectedStatus, page + 1)}
-                                            disabled={page >= totalPages}
-                                            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                                        >
-                                            Next
-                                            <ChevronRight className="w-4 h-4" />
+                                    <div className="flex items-center gap-3">
+                                        <div className="relative">
+                                            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                            <input
+                                                type="text"
+                                                placeholder="Search employees..."
+                                                value={searchQuery}
+                                                onChange={(e) => {
+                                                    setSearchQuery(e.target.value);
+                                                    // Debounce could be added here
+                                                    if (e.target.value.length === 0 || e.target.value.length > 2) {
+                                                        fetchEmployees(selectedStatus || '', 1, e.target.value);
+                                                    }
+                                                }}
+                                                className="pl-9 pr-4 py-2 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 w-64"
+                                            />
+                                        </div>
+                                        <button onClick={closeModal} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
+                                            <X className="w-5 h-5 text-gray-500" />
                                         </button>
                                     </div>
                                 </div>
-                            )}
-                        </div>
-                    </div>,
-                    document.body
-                )}
+
+                                <div className="flex-1 overflow-y-auto p-0 bg-gray-50/50">
+                                    {employeesLoading ? (
+                                        <div className="flex items-center justify-center py-20">
+                                            <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+                                        </div>
+                                    ) : employees.length === 0 ? (
+                                        <div className="text-center py-20">
+                                            <Users className="w-16 h-16 text-gray-200 mx-auto mb-4" />
+                                            <p className="text-gray-500 font-medium">No employees found</p>
+                                            <p className="text-sm text-gray-400 mt-1">Try adjusting your search or filters</p>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6">
+                                            {employees.map((emp) => (
+                                                <div key={emp.id} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all group">
+                                                    <div className="flex items-start justify-between mb-3">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center text-blue-700 font-bold text-sm">
+                                                                {emp.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="text-sm font-bold text-gray-900">{emp.name}</h4>
+                                                                <p className="text-xs text-gray-500">{emp.role}</p>
+                                                            </div>
+                                                        </div>
+                                                        <span className={`px-2 py-1 text-xs font-bold rounded-full ${emp.status.includes('Present') ? 'bg-emerald-100 text-emerald-700' :
+                                                            emp.status.includes('Absent') ? 'bg-rose-100 text-rose-700' :
+                                                                emp.status.includes('Late') ? 'bg-amber-100 text-amber-700' :
+                                                                    emp.status.includes('Leave') ? 'bg-orange-100 text-orange-700' :
+                                                                        emp.status.includes('Week Off') ? 'bg-teal-100 text-teal-700' :
+                                                                            emp.status.includes('Holiday') ? 'bg-purple-100 text-purple-700' :
+                                                                                emp.status.includes('Half') ? 'bg-yellow-100 text-yellow-700' :
+                                                                                    emp.status.includes('Outside') ? 'bg-indigo-100 text-indigo-700' :
+                                                                                        emp.status.includes('Break') ? 'bg-pink-100 text-pink-700' :
+                                                                                            'bg-gray-100 text-gray-700'
+                                                            }`}>
+                                                            {emp.status}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="space-y-2 text-xs text-gray-600 mb-3">
+                                                        <div className="flex items-center gap-2">
+                                                            <Building2 className="w-3.5 h-3.5 text-gray-400" />
+                                                            <span className="truncate">{emp.site}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <Briefcase className="w-3.5 h-3.5 text-gray-400" />
+                                                            <span className="truncate">{emp.department}</span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 gap-2 pt-3 border-t border-gray-50">
+                                                        <div className="bg-gray-50 rounded-lg p-2 text-center">
+                                                            <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Check In</p>
+                                                            <p className="text-sm font-semibold text-gray-900 mt-0.5">
+                                                                {emp.check_in ? format(new Date(emp.check_in), "hh:mm a") : "--:--"}
+                                                            </p>
+                                                        </div>
+                                                        <div className="bg-gray-50 rounded-lg p-2 text-center">
+                                                            <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Check Out</p>
+                                                            <p className="text-sm font-semibold text-gray-900 mt-0.5">
+                                                                {emp.check_out ? format(new Date(emp.check_out), "hh:mm a") : "--:--"}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Pagination */}
+                                {employees.length > 0 && (
+                                    <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-white">
+                                        <div className="text-sm text-gray-500 font-medium">
+                                            Page {page} of {totalPages}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => fetchEmployees(selectedStatus || '', page - 1, searchQuery)}
+                                                disabled={page <= 1}
+                                                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 text-sm font-medium transition-colors"
+                                            >
+                                                <ChevronLeft className="w-4 h-4" />
+                                                Previous
+                                            </button>
+                                            <button
+                                                onClick={() => fetchEmployees(selectedStatus || '', page + 1, searchQuery)}
+                                                disabled={page >= totalPages}
+                                                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 text-sm font-medium transition-colors"
+                                            >
+                                                Next
+                                                <ChevronRight className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>,
+                        document.body
+                    )
+                }
             </div>
-        </div>
+        </>
     );
 }

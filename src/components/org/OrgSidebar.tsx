@@ -48,6 +48,7 @@ export default function OrgSidebar({
     onLogout,
     permissions,
     role,
+    features,
 }: {
     isCollapsed: boolean;
     setIsCollapsed: (val: boolean) => void;
@@ -56,6 +57,7 @@ export default function OrgSidebar({
     onLogout: () => void;
     permissions?: string[];
     role?: string | null;
+    features?: string[];
 }) {
     const pathname = usePathname();
     const [mainOpen, setMainOpen] = React.useState(true);
@@ -69,19 +71,16 @@ export default function OrgSidebar({
     const [salaryAdvanceOpen, setSalaryAdvanceOpen] = React.useState(false);
     const [dashboardOpen, setDashboardOpen] = React.useState(false);
     const [managementOpen, setManagementOpen] = React.useState(false);
-    const [dashboards, setDashboards] = React.useState<any[]>([]);
+    const [attendanceOpen, setAttendanceOpen] = React.useState(false);
 
-    React.useEffect(() => {
-        const fetchDashboards = async () => {
-            try {
-                const response = await apiClient<any>('/dashboards', { method: 'GET', withAuth: true });
-                setDashboards(response?.dashboards || []);
-            } catch (error) {
-                console.error("Failed to fetch dashboards:", error);
-            }
-        };
-        fetchDashboards();
-    }, []);
+    const hasFeature = (code: string) => {
+        // If undefined, assume true? Or strict? 
+        // Strict: if features provided, must match. If not provided (old parent), maybe default true or false.
+        // Given we are migrating, let's strictly check if features array exists.
+        // But for "Core HR" which is base, maybe we assume it's there?
+        if (!features) return false;
+        return features.includes(code);
+    };
 
     const Item = ({
         icon: Icon,
@@ -139,6 +138,12 @@ export default function OrgSidebar({
 
     const dashboardPath = "/org-admin";
 
+    // Feature Flags
+    const showCoreHR = hasFeature('PAYROLL_FEATURE');
+    const showWallet = hasFeature('WALLET_FEATURE');
+    const showTask = hasFeature('TASK_FEATURE');
+    const showInventory = hasFeature('INVENTORY_FEATURE');
+
     return (
         <aside
             className={`h-screen bg-gray-50 ${isCollapsed ? "w-16" : "w-64"
@@ -191,416 +196,462 @@ export default function OrgSidebar({
                 />
 
                 {/* Main Section */}
-                <div className="mt-4">
-                    {!isCollapsed && (
-                        <CategoryButton
-                            label="Main"
-                            isOpen={mainOpen}
-                            onClick={() => setMainOpen(!mainOpen)}
-                        />
-                    )}
-                    {mainOpen && (
-                        <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
-                            <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
-                                <Item
-                                    icon={Building2}
-                                    label="Organization Profile"
-                                    href="/org-admin/orgProfile"
-                                    active={pathname?.startsWith("/org-admin/orgProfile") || false}
-                                />
-                                <Item
-                                    icon={MapPin}
-                                    label="Sites"
-                                    href="/org-admin/sites"
-                                    active={pathname?.startsWith("/org-admin/sites") || false}
-                                />
-                                <Item
-                                    icon={Building}
-                                    label="Departments"
-                                    href="/org-admin/departments"
-                                    active={pathname?.startsWith("/org-admin/departments") || false}
-                                />
-                                <Item
-                                    icon={UserCog}
-                                    label="Roles"
-                                    href="/org-admin/roles"
-                                    active={pathname?.startsWith("/org-admin/roles") || false}
-                                />
-                                <Item
-                                    icon={ClipboardList}
-                                    label="Policies"
-                                    href="/org-admin/attendance-rules"
-                                    active={pathname?.startsWith("/org-admin/attendance-rules") || false}
-                                />
-                                <Item
-                                    icon={Settings}
-                                    label="Attendance Config"
-                                    href="/org-admin/attendance-config"
-                                    active={pathname?.startsWith("/org-admin/attendance-config") || false}
-                                />
-                                <Item
-                                    icon={Calendar}
-                                    label="Holiday Calendar"
-                                    href="/org-admin/holiday-calendar"
-                                    active={pathname?.startsWith("/org-admin/holiday-calendar") || false}
-                                />
+                {showCoreHR && (
+                    <div className="mt-4">
+                        {!isCollapsed && (
+                            <CategoryButton
+                                label="Main"
+                                isOpen={mainOpen}
+                                onClick={() => setMainOpen(!mainOpen)}
+                            />
+                        )}
+                        {mainOpen && (
+                            <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                                <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                                    <Item
+                                        icon={Building2}
+                                        label="Organization Profile"
+                                        href="/org-admin/orgProfile"
+                                        active={pathname?.startsWith("/org-admin/orgProfile") || false}
+                                    />
+                                    <Item
+                                        icon={MapPin}
+                                        label="Sites"
+                                        href="/org-admin/sites"
+                                        active={pathname?.startsWith("/org-admin/sites") || false}
+                                    />
+                                    <Item
+                                        icon={Building}
+                                        label="Departments"
+                                        href="/org-admin/departments"
+                                        active={pathname?.startsWith("/org-admin/departments") || false}
+                                    />
+                                    <Item
+                                        icon={UserCog}
+                                        label="Roles"
+                                        href="/org-admin/roles"
+                                        active={pathname?.startsWith("/org-admin/roles") || false}
+                                    />
+                                </div>
                             </div>
-                        </div>
-                    )}
-                </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Attendance Section */}
+                {showCoreHR && (
+                    <div className="mt-2">
+                        {!isCollapsed && (
+                            <CategoryButton
+                                label="Attendance"
+                                isOpen={attendanceOpen}
+                                onClick={() => setAttendanceOpen(!attendanceOpen)}
+                            />
+                        )}
+                        {attendanceOpen && (
+                            <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                                <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                                    <Item
+                                        icon={BarChart3}
+                                        label="Dashboard"
+                                        href="/org-admin/attendance-dashboard"
+                                        active={pathname?.startsWith("/org-admin/attendance-dashboard") || false}
+                                    />
+                                    <Item
+                                        icon={Clock}
+                                        label="Session Requests"
+                                        href="/org-admin/attendance/sessions"
+                                        active={pathname?.startsWith("/org-admin/attendance/sessions") || false}
+                                    />
+                                    <Item
+                                        icon={CheckSquare}
+                                        label="Regularize Requests"
+                                        href="/org-admin/regularize-requests"
+                                        active={pathname?.startsWith("/org-admin/regularize-requests") || false}
+                                    />
+                                    <Item
+                                        icon={AlertCircle}
+                                        label="Verification Issues"
+                                        href="/org-admin/verification-issues"
+                                        active={pathname?.startsWith("/org-admin/verification-issues") || false}
+                                    />
+                                    <Item
+                                        icon={Calendar}
+                                        label="Leave Requests"
+                                        href="/org-admin/leave-requests"
+                                        active={pathname?.startsWith("/org-admin/leave-requests") || false}
+                                    />
+                                    <Item
+                                        icon={ClipboardList}
+                                        label="Policies"
+                                        href="/org-admin/attendance-rules"
+                                        active={pathname?.startsWith("/org-admin/attendance-rules") || false}
+                                    />
+                                    <Item
+                                        icon={Settings}
+                                        label="Configuration"
+                                        href="/org-admin/attendance-config"
+                                        active={pathname?.startsWith("/org-admin/attendance-config") || false}
+                                    />
+                                    <Item
+                                        icon={Calendar}
+                                        label="Holiday Calendar"
+                                        href="/org-admin/holiday-calendar"
+                                        active={pathname?.startsWith("/org-admin/holiday-calendar") || false}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Management Section */}
-                <div className="mt-2">
-                    {!isCollapsed && (
-                        <CategoryButton
-                            label="Management"
-                            isOpen={managementOpen}
-                            onClick={() => setManagementOpen(!managementOpen)}
-                        />
-                    )}
-                    {managementOpen && (
-                        <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
-                            <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
-                                <Item
-                                    icon={Users}
-                                    label="Employees"
-                                    href="/org-admin/employee-management"
-                                    active={pathname?.startsWith("/org-admin/employee-management") || false}
-                                />
-                                <Item
-                                    icon={MapPin}
-                                    label="Employee Sites"
-                                    href="/org-admin/employee-sites"
-                                    active={pathname?.startsWith("/org-admin/employee-sites") || false}
-                                />
-                                <Item
-                                    icon={Calendar}
-                                    label="Leave Requests"
-                                    href="/org-admin/leave-requests"
-                                    active={pathname?.startsWith("/org-admin/leave-requests") || false}
-                                />
-                                <Item
-                                    icon={Clock}
-                                    label="Regularize Requests"
-                                    href="/org-admin/regularize-requests"
-                                    active={pathname?.startsWith("/org-admin/regularize-requests") || false}
-                                />
-                                <Item
-                                    icon={BarChart3}
-                                    label="Attendance Dashboard"
-                                    href="/org-admin/attendance-dashboard"
-                                    active={pathname?.startsWith("/org-admin/attendance-dashboard") || false}
-                                />
-                                <Item
-                                    icon={AlertCircle}
-                                    label="Verification Issues"
-                                    href="/org-admin/verification-issues"
-                                    active={pathname?.startsWith("/org-admin/verification-issues") || false}
-                                />
-                                <Item
-                                    icon={DollarSign}
-                                    label="Payroll"
-                                    href="/org-admin/payroll"
-                                    active={pathname?.startsWith("/org-admin/payroll") || false}
-                                />
+                {showCoreHR && (
+                    <div className="mt-2">
+                        {!isCollapsed && (
+                            <CategoryButton
+                                label="Management"
+                                isOpen={managementOpen}
+                                onClick={() => setManagementOpen(!managementOpen)}
+                            />
+                        )}
+                        {managementOpen && (
+                            <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                                <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                                    <Item
+                                        icon={Users}
+                                        label="Employees"
+                                        href="/org-admin/employee-management"
+                                        active={pathname?.startsWith("/org-admin/employee-management") || false}
+                                    />
+                                    <Item
+                                        icon={MapPin}
+                                        label="Employee Sites"
+                                        href="/org-admin/employee-sites"
+                                        active={pathname?.startsWith("/org-admin/employee-sites") || false}
+                                    />
+                                    {/* Attendance items moved to Attendance Category */}
+                                    <Item
+                                        icon={DollarSign}
+                                        label="Payroll"
+                                        href="/org-admin/payroll"
+                                        active={pathname?.startsWith("/org-admin/payroll") || false}
+                                    />
 
+                                </div>
                             </div>
-                        </div>
-                    )}
-                </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Insurance Section */}
-                <div className="mt-2">
-                    {!isCollapsed && (
-                        <CategoryButton
-                            label="Insurance"
-                            isOpen={insuranceOpen}
-                            onClick={() => setInsuranceOpen(!insuranceOpen)}
-                        />
-                    )}
-                    {insuranceOpen && (
-                        <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
-                            <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
-                                <Item
-                                    icon={LayoutGrid}
-                                    label="Dashboard"
-                                    href="/org-admin/insurance/dashboard"
-                                    active={pathname?.startsWith("/org-admin/insurance/dashboard") || false}
-                                />
-                                <Item
-                                    icon={Building2}
-                                    label="Providers"
-                                    href="/org-admin/insurance/providers"
-                                    active={pathname?.startsWith("/org-admin/insurance/providers") || false}
-                                />
-                                <Item
-                                    icon={Shield}
-                                    label="Policies"
-                                    href="/org-admin/insurance/policies"
-                                    active={pathname?.startsWith("/org-admin/insurance/policies") || false}
-                                />
-                                <Item
-                                    icon={UserCheck}
-                                    label="Enrollment"
-                                    href="/org-admin/insurance/enrollment"
-                                    active={pathname?.startsWith("/org-admin/insurance/enrollment") || false}
-                                />
-                                <Item
-                                    icon={Users}
-                                    label="Dependents"
-                                    href="/org-admin/insurance/dependents"
-                                    active={pathname?.startsWith("/org-admin/insurance/dependents") || false}
-                                />
-                                <Item
-                                    icon={Heart}
-                                    label="Beneficiaries"
-                                    href="/org-admin/insurance/beneficiaries"
-                                    active={pathname?.startsWith("/org-admin/insurance/beneficiaries") || false}
-                                />
+                {showCoreHR && (
+                    <div className="mt-2">
+                        {!isCollapsed && (
+                            <CategoryButton
+                                label="Insurance"
+                                isOpen={insuranceOpen}
+                                onClick={() => setInsuranceOpen(!insuranceOpen)}
+                            />
+                        )}
+                        {insuranceOpen && (
+                            <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                                <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                                    <Item
+                                        icon={LayoutGrid}
+                                        label="Dashboard"
+                                        href="/org-admin/insurance/dashboard"
+                                        active={pathname?.startsWith("/org-admin/insurance/dashboard") || false}
+                                    />
+                                    <Item
+                                        icon={Building2}
+                                        label="Providers"
+                                        href="/org-admin/insurance/providers"
+                                        active={pathname?.startsWith("/org-admin/insurance/providers") || false}
+                                    />
+                                    <Item
+                                        icon={Shield}
+                                        label="Policies"
+                                        href="/org-admin/insurance/policies"
+                                        active={pathname?.startsWith("/org-admin/insurance/policies") || false}
+                                    />
+                                    <Item
+                                        icon={UserCheck}
+                                        label="Enrollment"
+                                        href="/org-admin/insurance/enrollment"
+                                        active={pathname?.startsWith("/org-admin/insurance/enrollment") || false}
+                                    />
+                                    <Item
+                                        icon={Users}
+                                        label="Dependents"
+                                        href="/org-admin/insurance/dependents"
+                                        active={pathname?.startsWith("/org-admin/insurance/dependents") || false}
+                                    />
+                                    <Item
+                                        icon={Heart}
+                                        label="Beneficiaries"
+                                        href="/org-admin/insurance/beneficiaries"
+                                        active={pathname?.startsWith("/org-admin/insurance/beneficiaries") || false}
+                                    />
+                                </div>
                             </div>
-                        </div>
-                    )}
-                </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Salary Advance Section */}
-                <div className="mt-2">
-                    {!isCollapsed && (
-                        <CategoryButton
-                            label="Salary Advance"
-                            isOpen={salaryAdvanceOpen}
-                            onClick={() => setSalaryAdvanceOpen(!salaryAdvanceOpen)}
-                        />
-                    )}
-                    {salaryAdvanceOpen && (
-                        <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
-                            <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
-                                <Item
-                                    icon={ClipboardList}
-                                    label="All Requests"
-                                    href="/org-admin/salary-advance/requests"
-                                    active={pathname?.startsWith("/org-admin/salary-advance/requests") || false}
-                                />
-                                <Item
-                                    icon={CheckSquare}
-                                    label="Approval Queue"
-                                    href="/org-admin/salary-advance/approvals"
-                                    active={pathname?.startsWith("/org-admin/salary-advance/approvals") || false}
-                                />
-                                <Item
-                                    icon={Calendar}
-                                    label="Repayment Schedule"
-                                    href="/org-admin/salary-advance/repayments"
-                                    active={pathname?.startsWith("/org-admin/salary-advance/repayments") || false}
-                                />
-                                <Item
-                                    icon={TrendingUp}
-                                    label="Analytics"
-                                    href="/org-admin/salary-advance/analytics"
-                                    active={pathname?.startsWith("/org-admin/salary-advance/analytics") || false}
-                                />
-                                <Item
-                                    icon={Settings}
-                                    label="Policy Configuration"
-                                    href="/org-admin/salary-advance/policy"
-                                    active={pathname?.startsWith("/org-admin/salary-advance/policy") || false}
-                                />
+                {showCoreHR && (
+                    <div className="mt-2">
+                        {!isCollapsed && (
+                            <CategoryButton
+                                label="Salary Advance"
+                                isOpen={salaryAdvanceOpen}
+                                onClick={() => setSalaryAdvanceOpen(!salaryAdvanceOpen)}
+                            />
+                        )}
+                        {salaryAdvanceOpen && (
+                            <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                                <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                                    <Item
+                                        icon={ClipboardList}
+                                        label="All Requests"
+                                        href="/org-admin/salary-advance/requests"
+                                        active={pathname?.startsWith("/org-admin/salary-advance/requests") || false}
+                                    />
+                                    <Item
+                                        icon={CheckSquare}
+                                        label="Approval Queue"
+                                        href="/org-admin/salary-advance/approvals"
+                                        active={pathname?.startsWith("/org-admin/salary-advance/approvals") || false}
+                                    />
+                                    <Item
+                                        icon={Calendar}
+                                        label="Repayment Schedule"
+                                        href="/org-admin/salary-advance/repayments"
+                                        active={pathname?.startsWith("/org-admin/salary-advance/repayments") || false}
+                                    />
+                                    <Item
+                                        icon={TrendingUp}
+                                        label="Analytics"
+                                        href="/org-admin/salary-advance/analytics"
+                                        active={pathname?.startsWith("/org-admin/salary-advance/analytics") || false}
+                                    />
+                                    <Item
+                                        icon={Settings}
+                                        label="Policy Configuration"
+                                        href="/org-admin/salary-advance/policy"
+                                        active={pathname?.startsWith("/org-admin/salary-advance/policy") || false}
+                                    />
+                                    <Item
+                                        icon={Users}
+                                        label="Accounts"
+                                        href="/org-admin/salary-advance/accounts"
+                                        active={pathname?.startsWith("/org-admin/salary-advance/accounts") || false}
+                                    />
+                                </div>
                             </div>
-                        </div>
-                    )}
-                </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Wallets Section */}
-                <div className="mt-2">
-                    {!isCollapsed && (
-                        <CategoryButton
-                            label="Wallets"
-                            isOpen={walletOpen}
-                            onClick={() => setWalletOpen(!walletOpen)}
-                        />
-                    )}
-                    {walletOpen && (
-                        <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
-                            <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
-                                <Item
-                                    icon={DollarSign}
-                                    label="Petty Cash"
-                                    href="/org-admin/petty-cash"
-                                    active={pathname?.startsWith("/org-admin/petty-cash") || false}
-                                />
-                                <Item
-                                    icon={Receipt}
-                                    label="Wallet Expenses"
-                                    href="/org-admin/wallet-expenses"
-                                    active={pathname?.startsWith("/org-admin/wallet-expenses") || false}
-                                />
-                                <Item
-                                    icon={Cog}
-                                    label="Wallet Config"
-                                    href="/org-admin/wallet-config"
-                                    active={pathname?.startsWith("/org-admin/wallet-config") || false}
-                                />
-                                <Item
-                                    icon={ArrowUpCircle}
-                                    label="Wallet Topups"
-                                    href="/org-admin/wallet-topups"
-                                    active={pathname?.startsWith("/org-admin/wallet-topups") || false}
-                                />
+                {showWallet && (
+                    <div className="mt-2">
+                        {!isCollapsed && (
+                            <CategoryButton
+                                label="Wallets"
+                                isOpen={walletOpen}
+                                onClick={() => setWalletOpen(!walletOpen)}
+                            />
+                        )}
+                        {walletOpen && (
+                            <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                                <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                                    <Item
+                                        icon={DollarSign}
+                                        label="Petty Cash"
+                                        href="/org-admin/petty-cash"
+                                        active={pathname?.startsWith("/org-admin/petty-cash") || false}
+                                    />
+                                    <Item
+                                        icon={Receipt}
+                                        label="Wallet Expenses"
+                                        href="/org-admin/wallet-overview"
+                                        active={pathname?.startsWith("/org-admin/wallet-overview") || false}
+                                    />
+                                    <Item
+                                        icon={Cog}
+                                        label="Wallet Config"
+                                        href="/org-admin/wallet-config"
+                                        active={pathname?.startsWith("/org-admin/wallet-config") || false}
+                                    />
+                                    <Item
+                                        icon={ArrowUpCircle}
+                                        label="Wallet Topups"
+                                        href="/org-admin/wallet-topups"
+                                        active={pathname?.startsWith("/org-admin/wallet-topups") || false}
+                                    />
+                                </div>
                             </div>
-                        </div>
-                    )}
-                </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Inventory Section */}
-                <div className="mt-2">
-                    {!isCollapsed && (
-                        <CategoryButton
-                            label="Inventory"
-                            isOpen={inventoryOpen}
-                            onClick={() => setInventoryOpen(!inventoryOpen)}
-                        />
-                    )}
-                    {inventoryOpen && (
-                        <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
-                            <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
-                                {/* Master Data Submenu */}
-                                <div className="mt-1">
-                                    <button
-                                        type="button"
-                                        onClick={() => setMasterDataOpen(!masterDataOpen)}
-                                        className="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm"
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            {masterDataOpen ? (
-                                                <ChevronDown size={16} className="text-gray-600" />
-                                            ) : (
-                                                <ChevronRight size={16} className="text-gray-600" />
-                                            )}
-                                            {!isCollapsed && (
-                                                <span className="text-gray-700 font-medium">Master Data</span>
-                                            )}
-                                        </div>
-                                    </button>
-
-                                    {masterDataOpen && (
-                                        <div className={`mt-0.5 space-y-0.5 ${isCollapsed ? "pl-0" : "pl-4"}`}>
-                                            <div className={`relative ${isCollapsed ? "" : "ml-2 pl-2 border-l border-gray-100"}`}>
-                                                <Item icon={Package} label="Onboarding" href="/org-admin/inventory/onboarding" active={pathname?.startsWith("/org-admin/inventory/onboarding") || false} />
-                                                <Item icon={Building2} label="Site Config" href="/org-admin/inventory/sites" active={pathname?.startsWith("/org-admin/inventory/sites") || false} />
-                                                <Item icon={Package} label="Categories" href="/org-admin/inventory/categories" active={pathname?.startsWith("/org-admin/inventory/categories") || false} />
-                                                <Item icon={Package} label="Subcategories" href="/org-admin/inventory/subcategories" active={pathname?.startsWith("/org-admin/inventory/subcategories") || false} />
-                                                <Item icon={Building2} label="Vendors" href="/org-admin/inventory/vendors" active={pathname?.startsWith("/org-admin/inventory/vendors") || false} />
-                                                <Item icon={Package} label="Items" href="/org-admin/inventory/items" active={pathname?.startsWith("/org-admin/inventory/items") || false} />
+                {showInventory && (
+                    <div className="mt-2">
+                        {!isCollapsed && (
+                            <CategoryButton
+                                label="Inventory"
+                                isOpen={inventoryOpen}
+                                onClick={() => setInventoryOpen(!inventoryOpen)}
+                            />
+                        )}
+                        {inventoryOpen && (
+                            <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                                <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                                    {/* Master Data Submenu */}
+                                    <div className="mt-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setMasterDataOpen(!masterDataOpen)}
+                                            className="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                {masterDataOpen ? (
+                                                    <ChevronDown size={16} className="text-gray-600" />
+                                                ) : (
+                                                    <ChevronRight size={16} className="text-gray-600" />
+                                                )}
+                                                {!isCollapsed && (
+                                                    <span className="text-gray-700 font-medium">Master Data</span>
+                                                )}
                                             </div>
-                                        </div>
-                                    )}
-                                </div>
+                                        </button>
 
-                                {/* CORE Submenu */}
-                                <div className="mt-1">
-                                    <button
-                                        type="button"
-                                        onClick={() => setCoreOpen(!coreOpen)}
-                                        className="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm"
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            {coreOpen ? (
-                                                <ChevronDown size={16} className="text-gray-600" />
-                                            ) : (
-                                                <ChevronRight size={16} className="text-gray-600" />
-                                            )}
-                                            {!isCollapsed && (
-                                                <span className="text-gray-700 font-medium">CORE</span>
-                                            )}
-                                        </div>
-                                    </button>
-
-                                    {coreOpen && (
-                                        <div className={`mt-0.5 space-y-0.5 ${isCollapsed ? "pl-0" : "pl-4"}`}>
-                                            <div className={`relative ${isCollapsed ? "" : "ml-2 pl-2 border-l border-gray-100"}`}>
-                                                <Item icon={Package} label="Store Selection" href="/org-admin/inventory/stores" active={pathname?.startsWith("/org-admin/inventory/stores") || false} />
-                                                <Item icon={Package} label="Store Stock" href="/org-admin/inventory/stock" active={pathname?.startsWith("/org-admin/inventory/stock") || false} />
-                                                <Item icon={Package} label="Store Batch" href="/org-admin/inventory/batches" active={pathname?.startsWith("/org-admin/inventory/batches") || false} />
-                                                <Item icon={Package} label="Store Serials" href="/org-admin/inventory/serials" active={pathname?.startsWith("/org-admin/inventory/serials") || false} />
-                                                <Item icon={Package} label="Stock Ledger" href="/org-admin/inventory/ledger" active={pathname?.startsWith("/org-admin/inventory/ledger") || false} />
+                                        {masterDataOpen && (
+                                            <div className={`mt-0.5 space-y-0.5 ${isCollapsed ? "pl-0" : "pl-4"}`}>
+                                                <div className={`relative ${isCollapsed ? "" : "ml-2 pl-2 border-l border-gray-100"}`}>
+                                                    <Item icon={Package} label="Onboarding" href="/org-admin/inventory/onboarding" active={pathname?.startsWith("/org-admin/inventory/onboarding") || false} />
+                                                    <Item icon={Building2} label="Site Config" href="/org-admin/inventory/sites" active={pathname?.startsWith("/org-admin/inventory/sites") || false} />
+                                                    <Item icon={Package} label="Categories" href="/org-admin/inventory/categories" active={pathname?.startsWith("/org-admin/inventory/categories") || false} />
+                                                    <Item icon={Package} label="Subcategories" href="/org-admin/inventory/subcategories" active={pathname?.startsWith("/org-admin/inventory/subcategories") || false} />
+                                                    <Item icon={Building2} label="Vendors" href="/org-admin/inventory/vendors" active={pathname?.startsWith("/org-admin/inventory/vendors") || false} />
+                                                    <Item icon={Package} label="Items" href="/org-admin/inventory/items" active={pathname?.startsWith("/org-admin/inventory/items") || false} />
+                                                </div>
                                             </div>
-                                        </div>
-                                    )}
-                                </div>
+                                        )}
+                                    </div>
 
-                                {/* Transactions Submenu */}
-                                <div className="mt-1">
-                                    <button
-                                        type="button"
-                                        onClick={() => setTransactionsOpen(!transactionsOpen)}
-                                        className="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm"
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            {transactionsOpen ? (
-                                                <ChevronDown size={16} className="text-gray-600" />
-                                            ) : (
-                                                <ChevronRight size={16} className="text-gray-600" />
-                                            )}
-                                            {!isCollapsed && (
-                                                <span className="text-gray-700 font-medium">Transactions</span>
-                                            )}
-                                        </div>
-                                    </button>
-
-                                    {transactionsOpen && (
-                                        <div className={`mt-0.5 space-y-0.5 ${isCollapsed ? "pl-0" : "pl-4"}`}>
-                                            <div className={`relative ${isCollapsed ? "" : "ml-2 pl-2 border-l border-gray-100"}`}>
-                                                <Item icon={Package} label="GRN" href="/org-admin/inventory/grn" active={pathname?.startsWith("/org-admin/inventory/grn") || false} />
-                                                <Item icon={FileText} label="RFQ" href="/org-admin/rfq" active={pathname?.startsWith("/org-admin/rfq") || false} />
-                                                <Item icon={FileText} label="Purchase Request" href="/org-admin/pr" active={pathname?.startsWith("/org-admin/pr") || false} />
+                                    {/* CORE Submenu */}
+                                    <div className="mt-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setCoreOpen(!coreOpen)}
+                                            className="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                {coreOpen ? (
+                                                    <ChevronDown size={16} className="text-gray-600" />
+                                                ) : (
+                                                    <ChevronRight size={16} className="text-gray-600" />
+                                                )}
+                                                {!isCollapsed && (
+                                                    <span className="text-gray-700 font-medium">CORE</span>
+                                                )}
                                             </div>
-                                        </div>
-                                    )}
+                                        </button>
+
+                                        {coreOpen && (
+                                            <div className={`mt-0.5 space-y-0.5 ${isCollapsed ? "pl-0" : "pl-4"}`}>
+                                                <div className={`relative ${isCollapsed ? "" : "ml-2 pl-2 border-l border-gray-100"}`}>
+                                                    <Item icon={Package} label="Store Selection" href="/org-admin/inventory/stores" active={pathname?.startsWith("/org-admin/inventory/stores") || false} />
+                                                    <Item icon={Package} label="Store Stock" href="/org-admin/inventory/stock" active={pathname?.startsWith("/org-admin/inventory/stock") || false} />
+                                                    <Item icon={Package} label="Store Batch" href="/org-admin/inventory/batches" active={pathname?.startsWith("/org-admin/inventory/batches") || false} />
+                                                    <Item icon={Package} label="Store Serials" href="/org-admin/inventory/serials" active={pathname?.startsWith("/org-admin/inventory/serials") || false} />
+                                                    <Item icon={Package} label="Stock Ledger" href="/org-admin/inventory/ledger" active={pathname?.startsWith("/org-admin/inventory/ledger") || false} />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Transactions Submenu */}
+                                    <div className="mt-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setTransactionsOpen(!transactionsOpen)}
+                                            className="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                {transactionsOpen ? (
+                                                    <ChevronDown size={16} className="text-gray-600" />
+                                                ) : (
+                                                    <ChevronRight size={16} className="text-gray-600" />
+                                                )}
+                                                {!isCollapsed && (
+                                                    <span className="text-gray-700 font-medium">Transactions</span>
+                                                )}
+                                            </div>
+                                        </button>
+
+                                        {transactionsOpen && (
+                                            <div className={`mt-0.5 space-y-0.5 ${isCollapsed ? "pl-0" : "pl-4"}`}>
+                                                <div className={`relative ${isCollapsed ? "" : "ml-2 pl-2 border-l border-gray-100"}`}>
+                                                    <Item icon={Package} label="GRN" href="/org-admin/inventory/grn" active={pathname?.startsWith("/org-admin/inventory/grn") || false} />
+                                                    <Item icon={FileText} label="RFQ" href="/org-admin/rfq" active={pathname?.startsWith("/org-admin/rfq") || false} />
+                                                    <Item icon={FileText} label="Purchase Request" href="/org-admin/pr" active={pathname?.startsWith("/org-admin/pr") || false} />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
-                </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Task Section */}
-                <div className="mt-2">
-                    {!isCollapsed && (
-                        <CategoryButton
-                            label="Task"
-                            isOpen={taskOpen}
-                            onClick={() => setTaskOpen(!taskOpen)}
-                        />
-                    )}
-                    {taskOpen && (
-                        <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
-                            <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
-                                <Item
-                                    icon={FileText}
-                                    label="Templates"
-                                    href="/org-admin/tasks"
-                                    active={pathname?.startsWith("/org-admin/tasks") || false}
-                                />
-                                <Item
-                                    icon={ListChecks}
-                                    label="Assignments"
-                                    href="/org-admin/task-assignments"
-                                    active={pathname?.startsWith("/org-admin/task-assignments") || false}
-                                />
-                                <Item
-                                    icon={LayoutGrid}
-                                    label="Dashboard"
-                                    href="/org-admin/task-dashboard"
-                                    active={pathname?.startsWith("/org-admin/task-dashboard") || false}
-                                />
-                                <Item
-                                    icon={Settings}
-                                    label="Builder"
-                                    href="/org-admin/dashboard-builder"
-                                    active={pathname?.startsWith("/org-admin/dashboard-builder") || false}
-                                />
+                {showTask && (
+                    <div className="mt-2">
+                        {!isCollapsed && (
+                            <CategoryButton
+                                label="Task"
+                                isOpen={taskOpen}
+                                onClick={() => setTaskOpen(!taskOpen)}
+                            />
+                        )}
+                        {taskOpen && (
+                            <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                                <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                                    <Item
+                                        icon={FileText}
+                                        label="Templates"
+                                        href="/org-admin/tasks"
+                                        active={pathname?.startsWith("/org-admin/tasks") || false}
+                                    />
+                                    <Item
+                                        icon={ListChecks}
+                                        label="Assignments"
+                                        href="/org-admin/task-assignments"
+                                        active={pathname?.startsWith("/org-admin/task-assignments") || false}
+                                    />
+                                    <Item
+                                        icon={LayoutGrid}
+                                        label="Dashboard"
+                                        href="/org-admin/task-dashboard"
+                                        active={pathname?.startsWith("/org-admin/task-dashboard") || false}
+                                    />
+                                    {/* <Item
+                                        icon={Settings}
+                                        label="Builder"
+                                        href="/org-admin/dashboard-builder"
+                                        active={pathname?.startsWith("/org-admin/dashboard-builder") || false}
+                                    /> */}
+                                </div>
                             </div>
-                        </div>
-                    )}
-                </div>
+                        )}
+                    </div>
+                )}
 
             </div>
 
@@ -618,4 +669,5 @@ export default function OrgSidebar({
             </div>
         </aside>
     );
+
 }

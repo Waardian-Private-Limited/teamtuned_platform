@@ -28,7 +28,7 @@ export default function EmployeeManagementPage() {
     return features.some((f) => (f.code || "").toLowerCase() === lc);
   };
 
-  const enabled = hasFeature("payroll_system");
+  const enabled = hasFeature("PAYROLL_FEATURE");
 
   return (
     <div>

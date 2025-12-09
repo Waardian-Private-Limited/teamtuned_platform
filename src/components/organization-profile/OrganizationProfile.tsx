@@ -194,13 +194,52 @@ export default function OrganizationProfile() {
         </div>
 
         <div className="flex flex-col md:flex-row items-start md:items-center gap-6 relative z-0">
-          <div className="w-20 h-20 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center p-2">
-            {org?.logo_url ? (
-              <Image src={org.logo_url} alt="Logo" width={80} height={80} className="object-contain w-full h-full" />
-            ) : (
-              <Building2 size={32} className="text-gray-300" />
+          <div className="relative group">
+            <div className="w-20 h-20 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center p-2 overflow-hidden">
+              {(form?.logo_url || org?.logo_url) ? (
+                <Image src={form?.logo_url || org.logo_url || ""} alt="Logo" width={80} height={80} className="object-contain w-full h-full" />
+              ) : (
+                <Building2 size={32} className="text-gray-300" />
+              )}
+            </div>
+
+            {canEdit && isEditing && (
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-xl cursor-pointer" onClick={() => document.getElementById('logo-upload')?.click()}>
+                <Edit2 size={16} className="text-white" />
+              </div>
             )}
+            <input
+              type="file"
+              id="logo-upload"
+              className="hidden"
+              accept="image/png,image/jpeg"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+
+                // Upload logic
+                const formData = new FormData();
+                formData.append('files', file);
+
+                try {
+                  // Show uploading state if desired, or just toast
+                  const res = await apiClient<{ success: boolean; files: { url: string }[] }>('/files/org-upload/logo', {
+                    method: 'POST',
+                    body: formData,
+                  });
+
+                  if (res?.success && res.files?.[0]) {
+                    const newUrl = res.files[0].url;
+                    setForm(prev => prev ? ({ ...prev, logo_url: newUrl }) : null);
+                    showNotice("Logo uploaded. Click Save to persist changes.");
+                  }
+                } catch (err: any) {
+                  showNotice("Upload failed: " + (err.message || "Unknown error"));
+                }
+              }}
+            />
           </div>
+
           <div>
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">{form?.name}</h1>
             <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500 font-medium">

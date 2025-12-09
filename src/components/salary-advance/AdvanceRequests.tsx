@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { apiClient } from "@/lib/apiClient";
-import { Eye, Filter, RefreshCw, CheckCircle, XCircle, Clock, Search, Building } from "lucide-react";
+import { Eye, Filter, RefreshCw, CheckCircle, XCircle, Clock, Search, Building, Shield } from "lucide-react";
 import RequestDetails from "./RequestDetails";
 import Pagination from "./Pagination";
 import TableSkeleton from "./TableSkeleton";
@@ -39,11 +39,33 @@ export default function AdvanceRequests() {
     const [debouncedSearch, setDebouncedSearch] = useState("");
     const [departments, setDepartments] = useState<Department[]>([]);
 
+    // Permission state
+    const [userRole, setUserRole] = useState<string | null>(null);
+    const [permissions, setPermissions] = useState<string[]>([]);
+    const [checkingPerms, setCheckingPerms] = useState(true);
+
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalItems, setTotalItems] = useState(0);
     const itemsPerPage = 20;
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const session = await apiClient<any>("/auth/session", { method: "GET" });
+                if (session?.authenticated) {
+                    setUserRole(session.role);
+                    setPermissions(session.employee?.permissions || []);
+                }
+            } catch (_) { } finally {
+                setCheckingPerms(false);
+            }
+        })();
+    }, []);
+
+    const isOrgAdmin = (userRole || "").toLowerCase() === "orgadmin";
+    const canView = isOrgAdmin || permissions.includes("SALADV_VIEW");
 
     // Debounce search
     useEffect(() => {
@@ -55,12 +77,16 @@ export default function AdvanceRequests() {
     }, [searchQuery]);
 
     useEffect(() => {
-        fetchDepartments();
-    }, []);
+        if (!checkingPerms && canView) {
+            fetchDepartments();
+        }
+    }, [checkingPerms, canView]);
 
     useEffect(() => {
-        fetchRequests();
-    }, [currentPage, statusFilter, departmentFilter, debouncedSearch]);
+        if (!checkingPerms && canView) {
+            fetchRequests();
+        }
+    }, [currentPage, statusFilter, departmentFilter, debouncedSearch, checkingPerms, canView]);
 
     const fetchDepartments = async () => {
         try {
@@ -76,6 +102,7 @@ export default function AdvanceRequests() {
     };
 
     const fetchRequests = async () => {
+        if (!canView) return;
         setLoading(true);
         try {
             const params: any = {
@@ -139,6 +166,18 @@ export default function AdvanceRequests() {
             year: 'numeric'
         });
     };
+
+    if (checkingPerms) return <div className="p-8 text-center text-gray-500">Checking access...</div>;
+
+    if (!canView) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 text-center text-gray-500">
+                <Shield size={48} className="mb-4 text-gray-300" />
+                <h2 className="text-xl font-semibold text-gray-900">Access Denied</h2>
+                <p className="mt-2">You do not have permission to view salary advance requests.</p>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gray-50/50 p-4 lg:p-6 space-y-6">

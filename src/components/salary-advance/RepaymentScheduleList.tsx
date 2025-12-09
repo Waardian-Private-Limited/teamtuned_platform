@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { apiClient } from "@/lib/apiClient";
-import { ChevronDown, ChevronRight, Search, Filter, RefreshCw, DollarSign, Calendar, CheckCircle, AlertCircle, Clock } from "lucide-react";
+import { ChevronDown, ChevronRight, Search, Filter, RefreshCw, DollarSign, Calendar, CheckCircle, AlertCircle, Clock, Shield } from "lucide-react";
 import Pagination from "./Pagination";
 import TableSkeleton from "./TableSkeleton";
 
@@ -47,6 +47,11 @@ export default function RepaymentScheduleList() {
     const [emis, setEmis] = useState<Record<number, EMI[]>>({});
     const [loadingEmis, setLoadingEmis] = useState<Record<number, boolean>>({});
 
+    // Permission state
+    const [userRole, setUserRole] = useState<string | null>(null);
+    const [permissions, setPermissions] = useState<string[]>([]);
+    const [checkingPerms, setCheckingPerms] = useState(true);
+
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
@@ -54,10 +59,30 @@ export default function RepaymentScheduleList() {
     const itemsPerPage = 15;
 
     useEffect(() => {
-        fetchSchedules();
-    }, [currentPage]);
+        (async () => {
+            try {
+                const session = await apiClient<any>("/auth/session", { method: "GET" });
+                if (session?.authenticated) {
+                    setUserRole(session.role);
+                    setPermissions(session.employee?.permissions || []);
+                }
+            } catch (_) { } finally {
+                setCheckingPerms(false);
+            }
+        })();
+    }, []);
+
+    const isOrgAdmin = (userRole || "").toLowerCase() === "orgadmin";
+    const canView = isOrgAdmin || permissions.some(p => ["SALADV_VIEW", "SALADV_PAY"].includes(p));
+
+    useEffect(() => {
+        if (!checkingPerms && canView) {
+            fetchSchedules();
+        }
+    }, [currentPage, checkingPerms, canView]);
 
     const fetchSchedules = async () => {
+        if (!canView) return;
         setLoading(true);
         try {
             const data = await apiClient<{
@@ -149,6 +174,18 @@ export default function RepaymentScheduleList() {
         if (percent >= 50) return 'bg-blue-500';
         return 'bg-yellow-500';
     };
+
+    if (checkingPerms) return <div className="p-8 text-center text-gray-500">Checking access...</div>;
+
+    if (!canView) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 text-center text-gray-500">
+                <Shield size={48} className="mb-4 text-gray-300" />
+                <h2 className="text-xl font-semibold text-gray-900">Access Denied</h2>
+                <p className="mt-2">You do not have permission to view repayment schedules.</p>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gray-50/50 p-4 lg:p-6 space-y-6">

@@ -2,7 +2,7 @@
 
 import React from "react";
 import { apiClient } from "@/lib/apiClient";
-import { Loader2, TrendingUp, Users, Clock, AlertCircle, CheckCircle, XCircle, BarChart3, MapPin, Calendar, Zap, Activity } from "lucide-react";
+import { Loader2, TrendingUp, Users, Clock, AlertCircle, CheckCircle, XCircle, BarChart3, MapPin, Calendar, Zap, Activity, Shield } from "lucide-react";
 
 type TrendsEntry = { date: string; pending?: number; submitted?: number; in_review?: number; approved?: number; rejected?: number };
 type SiteRow = { site_name: string | null; approved: number; pending: number; rejected: number };
@@ -29,30 +29,53 @@ export default function TaskDashboard({ scope = "org" }: { scope?: "org" | "my" 
   const [bottlenecks, setBottlenecks] = React.useState<AnalyticsResponse["bottlenecks"]>([]);
   const [lifecycle, setLifecycle] = React.useState<AnalyticsResponse["lifecycle"]>([]);
 
+  // Permission state
+  const [userRole, setUserRole] = React.useState<string | null>(null);
+  const [permissions, setPermissions] = React.useState<string[]>([]);
+  const [checkingPerms, setCheckingPerms] = React.useState(true);
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const session = await apiClient<any>("/auth/session", { method: "GET" });
+        if (session?.authenticated) {
+          setUserRole(session.role);
+          setPermissions(session.employee?.permissions || []);
+        }
+      } catch (_) { } finally {
+        setCheckingPerms(false);
+      }
+    })();
+  }, []);
+
+  const isOrgAdmin = (userRole || "").toLowerCase() === "orgadmin";
+  const canView = isOrgAdmin || permissions.includes("TASK_VIEW");
+
   const load = React.useCallback(async () => {
+    if (!canView) return;
     setLoading(true);
     setError("");
     try {
       const data = await apiClient<AnalyticsResponse>(`/tasks/analytics?days=14`, { method: "GET", withAuth: true });
-      
+
       // Handle the API response data properly
       const tc = data?.tasksCounts || { total: 0, active: 0, paused: 0, cancelled: 0 };
       const ac = data?.assignmentCounts || { assigned: 0, pending: 0, approved: 0, rejected: 0 };
       const tr = normalizeTrend(data?.trend || []);
       const sw = data?.sitePerformance || [];
-      
+
       // Convert string numbers to actual numbers
-      setTasksCounts({ 
-        total: Number(tc.total || 0), 
-        active: Number(tc.active || 0), 
-        paused: Number(tc.paused || 0), 
-        cancelled: Number(tc.cancelled || 0) 
+      setTasksCounts({
+        total: Number(tc.total || 0),
+        active: Number(tc.active || 0),
+        paused: Number(tc.paused || 0),
+        cancelled: Number(tc.cancelled || 0)
       });
-      setAssignCounts({ 
-        assigned: Number(ac.assigned || 0), 
-        pending: Number(ac.pending || 0), 
-        approved: Number(ac.approved || 0), 
-        rejected: Number(ac.rejected || 0) 
+      setAssignCounts({
+        assigned: Number(ac.assigned || 0),
+        pending: Number(ac.pending || 0),
+        approved: Number(ac.approved || 0),
+        rejected: Number(ac.rejected || 0)
       });
       setTrends(tr);
       setSites(sw.map(site => ({
@@ -70,9 +93,13 @@ export default function TaskDashboard({ scope = "org" }: { scope?: "org" | "my" 
     } finally {
       setLoading(false);
     }
-  }, [scope]);
+  }, [scope, canView]);
 
-  React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => {
+    if (!checkingPerms && canView) {
+      load();
+    }
+  }, [load, checkingPerms, canView]);
 
   const StatCard = ({ title, value, icon: Icon, trend, color, subtitle }: { title: string; value: number | string; icon: any; trend?: string; color: string; subtitle?: string }) => (
     <div className={`rounded-2xl p-6 relative overflow-hidden group transition-all duration-300 hover:scale-105 hover:shadow-2xl ${color}`}>
@@ -125,11 +152,11 @@ export default function TaskDashboard({ scope = "org" }: { scope?: "org" | "my" 
   }
 
   function formatDate(d: string) {
-    try { 
+    try {
       const date = new Date(d);
-      return date.toLocaleDateString(undefined, { month: "short", day: "2-digit" }); 
-    } catch { 
-      return d; 
+      return date.toLocaleDateString(undefined, { month: "short", day: "2-digit" });
+    } catch {
+      return d;
     }
   }
 
@@ -147,9 +174,21 @@ export default function TaskDashboard({ scope = "org" }: { scope?: "org" | "my" 
   // Calculate additional metrics
   const totalAssignments = assignCounts.assigned + assignCounts.pending + assignCounts.approved + assignCounts.rejected;
   const approvalRate = totalAssignments > 0 ? Math.round((assignCounts.approved / totalAssignments) * 100) : 0;
-  const avgBottleneckTime = bottlenecks.length > 0 
-    ? bottlenecks.reduce((sum, b) => sum + Number(b.avg_hours || 0), 0) / bottlenecks.length 
+  const avgBottleneckTime = bottlenecks.length > 0
+    ? bottlenecks.reduce((sum, b) => sum + Number(b.avg_hours || 0), 0) / bottlenecks.length
     : 0;
+
+  if (checkingPerms) return <div className="p-8 text-center text-gray-500">Checking access...</div>;
+
+  if (!canView) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 text-center text-gray-500">
+        <Shield size={48} className="mb-4 text-gray-300" />
+        <h2 className="text-xl font-semibold text-gray-900">Access Denied</h2>
+        <p className="mt-2">You do not have permission to view task dashboard.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30 p-4 lg:p-6">
@@ -183,34 +222,34 @@ export default function TaskDashboard({ scope = "org" }: { scope?: "org" | "my" 
 
         {/* Main Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard 
-            title="Total Tasks" 
-            value={tasksCounts.total} 
-            icon={BarChart3} 
+          <StatCard
+            title="Total Tasks"
+            value={tasksCounts.total}
+            icon={BarChart3}
             trend={tasksCounts.total > 0 ? "+12%" : "New"}
             color="bg-gradient-to-br from-blue-600 to-blue-700"
             subtitle="All tasks"
           />
-          <StatCard 
-            title="Active Tasks" 
-            value={tasksCounts.active} 
-            icon={Zap} 
+          <StatCard
+            title="Active Tasks"
+            value={tasksCounts.active}
+            icon={Zap}
             trend="Active"
             color="bg-gradient-to-br from-green-600 to-green-700"
             subtitle="In progress"
           />
-          <StatCard 
-            title="Approval Rate" 
-            value={`${approvalRate}%`} 
-            icon={CheckCircle} 
+          <StatCard
+            title="Approval Rate"
+            value={`${approvalRate}%`}
+            icon={CheckCircle}
             trend="Success"
             color="bg-gradient-to-br from-emerald-600 to-emerald-700"
             subtitle="Completion rate"
           />
-          <StatCard 
-            title="Team Members" 
-            value={productivity.length} 
-            icon={Users} 
+          <StatCard
+            title="Team Members"
+            value={productivity.length}
+            icon={Users}
             trend="Online"
             color="bg-gradient-to-br from-purple-600 to-purple-700"
             subtitle="Active users"
@@ -219,31 +258,31 @@ export default function TaskDashboard({ scope = "org" }: { scope?: "org" | "my" 
 
         {/* Status Overview */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatusCard 
-            title="Assigned" 
-            value={assignCounts.assigned} 
-            status="Ready" 
+          <StatusCard
+            title="Assigned"
+            value={assignCounts.assigned}
+            status="Ready"
             color="bg-blue-500"
             trend={assignCounts.assigned > 0 ? "Active" : "Ready"}
           />
-          <StatusCard 
-            title="Pending" 
-            value={assignCounts.pending} 
-            status="Waiting" 
+          <StatusCard
+            title="Pending"
+            value={assignCounts.pending}
+            status="Waiting"
             color="bg-amber-500"
             trend={assignCounts.pending > 0 ? "Review" : "Clear"}
           />
-          <StatusCard 
-            title="Approved" 
-            value={assignCounts.approved} 
-            status="Completed" 
+          <StatusCard
+            title="Approved"
+            value={assignCounts.approved}
+            status="Completed"
             color="bg-green-500"
             trend="Done"
           />
-          <StatusCard 
-            title="Rejected" 
-            value={assignCounts.rejected} 
-            status="Issues" 
+          <StatusCard
+            title="Rejected"
+            value={assignCounts.rejected}
+            status="Issues"
             color="bg-red-500"
             trend={assignCounts.rejected > 0 ? "Alert" : "Clear"}
           />
@@ -260,7 +299,7 @@ export default function TaskDashboard({ scope = "org" }: { scope?: "org" | "my" 
               </div>
               <TrendingUp className="w-5 h-5 text-blue-600" />
             </div>
-            
+
             {/* Legend */}
             <div className="flex flex-wrap gap-2 mb-4">
               <span className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs">
@@ -293,24 +332,24 @@ export default function TaskDashboard({ scope = "org" }: { scope?: "org" | "my" 
                     <svg viewBox={`0 0 ${Math.max(trends.length * 50, 400)} 200`} className="w-full h-full" preserveAspectRatio="xMidYMid meet">
                       {/* Grid lines */}
                       {[0, 25, 50, 75, 100].map((line, i) => (
-                        <line 
+                        <line
                           key={i}
-                          x1="0" 
-                          y1={200 - line * 2} 
-                          x2={trends.length * 50} 
-                          y2={200 - line * 2} 
-                          stroke="#f3f4f6" 
+                          x1="0"
+                          y1={200 - line * 2}
+                          x2={trends.length * 50}
+                          y2={200 - line * 2}
+                          stroke="#f3f4f6"
                           strokeWidth="1"
                         />
                       ))}
-                      
+
                       {/* Y-axis labels */}
                       {[0, 25, 50, 75, 100].map((line, i) => (
                         <text key={`ly-${i}`} x="4" y={200 - line * 2 - 4} fontSize="10" fill="#9ca3af">
                           {Math.round((line / 100) * maxTrend)}
                         </text>
                       ))}
-                      
+
                       {/* Trend lines */}
                       {([
                         { key: 'pending', color: '#f59e0b', label: 'Pending' },
@@ -324,14 +363,14 @@ export default function TaskDashboard({ scope = "org" }: { scope?: "org" | "my" 
                           const y = 180 - Math.min(160, Math.round((val / maxTrend) * 160));
                           return `${x},${y}`;
                         }).join(" ");
-                        
+
                         return (
                           <g key={series.key}>
-                            <polyline 
-                              points={points} 
-                              fill="none" 
-                              stroke={series.color} 
-                              strokeWidth="3" 
+                            <polyline
+                              points={points}
+                              fill="none"
+                              stroke={series.color}
+                              strokeWidth="3"
                               strokeLinecap="round"
                             />
                             {/* Dots */}
@@ -341,11 +380,11 @@ export default function TaskDashboard({ scope = "org" }: { scope?: "org" | "my" 
                               if (val === 0) return null;
                               const y = 180 - Math.min(160, Math.round((val / maxTrend) * 160));
                               return (
-                                <circle 
-                                  key={idx} 
-                                  cx={x} 
-                                  cy={y} 
-                                  r="4" 
+                                <circle
+                                  key={idx}
+                                  cx={x}
+                                  cy={y}
+                                  r="4"
                                   fill={series.color}
                                   stroke="#ffffff"
                                   strokeWidth="1.5"
@@ -358,7 +397,7 @@ export default function TaskDashboard({ scope = "org" }: { scope?: "org" | "my" 
                       })}
                     </svg>
                   </div>
-                  
+
                   {/* X-axis labels */}
                   <div className="flex justify-between mt-4 pt-4 border-t border-gray-100 overflow-x-auto">
                     {trends.map((t, idx) => (
@@ -392,7 +431,7 @@ export default function TaskDashboard({ scope = "org" }: { scope?: "org" | "my" 
                 const total = s.approved + s.pending + s.rejected || 1;
                 const approvedPct = Math.round((s.approved / total) * 100);
                 const performanceColor = approvedPct >= 80 ? 'text-green-600' : approvedPct >= 60 ? 'text-amber-600' : 'text-red-600';
-                
+
                 return (
                   <div key={i} className="flex items-center justify-between p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors duration-200 group">
                     <div className="flex items-center gap-3">
@@ -432,13 +471,13 @@ export default function TaskDashboard({ scope = "org" }: { scope?: "org" | "my" 
               )}
               {recurrence.length > 0 && (() => {
                 const total = recurrence.reduce((acc, r) => acc + Number(r.cnt || 0), 0) || 1;
-                const colors: Record<string, string> = { 
-                  daily: '#3b82f6', 
-                  weekly: '#f59e0b', 
-                  monthly: '#22c55e', 
-                  one_time: '#8b5cf6' 
+                const colors: Record<string, string> = {
+                  daily: '#3b82f6',
+                  weekly: '#f59e0b',
+                  monthly: '#22c55e',
+                  one_time: '#8b5cf6'
                 };
-                
+
                 return (
                   <div className="flex flex-col lg:flex-row items-center gap-8 w-full">
                     <div className="relative">
@@ -446,7 +485,7 @@ export default function TaskDashboard({ scope = "org" }: { scope?: "org" | "my" 
                         {recurrence.map((r, i, arr) => {
                           const percentage = (Number(r.cnt || 0) / total) * 100;
                           const offset = arr.slice(0, i).reduce((acc, curr) => acc + (Number(curr.cnt || 0) / total) * 100, 0);
-                          
+
                           return (
                             <circle
                               key={r.bucket}
@@ -470,8 +509,8 @@ export default function TaskDashboard({ scope = "org" }: { scope?: "org" | "my" 
                         return (
                           <div key={i} className="flex items-center justify-between gap-4 p-2 rounded-lg hover:bg-gray-50 transition-colors duration-200">
                             <div className="flex items-center gap-3">
-                              <div 
-                                className="w-4 h-4 rounded-full" 
+                              <div
+                                className="w-4 h-4 rounded-full"
                                 style={{ backgroundColor: colors[(r.bucket || '').toLowerCase()] || '#9ca3af' }}
                               ></div>
                               <span className="text-sm font-medium text-gray-700 capitalize">{r.bucket}</span>
@@ -510,20 +549,20 @@ export default function TaskDashboard({ scope = "org" }: { scope?: "org" | "my" 
                 const days = Array.from(new Set(productivity.map(p => p.day.split('T')[0]))).sort().slice(-7); // Last 7 days
                 const users = Array.from(new Set(productivity.map(p => `${p.user_id}|${p.first_name || ''}|${p.last_name || ''}`)));
                 const grid: Record<string, number> = {};
-                
+
                 for (const p of productivity) {
                   const day = p.day.split('T')[0];
                   grid[`${p.user_id}|${day}`] = Number(p.cnt || 0);
                 }
-                
+
                 const maxVal = Math.max(...Object.values(grid).map(v => Number(v || 0))) || 1;
-                
+
                 return (
                   <div className="space-y-3">
                     {users.slice(0, 6).map((u) => {
                       const [uid, fn, ln] = u.split('|');
                       const name = `${fn} ${ln}`.trim() || `User ${uid}`;
-                      
+
                       return (
                         <div key={u} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors duration-200">
                           <div className="w-28 text-sm font-medium text-gray-700 truncate">{name}</div>
@@ -531,14 +570,14 @@ export default function TaskDashboard({ scope = "org" }: { scope?: "org" | "my" 
                             {days.map((d) => {
                               const v = grid[`${uid}|${d}`] || 0;
                               const intensity = Math.round((v / maxVal) * 100);
-                              const bg = intensity > 75 ? 'bg-green-500' : 
-                                       intensity > 50 ? 'bg-green-400' : 
-                                       intensity > 25 ? 'bg-green-300' : 'bg-green-100';
+                              const bg = intensity > 75 ? 'bg-green-500' :
+                                intensity > 50 ? 'bg-green-400' :
+                                  intensity > 25 ? 'bg-green-300' : 'bg-green-100';
                               const title = `${formatDate(d)}: ${v} task${v !== 1 ? 's' : ''}`;
-                              
+
                               return (
-                                <div 
-                                  key={`${u}-${d}`} 
+                                <div
+                                  key={`${u}-${d}`}
                                   className={`flex-1 h-6 rounded ${bg} transition-all duration-300 hover:scale-110 relative group`}
                                   title={title}
                                 >
@@ -585,7 +624,7 @@ export default function TaskDashboard({ scope = "org" }: { scope?: "org" | "my" 
                 const severity = val > 48 ? 'high' : val > 24 ? 'medium' : 'low';
                 const severityColor = severity === 'high' ? 'bg-red-500' : severity === 'medium' ? 'bg-amber-500' : 'bg-green-500';
                 const severityText = severity === 'high' ? 'text-red-600' : severity === 'medium' ? 'text-amber-600' : 'text-green-600';
-                
+
                 return (
                   <div key={i} className="space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors duration-200">
                     <div className="flex items-center justify-between">
@@ -603,7 +642,7 @@ export default function TaskDashboard({ scope = "org" }: { scope?: "org" | "my" 
                       </span>
                     </div>
                     <div className="w-full bg-gray-100 rounded-full h-2.5">
-                      <div 
+                      <div
                         className={`h-2.5 rounded-full transition-all duration-500 ${severityColor}`}
                         style={{ width: `${pct}%` }}
                       ></div>
@@ -637,17 +676,17 @@ export default function TaskDashboard({ scope = "org" }: { scope?: "org" | "my" 
                   { label: 'Assignment to Submission', data: assignToSubmit, color: 'bg-blue-500', textColor: 'text-blue-600' },
                   { label: 'Submission to Approval', data: submitToApprove, color: 'bg-green-500', textColor: 'text-green-600' },
                 ];
-                
+
                 return (
                   <>
                     {series.map((s, i) => {
                       if (s.data.length === 0) return null;
-                      
+
                       const min = Math.min(...s.data);
                       const max = Math.max(...s.data);
                       const med = percentile(s.data, 50);
                       const avg = s.data.reduce((a, b) => a + b, 0) / s.data.length;
-                      
+
                       return (
                         <div key={i} className="space-y-3 p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors duration-200">
                           <div className="flex items-center justify-between">
@@ -656,7 +695,7 @@ export default function TaskDashboard({ scope = "org" }: { scope?: "org" | "my" 
                           </div>
                           <div className="flex items-center gap-4">
                             <div className="flex-1 bg-gray-200 rounded-full h-3 overflow-hidden">
-                              <div 
+                              <div
                                 className={`h-3 rounded-full ${s.color} transition-all duration-1000`}
                                 style={{ width: `${Math.min(100, (med / (max || 1)) * 100)}%` }}
                               ></div>

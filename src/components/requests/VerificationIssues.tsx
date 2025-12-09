@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { apiClient } from "@/lib/apiClient";
-import { 
-  Search, 
-  Filter, 
-  MoreVertical, 
+import {
+  Search,
+  Filter,
+  MoreVertical,
   ChevronLeft,
   ChevronRight,
   X,
@@ -20,138 +20,121 @@ import {
   MapPin,
   Image,
   FileText,
-  RefreshCw
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  Users
 } from "lucide-react";
 
 type IssueItem = Record<string, any>;
 
 type Props = {
   defaultStatus?: string;
+  defaultHQ?: boolean;
+  showHQToggle?: boolean;
+  externalControl?: boolean;
+  hqMode?: boolean;
+  selectedSiteId?: number | null;
 };
 
-export default function VerificationIssues({ defaultStatus = "Pending" }: Props) {
-  const [status, setStatus] = React.useState<string>(defaultStatus);
-  const [items, setItems] = React.useState<IssueItem[]>([]);
-  const [page, setPage] = React.useState<number>(1);
-  const [pageSize, setPageSize] = React.useState<number>(10);
-  const [loading, setLoading] = React.useState<boolean>(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const [modalOpen, setModalOpen] = React.useState<boolean>(false);
-  const [activeItem, setActiveItem] = React.useState<IssueItem | null>(null);
-  const [activeItemFull, setActiveItemFull] = React.useState<IssueItem | null>(null);
-  const [detailsLoading, setDetailsLoading] = React.useState<boolean>(false);
-  const [actionLoading, setActionLoading] = React.useState<string | null>(null);
-  const [statusNotice, setStatusNotice] = React.useState<string | null>(null);
+function useCountUp(target: number, duration = 800) {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    let raf: number;
+    const start = performance.now();
+    const step = (ts: number) => {
+      const p = Math.min((ts - start) / duration, 1);
+      setV(Math.floor(p * (Number.isFinite(target) ? target : 0)));
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => { if (raf) cancelAnimationFrame(raf); };
+  }, [target, duration]);
+  return v;
+}
 
-  // Session & site filtering state (HR mode like LeaveRequests)
-  const [role, setRole] = React.useState<string | null>(null);
-  const [permissions, setPermissions] = React.useState<string[]>([]);
+export default function VerificationIssues({
+  defaultStatus = "All",
+  defaultHQ = true,
+  showHQToggle = true,
+  externalControl = false,
+  hqMode: extHq,
+  selectedSiteId: extSiteId
+}: Props) {
+  // Permissions
+  const [role, setRole] = useState<string | null>(null);
+  const [permissions, setPermissions] = useState<string[]>([]);
   const isEmployee = (role || "").toLowerCase() === "employee";
   const isOrgAdmin = (role || "").toLowerCase() === "orgadmin";
   const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
+  const hasAnyIssueAccess = !isEmployee || ["ATTVERIFY_VIEW", "ATTVERIFY_APPROVE"].some((c) => hasPerm(c));
   const canHRMode = !isEmployee || hasPerm("HR_MODE");
-  const [hqMode, setHqMode] = React.useState<boolean>(false);
-  const [inchargeSites, setInchargeSites] = React.useState<Array<Record<string, any>>>([]);
-  const [allSites, setAllSites] = React.useState<Array<Record<string, any>>>([]);
-  const [selectedSiteId, setSelectedSiteId] = React.useState<number | null>(null);
 
-  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
-  const pagedItems = React.useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return items.slice(start, start + pageSize);
-  }, [items, page, pageSize]);
+  // State
+  const [hqMode, setHqMode] = useState<boolean>(extHq ?? defaultHQ);
+  const [inchargeSites, setInchargeSites] = useState<Array<Record<string, any>>>([]);
+  const [allSites, setAllSites] = useState<Array<Record<string, any>>>([]);
+  const [selectedSiteId, setSelectedSiteId] = useState<number | null>(extSiteId ?? null);
+  const [status, setStatus] = useState<string>(defaultStatus);
+  const [fromDate, setFromDate] = useState<string>("");
+  const [toDate, setToDate] = useState<string>("");
+  const [items, setItems] = useState<IssueItem[]>([]);
+  const [stats, setStats] = useState<{ pending: number; approved: number; rejected: number; total: number } | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Helper function to determine border colors based on mismatches
-  const getBorderColor = (type: 'image' | 'map', checkType: 'in' | 'out') => {
-    if (!activeItemFull && !activeItem) return 'border-gray-200';
-    
-    const item = activeItemFull || activeItem;
-    
-    const faceMismatch = checkType === 'in' 
-      ? item?.has_face_mismatch_in 
-      : item?.has_face_mismatch_out;
-    
-    const locationMismatch = checkType === 'in'
-      ? item?.has_location_mismatch_in
-      : item?.has_location_mismatch_out;
+  // UI State
+  const [filtersExpanded, setFiltersExpanded] = useState<boolean>(false);
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+  const [statsLoading, setStatsLoading] = useState<boolean>(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-    // BOTH FaceMismatch AND LocationMismatch - red border for BOTH image and map
-    if (faceMismatch && locationMismatch) {
-      return 'border-red-500 border-2';
-    }
-    
-    // Face mismatch only - red border for image only
-    if (faceMismatch && type === 'image') {
-      return 'border-red-500 border-2';
-    }
-    
-    // Location mismatch only - red border for map only
-    if (locationMismatch && type === 'map') {
-      return 'border-red-500 border-2';
-    }
-    
-    // No mismatches or only one mismatch that doesn't apply to this type
-    return 'border-gray-200';
-  };
+  // Modal state
+  const [modalOpen, setModalOpen] = useState<boolean>(false);
+  const [modalDecision, setModalDecision] = useState<"approve" | "reject">("approve");
+  const [modalReason, setModalReason] = useState<string>("");
+  const [activeItem, setActiveItem] = useState<IssueItem | null>(null);
+  const [approveStatus, setApproveStatus] = useState<string>("");
+  const [approveTimeline, setApproveTimeline] = useState<string>("");
+  const [rejectStatus, setRejectStatus] = useState<string>("Present");
+  const [rejectTimeline, setRejectTimeline] = useState<string>("Full-Day");
 
-  const fetchList = React.useCallback(async (reset = false) => {
-    if (loading) return;
-    setLoading(true);
-    setError(null);
-    setStatusNotice(null);
-    try {
-      // Build params with HR mode/site filter gating like LeaveRequests
-      const params: Record<string, string> = { page: "1", limit: "100" };
-      if (status && status !== "All") params["status"] = status;
-      const effHq = isOrgAdmin || (hqMode && canHRMode);
-      const effSite = selectedSiteId;
-      if (!effHq && (!effSite || Number(effSite) <= 0)) {
-        setItems([]);
-        setError("Select a site or enable HR mode to view verification issues");
-        return;
+  // Details view modal state
+  const [detailsLoading, setDetailsLoading] = useState<boolean>(false);
+  const [activeItemFull, setActiveItemFull] = useState<IssueItem | null>(null);
+
+  // Stats animation
+  const pendingCount = useCountUp(stats?.pending || 0);
+  const approvedCount = useCountUp(stats?.approved || 0);
+  const rejectedCount = useCountUp(stats?.rejected || 0);
+  const totalCount = useCountUp(stats?.total || 0);
+
+  // Filtered items
+  const visibleItems = React.useMemo(() => {
+    return items.filter((it) => {
+      const s = String(it.status || '').toLowerCase();
+      return s === 'pending' || s === 'approved' || s === 'rejected';
+    });
+  }, [items]);
+
+  const totalEntries = visibleItems.length;
+  const totalPages = Math.max(1, Math.ceil(totalEntries / pageSize));
+  const pageStart = (page - 1) * pageSize;
+  const pageSlice = visibleItems.slice(pageStart, pageStart + pageSize);
+
+  // Auto-select first site for non-HR/non-OrgAdmin users on first load
+  useEffect(() => {
+    if (inchargeSites.length > 0 && !canHRMode && !isOrgAdmin && selectedSiteId === null) {
+      const firstSiteId = inchargeSites[0]?.id;
+      if (firstSiteId) {
+        setSelectedSiteId(typeof firstSiteId === "number" ? firstSiteId : parseInt(String(firstSiteId)) || null);
       }
-      if (effHq) {
-        params["hq"] = "1";
-        if (effSite) params["site_id"] = String(effSite);
-      } else if (effSite) {
-        params["site_id"] = String(effSite);
-      }
-
-      const res = await apiClient<any>("/attendance/verification-issues", {
-        method: "GET",
-        params,
-        withAuth: true,
-      });
-      let list: any[] = Array.isArray(res) ? res : (res?.data || res?.rows || res?.issues || []);
-      if (status === 'Pending' && list.length === 0) {
-        // Fallback to All if no pending issues found
-        const res2 = await apiClient<any>("/attendance/verification-issues", {
-          method: "GET",
-          params: { ...params, status: 'All' },
-          withAuth: true,
-        });
-        list = Array.isArray(res2) ? res2 : (res2?.data || res2?.rows || res2?.issues || []);
-        setStatusNotice('No Pending issues found. Showing All issues.');
-      }
-      const mapped = list.map((e: any) => ({ ...(e || {}) }));
-      setItems(mapped);
-      if (reset) {
-        setPage(1);
-      }
-    } catch (e: any) {
-      setError(e?.message || "Failed to load verification issues");
-    } finally {
-      setLoading(false);
     }
-  }, [loading, status, hqMode, selectedSiteId, canHRMode, isOrgAdmin]);
+  }, [inchargeSites, canHRMode, isOrgAdmin, selectedSiteId]);
 
-  React.useEffect(() => {
-    fetchList(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, hqMode, selectedSiteId]);
-
-  // Load session and sites similar to LeaveRequests
-  React.useEffect(() => {
+  // Fetch session and permissions
+  useEffect(() => {
     (async () => {
       try {
         const session = await apiClient<{ authenticated: boolean; role?: string; employee?: { permissions?: string[] } | null }>("/auth/session", { method: "GET" });
@@ -162,7 +145,7 @@ export default function VerificationIssues({ defaultStatus = "Pending" }: Props)
             setHqMode(true);
           }
         }
-      } catch {}
+      } catch { }
 
       try {
         const res = await apiClient<{ sites?: any[] }>("/attendance/incharge-sites", { withAuth: true });
@@ -170,84 +153,226 @@ export default function VerificationIssues({ defaultStatus = "Pending" }: Props)
         setInchargeSites(list as any[]);
         if (list.length > 0 && selectedSiteId == null) {
           const sid = list[0]?.id;
-          const val = typeof sid === "number" ? sid : parseInt(String(sid)) || null;
-          setSelectedSiteId(val);
+          setSelectedSiteId(typeof sid === "number" ? sid : parseInt(String(sid)) || null);
         }
-      } catch {}
+      } catch (e) { }
 
-      try {
-        if (canHRMode) {
+      if (canHRMode) {
+        try {
           const res = await apiClient<{ sites?: any[]; data?: any[] }>("/sites", { method: "GET", withAuth: true, params: { incharge_only: "0" } });
           const list = Array.isArray(res?.sites) ? res!.sites! : (Array.isArray(res?.data) ? res!.data! : []);
           setAllSites(list as any[]);
-        }
-      } catch {}
+        } catch { }
+      }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-select first site for non-HR/non-OrgAdmin users
-  React.useEffect(() => {
-    if (inchargeSites.length > 0 && !canHRMode && !isOrgAdmin && selectedSiteId === null) {
-      const firstSiteId = inchargeSites[0]?.id;
-      if (firstSiteId) {
-        setSelectedSiteId(typeof firstSiteId === "number" ? firstSiteId : parseInt(String(firstSiteId)) || null);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inchargeSites, canHRMode, isOrgAdmin]);
-
-  const openDetails = async (item: IssueItem) => {
-    setActiveItem(item);
-    setActiveItemFull(null);
-    setModalOpen(true);
-    // Lazy-load full details
-    if (item?.attendance_id) {
-      setDetailsLoading(true);
+  // Fetch all sites when HR capability becomes available
+  useEffect(() => {
+    (async () => {
+      if (!canHRMode || allSites.length > 0) return;
       try {
-        const full = await apiClient<any>(`/attendance/verification-issues/${encodeURIComponent(String(item.attendance_id))}`, {
-          method: 'GET',
-          withAuth: true,
-        });
-        const data = Array.isArray(full) ? (full[0] || null) : (full?.data || full?.issue || full || null);
-        if (data) setActiveItemFull(data);
-      } catch (e: any) {
-        // keep minimal details
-      } finally {
-        setDetailsLoading(false);
-      }
-    }
-  };
+        const res = await apiClient<{ sites?: any[]; data?: any[] }>("/sites", { method: "GET", withAuth: true, params: { incharge_only: "0" } });
+        const list = Array.isArray(res?.sites) ? res!.sites! : (Array.isArray(res?.data) ? res!.data! : []);
+        setAllSites(list as any[]);
+      } catch { }
+    })();
+  }, [canHRMode]);
 
-  const closeModal = () => {
-    setModalOpen(false);
-    setActiveItem(null);
-    setActiveItemFull(null);
-    setDetailsLoading(false);
-  };
+  const fetchList = React.useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params: Record<string, string> = {};
+      if (status && status !== "All") params["status"] = status;
+      const effHq = isOrgAdmin || (((externalControl ? (extHq ?? hqMode) : hqMode)) && canHRMode);
+      const effSite = externalControl ? (extSiteId ?? selectedSiteId) : selectedSiteId;
+
+      if (!effHq && (!effSite || Number(effSite) <= 0)) {
+        setItems([]);
+        throw new Error("Select a site or enable HR mode to view verification issues");
+      }
+      if (effHq) {
+        params["hq"] = "1";
+        if (effSite) params["site_id"] = String(effSite);
+      } else if (effSite) {
+        params["site_id"] = String(effSite);
+      }
+      if (fromDate) params["start"] = fromDate;
+      if (toDate) params["end"] = toDate;
+
+      const res = await apiClient<any>("/attendance/verification-issues", { method: "GET", params, withAuth: true });
+      const list: any[] = Array.isArray(res) ? res : (res?.items || res?.rows || res?.issues || res?.data || []);
+      setItems(list.map((e: any) => ({ ...(e || {}) })));
+      setPage(1);
+    } catch (e: any) {
+      setError(e?.message || "Failed to load verification issues");
+    } finally {
+      setLoading(false);
+    }
+  }, [status, hqMode, selectedSiteId, fromDate, toDate]);
+
+  useEffect(() => {
+    fetchList();
+  }, [status, externalControl ? extHq : hqMode, externalControl ? extSiteId : selectedSiteId, fromDate, toDate]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setStatsLoading(true);
+        // Calculate stats from items
+        const pending = items.filter(item => String(item.status).toLowerCase() === 'pending').length;
+        const approved = items.filter(item => String(item.status).toLowerCase() === 'approved').length;
+        const rejected = items.filter(item => String(item.status).toLowerCase() === 'rejected').length;
+
+        setStats({
+          pending,
+          approved,
+          rejected,
+          total: items.length,
+        });
+      } catch (_) {
+        setStats(null);
+      } finally {
+        setStatsLoading(false);
+      }
+    })();
+  }, [items, status, externalControl ? extHq : hqMode, externalControl ? extSiteId : selectedSiteId, fromDate, toDate]);
 
   const submitReview = async (payload: any) => {
-    if (!activeItem) return;
-    
     try {
-      setActionLoading('submit_review');
+      setActionLoading(`review_${activeItem?.id}`);
       await apiClient<any>("/attendance/verification-issues/review", {
         method: "POST",
         body: payload,
         withAuth: true,
       });
-      
+
       showNotification('Review submitted successfully', 'success');
       closeModal();
-      fetchList(true);
+      fetchList();
     } catch (e: any) {
+      setError(e?.message || "Failed to submit review");
       showNotification(e?.message || 'Failed to submit review', 'error');
     } finally {
       setActionLoading(null);
     }
   };
 
-  // Helper functions for modern notifications
+  const openModal = (item: IssueItem, decision: "approve" | "reject") => {
+    setActiveItem(item);
+    setActiveItemFull(null);
+    setModalDecision(decision);
+    setModalReason("");
+    setApproveStatus("");
+    setApproveTimeline("");
+    setRejectStatus("Present");
+    setRejectTimeline("Full-Day");
+
+    // Load full details
+    setDetailsLoading(true);
+    (async () => {
+      try {
+        if (item?.attendance_id) {
+          const res = await apiClient<any>(`/attendance/verification-issues/${encodeURIComponent(String(item.attendance_id))}`, {
+            method: 'GET',
+            withAuth: true,
+          });
+          const data = Array.isArray(res) ? (res[0] || null) : (res?.data || res?.issue || res || null);
+          if (data) setActiveItemFull(data);
+        }
+      } catch (e: any) {
+        // keep minimal details
+      } finally {
+        setDetailsLoading(false);
+      }
+    })();
+
+    setModalOpen(true);
+  };
+
+  const openDetailsView = async (item: IssueItem) => {
+    setActiveItem(item);
+    setActiveItemFull(null);
+    setDetailsLoading(true);
+    try {
+      if (item?.attendance_id) {
+        const res = await apiClient<any>(`/attendance/verification-issues/${encodeURIComponent(String(item.attendance_id))}`, {
+          method: 'GET',
+          withAuth: true,
+        });
+        const data = Array.isArray(res) ? (res[0] || null) : (res?.data || res?.issue || res || null);
+        if (data) setActiveItemFull(data);
+      }
+    } catch (e: any) {
+      // keep minimal details
+    } finally {
+      setDetailsLoading(false);
+    }
+    setModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setModalOpen(false);
+    setActiveItem(null);
+    setActiveItemFull(null);
+    setModalReason("");
+    setDetailsLoading(false);
+  };
+
+  const confirmModal = async () => {
+    if (!activeItem) return;
+
+    const payload: any = {
+      attendance_id: activeItem.attendance_id || activeItem.id,
+      decision: modalDecision
+    };
+
+    if (modalDecision === 'approve') {
+      if (approveStatus) payload.marked_status = approveStatus;
+      if (approveTimeline) payload.status_timeline = approveTimeline;
+    } else {
+      payload.marked_status = rejectStatus;
+      payload.status_timeline = rejectTimeline;
+      if (modalReason) payload.remarks = modalReason;
+    }
+
+    await submitReview(payload);
+  };
+
+  // Helper function to determine border colors based on mismatches
+  const getBorderColor = (type: 'image' | 'map', checkType: 'in' | 'out') => {
+    if (!activeItemFull && !activeItem) return 'border-gray-200';
+
+    const item = activeItemFull || activeItem;
+
+    const faceMismatch = checkType === 'in'
+      ? item?.has_face_mismatch_in
+      : item?.has_face_mismatch_out;
+
+    const locationMismatch = checkType === 'in'
+      ? item?.has_location_mismatch_in
+      : item?.has_location_mismatch_out;
+
+    // BOTH FaceMismatch AND LocationMismatch - red border for BOTH image and map
+    if (faceMismatch && locationMismatch) {
+      return 'border-red-500 border-2';
+    }
+
+    // Face mismatch only - red border for image only
+    if (faceMismatch && type === 'image') {
+      return 'border-red-500 border-2';
+    }
+
+    // Location mismatch only - red border for map only
+    if (locationMismatch && type === 'map') {
+      return 'border-red-500 border-2';
+    }
+
+    // No mismatches or only one mismatch that doesn't apply to this type
+    return 'border-gray-200';
+  };
+
   const createNotificationContainer = () => {
     const container = document.createElement('div');
     container.id = 'notification-container';
@@ -258,28 +383,27 @@ export default function VerificationIssues({ defaultStatus = "Pending" }: Props)
     document.body.appendChild(container);
     return container;
   };
-  
+
   const showNotification = (message: string, type: 'success' | 'error') => {
     const container = document.getElementById('notification-container') || createNotificationContainer();
     const notification = document.createElement('div');
-    notification.className = `p-4 mb-3 rounded-lg shadow-lg flex items-center space-x-3 ${
-      type === 'success' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
-    }`;
-    
+    notification.className = `p-4 mb-3 rounded-lg shadow-lg flex items-center space-x-3 ${type === 'success' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+      }`;
+
     const icon = document.createElement('div');
     icon.className = `p-2 rounded-full ${type === 'success' ? 'bg-green-100' : 'bg-red-100'}`;
-    icon.innerHTML = type === 'success' 
+    icon.innerHTML = type === 'success'
       ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-600"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>'
       : '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-600"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>';
-    
+
     const content = document.createElement('div');
     content.className = 'flex-1';
     content.innerHTML = `<p class="${type === 'success' ? 'text-green-800' : 'text-red-800'} font-medium">${message}</p>`;
-    
+
     notification.appendChild(icon);
     notification.appendChild(content);
     container.appendChild(notification);
-    
+
     setTimeout(() => {
       notification.style.opacity = '0';
       notification.style.transition = 'opacity 0.5s ease';
@@ -313,26 +437,29 @@ export default function VerificationIssues({ defaultStatus = "Pending" }: Props)
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
-      case 'approved': return 'text-green-600 bg-green-50';
-      case 'rejected': return 'text-red-600 bg-red-50';
-      case 'pending': return 'text-orange-600 bg-orange-50';
-      default: return 'text-gray-600 bg-gray-50';
+      case 'approved': return 'text-green-700 bg-green-50 border border-green-200';
+      case 'rejected': return 'text-red-700 bg-red-50 border border-red-200';
+      case 'pending': return 'text-orange-700 bg-orange-50 border border-orange-200';
+      default: return 'text-gray-700 bg-gray-50 border border-gray-200';
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status.toLowerCase()) {
-      case 'approved': return <CheckCircle className="w-4 h-4 text-green-500" />;
-      case 'rejected': return <AlertCircle className="w-4 h-4 text-red-500" />;
-      case 'pending': return <Clock className="w-4 h-4 text-orange-500" />;
-      default: return <Clock className="w-4 h-4 text-gray-500" />;
+      case 'approved': return <CheckCircle className="w-3 h-3 text-green-500" />;
+      case 'rejected': return <AlertCircle className="w-3 h-3 text-red-500" />;
+      case 'pending': return <Clock className="w-3 h-3 text-orange-500" />;
+      default: return <Clock className="w-3 h-3 text-gray-500" />;
     }
   };
 
-  // Action Dropdown Component with improved positioning
-  const ActionDropdown = ({ item, isLastRow = false }: { item: IssueItem, isLastRow?: boolean }) => {
+  // Action Dropdown Component
+  const ActionDropdown = ({ item }: { item: IssueItem }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const [placeUp, setPlaceUp] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const triggerRef = useRef<HTMLButtonElement>(null);
+    const statusLower = String(item.status || "Pending").toLowerCase();
 
     useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
@@ -347,40 +474,44 @@ export default function VerificationIssues({ defaultStatus = "Pending" }: Props)
       };
     }, []);
 
-    // Calculate if dropdown should open upwards for last rows
-    const getDropdownPosition = () => {
-      if (!dropdownRef.current) return {};
-      
-      const rect = dropdownRef.current.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const dropdownHeight = 120; // Approximate dropdown height
-      
-      if ((spaceBelow < dropdownHeight && rect.top > dropdownHeight) || isLastRow) {
-        return { bottom: '100%', top: 'auto' };
+    useEffect(() => {
+      if (isOpen) {
+        const rect = triggerRef.current?.getBoundingClientRect();
+        const spaceBelow = typeof window !== 'undefined' ? (window.innerHeight - (rect?.bottom || 0)) : 0;
+        const approxMenuHeight = 200;
+        setPlaceUp(spaceBelow < approxMenuHeight + 16);
       }
-      return { top: '100%', bottom: 'auto' };
-    };
+    }, [isOpen]);
 
     return (
       <div className="relative" ref={dropdownRef}>
         <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="p-2 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200"
+          ref={triggerRef}
+          onClick={() => setIsOpen((o) => !o)}
+          className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200"
+          disabled={actionLoading?.includes(`review_${item.id}`)}
         >
-          <MoreVertical className="w-4 h-4 text-gray-600" />
+          {actionLoading?.includes(`review_${item.id}`) ? (
+            <RefreshCw className="w-4 h-4 animate-spin text-gray-400" />
+          ) : (
+            <MoreVertical className="w-4 h-4 text-gray-600" />
+          )}
         </button>
-        
+
         {isOpen && (
           <>
-            <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
-            <div 
-              className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20"
-              style={getDropdownPosition()}
+            <div className="fixed inset-0 z-[100]" onClick={() => setIsOpen(false)} />
+            <div className={`fixed ${placeUp ? 'bottom-auto' : 'top-auto'} w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-[101]`}
+              style={{
+                left: triggerRef.current ? `${triggerRef.current.getBoundingClientRect().right - 192}px` : '0',
+                top: placeUp ? 'auto' : triggerRef.current ? `${triggerRef.current.getBoundingClientRect().bottom + 4}px` : '0',
+                bottom: placeUp && triggerRef.current ? `${window.innerHeight - triggerRef.current.getBoundingClientRect().top + 4}px` : 'auto'
+              }}
             >
               <div className="py-1">
                 <button
                   onClick={() => {
-                    openDetails(item);
+                    openDetailsView(item);
                     setIsOpen(false);
                   }}
                   className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
@@ -388,6 +519,33 @@ export default function VerificationIssues({ defaultStatus = "Pending" }: Props)
                   <Eye className="w-4 h-4" />
                   <span>View Details</span>
                 </button>
+
+                {statusLower === "pending" && (!isEmployee || hasPerm("VERIFICATION_APPROVE")) && (
+                  <>
+                    <div className="border-t border-gray-100 my-1" />
+                    <button
+                      onClick={() => {
+                        openModal(item, "approve");
+                        setIsOpen(false);
+                      }}
+                      className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-green-700 hover:bg-green-50"
+                    >
+                      <ThumbsUp className="w-4 h-4" />
+                      <span>Approve</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        openModal(item, "reject");
+                        setIsOpen(false);
+                      }}
+                      className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50"
+                    >
+                      <ThumbsDown className="w-4 h-4" />
+                      <span>Reject</span>
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </>
@@ -396,54 +554,22 @@ export default function VerificationIssues({ defaultStatus = "Pending" }: Props)
     );
   };
 
-  // Review Modal Component
+  // Modal Component
   const ReviewModal = () => {
     if (!modalOpen || !activeItem) return null;
 
     const item = activeItemFull || activeItem;
-
-    const [decision, setDecision] = useState<'approve' | 'reject'>('approve');
-    const [showApproveEdit, setShowApproveEdit] = useState(false);
-    const [approveStatus, setApproveStatus] = useState('');
-    const [approveTimeline, setApproveTimeline] = useState('');
-    const [rejectStatus, setRejectStatus] = useState('Present');
-    const [rejectTimeline, setRejectTimeline] = useState('Full-Day');
-    const [rejectReason, setRejectReason] = useState('');
-
-    const issueTypes = Array.isArray(item.issue_types) ? item.issue_types.join(", ") : String(item.issue_type || "Verification");
     const statusVal = String(item.status || "Pending");
     const isFinalized = ["approved", "rejected"].includes(statusVal.toLowerCase());
-    const [showReview, setShowReview] = useState(!isFinalized);
-
-    const handleSubmit = () => {
-      const payload: any = { 
-        attendance_id: item.attendance_id, 
-        decision 
-      };
-
-      if (decision === 'approve') {
-        if (approveStatus) payload.marked_status = approveStatus;
-        if (approveTimeline) payload.status_timeline = approveTimeline;
-      } else {
-        payload.marked_status = rejectStatus;
-        payload.status_timeline = rejectTimeline;
-        if (rejectReason) payload.remarks = rejectReason;
-      }
-
-      submitReview(payload);
-    };
 
     return (
-      <div className="fixed inset-0 backdrop-blur-sm bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="fixed inset-0 bg-opacity-20 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
         <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
           <div className="p-6 border-b border-gray-200">
             <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-semibold text-gray-900">Verification Issue Details</h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  {String(item.employee_name || "Employee")}
-                </p>
-              </div>
+              <h3 className="text-xl font-semibold text-gray-900">
+                Verification Issue Details
+              </h3>
               <button
                 onClick={closeModal}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -452,321 +578,311 @@ export default function VerificationIssues({ defaultStatus = "Pending" }: Props)
               </button>
             </div>
           </div>
-          
+
           <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-            <div className="space-y-6">
-              {/* Basic Information */}
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h4 className="text-sm font-medium text-gray-900 mb-3">Issue Information</h4>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-600">Date:</span>
-                    <p className="font-medium">{String(item.attendance_date || "-")}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Issues:</span>
-                    <p className="font-medium">{issueTypes}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Status:</span>
-                    <p className={`font-medium ${getStatusColor(statusVal)} px-2 py-1 rounded-full text-xs`}>
-                      {statusVal}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Check-In:</span>
-                    <p className="font-medium">{fmtDateTime(item.punch_in_time)}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Check-Out:</span>
-                    <p className="font-medium">{fmtDateTime(item.punch_out_time)}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Work Duration:</span>
-                    <p className="font-medium">{fmtMinutes(item.total_work_minutes)}</p>
-                  </div>
-                </div>
+            {detailsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="w-8 h-8 animate-spin text-gray-400" />
               </div>
-
-              {/* Time Analysis */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white border border-gray-200 rounded-lg p-4">
-                  <span className="text-gray-600 text-sm">Late By</span>
-                  <p className="font-medium text-lg">{fmtMinutes(item.late_by_minutes)}</p>
-                </div>
-                <div className="bg-white border border-gray-200 rounded-lg p-4">
-                  <span className="text-gray-600 text-sm">Early Exit</span>
-                  <p className="font-medium text-lg">{fmtMinutes(item.early_exit_minutes)}</p>
-                </div>
-                <div className="bg-white border border-gray-200 rounded-lg p-4">
-                  <span className="text-gray-600 text-sm">Expected Work</span>
-                  <p className="font-medium text-lg">{fmtMinutes(item.expected_minutes)}</p>
-                </div>
-              </div>
-
-              {/* Location Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {item.punch_in_site_name && (
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900 mb-2">Check-In Site</h4>
-                    <p className="text-sm text-gray-700">{String(item.punch_in_site_name)}</p>
-                    {item.punch_in_lat && item.punch_in_lng && (
-                      <div className="mt-2">
-                        <iframe 
-                          className={`w-full h-32 rounded-lg ${getBorderColor('map', 'in')}`}
-                          src={`https://maps.google.com/maps?q=${item.punch_in_lat},${item.punch_in_lng}&z=15&output=embed`}
-                          title="Check-in location"
-                        />
+            ) : (
+              <div className="space-y-6">
+                {/* Basic Information */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="text-sm font-medium text-gray-900 mb-2">Issue Information</h4>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-600">Employee:</span>
+                      <p className="font-medium">{String(item.employee_name || "Employee")}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Date:</span>
+                      <p className="font-medium">{String(item.attendance_date || "-")}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Issues:</span>
+                      <p className="font-medium">
+                        {Array.isArray(item.issue_types) ? item.issue_types.join(", ") : String(item.issue_type || "Verification")}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Status:</span>
+                      <div className="flex items-center space-x-1 mt-1">
+                        {getStatusIcon(statusVal)}
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(statusVal)} capitalize`}>
+                          {statusVal.toLowerCase()}
+                        </span>
                       </div>
-                    )}
+                    </div>
                   </div>
-                )}
-                
-                {item.punch_out_site_name && (
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900 mb-2">Check-Out Site</h4>
-                    <p className="text-sm text-gray-700">{String(item.punch_out_site_name)}</p>
-                    {item.punch_out_lat && item.punch_out_lng && (
-                      <div className="mt-2">
-                        <iframe 
-                          className={`w-full h-32 rounded-lg ${getBorderColor('map', 'out')}`}
-                          src={`https://maps.google.com/maps?q=${item.punch_out_lat},${item.punch_out_lng}&z=15&output=embed`}
-                          title="Check-out location"
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Images */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {item.punch_in_image && (
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900 mb-2 flex items-center gap-2">
-                      <Image className="w-4 h-4" />
-                      Check-In Image
-                    </h4>
-                    <img 
-                      src={String(item.punch_in_image)} 
-                      className={`w-full h-48 object-cover rounded-lg ${getBorderColor('image', 'in')}`}
-                      alt="Check-in"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                  </div>
-                )}
-                
-                {item.punch_out_image && (
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900 mb-2 flex items-center gap-2">
-                      <Image className="w-4 h-4" />
-                      Check-Out Image
-                    </h4>
-                    <img 
-                      src={String(item.punch_out_image)} 
-                      className={`w-full h-48 object-cover rounded-lg ${getBorderColor('image', 'out')}`}
-                      alt="Check-out"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-
-              {detailsLoading && (
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  Loading full details...
                 </div>
-              )}
 
-              {/* Review Section */}
-              <div className="border border-gray-200 rounded-xl p-4 bg-white">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-sm font-medium text-gray-900">Review</h4>
-                  {isFinalized && !showReview && (
-                    <button
-                      onClick={() => setShowReview(true)}
-                      className="text-xs px-3 py-1 rounded border border-gray-300 hover:bg-gray-50"
-                    >
-                      Override
-                    </button>
+                {/* Time Analysis */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <span className="text-gray-600 text-sm">Check-In</span>
+                    <p className="font-medium text-lg">{fmtDateTime(item.punch_in_time)}</p>
+                  </div>
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <span className="text-gray-600 text-sm">Check-Out</span>
+                    <p className="font-medium text-lg">{fmtDateTime(item.punch_out_time)}</p>
+                  </div>
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <span className="text-gray-600 text-sm">Work Duration</span>
+                    <p className="font-medium text-lg">{fmtMinutes(item.total_work_minutes)}</p>
+                  </div>
+                </div>
+
+                {/* Images */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {item.punch_in_image && (
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Check-In Image</h4>
+                      <img
+                        src={String(item.punch_in_image)}
+                        className={`w-full h-48 object-cover rounded-lg ${getBorderColor('image', 'in')}`}
+                        alt="Check-in"
+                      />
+                    </div>
+                  )}
+
+                  {item.punch_out_image && (
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Check-Out Image</h4>
+                      <img
+                        src={String(item.punch_out_image)}
+                        className={`w-full h-48 object-cover rounded-lg ${getBorderColor('image', 'out')}`}
+                        alt="Check-out"
+                      />
+                    </div>
                   )}
                 </div>
 
-                {showReview && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-4">
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          checked={decision === 'approve'}
-                          onChange={() => setDecision('approve')}
-                          className="text-blue-600"
-                        />
-                        <ThumbsUp className="w-4 h-4 text-green-600" />
-                        <span className="text-sm">Approve</span>
-                      </label>
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          checked={decision === 'reject'}
-                          onChange={() => setDecision('reject')}
-                          className="text-blue-600"
-                        />
-                        <ThumbsDown className="w-4 h-4 text-red-600" />
-                        <span className="text-sm">Reject</span>
-                      </label>
+                {/* Location Information */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {item.punch_in_lat && item.punch_in_lng && (
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Check-In Location</h4>
+                      <iframe
+                        className={`w-full h-48 rounded-lg ${getBorderColor('map', 'in')}`}
+                        src={`https://maps.google.com/maps?q=${item.punch_in_lat},${item.punch_in_lng}&z=15&output=embed`}
+                        title="Check-in location"
+                      />
                     </div>
+                  )}
 
-                    {decision === 'approve' && (
-                      <div className="space-y-3">
+                  {item.punch_out_lat && item.punch_out_lng && (
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Check-Out Location</h4>
+                      <iframe
+                        className={`w-full h-48 rounded-lg ${getBorderColor('map', 'out')}`}
+                        src={`https://maps.google.com/maps?q=${item.punch_out_lat},${item.punch_out_lng}&z=15&output=embed`}
+                        title="Check-out location"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Review Section for Pending Issues */}
+                {!isFinalized && statusVal.toLowerCase() === "pending" && (!isEmployee || hasPerm("VERIFICATION_APPROVE")) && (
+                  <div className="border border-gray-200 rounded-lg p-4 bg-white">
+                    <h4 className="text-sm font-medium text-gray-900 mb-3">
+                      {modalDecision === "approve" ? "Approve Issue" : "Reject Issue"}
+                    </h4>
+
+                    {modalDecision === "approve" && (
+                      <div className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <span className="text-gray-600 text-sm">Current Status:</span>
-                            <p className="font-medium">{String(item.attendance_status || '-')}</p>
-                          </div>
-                          {String(item.attendance_status || '').toLowerCase() !== 'absent' && (
-                            <div>
-                              <span className="text-gray-600 text-sm">Current Timeline:</span>
-                              <p className="font-medium">{String(item.status_timeline || '-')}</p>
-                            </div>
-                          )}
-                        </div>
-                        
-                        <button
-                          onClick={() => setShowApproveEdit(!showApproveEdit)}
-                          className="text-xs px-3 py-1 rounded border border-gray-300 hover:bg-gray-50"
-                        >
-                          {showApproveEdit ? 'Cancel Edit' : 'Edit Status'}
-                        </button>
-
-                        {showApproveEdit && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Mark Status</label>
                             <select
                               value={approveStatus}
-                              onChange={(e) => setApproveStatus(e.target.value)}
-                              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                              onChange={(e) => {
+                                setApproveStatus(e.target.value);
+                                if (e.target.value === "Absent") {
+                                  setApproveTimeline("Full-Day");
+                                }
+                              }}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                             >
                               <option value="">No Change</option>
                               <option value="Present">Present</option>
                               <option value="Absent">Absent</option>
                             </select>
+                          </div>
+
+                          {approveStatus === "Present" && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Timeline</label>
+                              <select
+                                value={approveTimeline}
+                                onChange={(e) => setApproveTimeline(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              >
+                                <option value="">No Change</option>
+                                <option value="Full-Day">Full-Day</option>
+                                <option value="Half-Day">Half-Day</option>
+                              </select>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {modalDecision === "reject" && (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Mark As</label>
                             <select
-                              value={approveTimeline}
-                              onChange={(e) => setApproveTimeline(e.target.value)}
-                              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                              value={rejectStatus}
+                              onChange={(e) => {
+                                setRejectStatus(e.target.value);
+                                if (e.target.value === "Absent") {
+                                  setRejectTimeline("Full-Day");
+                                }
+                              }}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                             >
-                              <option value="">No Change</option>
-                              <option value="Full-Day">Full-Day</option>
-                              <option value="Half-Day">Half-Day</option>
+                              <option value="Present">Present</option>
+                              <option value="Absent">Absent</option>
                             </select>
                           </div>
-                        )}
-                      </div>
-                    )}
 
-                    {decision === 'reject' && (
-                      <div className="space-y-3">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <select
-                            value={rejectStatus}
-                            onChange={(e) => setRejectStatus(e.target.value)}
-                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                          >
-                            <option value="Present">Present</option>
-                            <option value="Absent">Absent</option>
-                          </select>
-                          <select
-                            value={rejectTimeline}
-                            onChange={(e) => setRejectTimeline(e.target.value)}
-                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                          >
-                            <option value="Full-Day">Full-Day</option>
-                            <option value="Half-Day">Half-Day</option>
-                          </select>
+                          {rejectStatus === "Present" && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Timeline</label>
+                              <select
+                                value={rejectTimeline}
+                                onChange={(e) => setRejectTimeline(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              >
+                                <option value="Full-Day">Full-Day</option>
+                                <option value="Half-Day">Half-Day</option>
+                              </select>
+                            </div>
+                          )}
                         </div>
-                        <textarea
-                          value={rejectReason}
-                          onChange={(e) => setRejectReason(e.target.value)}
-                          placeholder="Rejection reason"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                          rows={3}
-                        />
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Rejection Reason</label>
+                          <textarea
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            rows={3}
+                            value={modalReason}
+                            onChange={(e) => setModalReason(e.target.value)}
+                            placeholder="Please provide a reason for rejecting this issue..."
+                          />
+                        </div>
                       </div>
                     )}
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={handleSubmit}
-                        disabled={actionLoading === 'submit_review' || (decision === 'reject' && !rejectReason.trim())}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center space-x-2"
-                      >
-                        {actionLoading === 'submit_review' ? (
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                        ) : decision === 'approve' ? (
-                          <ThumbsUp className="w-4 h-4" />
-                        ) : (
-                          <ThumbsDown className="w-4 h-4" />
-                        )}
-                        <span>
-                          {actionLoading === 'submit_review' ? 'Submitting...' : 
-                           decision === 'approve' ? 'Approve Request' : 'Reject Request'}
-                        </span>
-                      </button>
-                    </div>
                   </div>
                 )}
               </div>
-            </div>
+            )}
+          </div>
+
+          <div className="p-6 border-t border-gray-200 flex justify-end space-x-3">
+            <button
+              onClick={closeModal}
+              className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Close
+            </button>
+
+            {!isFinalized && statusVal.toLowerCase() === "pending" && (!isEmployee || hasPerm("VERIFICATION_APPROVE")) && (
+              <button
+                onClick={confirmModal}
+                disabled={actionLoading?.includes(`review_${activeItem.id}`) || (modalDecision === "reject" && !modalReason.trim())}
+                className={`px-4 py-2 text-white rounded-lg transition-colors flex items-center space-x-2 ${modalDecision === "approve"
+                  ? 'bg-green-600 hover:bg-green-700 disabled:opacity-50'
+                  : 'bg-red-600 hover:bg-red-700 disabled:opacity-50'
+                  }`}
+              >
+                {actionLoading?.includes(`review_${activeItem.id}`) ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Processing...</span>
+                  </>
+                ) : modalDecision === "approve" ? (
+                  <>
+                    <ThumbsUp className="w-4 h-4" />
+                    <span>Approve Issue</span>
+                  </>
+                ) : (
+                  <>
+                    <ThumbsDown className="w-4 h-4" />
+                    <span>Reject Issue</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>
     );
   };
 
+  // Loading State
   if (loading && items.length === 0) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Verification Issues</h1>
-            <p className="text-gray-600 mt-1">Review and manage attendance verification issues</p>
+      <div className="space-y-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Verification Issues</h1>
+            </div>
+            <div className="h-8 bg-gray-200 rounded w-24 animate-pulse"></div>
           </div>
         </div>
-        
-        {/* Compact Stats Cards Skeleton */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-              <div className="animate-pulse">
+
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="animate-pulse">
                 <div className="h-3 bg-gray-200 rounded w-1/2 mb-2"></div>
                 <div className="h-5 bg-gray-200 rounded w-1/3"></div>
               </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Filters Skeleton */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-          <div className="animate-pulse">
-            <div className="flex flex-wrap items-center gap-3">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-10 bg-gray-200 rounded w-40"></div>
-              ))}
-            </div>
+            ))}
           </div>
         </div>
 
-        {/* Table Skeleton */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-          <div className="animate-pulse">
-            <div className="h-12 bg-gray-200"></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center space-x-2">
+            <div className="h-9 bg-gray-200 rounded flex-1 animate-pulse"></div>
+            <div className="h-9 bg-gray-200 rounded w-32 animate-pulse"></div>
+            <div className="h-9 bg-gray-200 rounded w-32 animate-pulse"></div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-200 p-0 overflow-hidden">
+          <div className="bg-gray-50">
+            <div className="grid grid-cols-8 gap-4 px-4 py-3">
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="h-3 bg-gray-200 rounded w-24"></div>
+              ))}
+            </div>
+          </div>
+          <div className="divide-y divide-gray-200">
             {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-16 border-b border-gray-200"></div>
+              <div key={i} className="grid grid-cols-8 gap-4 px-4 py-3 animate-pulse">
+                <div className="space-y-2">
+                  <div className="h-4 bg-gray-200 rounded w-32"></div>
+                  <div className="h-3 bg-gray-200 rounded w-24"></div>
+                </div>
+                <div className="h-4 bg-gray-200 rounded w-20"></div>
+                <div className="h-4 bg-gray-200 rounded w-16"></div>
+                <div className="space-y-2">
+                  <div className="h-4 bg-gray-200 rounded w-16"></div>
+                  <div className="h-3 bg-gray-200 rounded w-24"></div>
+                </div>
+                <div className="space-y-2">
+                  <div className="h-4 bg-gray-200 rounded w-16"></div>
+                  <div className="h-3 bg-gray-200 rounded w-24"></div>
+                </div>
+                <div className="h-4 bg-gray-200 rounded w-16"></div>
+                <div className="h-4 bg-gray-200 rounded w-32"></div>
+                <div className="h-6 bg-gray-200 rounded w-10 justify-self-end"></div>
+              </div>
             ))}
           </div>
         </div>
@@ -774,103 +890,53 @@ export default function VerificationIssues({ defaultStatus = "Pending" }: Props)
     );
   }
 
+  // Permission Denied
+  if (isEmployee && !hasAnyIssueAccess) {
+    return (
+      <div className="space-y-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Verification Issues</h1>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+          <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Access Denied</h3>
+          <p className="text-gray-500">You do not have permission to view Verification Issues.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Render modal */}
       <ReviewModal />
-      
-      {/* Fixed Header Section */}
-      <div className="sticky top-0 z-30 bg-white pb-6 border-b border-gray-200">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+
+      {/* Header */}
+      <div className="bg-white rounded-xl border border-gray-200 p-2">
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Verification Issues</h1>
-            <p className="text-gray-600 mt-1">Review and manage attendance verification issues</p>
+            <h1 className="text-xl font-bold text-gray-900">Verification Issues</h1>
           </div>
-        </div>
-
-        {/* Compact Stats Cards - Single line layout */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm text-gray-700">
-                <span className="inline-block w-2 h-2 rounded-full bg-violet-500"></span> 
-                Total Issues
-              </div>
-              <div className="text-lg font-semibold">{items.length}</div>
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm text-gray-700">
-                <span className="inline-block w-2 h-2 rounded-full bg-orange-500"></span> 
-                Pending
-              </div>
-              <div className="text-lg font-semibold">
-                {items.filter(item => String(item.status).toLowerCase() === 'pending').length}
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm text-gray-700">
-                <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span> 
-                Approved
-              </div>
-              <div className="text-lg font-semibold">
-                {items.filter(item => String(item.status).toLowerCase() === 'approved').length}
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm text-gray-700">
-                <span className="inline-block w-2 h-2 rounded-full bg-red-500"></span> 
-                Rejected
-              </div>
-              <div className="text-lg font-semibold">
-                {items.filter(item => String(item.status).toLowerCase() === 'rejected').length}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Fixed Filters - All in one line */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-          <div className="flex flex-wrap items-center gap-3">
-            {/* HR Mode Checkbox */}
-            {canHRMode && !isOrgAdmin && (
-              <label className="inline-flex items-center gap-2 text-sm text-gray-700 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
-                <input 
-                  type="checkbox" 
-                  checked={hqMode && canHRMode} 
-                  onChange={(e) => setHqMode(e.target.checked)} 
+          <div className="flex items-center space-x-3">
+            {!externalControl && showHQToggle && canHRMode && !isOrgAdmin && (
+              <label className="inline-flex items-center gap-2 text-sm text-gray-700 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
+                <input
+                  type="checkbox"
+                  checked={hqMode && canHRMode}
+                  onChange={(e) => setHqMode(e.target.checked)}
                   disabled={!canHRMode}
                   className="rounded border-gray-300"
                 />
                 <span>HR Mode</span>
               </label>
             )}
-
-            {/* Status Filter */}
-            <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200 min-w-[160px]">
-              <Search className="w-4 h-4 text-gray-400" />
-              <select 
-                className="bg-transparent border-none focus:ring-0 text-sm w-full"
-                value={status} 
-                onChange={(e) => setStatus(e.target.value)}
-              >
-                <option value="All">All Status</option>
-                <option value="Pending">Pending</option>
-                <option value="Approved">Approved</option>
-                <option value="Rejected">Rejected</option>
-              </select>
-            </div>
-
-            {/* Site Filter */}
-            <div className="flex flex-col min-w-[160px]">
+            {!externalControl && (
               <select
-                className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
                 value={selectedSiteId == null ? "" : String(selectedSiteId)}
                 onChange={(e) => {
                   const raw = e.target.value;
@@ -882,103 +948,229 @@ export default function VerificationIssues({ defaultStatus = "Pending" }: Props)
                   setSelectedSiteId(Number.isNaN(val) ? null : val);
                 }}
               >
-                {hqMode && canHRMode ? (
+                {(hqMode && canHRMode) || isOrgAdmin ? (
                   <option value="">All Sites</option>
                 ) : (
                   <option value="">Select Site</option>
                 )}
-                {((hqMode && canHRMode) ? allSites : inchargeSites).length === 0 && <option value="">No sites</option>}
-                {((hqMode && canHRMode) ? allSites : inchargeSites).map((s) => (
+                {(((hqMode && canHRMode) || isOrgAdmin) ? allSites : inchargeSites).length === 0 && (
+                  <option value="">No sites</option>
+                )}
+                {(((hqMode && canHRMode) || isOrgAdmin) ? allSites : inchargeSites).map((s) => (
                   <option key={String(s.id)} value={String(s.id)}>
                     {String(s.name || s.site_name || s.id)}
                   </option>
                 ))}
               </select>
-            </div>
-
-            {/* Reset Filters Button */}
+            )}
             <button
-              onClick={() => {
-                setStatus("All");
-                setSelectedSiteId(null);
-                setHqMode(isOrgAdmin ? true : false);
-                setPage(1);
-              }}
-              className="ml-auto px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2"
+              onClick={() => setFiltersExpanded(!filtersExpanded)}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-1 text-sm"
             >
               <Filter className="w-4 h-4" />
-              <span>Reset Filters</span>
+              <span>Filters</span>
+              {filtersExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
+          </div>
+        </div>
+
+        {/* Collapsible Filters */}
+        {filtersExpanded && (
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+              >
+                <option value="All">All Status</option>
+                <option value="Pending">Pending</option>
+                <option value="Approved">Approved</option>
+                <option value="Rejected">Rejected</option>
+              </select>
+
+              <input
+                type="date"
+                className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                placeholder="From Date"
+              />
+
+              <input
+                type="date"
+                className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                placeholder="To Date"
+              />
+
+              <div className="flex items-center space-x-2"></div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="md:col-span-4 flex items-center space-x-2">
+                <button
+                  onClick={fetchList}
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm flex-1"
+                >
+                  Apply Filters
+                </button>
+                <button
+                  onClick={() => {
+                    setStatus("All");
+                    setFromDate("");
+                    setToDate("");
+                    if (!externalControl) {
+                      setSelectedSiteId(null);
+                      setHqMode(defaultHQ);
+                    }
+                    setPage(1);
+                  }}
+                  className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm flex-1"
+                >
+                  Clear All
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-orange-50 rounded-xl p-4 border border-orange-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-orange-600 uppercase tracking-wider">Pending</p>
+              <p className="text-2xl font-bold text-orange-900 mt-1">{pendingCount}</p>
+            </div>
+            <div className="p-2 bg-white rounded-lg shadow-sm">
+              <Clock className="w-5 h-5 text-orange-600" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-green-50 rounded-xl p-4 border border-green-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-green-600 uppercase tracking-wider">Approved</p>
+              <p className="text-2xl font-bold text-green-900 mt-1">{approvedCount}</p>
+            </div>
+            <div className="p-2 bg-white rounded-lg shadow-sm">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-red-50 rounded-xl p-4 border border-red-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-red-600 uppercase tracking-wider">Rejected</p>
+              <p className="text-2xl font-bold text-red-900 mt-1">{rejectedCount}</p>
+            </div>
+            <div className="p-2 bg-white rounded-lg shadow-sm">
+              <AlertCircle className="w-5 h-5 text-red-600" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-violet-50 rounded-xl p-4 border border-violet-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-violet-600 uppercase tracking-wider">Total</p>
+              <p className="text-2xl font-bold text-violet-900 mt-1">{totalCount}</p>
+            </div>
+            <div className="p-2 bg-white rounded-lg shadow-sm">
+              <Users className="w-5 h-5 text-violet-600" />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Error/Success Messages */}
+      {/* Error Alert */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-          <div className="flex items-center space-x-2 text-red-800">
-            <AlertCircle className="w-5 h-5" />
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+          <div className="flex items-center">
+            <AlertCircle className="w-5 h-5 mr-2" />
             <span>{error}</span>
           </div>
         </div>
       )}
 
-      {/* Scrollable Table Container */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto max-h-[calc(100vh-400px)]">
-          <table className="w-full">
-            <thead className="bg-gray-50 sticky top-0 z-10">
+      {/* Verification Issues Table */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="overflow-y-auto max-h-[400px] overflow-x-auto relative">
+          <table className="w-full border-collapse">
+            <thead>
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Issues</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">In</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Out</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Work</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Employee
+                </th>
+                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Date
+                </th>
+                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Issues
+                </th>
+                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Check-In
+                </th>
+                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Check-Out
+                </th>
+                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Work Duration
+                </th>
+                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {pagedItems.map((item, index) => {
-                const name = String(item.employee_name || "-");
-                const statusStr = String(item.status || "Pending");
+            <tbody className="divide-y divide-gray-200">
+              {pageSlice.map((item) => {
+                const name = String(item.employee_name || item.employee || `Employee #${item.employee_id || "-"}`);
+                const statusRaw = String(item.status || "Pending");
+                const statusLower = statusRaw.toLowerCase();
+                const checkIn = fmtDateTime(item.punch_in_time);
+                const checkOut = fmtDateTime(item.punch_out_time);
+                const workDuration = fmtMinutes(item.total_work_minutes);
                 const issueTypes = Array.isArray(item.issue_types) ? item.issue_types.join(", ") : String(item.issue_type || "Verification");
-                const isLastRow = index === pagedItems.length - 1;
-                
+
                 return (
                   <tr key={String(item.id)} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="flex-shrink-0 h-10 w-10 bg-gray-100 rounded-full flex items-center justify-center">
-                          <User className="h-5 w-5 text-gray-400" />
+                    <td className="px-4 py-3">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {name}
                         </div>
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">{name}</div>
-                          <div className="text-xs text-gray-500">#{String(item.employee_id || "-")}</div>
-                        </div>
+                        <div className="text-sm text-gray-500">#{String(item.employee_id || "-")}</div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{String(item.attendance_date || "-")}</td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3 text-sm text-gray-900">{String(item.attendance_date || "-")}</td>
+                    <td className="px-4 py-3">
                       <div className="text-sm text-gray-900">{issueTypes}</div>
                       {Number(item.issue_count || 0) > 1 && (
                         <div className="text-xs text-gray-500">({item.issue_count} issues)</div>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{fmtDateTime(item.punch_in_time)}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{fmtDateTime(item.punch_out_time)}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{fmtMinutes(item.total_work_minutes)}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center space-x-2">
-                        {getStatusIcon(statusStr)}
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(statusStr)} capitalize`}>
-                          {statusStr.toLowerCase()}
+                    <td className="px-4 py-3 text-sm text-gray-900">{checkIn}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{checkOut}</td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                        {workDuration}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center space-x-1.5">
+                        {getStatusIcon(statusRaw)}
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(statusRaw)} capitalize`}>
+                          {statusLower}
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <ActionDropdown item={item} isLastRow={isLastRow} />
+                    <td className="px-4 py-3">
+                      <ActionDropdown item={item} />
                     </td>
                   </tr>
                 );
@@ -986,85 +1178,124 @@ export default function VerificationIssues({ defaultStatus = "Pending" }: Props)
             </tbody>
           </table>
         </div>
-        
-        {!loading && items.length === 0 && !error && (
-          <div className="text-center py-12">
-            <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No verification issues found</h3>
-            <p className="text-gray-500 mb-4">No verification issues match your current filters.</p>
+
+        {visibleItems.length === 0 && !loading && (
+          <div className="text-center py-8">
+            <FileText className="w-10 h-10 text-gray-400 mx-auto mb-3" />
+            <h3 className="text-sm font-medium text-gray-900 mb-1">No verification issues found</h3>
+            <p className="text-xs text-gray-500 mb-3">No verification issues match your current filters.</p>
             <button
-              onClick={() => { 
+              onClick={() => {
                 setStatus("All");
-                setSelectedSiteId(null);
-                setHqMode(isOrgAdmin ? true : false);
+                setFromDate("");
+                setToDate("");
+                if (!externalControl) {
+                  setSelectedSiteId(null);
+                  setHqMode(defaultHQ);
+                }
                 setPage(1);
               }}
-              className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
             >
               Clear Filters
             </button>
           </div>
         )}
-        
-        {loading && items.length === 0 && (
-          <div className="text-center py-12">
-            <RefreshCw className="w-8 h-8 animate-spin text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500">Loading verification issues...</p>
-          </div>
-        )}
       </div>
 
       {/* Pagination */}
-      {items.length > 0 && (
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-gray-700">
-            Showing {((page - 1) * pageSize) + 1}-{Math.min(page * pageSize, items.length)} of {items.length} issues
+      {visibleItems.length > 0 && (
+        <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 p-2">
+          <div className="text-xs text-gray-600">
+            Showing <span className="font-medium">{pageStart + 1}</span> to <span className="font-medium">{Math.min(pageStart + pageSize, totalEntries)}</span> of <span className="font-medium">{totalEntries}</span> issues
           </div>
-          <div className="flex items-center space-x-2">
-            <select
-              value={pageSize}
-              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
-              className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              {[10, 20, 50, 100].map((size) => (
-                <option key={size} value={size}>{size} per page</option>
-              ))}
-            </select>
-            
-            <button
-              onClick={() => setPage(Math.max(1, page - 1))}
-              disabled={page <= 1}
-              className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            
+          <div className="flex items-center space-x-3">
             <div className="flex items-center space-x-1">
-              {[...Array(Math.min(5, totalPages))].map((_, i) => {
-                const pageNum = i + 1;
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => setPage(pageNum)}
-                    className={`px-3 py-2 rounded-lg transition-colors ${
-                      page === pageNum
-                        ? 'bg-blue-600 text-white'
-                        : 'border border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
+              <span className="text-xs text-gray-600">Rows:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+                className="px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-xs"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
             </div>
-            
-            <button
-              onClick={() => setPage(Math.min(totalPages, page + 1))}
-              disabled={page === totalPages}
-              className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+            <div className="flex items-center space-x-1">
+              <button
+                onClick={() => setPage(Math.max(1, page - 1))}
+                disabled={page <= 1}
+                className="p-1.5 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft className="w-3 h-3" />
+              </button>
+              <div className="flex items-center space-x-1">
+                {(() => {
+                  const pages = [];
+                  const maxVisible = 5;
+                  let startPage = Math.max(1, page - Math.floor(maxVisible / 2));
+                  let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+                  if (endPage - startPage + 1 < maxVisible) startPage = Math.max(1, endPage - maxVisible + 1);
+                  if (startPage > 1) {
+                    pages.push(
+                      <button
+                        key={1}
+                        onClick={() => setPage(1)}
+                        className={`px-2 py-1 rounded text-xs transition-colors ${page === 1
+                          ? 'bg-blue-600 text-white'
+                          : 'border border-gray-300 hover:bg-gray-50'
+                          }`}
+                      >
+                        1
+                      </button>
+                    );
+                    if (startPage > 2) pages.push(<span key="ellipsis1" className="px-1 text-gray-500">...</span>);
+                  }
+                  for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
+                    pages.push(
+                      <button
+                        key={pageNum}
+                        onClick={() => setPage(pageNum)}
+                        className={`px-2 py-1 rounded text-xs transition-colors ${page === pageNum
+                          ? 'bg-blue-600 text-white'
+                          : 'border border-gray-300 hover:bg-gray-50'
+                          }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  }
+                  if (endPage < totalPages) {
+                    if (endPage < totalPages - 1) pages.push(<span key="ellipsis2" className="px-1 text-gray-500">...</span>);
+                    pages.push(
+                      <button
+                        key={totalPages}
+                        onClick={() => setPage(totalPages)}
+                        className={`px-2 py-1 rounded text-xs transition-colors ${page === totalPages
+                          ? 'bg-blue-600 text-white'
+                          : 'border border-gray-300 hover:bg-gray-50'
+                          }`}
+                      >
+                        {totalPages}
+                      </button>
+                    );
+                  }
+                  return pages;
+                })()}
+              </div>
+              <button
+                onClick={() => setPage(Math.min(totalPages, page + 1))}
+                disabled={page === totalPages}
+                className="p-1.5 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight className="w-3 h-3" />
+              </button>
+            </div>
           </div>
         </div>
       )}

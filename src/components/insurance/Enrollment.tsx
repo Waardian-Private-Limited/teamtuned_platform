@@ -33,10 +33,42 @@ export default function InsuranceEnrollment() {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [departments, setDepartments] = useState<any[]>([]);
 
+  // Permissions
+  const [role, setRole] = React.useState<string | null>(null);
+  const [permissions, setPermissions] = React.useState<string[]>([]);
+  const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
+  const hasAnyPerm = (codes: string[]) => {
+    const list = (permissions || []).map((p) => (p || "").toUpperCase());
+    return codes.some((c) => list.includes(c.toUpperCase()));
+  };
+
+  useEffect(() => {
+    checkSession();
+  }, []);
+
+  const checkSession = async () => {
+    try {
+      const session = await apiClient<{
+        authenticated: boolean;
+        role: string;
+        employee?: { permissions?: string[] } | null;
+      }>("/auth/session", { method: "GET" });
+      if (session?.authenticated) {
+        setRole(session.role || null);
+        setPermissions(session.employee?.permissions || []);
+      }
+    } catch (_) { }
+  };
+
   useEffect(() => {
     fetchPoliciesAndProviders();
     fetchDepartments();
   }, []);
+
+  useEffect(() => {
+    if (role === "Employee" && !hasPerm("INS_ENROLL_VIEW")) return;
+    fetchEmployees();
+  }, [currentPage, search, filterProvider, filterPolicyType, filterStatus, filterExpiringDays, role, permissions]);
 
   const fetchDepartments = async () => {
     try {
@@ -48,8 +80,9 @@ export default function InsuranceEnrollment() {
   };
 
   useEffect(() => {
+    if (role === "Employee" && !hasPerm("INS_ENROLL_VIEW")) return;
     fetchEmployees();
-  }, [currentPage, search, filterProvider, filterPolicyType, filterStatus, filterExpiringDays]);
+  }, [currentPage, search, filterProvider, filterPolicyType, filterStatus, filterExpiringDays, role, permissions]);
 
   const fetchPoliciesAndProviders = async () => {
     try {
@@ -128,6 +161,18 @@ export default function InsuranceEnrollment() {
     setter(value);
     setCurrentPage(1); // Reset to first page when filter changes
   };
+
+  if (role === "Employee" && !hasPerm("INS_ENROLL_VIEW")) {
+    return (
+      <div className="p-6">
+        <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+          <UserPlus className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Access Denied</h3>
+          <p className="text-gray-500">You do not have permission to view insurance enrollment.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -381,6 +426,8 @@ export default function InsuranceEnrollment() {
           employee={selectedEmployee}
           policies={policies}
           onUpdated={fetchEmployees}
+          role={role}
+          permissions={permissions}
         />
       )}
 
@@ -395,7 +442,7 @@ export default function InsuranceEnrollment() {
   );
 }
 
-function EmployeeInsuranceModal({ isOpen, onClose, employee, policies, onUpdated }: { isOpen: boolean; onClose: () => void; employee: any; policies: any[]; onUpdated: () => void }) {
+function EmployeeInsuranceModal({ isOpen, onClose, employee, policies, onUpdated, role, permissions }: { isOpen: boolean; onClose: () => void; employee: any; policies: any[]; onUpdated: () => void; role: string | null; permissions: string[] }) {
   const [activeInsurance, setActiveInsurance] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -462,12 +509,14 @@ function EmployeeInsuranceModal({ isOpen, onClose, employee, policies, onUpdated
               <h3 className="text-md font-semibold text-gray-900 flex items-center gap-2">
                 <CheckCircle size={18} className="text-green-600" /> Active Policies
               </h3>
-              <button
-                onClick={() => { setSelectedEnrollment(null); setAction("enroll"); }}
-                className="text-sm bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2 shadow-sm transition-colors"
-              >
-                <UserPlus size={16} /> Enroll New
-              </button>
+              {(role !== "Employee" || permissions.some(p => p === "INS_ENROLL_ADD")) && (
+                <button
+                  onClick={() => { setSelectedEnrollment(null); setAction("enroll"); }}
+                  className="text-sm bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2 shadow-sm transition-colors"
+                >
+                  <UserPlus size={16} /> Enroll New
+                </button>
+              )}
             </div>
 
             {loading ? (
@@ -500,30 +549,35 @@ function EmployeeInsuranceModal({ isOpen, onClose, employee, policies, onUpdated
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => { setSelectedEnrollment(enroll); setAction("renew"); }}
-                          className="text-sm px-3 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors shadow-sm"
-                        >
-                          Renew
-                        </button>
-                        <button
-                          onClick={() => { setSelectedEnrollment(enroll); setAction("edit"); }}
-                          className="text-sm px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-1 transition-colors shadow-sm"
-                        >
-                          <Edit size={14} /> Edit
-                        </button>
-                        <button
-                          onClick={() => { setSelectedEnrollment(enroll); setAction("change"); }}
-                          className="text-sm px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 flex items-center gap-1 transition-colors shadow-sm"
-                        >
-                          <ArrowRightLeft size={14} /> Change
-                        </button>
-                        <button
-                          onClick={() => { setSelectedEnrollment(enroll); setAction("cancel"); }}
-                          className="text-sm px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm"
-                        >
-                          Cancel
-                        </button>
+                        {/* Actions allowed for ADD, EDIT, or APPROVE */}
+                        {(role !== "Employee" || permissions.some(p => ["INS_ENROLL_ADD", "INS_ENROLL_EDIT", "INS_ENROLL_APPROVE"].includes(p))) && (
+                          <>
+                            <button
+                              onClick={() => { setSelectedEnrollment(enroll); setAction("renew"); }}
+                              className="text-sm px-3 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors shadow-sm"
+                            >
+                              Renew
+                            </button>
+                            <button
+                              onClick={() => { setSelectedEnrollment(enroll); setAction("edit"); }}
+                              className="text-sm px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-1 transition-colors shadow-sm"
+                            >
+                              <Edit size={14} /> Edit
+                            </button>
+                            <button
+                              onClick={() => { setSelectedEnrollment(enroll); setAction("change"); }}
+                              className="text-sm px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 flex items-center gap-1 transition-colors shadow-sm"
+                            >
+                              <ArrowRightLeft size={14} /> Change
+                            </button>
+                            <button
+                              onClick={() => { setSelectedEnrollment(enroll); setAction("cancel"); }}
+                              className="text-sm px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm border-t border-gray-100 pt-3 mt-3">

@@ -9,6 +9,8 @@ import { OrgProvider } from "@/components/shared/OrgContext";
 import { InventoryStoreProvider } from "@/components/inventory/InventoryStoreContext";
 import { apiClient } from "@/lib/apiClient";
 
+import { useUserStore } from "@/lib/store/userStore";
+
 export default function EmployeeLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [isCollapsed, setIsCollapsed] = React.useState(false);
@@ -18,6 +20,8 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
   const [lastName, setLastName] = React.useState<string | null>(null);
   const [permissions, setPermissions] = React.useState<string[]>([]);
   const [role, setRole] = React.useState<string | null>(null);
+  const [features, setFeatures] = React.useState<string[]>([]);
+  const { setUser } = useUserStore();
 
   React.useEffect(() => {
     (async () => {
@@ -28,6 +32,7 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
           user?: { id: string; email: string; name?: string; first_name?: string | null; last_name?: string | null };
           organization?: { name?: string | null; logo_url?: string | null } | null;
           employee?: { permissions?: string[] } | null;
+          organization_features?: { code: string }[];
         }>("/auth/session", { method: "GET" });
 
         if (session?.authenticated) {
@@ -37,6 +42,17 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
           setLastName(session.user?.last_name || null);
           setPermissions(session.employee?.permissions || []);
           setRole(session.role || null);
+
+          const featureCodes = (session.organization_features || []).map(f => f.code);
+          setFeatures(featureCodes);
+
+          setUser({
+            id: session.user?.id || "",
+            email: session.user?.email || "",
+            role: session.role,
+            name: session.user?.name || "",
+            features: featureCodes,
+          });
 
           // Employees only in this layout; redirect other roles
           if (session.role === "OrgAdmin") {
@@ -57,7 +73,7 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
         // ignore
       }
     })();
-  }, []);
+  }, [router, setUser]);
 
   const handleLogout = async () => {
     try {
@@ -81,6 +97,7 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
             onLogout={handleLogout}
             permissions={permissions}
             role={role || undefined}
+            features={features}
           />
           <div className="flex flex-col h-screen overflow-hidden relative bg-gray-50">
             <GlobalHeader

@@ -48,6 +48,7 @@ export default function EmployeeSidebar({
   onLogout,
   permissions,
   role,
+  features,
 }: {
   isCollapsed: boolean;
   setIsCollapsed: (val: boolean) => void;
@@ -56,6 +57,7 @@ export default function EmployeeSidebar({
   onLogout: () => void;
   permissions?: string[];
   role?: string | null;
+  features?: string[];
 }) {
   const pathname = usePathname();
   const [mainOpen, setMainOpen] = React.useState(true);
@@ -67,22 +69,14 @@ export default function EmployeeSidebar({
   const [taskOpen, setTaskOpen] = React.useState(false);
   const [insuranceOpen, setInsuranceOpen] = React.useState(false);
   const [salaryAdvanceOpen, setSalaryAdvanceOpen] = React.useState(false);
-  const [dashboardOpen, setDashboardOpen] = React.useState(false);
   const [managementOpen, setManagementOpen] = React.useState(false);
+  const [attendanceOpen, setAttendanceOpen] = React.useState(false);
   const [otherOpen, setOtherOpen] = React.useState(false);
-  const [dashboards, setDashboards] = React.useState<any[]>([]);
 
-  React.useEffect(() => {
-    const fetchDashboards = async () => {
-      try {
-        const response = await apiClient<any>('/dashboards', { method: 'GET', withAuth: true });
-        setDashboards(response?.dashboards || []);
-      } catch (error) {
-        console.error("Failed to fetch dashboards:", error);
-      }
-    };
-    fetchDashboards();
-  }, []);
+  const hasFeature = (code: string) => {
+    if (!features) return false;
+    return features.includes(code);
+  };
 
   const hasAnyPerm = (codes: string[]) => {
     const list = (permissions || []).map((p) => (p || "").toUpperCase());
@@ -146,6 +140,12 @@ export default function EmployeeSidebar({
 
   const dashboardPath = "/employee";
 
+  // Feature Flags
+  const showCoreHR = hasFeature('PAYROLL_FEATURE');
+  const showWallet = hasFeature('WALLET_FEATURE');
+  const showTask = hasFeature('TASK_FEATURE');
+  const showInventory = hasFeature('INVENTORY_FEATURE');
+
   // Permission gates
   const canViewOrgProfile = isOrgAdmin || hasAnyPerm(["ORGPROFILE_VIEW", "ORGPROFILE_ADD", "ORGPROFILE_EDIT", "ORGPROFILE_DELETE"]);
   const canViewSites = isOrgAdmin || hasAnyPerm(["SITE_VIEW", "SITE_ADD", "SITE_EDIT", "SITE_DELETE"]);
@@ -163,8 +163,23 @@ export default function EmployeeSidebar({
   const canViewPettyCash = isOrgAdmin || hasAnyPerm(["WALLET_ADMIN", "WALLET_VIEW", "WALLET_ADD"]);
   const canViewWalletTopups = isOrgAdmin || hasAnyPerm(["WALLET_ADMIN", "WALLET_TOPUP"]);
   const canViewWalletExpenses = isOrgAdmin || hasAnyPerm(["WALLET_ADMIN", "EXPENSE_VIEW", "EXPENSE_ADD", "EXPENSE_EDIT", "EXPENSE_DELETE"]);
-  const canViewTasks = true;
-  const canViewInsurance = isOrgAdmin || hasAnyPerm(["INS_PROVIDER_VIEW", "INS_POLICY_VIEW", "INS_ENROLL_VIEW"]);
+  const canViewTasks = true; // Use granular perms instead
+
+  const canViewInsurance = isOrgAdmin || hasAnyPerm(["INS_PROVIDER_VIEW", "INS_POLICY_VIEW", "INS_ENROLL_VIEW", "INS_CLAIM_VIEW"]);
+  const canViewSessionRequests = isOrgAdmin || hasAnyPerm(["EMP_SESSION_VIEW", "EMP_SESSION_APPROVE"]);
+
+  // Task Permissions
+  const canViewTaskTemplates = isOrgAdmin || hasAnyPerm(["TASK_TEMPLATES", "TASK_CREATE"]);
+  const canViewTaskAssignments = isOrgAdmin || hasAnyPerm(["TASK_VIEW", "TASK_ASSIGN"]);
+  const canViewTaskDashboard = isOrgAdmin || hasAnyPerm(["TASK_VIEW"]);
+
+  // Salary Advance Permissions
+  const canViewSalAdvRequests = isOrgAdmin || hasAnyPerm(["SALADV_VIEW"]);
+  const canViewSalAdvApprovals = isOrgAdmin || hasAnyPerm(["SALADV_APPROVE"]);
+  const canViewSalAdvRepayments = isOrgAdmin || hasAnyPerm(["SALADV_VIEW"]);
+  const canViewSalAdvAnalytics = isOrgAdmin || hasAnyPerm(["SALADV_VIEW"]);
+  const canViewSalAdvPolicy = isOrgAdmin || hasAnyPerm(["SALADV_POLICY"]);
+  const canViewSalAdvAccounts = isOrgAdmin || hasAnyPerm(["SALADV_PAY"]);
 
 
   const showOrgMain = [
@@ -180,10 +195,15 @@ export default function EmployeeSidebar({
   const showManagement = [
     canViewEmployeeManagement,
     canAssignEmployeeSites,
+  ].some(Boolean);
+
+  const showAttendanceSection = [
+    canViewAttendanceConfig, // Moved from Main? No, kept config in Main usually, but user said 'all attendance related'. I'll enable Attendance section if any operational item is visible.
     canViewLeaveRequests,
     canViewRegularizeRequests,
     canViewVerificationIssues,
     canViewEmployeeAttendance,
+    canViewSessionRequests,
   ].some(Boolean);
 
   const showOther = [
@@ -193,7 +213,20 @@ export default function EmployeeSidebar({
     (isOrgAdmin || hasAnyPerm(["WALLET_ADMIN"])),
   ].some(Boolean);
 
-  const showTask = [canViewTasks].some(Boolean);
+  const showTaskSection = showTask && [
+    canViewTaskTemplates,
+    canViewTaskAssignments,
+    canViewTaskDashboard
+  ].some(Boolean);
+
+  const showSalaryAdvanceSection = showCoreHR && [
+    canViewSalAdvRequests,
+    canViewSalAdvApprovals,
+    canViewSalAdvRepayments,
+    canViewSalAdvAnalytics,
+    canViewSalAdvPolicy,
+    canViewSalAdvAccounts
+  ].some(Boolean);
   const showPayroll = isOrgAdmin || hasAnyPerm(["PAYROLL_VIEW", "HR_MODE"]);
 
   return (
@@ -248,7 +281,7 @@ export default function EmployeeSidebar({
         />
 
         {/* Main Section */}
-        {showOrgMain && (
+        {showCoreHR && showOrgMain && (
           <div className="mt-4">
             {!isCollapsed && (
               <CategoryButton
@@ -292,9 +325,81 @@ export default function EmployeeSidebar({
                       active={pathname?.startsWith("/employee/roles") || false}
                     />
                   )}
-                  {canViewPolicies && (
+                  {/* Policies and Config kept in Main or moved? User said 'all attendance related thing'. 
+                     I will move "Policies" (Attendance Rules), "Attendance Config", "Holiday Calendar" to Attendance section if requested. 
+                     "al attendance related thimg" -> Probably safer to put operational items. Config is structure. 
+                     I'll move them to Attendance section to be fully compliant with "all".
+                  */}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Attendance Section */}
+        {showCoreHR && showAttendanceSection && (
+          <div className="mt-2">
+            {!isCollapsed && (
+              <CategoryButton
+                label="Attendance"
+                isOpen={attendanceOpen}
+                onClick={() => setAttendanceOpen(!attendanceOpen)}
+              />
+            )}
+            {attendanceOpen && (
+              <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                  {canViewEmployeeAttendance && (
+                    <Item
+                      icon={BarChart3}
+                      label="Dashboard"
+                      href="/employee/attendance-dashboard"
+                      active={pathname?.startsWith("/employee/attendance-dashboard") || false}
+                    />
+                  )}
+                  {canViewEmployeeAttendance && (
                     <Item
                       icon={ClipboardList}
+                      label="Logs"
+                      href="/employee/attendance"
+                      active={pathname === "/employee/attendance" || (pathname?.startsWith("/employee/attendance") && !pathname?.includes("attendance-dashboard") && !pathname?.includes("sessions")) || false}
+                    />
+                  )}
+                  {canViewSessionRequests && (
+                    <Item
+                      icon={Clock}
+                      label="Session Requests"
+                      href="/employee/attendance/sessions"
+                      active={pathname?.startsWith("/employee/attendance/sessions") || false}
+                    />
+                  )}
+                  {canViewRegularizeRequests && (
+                    <Item
+                      icon={CheckSquare}
+                      label="Regularizations"
+                      href="/employee/regularize-requests"
+                      active={pathname?.startsWith("/employee/regularize-requests") || false}
+                    />
+                  )}
+                  {canViewVerificationIssues && (
+                    <Item
+                      icon={AlertCircle}
+                      label="Verification Issues"
+                      href="/employee/verification-issues"
+                      active={pathname?.startsWith("/employee/verification-issues") || false}
+                    />
+                  )}
+                  {canViewLeaveRequests && (
+                    <Item
+                      icon={Calendar}
+                      label="Leave Requests"
+                      href="/employee/leave-requests"
+                      active={pathname?.startsWith("/employee/leave-requests") || false}
+                    />
+                  )}
+                  {canViewPolicies && (
+                    <Item
+                      icon={FileText}
                       label="Policies"
                       href="/employee/attendance-rules"
                       active={pathname?.startsWith("/employee/attendance-rules") || false}
@@ -303,7 +408,7 @@ export default function EmployeeSidebar({
                   {canViewAttendanceConfig && (
                     <Item
                       icon={Settings}
-                      label="Attendance Config"
+                      label="Configuration"
                       href="/employee/attendance-config"
                       active={pathname?.startsWith("/employee/attendance-config") || false}
                     />
@@ -323,7 +428,7 @@ export default function EmployeeSidebar({
         )}
 
         {/* Management Section */}
-        {showManagement && (
+        {showCoreHR && showManagement && (
           <div className="mt-2">
             {!isCollapsed && (
               <CategoryButton
@@ -351,38 +456,7 @@ export default function EmployeeSidebar({
                       active={pathname?.startsWith("/employee/employee-sites") || false}
                     />
                   )}
-                  {canViewLeaveRequests && (
-                    <Item
-                      icon={Calendar}
-                      label="Leave Requests"
-                      href="/employee/leave-requests"
-                      active={pathname?.startsWith("/employee/leave-requests") || false}
-                    />
-                  )}
-                  {canViewRegularizeRequests && (
-                    <Item
-                      icon={Clock}
-                      label="Regularize Requests"
-                      href="/employee/regularize-requests"
-                      active={pathname?.startsWith("/employee/regularize-requests") || false}
-                    />
-                  )}
-                  {canViewEmployeeAttendance && (
-                    <Item
-                      icon={BarChart3}
-                      label="Attendance Dashboard"
-                      href="/employee/attendance-dashboard"
-                      active={pathname?.startsWith("/employee/attendance-dashboard") || false}
-                    />
-                  )}
-                  {canViewVerificationIssues && (
-                    <Item
-                      icon={AlertCircle}
-                      label="Verification Issues"
-                      href="/employee/verification-issues"
-                      active={pathname?.startsWith("/employee/verification-issues") || false}
-                    />
-                  )}
+                  {/* Attendance items moved to Attendance Category */}
                   {showPayroll && (
                     <Item
                       icon={DollarSign}
@@ -406,7 +480,7 @@ export default function EmployeeSidebar({
         )}
 
         {/* Insurance Section */}
-        {canViewInsurance && (
+        {showCoreHR && canViewInsurance && (
           <div className="mt-2">
             {!isCollapsed && (
               <CategoryButton
@@ -418,42 +492,54 @@ export default function EmployeeSidebar({
             {insuranceOpen && (
               <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
                 <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
-                  <Item
-                    icon={LayoutGrid}
-                    label="Dashboard"
-                    href="/employee/insurance/dashboard"
-                    active={pathname?.startsWith("/employee/insurance/dashboard") || false}
-                  />
-                  <Item
-                    icon={Building2}
-                    label="Providers"
-                    href="/employee/insurance/providers"
-                    active={pathname?.startsWith("/employee/insurance/providers") || false}
-                  />
-                  <Item
-                    icon={Shield}
-                    label="Policies"
-                    href="/employee/insurance/policies"
-                    active={pathname?.startsWith("/employee/insurance/policies") || false}
-                  />
-                  <Item
-                    icon={UserCheck}
-                    label="Enrollment"
-                    href="/employee/insurance/enrollment"
-                    active={pathname?.startsWith("/employee/insurance/enrollment") || false}
-                  />
-                  <Item
-                    icon={Users}
-                    label="Dependents"
-                    href="/employee/insurance/dependents"
-                    active={pathname?.startsWith("/employee/insurance/dependents") || false}
-                  />
-                  <Item
-                    icon={Heart}
-                    label="Beneficiaries"
-                    href="/employee/insurance/beneficiaries"
-                    active={pathname?.startsWith("/employee/insurance/beneficiaries") || false}
-                  />
+                  {(isOrgAdmin || hasAnyPerm(['INS_POLICY_STATS'])) && (
+                    <Item
+                      icon={LayoutGrid}
+                      label="Dashboard"
+                      href="/employee/insurance/dashboard"
+                      active={pathname?.startsWith("/employee/insurance/dashboard") || false}
+                    />
+                  )}
+                  {(isOrgAdmin || hasAnyPerm(['INS_PROVIDER_VIEW', 'INS_PROVIDER_ADD', 'INS_PROVIDER_EDIT', 'INS_PROVIDER_DELETE'])) && (
+                    <Item
+                      icon={Building2}
+                      label="Providers"
+                      href="/employee/insurance/providers"
+                      active={pathname?.startsWith("/employee/insurance/providers") || false}
+                    />
+                  )}
+                  {(isOrgAdmin || hasAnyPerm(['INS_POLICY_VIEW', 'INS_POLICY_ADD', 'INS_POLICY_EDIT', 'INS_POLICY_DELETE'])) && (
+                    <Item
+                      icon={Shield}
+                      label="Policies"
+                      href="/employee/insurance/policies"
+                      active={pathname?.startsWith("/employee/insurance/policies") || false}
+                    />
+                  )}
+                  {(isOrgAdmin || hasAnyPerm(['INS_ENROLL_VIEW', 'INS_ENROLL_ADD', 'INS_ENROLL_EDIT', 'INS_ENROLL_APPROVE'])) && (
+                    <Item
+                      icon={UserCheck}
+                      label="Enrollment"
+                      href="/employee/insurance/enrollment"
+                      active={pathname?.startsWith("/employee/insurance/enrollment") || false}
+                    />
+                  )}
+                  {(isOrgAdmin || hasAnyPerm(['INS_POLICY_STATS'])) && (
+                    <>
+                      <Item
+                        icon={Users}
+                        label="Dependents"
+                        href="/employee/insurance/dependents"
+                        active={pathname?.startsWith("/employee/insurance/dependents") || false}
+                      />
+                      <Item
+                        icon={Heart}
+                        label="Beneficiaries"
+                        href="/employee/insurance/beneficiaries"
+                        active={pathname?.startsWith("/employee/insurance/beneficiaries") || false}
+                      />
+                    </>
+                  )}
                 </div>
               </div>
             )}
@@ -461,55 +547,75 @@ export default function EmployeeSidebar({
         )}
 
         {/* Salary Advance Section */}
-        <div className="mt-2">
-          {!isCollapsed && (
-            <CategoryButton
-              label="Salary Advance"
-              isOpen={salaryAdvanceOpen}
-              onClick={() => setSalaryAdvanceOpen(!salaryAdvanceOpen)}
-            />
-          )}
-          {salaryAdvanceOpen && (
-            <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
-              <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
-                <Item
-                  icon={ClipboardList}
-                  label="All Requests"
-                  href="/employee/salary-advance/requests"
-                  active={pathname?.startsWith("/employee/salary-advance/requests") || false}
-                />
-                <Item
-                  icon={CheckSquare}
-                  label="Approval Queue"
-                  href="/employee/salary-advance/approvals"
-                  active={pathname?.startsWith("/employee/salary-advance/approvals") || false}
-                />
-                <Item
-                  icon={Calendar}
-                  label="Repayment Schedule"
-                  href="/employee/salary-advance/repayments"
-                  active={pathname?.startsWith("/employee/salary-advance/repayments") || false}
-                />
-                <Item
-                  icon={TrendingUp}
-                  label="Analytics"
-                  href="/employee/salary-advance/analytics"
-                  active={pathname?.startsWith("/employee/salary-advance/analytics") || false}
-                />
-                <Item
-                  icon={Settings}
-                  label="Policy Configuration"
-                  href="/employee/salary-advance/policy"
-                  active={pathname?.startsWith("/employee/salary-advance/policy") || false}
-                />
+        {showSalaryAdvanceSection && (
+          <div className="mt-2">
+            {!isCollapsed && (
+              <CategoryButton
+                label="Salary Advance"
+                isOpen={salaryAdvanceOpen}
+                onClick={() => setSalaryAdvanceOpen(!salaryAdvanceOpen)}
+              />
+            )}
+            {salaryAdvanceOpen && (
+              <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                  {canViewSalAdvRequests && (
+                    <Item
+                      icon={ClipboardList}
+                      label="All Requests"
+                      href="/employee/salary-advance/requests"
+                      active={pathname?.startsWith("/employee/salary-advance/requests") || false}
+                    />
+                  )}
+                  {canViewSalAdvApprovals && (
+                    <Item
+                      icon={CheckSquare}
+                      label="Approval Queue"
+                      href="/employee/salary-advance/approvals"
+                      active={pathname?.startsWith("/employee/salary-advance/approvals") || false}
+                    />
+                  )}
+                  {canViewSalAdvRepayments && (
+                    <Item
+                      icon={Calendar}
+                      label="Repayment Schedule"
+                      href="/employee/salary-advance/repayments"
+                      active={pathname?.startsWith("/employee/salary-advance/repayments") || false}
+                    />
+                  )}
+                  {canViewSalAdvAnalytics && (
+                    <Item
+                      icon={TrendingUp}
+                      label="Analytics"
+                      href="/employee/salary-advance/analytics"
+                      active={pathname?.startsWith("/employee/salary-advance/analytics") || false}
+                    />
+                  )}
+                  {canViewSalAdvPolicy && (
+                    <Item
+                      icon={Settings}
+                      label="Policy Configuration"
+                      href="/employee/salary-advance/policy"
+                      active={pathname?.startsWith("/employee/salary-advance/policy") || false}
+                    />
+                  )}
+                  {canViewSalAdvAccounts && (
+                    <Item
+                      icon={Users}
+                      label="Accounts"
+                      href="/employee/salary-advance/accounts"
+                      active={pathname?.startsWith("/employee/salary-advance/accounts") || false}
+                    />
+                  )}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
 
         {/* Petty Cash Section */}
-        {showOther && (
+        {showWallet && showOther && (
           <div className="mt-2">
             {!isCollapsed && (
               <CategoryButton
@@ -533,8 +639,8 @@ export default function EmployeeSidebar({
                     <Item
                       icon={Receipt}
                       label="Wallet Expenses"
-                      href="/employee/wallet-expenses"
-                      active={pathname?.startsWith("/employee/wallet-expenses") || false}
+                      href="/employee/wallet-overview"
+                      active={pathname?.startsWith("/employee/wallet-overview") || false}
                     />
                   )}
                   {(isOrgAdmin || hasAnyPerm(["WALLET_ADMIN"])) && (
@@ -560,7 +666,7 @@ export default function EmployeeSidebar({
         )}
 
         {/* Inventory Section */}
-        {isOrgAdmin && (
+        {showInventory && (
           <div className="mt-2">
             {!isCollapsed && (
               <CategoryButton
@@ -673,7 +779,7 @@ export default function EmployeeSidebar({
         )}
 
         {/* Task Section */}
-        {showTask && (
+        {showTaskSection && (
           <div className="mt-2">
             {!isCollapsed && (
               <CategoryButton
@@ -685,30 +791,36 @@ export default function EmployeeSidebar({
             {taskOpen && (
               <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
                 <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
-                  <Item
-                    icon={FileText}
-                    label="Templates"
-                    href="/employee/tasks"
-                    active={pathname?.startsWith("/employee/tasks") || false}
-                  />
-                  <Item
-                    icon={ListChecks}
-                    label="Assignments"
-                    href="/employee/task-assignments"
-                    active={pathname?.startsWith("/employee/task-assignments") || false}
-                  />
-                  <Item
-                    icon={LayoutGrid}
-                    label="Dashboard"
-                    href="/employee/task-dashboard"
-                    active={pathname?.startsWith("/employee/task-dashboard") || false}
-                  />
-                  <Item
+                  {canViewTaskTemplates && (
+                    <Item
+                      icon={FileText}
+                      label="Templates"
+                      href="/employee/tasks"
+                      active={pathname?.startsWith("/employee/tasks") || false}
+                    />
+                  )}
+                  {canViewTaskAssignments && (
+                    <Item
+                      icon={ListChecks}
+                      label="Assignments"
+                      href="/employee/task-assignments"
+                      active={pathname?.startsWith("/employee/task-assignments") || false}
+                    />
+                  )}
+                  {canViewTaskDashboard && (
+                    <Item
+                      icon={LayoutGrid}
+                      label="Dashboard"
+                      href="/employee/task-dashboard"
+                      active={pathname?.startsWith("/employee/task-dashboard") || false}
+                    />
+                  )}
+                  {/* <Item
                     icon={Settings}
                     label="Builder"
                     href="/employee/dashboard-builder"
                     active={pathname?.startsWith("/employee/dashboard-builder") || false}
-                  />
+                  /> */}
                 </div>
               </div>
             )}

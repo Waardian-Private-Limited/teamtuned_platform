@@ -6,6 +6,7 @@ export interface UserInfo {
   role: string;
   societyId?: string;
   name?: string;
+  features?: string[];
 }
 
 interface UserStore {

@@ -187,10 +187,10 @@ export default function DashboardBuilder({
   const [loading, setLoading] = React.useState(true);
 
   // Load templates and dashboards on mount
-  React.useEffect(() => {
-    loadTemplates();
-    loadDashboards();
-  }, []);
+  // React.useEffect(() => {
+  //   loadTemplates();
+  //   loadDashboards();
+  // }, []);
 
   const loadTemplates = async () => {
     try {

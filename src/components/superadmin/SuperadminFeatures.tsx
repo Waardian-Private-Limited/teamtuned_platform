@@ -5,10 +5,13 @@ import { apiClient } from "@/lib/apiClient";
 
 type Feature = {
   id?: number;
+  feature_id?: number;
   code: string;
   name: string;
   description?: string;
   category?: string;
+  sort_order?: number;
+  status?: "active" | "inactive";
   pricing_model?: "per_user" | "fixed" | "hybrid";
   price_per_user?: number;
   fixed_price?: number;
@@ -28,6 +31,9 @@ export default function SuperadminFeatures() {
     name: "",
     description: "",
     category: "",
+    feature_id: undefined,
+    sort_order: 0,
+    status: "active",
     pricing_model: "per_user",
     price_per_user: 0,
     fixed_price: 0,
@@ -59,6 +65,9 @@ export default function SuperadminFeatures() {
       name: "",
       description: "",
       category: "",
+      feature_id: undefined,
+      sort_order: 0,
+      status: "active",
       pricing_model: "per_user",
       price_per_user: 0,
       fixed_price: 0,
@@ -104,7 +113,7 @@ export default function SuperadminFeatures() {
   return (
     <section>
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-black">Feature Management</h1>
+        <h1 className="text-2xl font-semibold text-black">Our Features</h1>
         <button className="px-4 py-2 rounded bg-black text-white hover:bg-gray-800" onClick={openCreate}>Add Feature</button>
       </div>
       <p className="mt-2 text-black">Manage application features from the main database.</p>
@@ -116,41 +125,39 @@ export default function SuperadminFeatures() {
         <table className="min-w-full text-left text-black">
           <thead className="bg-gray-100">
             <tr>
+              <th className="px-3 py-2">ID</th>
+              <th className="px-3 py-2">Feature ID</th>
               <th className="px-3 py-2">Code</th>
               <th className="px-3 py-2">Name</th>
-              <th className="px-3 py-2">Description</th>
-              <th className="px-3 py-2">Category</th>
-              <th className="px-3 py-2">Pricing Model</th>
-              <th className="px-3 py-2">Price/User</th>
-              <th className="px-3 py-2">Fixed Price</th>
-              <th className="px-3 py-2">Billing</th>
-              <th className="px-3 py-2">Active</th>
+              <th className="px-3 py-2">Sort Order</th>
+              <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Actions</th>
             </tr>
           </thead>
           <tbody>
             {features.map((f) => (
               <tr key={f.id ?? f.code} className="border-t">
+                <td className="px-3 py-2">{f.id}</td>
+                <td className="px-3 py-2">{f.feature_id || '-'}</td>
                 <td className="px-3 py-2">{f.code}</td>
                 <td className="px-3 py-2">{f.name}</td>
-                <td className="px-3 py-2">{f.description || '-'}</td>
-                <td className="px-3 py-2">{f.category || "-"}</td>
-                <td className="px-3 py-2">{f.pricing_model}</td>
-                <td className="px-3 py-2">{f.price_per_user ?? 0}</td>
-                <td className="px-3 py-2">{f.fixed_price ?? 0}</td>
-                <td className="px-3 py-2">{f.billing_cycle}</td>
-                <td className="px-3 py-2">{f.is_active ? "Yes" : "No"}</td>
+                <td className="px-3 py-2">{f.sort_order}</td>
+                <td className="px-3 py-2">
+                  <span className={`px-2 py-1 text-xs rounded ${f.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                    {f.status || 'active'}
+                  </span>
+                </td>
                 <td className="px-3 py-2">
                   <div className="flex gap-2">
-                    <button className="px-3 py-1 rounded border text-black" onClick={() => openEdit(f)}>Edit</button>
-                    <button className="px-3 py-1 rounded border text-black" onClick={() => deleteFeature(f)}>Delete</button>
+                    <button className="px-3 py-1 rounded border text-black hover:bg-gray-100" onClick={() => openEdit(f)}>Edit</button>
+                    <button className="px-3 py-1 rounded border text-black hover:bg-gray-100" onClick={() => deleteFeature(f)}>Delete</button>
                   </div>
                 </td>
               </tr>
             ))}
             {features.length === 0 && !loading && (
               <tr>
-                <td colSpan={10} className="px-3 py-4 text-center">No features found.</td>
+                <td colSpan={7} className="px-3 py-4 text-center">No features found.</td>
               </tr>
             )}
           </tbody>
@@ -168,93 +175,55 @@ export default function SuperadminFeatures() {
 
             <div className="p-4 grid grid-cols-2 gap-4">
               <div>
+                <label className="block text-sm font-medium text-black">Feature ID</label>
+                <input
+                  type="number"
+                  className="mt-1 w-full rounded border px-3 py-2 text-black"
+                  value={form.feature_id ?? ''}
+                  onChange={(e) => setForm({ ...form, feature_id: Number(e.target.value) })}
+                  placeholder="e.g. 1"
+                />
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-black">Code</label>
                 <input
                   type="text"
                   className="mt-1 w-full rounded border px-3 py-2 text-black"
                   value={form.code}
                   onChange={(e) => setForm({ ...form, code: e.target.value })}
-                  placeholder="visitor_management"
+                  placeholder="ORG_PROFILE"
                   disabled={!!editing}
                 />
               </div>
-              <div>
+              <div className="col-span-2">
                 <label className="block text-sm font-medium text-black">Name</label>
                 <input
                   type="text"
                   className="mt-1 w-full rounded border px-3 py-2 text-black"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                />
-              </div>
-              <div className="col-span-2">
-                <label className="block text-sm font-medium text-black">Description</label>
-                <textarea
-                  className="mt-1 w-full rounded border px-3 py-2 text-black"
-                  value={form.description || ''}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  placeholder="Brief summary of this feature"
-                  rows={3}
+                  placeholder="Organization Profile"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-black">Category</label>
-                <input
-                  type="text"
-                  className="mt-1 w-full rounded border px-3 py-2 text-black"
-                  value={form.category || ""}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-black">Pricing Model</label>
-                <select
-                  className="mt-1 w-full rounded border px-3 py-2 text-black"
-                  value={form.pricing_model}
-                  onChange={(e) => setForm({ ...form, pricing_model: e.target.value as Feature["pricing_model"] })}
-                >
-                  <option value="per_user">per_user</option>
-                  <option value="fixed">fixed</option>
-                  <option value="hybrid">hybrid</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-black">Price per user</label>
+                <label className="block text-sm font-medium text-black">Sort Order</label>
                 <input
                   type="number"
                   className="mt-1 w-full rounded border px-3 py-2 text-black"
-                  value={form.price_per_user ?? 0}
-                  onChange={(e) => setForm({ ...form, price_per_user: Number(e.target.value) })}
+                  value={form.sort_order ?? 0}
+                  onChange={(e) => setForm({ ...form, sort_order: Number(e.target.value) })}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-black">Fixed price</label>
-                <input
-                  type="number"
-                  className="mt-1 w-full rounded border px-3 py-2 text-black"
-                  value={form.fixed_price ?? 0}
-                  onChange={(e) => setForm({ ...form, fixed_price: Number(e.target.value) })}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-black">Billing cycle</label>
+                <label className="block text-sm font-medium text-black">Status</label>
                 <select
                   className="mt-1 w-full rounded border px-3 py-2 text-black"
-                  value={form.billing_cycle}
-                  onChange={(e) => setForm({ ...form, billing_cycle: e.target.value as Feature["billing_cycle"] })}
+                  value={form.status || 'active'}
+                  onChange={(e) => setForm({ ...form, status: e.target.value as any })}
                 >
-                  <option value="monthly">monthly</option>
-                  <option value="yearly">yearly</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
                 </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  id="is_active"
-                  type="checkbox"
-                  checked={!!form.is_active}
-                  onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
-                />
-                <label htmlFor="is_active" className="text-sm font-medium text-black">Active</label>
               </div>
             </div>
 

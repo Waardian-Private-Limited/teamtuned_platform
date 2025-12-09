@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { apiClient } from "@/lib/apiClient";
-import { Loader2, AlertCircle, Calendar, RefreshCw, MoreVertical, Eye, Edit2, ToggleLeft, ToggleRight, Trash2 } from "lucide-react";
+import { Loader2, AlertCircle, Calendar, RefreshCw, MoreVertical, Eye, Edit2, ToggleLeft, ToggleRight, Trash2, Shield } from "lucide-react";
 import TaskAssignmentViewer from "@/components/tasks/TaskAssignmentViewer";
 import TaskCreate from "@/components/tasks/TaskCreate";
 
@@ -52,7 +52,31 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
   const [total, setTotal] = React.useState<number>(0);
   const [hasNext, setHasNext] = React.useState<boolean>(false);
 
+  // Permission state
+  const [userRole, setUserRole] = React.useState<string | null>(null);
+  const [permissions, setPermissions] = React.useState<string[]>([]);
+  const [checkingPerms, setCheckingPerms] = React.useState(true);
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const session = await apiClient<any>("/auth/session", { method: "GET" });
+        if (session?.authenticated) {
+          setUserRole(session.role);
+          setPermissions(session.employee?.permissions || []);
+        }
+      } catch (_) { } finally {
+        setCheckingPerms(false);
+      }
+    })();
+  }, []);
+
+  const isOrgAdmin = (userRole || "").toLowerCase() === "orgadmin";
+  const canView = isOrgAdmin || permissions.some(p => ["TASK_VIEW", "TASK_ASSIGN"].includes(p));
+  const canCreate = isOrgAdmin || permissions.some(p => ["TASK_CREATE", "TASK_TEMPLATES"].includes(p));
+
   const loadTasks = React.useCallback(async () => {
+    if (!canView) return;
     setError(null);
     setLoadingTasks(true);
     try {
@@ -71,7 +95,7 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
     } finally {
       setLoadingTasks(false);
     }
-  }, [filters, selectedSiteId, page, limit]);
+  }, [filters, selectedSiteId, page, limit, canView]);
 
   const loadAssignments = React.useCallback(async (taskId: number) => {
     setLoadingAssign(true);
@@ -87,8 +111,10 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
   }, []);
 
   React.useEffect(() => {
-    loadTasks();
-  }, [loadTasks, page, limit]);
+    if (!checkingPerms && canView) {
+      loadTasks();
+    }
+  }, [loadTasks, page, limit, checkingPerms, canView]);
 
   React.useEffect(() => {
     if (viewTaskId != null) {
@@ -102,7 +128,7 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
         const res = await apiClient<any>("/sites", { method: "GET", withAuth: true });
         const list = Array.isArray(res) ? res : (Array.isArray(res?.sites) ? res.sites : []);
         setSites(list);
-      } catch {}
+      } catch { }
     })();
   }, []);
 
@@ -145,20 +171,22 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
       const t = res?.task || {};
       const assignees = Array.isArray(res?.assignees) ? res.assignees.map((a: any) => Number(a.user_id)).filter((n: number) => Number.isFinite(n)) : [];
       const approvalChain = Array.isArray(res?.approval_chain) ? res.approval_chain : [];
-      setEdit({ id, form: {
-        title: t.title || '',
-        description: t.description || '',
-        template_id: t.template_id || '',
-        site_id: t.site_id || '',
-        assignment_type: t.assignment_type || 'single',
-        recurrence: t.recurrence || 'one_time',
-        start_date: t.start_date || '',
-        end_date: t.end_date || '',
-        due_time: t.due_time || '',
-        requires_approval: !!t.requires_approval,
-        assignees,
-        approval_chain: approvalChain,
-      } });
+      setEdit({
+        id, form: {
+          title: t.title || '',
+          description: t.description || '',
+          template_id: t.template_id || '',
+          site_id: t.site_id || '',
+          assignment_type: t.assignment_type || 'single',
+          recurrence: t.recurrence || 'one_time',
+          start_date: t.start_date || '',
+          end_date: t.end_date || '',
+          due_time: t.due_time || '',
+          requires_approval: !!t.requires_approval,
+          assignees,
+          approval_chain: approvalChain,
+        }
+      });
     } catch (e: any) {
       setError(e?.message || 'Failed to load task');
     }
@@ -166,16 +194,18 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
   const saveEdit = async () => {
     if (!edit) return;
     try {
-      await apiClient(`/tasks/${edit.id}`, { method: 'PUT', withAuth: true, body: {
-        title: edit.form.title || null,
-        template_id: edit.form.template_id ? Number(edit.form.template_id) : undefined,
-        site_id: edit.form.site_id ? Number(edit.form.site_id) : undefined,
-        assignment_type: edit.form.assignment_type,
-        recurrence: edit.form.recurrence,
-        start_date: edit.form.start_date || null,
-        end_date: edit.form.end_date || null,
-        requires_approval: !!edit.form.requires_approval,
-      } });
+      await apiClient(`/tasks/${edit.id}`, {
+        method: 'PUT', withAuth: true, body: {
+          title: edit.form.title || null,
+          template_id: edit.form.template_id ? Number(edit.form.template_id) : undefined,
+          site_id: edit.form.site_id ? Number(edit.form.site_id) : undefined,
+          assignment_type: edit.form.assignment_type,
+          recurrence: edit.form.recurrence,
+          start_date: edit.form.start_date || null,
+          end_date: edit.form.end_date || null,
+          requires_approval: !!edit.form.requires_approval,
+        }
+      });
       setEdit(null);
       await loadTasks();
     } catch (e: any) {
@@ -319,6 +349,18 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
     );
   };
 
+  if (checkingPerms) return <div className="p-8 text-center text-gray-500">Checking access...</div>;
+
+  if (!canView) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 text-center text-gray-500">
+        <Shield size={48} className="mb-4 text-gray-300" />
+        <h2 className="text-xl font-semibold text-gray-900">Access Denied</h2>
+        <p className="mt-2">You do not have permission to view task assignments.</p>
+      </div>
+    );
+  }
+
   if (viewTaskId != null) {
     return <TaskAssignmentViewer taskId={viewTaskId} onClose={() => setViewTaskId(null)} />;
   }
@@ -331,12 +373,14 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
           <p className="mt-1 text-sm text-gray-600">View per-task generated assignments and statuses.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-green-600 text-white hover:bg-green-700"
-          >
-            Generate Task
-          </button>
+          {canCreate && (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-green-600 text-white hover:bg-green-700"
+            >
+              Generate Task
+            </button>
+          )}
           {role === "org" && (
             <button
               onClick={runScheduler}
@@ -463,7 +507,7 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
                   </td>
                   <td className="px-4 py-2 text-sm"><span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">{t.status}</span></td>
                   <td className="px-4 py-2 text-sm">
-                    <ActionDropdown 
+                    <ActionDropdown
                       task={t}
                       onViewAssignments={() => setViewTaskId(t.id)}
                       onMakeActive={() => setConfirm({ type: 'status', taskId: t.id, next: 'active' })}
@@ -506,7 +550,7 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
         </div>
       )}
 
-      
+
 
       {confirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">

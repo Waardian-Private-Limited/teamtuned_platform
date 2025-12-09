@@ -37,6 +37,8 @@ type Transaction = {
     description: string;
     category?: string;
     created_at: string;
+    vendor_name?: string;
+    reference_type?: string;
 };
 
 interface WalletTransactionsProps {
@@ -358,7 +360,9 @@ export default function WalletTransactions({ walletId, walletName, siteName }: W
                                                                                     </div>
                                                                                 )}
                                                                                 <div className="text-sm text-gray-700 flex-1 truncate">
-                                                                                    {tx.description || "No description"}
+                                                                                    {tx.type === "Credit" || tx.reference_type === "TopUp"
+                                                                                        ? "Topup"
+                                                                                        : (tx.vendor_name || tx.description || "No description")}
                                                                                 </div>
                                                                             </div>
                                                                             <div className="text-sm font-semibold text-gray-900">

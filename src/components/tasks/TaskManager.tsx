@@ -2,7 +2,7 @@
 
 import React from "react";
 import { apiClient } from "@/lib/apiClient";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw, Shield } from "lucide-react";
 
 type Task = {
   id: number;
@@ -27,6 +27,12 @@ export default function TaskManager({ role }: Props) {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [showCreate, setShowCreate] = React.useState(false);
+
+  // Permissions
+  const [permissions, setPermissions] = React.useState<string[]>([]);
+  const [userRole, setUserRole] = React.useState<string | null>(null);
+  const [checkingPerms, setCheckingPerms] = React.useState(true);
+
   const [form, setForm] = React.useState<any>({
     template_id: "",
     site_id: "",
@@ -40,7 +46,27 @@ export default function TaskManager({ role }: Props) {
     requires_approval: false,
   });
 
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const session = await apiClient<any>("/auth/session", { method: "GET" });
+        if (session?.authenticated) {
+          setUserRole(session.role);
+          setPermissions(session.employee?.permissions || []);
+        }
+      } catch (_) { } finally {
+        setCheckingPerms(false);
+      }
+    })();
+  }, []);
+
+  const hasPerm = (code: string) => (permissions || []).includes(code);
+  const isOrgAdmin = (userRole || "").toLowerCase() === "orgadmin";
+  const canView = isOrgAdmin || hasPerm("TASK_VIEW") || hasPerm("TASK_TEMPLATES");
+  const canCreate = isOrgAdmin || hasPerm("TASK_CREATE") || hasPerm("TASK_TEMPLATES");
+
   const fetchTasks = async () => {
+    if (!canView && !checkingPerms) return;
     setLoading(true);
     setError(null);
     try {
@@ -53,22 +79,26 @@ export default function TaskManager({ role }: Props) {
     }
   };
 
-  React.useEffect(() => { fetchTasks(); }, []);
+  React.useEffect(() => {
+    if (!checkingPerms && canView) fetchTasks();
+  }, [checkingPerms, canView]);
 
   const saveTask = async () => {
     try {
-      await apiClient("/tasks", { method: "POST", body: {
-        template_id: Number(form.template_id),
-        site_id: form.site_id ? Number(form.site_id) : null,
-        title: form.title || null,
-        description: form.description || null,
-        assignment_type: form.assignment_type,
-        recurrence: form.recurrence,
-        start_date: form.start_date || null,
-        end_date: form.end_date || null,
-        timezone: form.timezone || "UTC",
-        requires_approval: !!form.requires_approval,
-      } });
+      await apiClient("/tasks", {
+        method: "POST", body: {
+          template_id: Number(form.template_id),
+          site_id: form.site_id ? Number(form.site_id) : null,
+          title: form.title || null,
+          description: form.description || null,
+          assignment_type: form.assignment_type,
+          recurrence: form.recurrence,
+          start_date: form.start_date || null,
+          end_date: form.end_date || null,
+          timezone: form.timezone || "UTC",
+          requires_approval: !!form.requires_approval,
+        }
+      });
       setShowCreate(false);
       setForm({ template_id: "", site_id: "", title: "", description: "", assignment_type: "single", recurrence: "one_time", start_date: "", end_date: "", timezone: "UTC", requires_approval: false });
       await fetchTasks();
@@ -76,6 +106,18 @@ export default function TaskManager({ role }: Props) {
       alert(e?.message || "Create failed");
     }
   };
+
+  if (checkingPerms) return <div className="p-4 text-sm">Checking permissions...</div>;
+
+  if (!canView) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center text-gray-500">
+        <Shield size={48} className="mb-4 text-gray-300" />
+        <h3 className="text-lg font-medium text-gray-900">Access Denied</h3>
+        <p>You do not have permission to view task templates.</p>
+      </div>
+    );
+  }
 
   return (
     <section className="p-3">
@@ -85,7 +127,7 @@ export default function TaskManager({ role }: Props) {
           <button className="px-3 py-1.5 rounded border text-black" onClick={() => fetchTasks()} aria-label="Refresh">
             <RefreshCw size={16} />
           </button>
-          {role === "org" && (
+          {(role === "org" || canCreate) && (
             <button className="px-3 py-1.5 rounded bg-black text-white flex items-center gap-1" onClick={() => setShowCreate(true)}>
               <Plus size={16} /> New Task
             </button>

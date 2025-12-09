@@ -26,9 +26,9 @@ export default function StoreSelector() {
     const [error, setError] = useState<string | null>(null);
     const { selectedStore, setSelectedStore } = useInventoryStore();
 
-    useEffect(() => {
-        fetchStores();
-    }, []);
+    // useEffect(() => {
+    //     fetchStores();
+    // }, []);
 
     const fetchStores = async () => {
         try {
@@ -121,8 +121,8 @@ export default function StoreSelector() {
                                 key={store.id}
                                 onClick={() => handleSelectStore(store)}
                                 className={`text-left p-5 rounded-lg border-2 transition-all ${isSelected
-                                        ? 'border-indigo-500 bg-indigo-50 shadow-md'
-                                        : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-sm'
+                                    ? 'border-indigo-500 bg-indigo-50 shadow-md'
+                                    : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-sm'
                                     }`}
                             >
                                 <div className="flex items-start justify-between mb-3">

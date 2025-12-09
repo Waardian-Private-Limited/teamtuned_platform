@@ -15,9 +15,33 @@ export default function InsurancePolicies() {
   const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; policy: any | null }>({ show: false, policy: null });
   const [viewDetailsPolicy, setViewDetailsPolicy] = useState<any>(null);
 
+  // Permissions
+  const [role, setRole] = React.useState<string | null>(null);
+  const [permissions, setPermissions] = React.useState<string[]>([]);
+  const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
+
   useEffect(() => {
-    fetchData();
+    checkSession();
   }, []);
+
+  const checkSession = async () => {
+    try {
+      const session = await apiClient<{
+        authenticated: boolean;
+        role: string;
+        employee?: { permissions?: string[] } | null;
+      }>("/auth/session", { method: "GET" });
+      if (session?.authenticated) {
+        setRole(session.role || null);
+        setPermissions(session.employee?.permissions || []);
+      }
+    } catch (_) { }
+  };
+
+  useEffect(() => {
+    if (role === "Employee" && !hasPerm("INS_POLICY_VIEW")) return;
+    fetchData();
+  }, [role, permissions]);
 
   const fetchData = async () => {
     try {
@@ -49,20 +73,34 @@ export default function InsurancePolicies() {
     p.policy_name.toLowerCase().includes(search.toLowerCase()) || p.provider_name?.toLowerCase().includes(search.toLowerCase())
   );
 
+  if (role === "Employee" && !hasPerm("INS_POLICY_VIEW")) {
+    return (
+      <div className="p-6">
+        <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+          <Eye className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Access Denied</h3>
+          <p className="text-gray-500">You do not have permission to view insurance policies.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-2xl font-bold text-gray-900">Insurance Policies</h1>
-        <button
-          onClick={() => {
-            setEditingPolicy(null);
-            setIsModalOpen(true);
-          }}
-          className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
-        >
-          <Plus size={20} />
-          Add Policy
-        </button>
+        {(role !== "Employee" || hasPerm("INS_POLICY_ADD")) && (
+          <button
+            onClick={() => {
+              setEditingPolicy(null);
+              setIsModalOpen(true);
+            }}
+            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            <Plus size={20} />
+            Add Policy
+          </button>
+        )}
       </div>
 
       <div className="relative max-w-md">
@@ -127,23 +165,27 @@ export default function InsurancePolicies() {
                         >
                           <Eye size={16} />
                         </button>
-                        <button
-                          onClick={() => {
-                            setEditingPolicy(policy);
-                            setIsModalOpen(true);
-                          }}
-                          className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
-                          title="Edit"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirm({ show: true, policy })}
-                          className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        {(role !== "Employee" || hasPerm("INS_POLICY_EDIT")) && (
+                          <button
+                            onClick={() => {
+                              setEditingPolicy(policy);
+                              setIsModalOpen(true);
+                            }}
+                            className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
+                            title="Edit"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                        )}
+                        {(role !== "Employee" || hasPerm("INS_POLICY_DELETE")) && (
+                          <button
+                            onClick={() => setDeleteConfirm({ show: true, policy })}
+                            className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
