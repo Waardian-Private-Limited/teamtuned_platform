@@ -3,23 +3,20 @@
 import React, { useEffect, useState } from "react";
 import { apiClient } from "@/lib/apiClient";
 import { Shield, CheckCircle, History, Download, AlertCircle } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
 
 export default function EmployeeInsurancePage() {
-    const { user } = useAuth();
     const [activeInsurance, setActiveInsurance] = useState<any[]>([]);
     const [history, setHistory] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (user?.id) {
-            fetchInsurance();
-        }
-    }, [user]);
+        fetchInsurance();
+    }, []);
 
     const fetchInsurance = async () => {
         try {
-            const data = await apiClient<any>(`/insurance/enrollment/employee/${user?.id}`, { method: "GET", withAuth: true });
+            // Fetch current user's insurance enrollment
+            const data = await apiClient<any>(`/insurance/enrollment/my-enrollment`, { method: "GET", withAuth: true });
             setActiveInsurance(data?.active || []);
             setHistory(data?.history || []);
         } catch (error) {
@@ -135,7 +132,7 @@ export default function EmployeeInsurancePage() {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${item.status === 'expired' ? 'bg-orange-100 text-orange-700' :
-                                                        item.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'
+                                                    item.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'
                                                     }`}>
                                                     {item.status}
                                                 </span>
