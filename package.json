@@ -6,7 +6,6 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint",
     "electron": "electron ./electron/main.js",
     "dev:electron": "APP_URL=http://localhost:$PORT electron ./electron/main.js",
     "dev:desktop": "PORT=${PORT:-3000} concurrently -k -n WEB,ELECTRON \"npm run dev\" \"wait-on http://localhost:$PORT && npm run dev:electron\""
@@ -29,15 +28,12 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "concurrently": "^9.2.1",
     "electron": "^31.7.7",
-    "eslint": "^9",
-    "eslint-config-next": "15.5.6",
     "tailwindcss": "^4",
     "typescript": "^5",
     "wait-on": "^7.2.0"
