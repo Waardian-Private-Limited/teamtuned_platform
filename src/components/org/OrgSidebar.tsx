@@ -71,7 +71,7 @@ export default function OrgSidebar({
     const [salaryAdvanceOpen, setSalaryAdvanceOpen] = React.useState(false);
     const [dashboardOpen, setDashboardOpen] = React.useState(false);
     const [managementOpen, setManagementOpen] = React.useState(false);
-    const [attendanceOpen, setAttendanceOpen] = React.useState(false);
+    const [attendanceOpen, setAttendanceOpen] = React.useState(true);
 
     const hasFeature = (code: string) => {
         // If undefined, assume true? Or strict? 
@@ -128,9 +128,9 @@ export default function OrgSidebar({
             )}
             {!isCollapsed && (
                 isOpen ? (
-                    <ChevronDown size={14} className="text-gray-500 group-hover:text-gray-700" />
+                    <ChevronDown size={14} className="text-gray-700 group-hover:text-black" />
                 ) : (
-                    <ChevronRight size={14} className="text-gray-500 group-hover:text-gray-700" />
+                    <ChevronRight size={14} className="text-gray-700 group-hover:text-black" />
                 )
             )}
         </button>
@@ -232,6 +232,24 @@ export default function OrgSidebar({
                                         href="/org-admin/roles"
                                         active={pathname?.startsWith("/org-admin/roles") || false}
                                     />
+                                    <Item
+                                        icon={ClipboardList}
+                                        label="Policies"
+                                        href="/org-admin/attendance-rules"
+                                        active={pathname?.startsWith("/org-admin/attendance-rules") || false}
+                                    />
+                                    <Item
+                                        icon={Settings}
+                                        label="Configuration"
+                                        href="/org-admin/attendance-config"
+                                        active={pathname?.startsWith("/org-admin/attendance-config") || false}
+                                    />
+                                    <Item
+                                        icon={Calendar}
+                                        label="Holiday Calendar"
+                                        href="/org-admin/holiday-calendar"
+                                        active={pathname?.startsWith("/org-admin/holiday-calendar") || false}
+                                    />
                                 </div>
                             </div>
                         )}
@@ -283,21 +301,15 @@ export default function OrgSidebar({
                                     />
                                     <Item
                                         icon={ClipboardList}
-                                        label="Policies"
-                                        href="/org-admin/attendance-rules"
-                                        active={pathname?.startsWith("/org-admin/attendance-rules") || false}
+                                        label="Attendance Logs"
+                                        href="/org-admin/attendance"
+                                        active={pathname === "/org-admin/attendance" || (pathname?.startsWith("/org-admin/attendance") && !pathname?.includes("attendance-dashboard") && !pathname?.includes("attendance-rules") && !pathname?.includes("attendance-config") && !pathname?.includes("sessions")) || false}
                                     />
                                     <Item
-                                        icon={Settings}
-                                        label="Configuration"
-                                        href="/org-admin/attendance-config"
-                                        active={pathname?.startsWith("/org-admin/attendance-config") || false}
-                                    />
-                                    <Item
-                                        icon={Calendar}
-                                        label="Holiday Calendar"
-                                        href="/org-admin/holiday-calendar"
-                                        active={pathname?.startsWith("/org-admin/holiday-calendar") || false}
+                                        icon={DollarSign}
+                                        label="Payroll"
+                                        href="/org-admin/payroll"
+                                        active={pathname?.startsWith("/org-admin/payroll") || false}
                                     />
                                 </div>
                             </div>
@@ -329,13 +341,6 @@ export default function OrgSidebar({
                                         label="Employee Sites"
                                         href="/org-admin/employee-sites"
                                         active={pathname?.startsWith("/org-admin/employee-sites") || false}
-                                    />
-                                    {/* Attendance items moved to Attendance Category */}
-                                    <Item
-                                        icon={DollarSign}
-                                        label="Payroll"
-                                        href="/org-admin/payroll"
-                                        active={pathname?.startsWith("/org-admin/payroll") || false}
                                     />
 
                                 </div>

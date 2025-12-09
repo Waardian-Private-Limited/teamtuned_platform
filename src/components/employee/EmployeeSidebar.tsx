@@ -70,7 +70,7 @@ export default function EmployeeSidebar({
   const [insuranceOpen, setInsuranceOpen] = React.useState(false);
   const [salaryAdvanceOpen, setSalaryAdvanceOpen] = React.useState(false);
   const [managementOpen, setManagementOpen] = React.useState(false);
-  const [attendanceOpen, setAttendanceOpen] = React.useState(false);
+  const [attendanceOpen, setAttendanceOpen] = React.useState(true);
   const [otherOpen, setOtherOpen] = React.useState(false);
 
   const hasFeature = (code: string) => {
@@ -130,9 +130,9 @@ export default function EmployeeSidebar({
       )}
       {!isCollapsed && (
         isOpen ? (
-          <ChevronDown size={14} className="text-gray-500 group-hover:text-gray-700" />
+          <ChevronDown size={14} className="text-gray-700 group-hover:text-black" />
         ) : (
-          <ChevronRight size={14} className="text-gray-500 group-hover:text-gray-700" />
+          <ChevronRight size={14} className="text-gray-700 group-hover:text-black" />
         )
       )}
     </button>
@@ -325,11 +325,30 @@ export default function EmployeeSidebar({
                       active={pathname?.startsWith("/employee/roles") || false}
                     />
                   )}
-                  {/* Policies and Config kept in Main or moved? User said 'all attendance related thing'. 
-                     I will move "Policies" (Attendance Rules), "Attendance Config", "Holiday Calendar" to Attendance section if requested. 
-                     "al attendance related thimg" -> Probably safer to put operational items. Config is structure. 
-                     I'll move them to Attendance section to be fully compliant with "all".
-                  */}
+                  {canViewPolicies && (
+                    <Item
+                      icon={ClipboardList}
+                      label="Policies"
+                      href="/employee/attendance-rules"
+                      active={pathname?.startsWith("/employee/attendance-rules") || false}
+                    />
+                  )}
+                  {canViewAttendanceConfig && (
+                    <Item
+                      icon={Settings}
+                      label="Configuration"
+                      href="/employee/attendance-config"
+                      active={pathname?.startsWith("/employee/attendance-config") || false}
+                    />
+                  )}
+                  {canViewHoliday && (
+                    <Item
+                      icon={Calendar}
+                      label="Holiday Calendar"
+                      href="/employee/holiday-calendar"
+                      active={pathname?.startsWith("/employee/holiday-calendar") || false}
+                    />
+                  )}
                 </div>
               </div>
             )}
@@ -360,7 +379,7 @@ export default function EmployeeSidebar({
                   {canViewEmployeeAttendance && (
                     <Item
                       icon={ClipboardList}
-                      label="Logs"
+                      label="Attendance Logs"
                       href="/employee/attendance"
                       active={pathname === "/employee/attendance" || (pathname?.startsWith("/employee/attendance") && !pathname?.includes("attendance-dashboard") && !pathname?.includes("sessions")) || false}
                     />
@@ -397,28 +416,20 @@ export default function EmployeeSidebar({
                       active={pathname?.startsWith("/employee/leave-requests") || false}
                     />
                   )}
-                  {canViewPolicies && (
+                  {canViewEmployeeAttendance && (
                     <Item
-                      icon={FileText}
-                      label="Policies"
-                      href="/employee/attendance-rules"
-                      active={pathname?.startsWith("/employee/attendance-rules") || false}
+                      icon={ClipboardList}
+                      label="Attendance Logs"
+                      href="/employee/attendance"
+                      active={pathname === "/employee/attendance" || (pathname?.startsWith("/employee/attendance") && !pathname?.includes("attendance-dashboard") && !pathname?.includes("sessions")) || false}
                     />
                   )}
-                  {canViewAttendanceConfig && (
+                  {showPayroll && (
                     <Item
-                      icon={Settings}
-                      label="Configuration"
-                      href="/employee/attendance-config"
-                      active={pathname?.startsWith("/employee/attendance-config") || false}
-                    />
-                  )}
-                  {canViewHoliday && (
-                    <Item
-                      icon={Calendar}
-                      label="Holiday Calendar"
-                      href="/employee/holiday-calendar"
-                      active={pathname?.startsWith("/employee/holiday-calendar") || false}
+                      icon={DollarSign}
+                      label="Payroll"
+                      href="/employee/payroll"
+                      active={pathname?.startsWith("/employee/payroll") || false}
                     />
                   )}
                 </div>
@@ -454,15 +465,6 @@ export default function EmployeeSidebar({
                       label="Employee Sites"
                       href="/employee/employee-sites"
                       active={pathname?.startsWith("/employee/employee-sites") || false}
-                    />
-                  )}
-                  {/* Attendance items moved to Attendance Category */}
-                  {showPayroll && (
-                    <Item
-                      icon={DollarSign}
-                      label="Payroll"
-                      href="/employee/payroll"
-                      active={pathname?.startsWith("/employee/payroll") || false}
                     />
                   )}
                   {canViewInsurance && (
