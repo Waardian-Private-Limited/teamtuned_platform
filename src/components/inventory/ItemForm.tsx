@@ -81,7 +81,7 @@ export default function ItemForm({ itemId }: ItemFormProps) {
             const res = await apiClient<{ categories: Category[] }>('/inventory/categories', {
                 method: 'GET',
                 withAuth: true,
-                params: { active: 'true', pageSize: 100 }
+                params: { active: 'true', pageSize: '100' }
             });
             setCategories(res?.categories || []);
         } catch (err) {
@@ -94,7 +94,7 @@ export default function ItemForm({ itemId }: ItemFormProps) {
             const res = await apiClient<{ subcategories: Subcategory[] }>('/inventory/subcategories', {
                 method: 'GET',
                 withAuth: true,
-                params: { active: 'true', pageSize: 200 }
+                params: { active: 'true', pageSize: '200' }
             });
             setSubcategories(res?.subcategories || []);
         } catch (err) {
@@ -107,7 +107,7 @@ export default function ItemForm({ itemId }: ItemFormProps) {
             const res = await apiClient<{ vendors: Vendor[] }>('/vendors', {
                 method: 'GET',
                 withAuth: true,
-                params: { active: 'true', vendor_status: 'approved', pageSize: 100 }
+                params: { active: 'true', vendor_status: 'approved', pageSize: '100' }
             });
             setVendors(res?.vendors || []);
         } catch (err) {
