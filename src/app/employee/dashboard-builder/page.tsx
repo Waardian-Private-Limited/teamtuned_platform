@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { Suspense } from "react";
 import DashboardBuilder from "@/components/tasks/DashboardBuilder";
 import { useRouter } from "next/navigation";
 
@@ -9,9 +9,11 @@ export default function EmployeeDashboardBuilderPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <DashboardBuilder 
-        onBack={() => router.push('/employee/task-dashboard')}
-      />
+      <Suspense fallback={<div className="p-6">Loading dashboard builder...</div>}>
+        <DashboardBuilder
+          onBack={() => router.push('/employee/task-dashboard')}
+        />
+      </Suspense>
     </div>
   );
 }

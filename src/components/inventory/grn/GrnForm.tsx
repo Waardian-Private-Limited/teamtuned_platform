@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { apiClient } from "@/lib/apiClient";
 import { useInventoryStore } from "../InventoryStoreContext";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { ArrowLeft, Plus, Trash2, Save, Send, Search } from "lucide-react";
 import Link from "next/link";
 import BatchEntryModal from "./BatchEntryModal";
@@ -55,6 +55,7 @@ interface Vendor {
 
 export default function GrnForm() {
     const router = useRouter();
+    const pathname = usePathname();
     const { selectedStore } = useInventoryStore();
 
     // Form state
@@ -85,63 +86,63 @@ export default function GrnForm() {
     }, [grnType]);
 
     const fetchVendors = async () => {
-    try {
-      const res = await apiClient<{ vendors: Vendor[] }>(
-        '/vendors',
-        { method: 'GET', withAuth: true }
-      );
-      setVendors(res?.vendors || []);
-    } catch (err) {
-      console.error("Failed to fetch vendors:", err);
-    }
-  };
+        try {
+            const res = await apiClient<{ vendors: Vendor[] }>(
+                '/vendors',
+                { method: 'GET', withAuth: true }
+            );
+            setVendors(res?.vendors || []);
+        } catch (err) {
+            console.error("Failed to fetch vendors:", err);
+        }
+    };
 
-  const addItem = () => {
-    setCurrentItemId(Date.now().toString());
-    setItemSearchModalOpen(true);
-  };
+    const addItem = () => {
+        setCurrentItemId(Date.now().toString());
+        setItemSearchModalOpen(true);
+    };
 
-  const selectItem = (selectedItem: InventoryItem) => {
-    if (currentItemId) {
-      // Check if item already exists
-      if (items.some(item => item.itemId === selectedItem.id)) {
-        alert("This item is already added");
-        return;
-      }
+    const selectItem = (selectedItem: InventoryItem) => {
+        if (currentItemId) {
+            // Check if item already exists
+            if (items.some(item => item.itemId === selectedItem.id)) {
+                alert("This item is already added");
+                return;
+            }
 
-      const newItem: Item = {
-        id: currentItemId,
-        itemId: selectedItem.id,
-        itemName: selectedItem.item_name,
-        itemCode: selectedItem.item_code,
-        uom: selectedItem.uom,
-        qtyOrdered: null,
-        qtyReceived: 0,
-        qtyDamaged: 0,
-        qtyMissing: 0,
-        isBatchTracked: selectedItem.is_batch_tracked,
-        isSerialTracked: selectedItem.is_serial_tracked,
-        batches: [],
-        serials: []
-      };
-      setItems([...items, newItem]);
-    }
-    setItemSearchModalOpen(false);
-    setCurrentItemId(null);
-  };
+            const newItem: Item = {
+                id: currentItemId,
+                itemId: selectedItem.id,
+                itemName: selectedItem.item_name,
+                itemCode: selectedItem.item_code,
+                uom: selectedItem.uom,
+                qtyOrdered: null,
+                qtyReceived: 0,
+                qtyDamaged: 0,
+                qtyMissing: 0,
+                isBatchTracked: selectedItem.is_batch_tracked,
+                isSerialTracked: selectedItem.is_serial_tracked,
+                batches: [],
+                serials: []
+            };
+            setItems([...items, newItem]);
+        }
+        setItemSearchModalOpen(false);
+        setCurrentItemId(null);
+    };
 
-  const removeItem = (id: string) => {
-    setItems(items.filter(item => item.id !== id));
-  };
+    const removeItem = (id: string) => {
+        setItems(items.filter(item => item.id !== id));
+    };
 
-  const updateItem = (id: string, field: string, value: any) => {
-    setItems(items.map(item => {
-      if (item.id === id) {
-        return { ...item, [field]: value };
-      }
-      return item;
-    }));
-  };
+    const updateItem = (id: string, field: string, value: any) => {
+        setItems(items.map(item => {
+            if (item.id === id) {
+                return { ...item, [field]: value };
+            }
+            return item;
+        }));
+    };
 
     const openBatchModal = (itemId: string) => {
         setCurrentItemId(itemId);
@@ -196,11 +197,11 @@ export default function GrnForm() {
                 return false;
             }
             if (item.isBatchTracked && item.batches.length === 0) {
-                alert(`Please add batch details for ${ item.itemName }`);
+                alert(`Please add batch details for ${item.itemName}`);
                 return false;
             }
             if (item.isSerialTracked && item.serials.length === 0) {
-                alert(`Please add serial numbers for ${ item.itemName }`);
+                alert(`Please add serial numbers for ${item.itemName}`);
                 return false;
             }
             // Validate batch quantities
@@ -208,7 +209,7 @@ export default function GrnForm() {
                 const totalBatchQty = item.batches.reduce((sum, b) => sum + Number(b.qty), 0);
                 const expectedQty = Number(item.qtyReceived) - Number(item.qtyDamaged);
                 if (Math.abs(totalBatchQty - expectedQty) > 0.01) {
-                    alert(`Batch quantities for ${ item.itemName } must equal ${ expectedQty } `);
+                    alert(`Batch quantities for ${item.itemName} must equal ${expectedQty} `);
                     return false;
                 }
             }
@@ -216,7 +217,7 @@ export default function GrnForm() {
             if (item.isSerialTracked) {
                 const expectedCount = Number(item.qtyReceived) - Number(item.qtyDamaged);
                 if (item.serials.length !== expectedCount) {
-                    alert(`Serial count for ${ item.itemName } must equal ${ expectedCount } `);
+                    alert(`Serial count for ${item.itemName} must equal ${expectedCount} `);
                     return false;
                 }
             }
@@ -271,7 +272,7 @@ export default function GrnForm() {
             );
 
             alert(status === 'submitted' ? 'GRN submitted successfully!' : 'GRN saved as draft');
-            router.push(`${ getBasePath() } /inventory/grn / ${ res.grnId } `);
+            router.push(`${getBasePath()} /inventory/grn / ${res.grnId} `);
         } catch (err: any) {
             console.error("Failed to create GRN:", err);
             alert("Failed to create GRN: " + (err.message || 'Unknown error'));
@@ -281,7 +282,7 @@ export default function GrnForm() {
     };
 
     const getBasePath = () => {
-        return window.location.pathname.includes('/org-admin') ? '/org-admin' : '/employee';
+        return pathname.includes('/org-admin') ? '/org-admin' : '/employee';
     };
 
     const currentItem = currentItemId ? items.find(i => i.id === currentItemId) : null;
@@ -291,7 +292,7 @@ export default function GrnForm() {
             {/* Header */}
             <div className="mb-6">
                 <Link
-                    href={`${ getBasePath() } /inventory/grn`}
+                    href={`${getBasePath()} /inventory/grn`}
                     className="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-700 mb-4"
                 >
                     <ArrowLeft size={20} />

@@ -1,10 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import FormBuilder from "@/components/formbuilder/FormBuilder";
 
-export default function EmployeeFormBuilderPage() {
+function FormBuilderContent() {
   const router = useRouter();
   const params = useSearchParams();
   const templateId = params.get("id") || undefined;
@@ -19,7 +19,15 @@ export default function EmployeeFormBuilderPage() {
       onBack={() => {
         router.push(`/employee/tasks`);
       }}
-      onDirtyChange={() => {}}
+      onDirtyChange={() => { }}
     />
+  );
+}
+
+export default function EmployeeFormBuilderPage() {
+  return (
+    <Suspense fallback={<div className="p-6">Loading form builder...</div>}>
+      <FormBuilderContent />
+    </Suspense>
   );
 }

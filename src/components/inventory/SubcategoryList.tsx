@@ -67,7 +67,7 @@ export default function SubcategoryList() {
             const res = await apiClient<{ categories: Category[] }>('/inventory/categories', {
                 method: 'GET',
                 withAuth: true,
-                params: { active: 'true', pageSize: 100 }
+                params: { active: 'true', pageSize: '100' }
             });
             setCategories(res?.categories || []);
         } catch (err) {

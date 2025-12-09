@@ -4,7 +4,7 @@ import { apiClient } from "@/lib/apiClient";
 import { FileText, Search, ChevronLeft, ChevronRight, Store, Eye, Plus } from "lucide-react";
 import { useInventoryStore } from "../InventoryStoreContext";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
 interface GrnItem {
     id: number;
@@ -43,6 +43,7 @@ const STATUS_COLORS = {
 
 export default function GrnList() {
     const router = useRouter();
+    const pathname = usePathname();
     const { selectedStore } = useInventoryStore();
     const [grns, setGrns] = useState<GrnItem[]>([]);
     const [pagination, setPagination] = useState<Pagination>({
@@ -121,7 +122,7 @@ export default function GrnList() {
     };
 
     const getBasePath = () => {
-        return window.location.pathname.includes('/org-admin') ? '/org-admin' : '/employee';
+        return pathname.includes('/org-admin') ? '/org-admin' : '/employee';
     };
 
     return (

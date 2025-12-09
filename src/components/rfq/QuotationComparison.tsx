@@ -248,7 +248,7 @@ export default function QuotationComparison() {
                                         </td>
                                         {submittedVendors.map((vendor) => (
                                             <td key={vendor.vendor_id} className="px-4 py-3 text-center text-blue-600">
-                                                ₹{parseFloat(vendor.quotation?.total_value || "0").toFixed(2)}
+                                                ₹{Number(vendor.quotation?.total_value || 0).toFixed(2)}
                                             </td>
                                         ))}
                                     </tr>
@@ -295,7 +295,7 @@ export default function QuotationComparison() {
                                     {submittedVendors.map((vendor) => (
                                         <option key={vendor.vendor_id} value={vendor.vendor_id}>
                                             {vendor.vendor_name} - ₹
-                                            {parseFloat(vendor.quotation?.total_value || "0").toFixed(2)}
+                                            {Number(vendor.quotation?.total_value || 0).toFixed(2)}
                                         </option>
                                     ))}
                                 </select>

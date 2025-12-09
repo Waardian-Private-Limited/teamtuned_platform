@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { apiClient } from "@/lib/apiClient";
 import { FileText, ArrowLeft, Download, Package, Calendar, User } from "lucide-react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, usePathname } from "next/navigation";
 
 interface GrnData {
     id: number;
@@ -60,14 +60,16 @@ const GRN_TYPE_COLORS: any = {
 export default function GrnView() {
     const params = useParams();
     const router = useRouter();
+    const pathname = usePathname();
+    const grnId = params?.id as string;
     const [grn, setGrn] = useState<GrnData | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (params.id) {
-            fetchGrn(Number(params.id));
+        if (grnId) {
+            fetchGrn(Number(grnId));
         }
-    }, [params.id]);
+    }, [grnId]);
 
     const fetchGrn = async (id: number) => {
         setLoading(true);
@@ -93,7 +95,7 @@ export default function GrnView() {
     };
 
     const getBasePath = () => {
-        return window.location.pathname.includes('/org-admin') ? '/org-admin' : '/employee';
+        return pathname.includes('/org-admin') ? '/org-admin' : '/employee';
     };
 
     if (loading) {
