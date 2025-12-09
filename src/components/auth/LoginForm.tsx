@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { Mail, Lock, Smartphone, Building2 } from 'lucide-react';
 import { login, verifyOtp, checkAccounts, loginWithAccount, sendWebOtp, Account } from '@/lib/apiClient';
 import { useRouter } from 'next/navigation';
@@ -296,16 +297,19 @@ export default function LoginFormTabs() {
         >
           With Password
         </button>
-        <button
-          onClick={() => handleTabSwitch('otp')}
-          className={`px-6 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${tab === 'otp'
-            ? 'bg-white text-gray-900 shadow-sm'
-            : 'text-gray-500 hover:text-gray-700'
-            }`}
-          disabled={isLoading}
-        >
-          With OTP
-        </button>
+        <div className="relative group">
+          <button
+            onClick={() => handleTabSwitch('otp')}
+            className="px-6 py-2 rounded-lg text-sm font-medium transition-all duration-200 text-gray-400 cursor-not-allowed opacity-60"
+            disabled={true}
+          >
+            With OTP
+          </button>
+          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none">
+            Coming Soon
+            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
+          </div>
+        </div>
       </div>
 
       {/* Step Content */}
@@ -433,6 +437,18 @@ const AccountOtpStep = ({ selectedAccount, onSubmit, onBack, error, isLoading }:
 
 const OtpVerifyStep = ({ otp, setOtp, onSubmit, onResend, onBack, error, isLoading }: { otp: string, setOtp: (v: string) => void, onSubmit: (e: React.FormEvent) => void, onResend: () => void, onBack: () => void, error: string, isLoading: boolean }) => (
   <form className="space-y-5" onSubmit={onSubmit}>
+    <div className="flex justify-center mb-4">
+      <Image
+        src="/assets/LogoBlackText.png"
+        alt="TeamTuned Logo"
+        width={120}
+        height={30}
+        className="h-8 w-auto object-contain"
+        priority
+        quality={100}
+      />
+    </div>
+    <h3 className="text-lg font-semibold text-gray-900 text-center">Verify OTP</h3>
     {error && <ErrorBox message={error} />}
     <InputWithIcon label="OTP" icon={<Smartphone className="w-5 h-5 text-gray-400" />} type="tel" placeholder="Enter 6-digit OTP" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} disabled={isLoading} />
     <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white py-3 rounded-xl">{isLoading ? 'Verifying...' : 'Verify OTP'}</button>

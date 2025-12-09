@@ -87,9 +87,16 @@ export default function LoginPage() {
 
         {/* Right Panel */}
         <div className="px-6 py-8 sm:p-12 border-t md:border-t-0 md:border-l border-gray-100 flex flex-col">
-          <div className="flex items-center justify-center gap-3 mb-8">
-            <Image src="/assets/teamTunedLogos.png" alt="Logo" width={40} height={40} className="w-10 h-10" />
-            <h1 className="text-xl font-bold text-gray-800">TeamTuned</h1>
+          <div className="flex items-center justify-center mb-8">
+            <Image
+              src="/assets/LogoBlackText.png"
+              alt="TeamTuned Logo"
+              width={300}
+              height={100}
+              className="h-20 w-auto object-contain"
+              priority
+              quality={100}
+            />
           </div>
           <LoginFormTabs />
         </div>
