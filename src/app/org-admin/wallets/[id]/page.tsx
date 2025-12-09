@@ -1,5 +1,6 @@
 import WalletDetails from "@/components/org/WalletDetails";
 
-export default function WalletDetailsPage({ params }: { params: { id: string } }) {
-    return <WalletDetails walletId={params.id} />;
+export default async function WalletDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
+    return <WalletDetails walletId={id} />;
 }
