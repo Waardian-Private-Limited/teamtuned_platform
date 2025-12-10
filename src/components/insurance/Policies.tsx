@@ -5,7 +5,9 @@ import { apiClient } from "@/lib/apiClient";
 import { showSuccess, showError } from "@/lib/toast";
 import { Plus, Search, FileText, Edit2, Trash2, CheckCircle, XCircle, X, AlertTriangle, Eye } from "lucide-react";
 
+import { useAuth } from "@/context/AuthContext";
 export default function InsurancePolicies() {
+  const { role, permissions, user, employee } = useAuth();
   const [policies, setPolicies] = useState<any[]>([]);
   const [providers, setProviders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -16,27 +18,9 @@ export default function InsurancePolicies() {
   const [viewDetailsPolicy, setViewDetailsPolicy] = useState<any>(null);
 
   // Permissions
-  const [role, setRole] = React.useState<string | null>(null);
-  const [permissions, setPermissions] = React.useState<string[]>([]);
   const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
 
-  useEffect(() => {
-    checkSession();
-  }, []);
 
-  const checkSession = async () => {
-    try {
-      const session = await apiClient<{
-        authenticated: boolean;
-        role: string;
-        employee?: { permissions?: string[] } | null;
-      }>("/auth/session", { method: "GET" });
-      if (session?.authenticated) {
-        setRole(session.role || null);
-        setPermissions(session.employee?.permissions || []);
-      }
-    } catch (_) { }
-  };
 
   useEffect(() => {
     if (role === "Employee" && !hasPerm("INS_POLICY_VIEW")) return;

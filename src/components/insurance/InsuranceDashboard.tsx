@@ -17,6 +17,7 @@ import {
 import Link from "next/link";
 import ReactDOM from "react-dom";
 
+import { useAuth } from "@/context/AuthContext";
 type DashboardStats = {
     total_providers: number;
     total_policies: number;
@@ -40,21 +41,23 @@ type ExpiringPolicy = {
 };
 
 export default function InsuranceDashboard() {
+    const { role, employee, permissions } = useAuth();
     const [loading, setLoading] = useState(false);
     const [stats, setStats] = useState<DashboardStats | null>(null);
-    const [expiringPolicies, setExpiringPolicies] = useState<ExpiringPolicy[]>([]);
-    const [role, setRole] = useState<string | null>(null);
-    const [modal, setModal] = useState<{ type: string | null } | null>(null);
+    const [expiringPolicies, setExpiringPolicies] = useState<ExpiringPolicy[]>([]); const [modal, setModal] = useState<{ type: string | null } | null>(null);
     const [modalData, setModalData] = useState<any[]>([]);
 
     const isOrgAdmin = (role || "").toLowerCase() === "orgadmin";
 
+
+
     useEffect(() => {
         (async () => {
             try {
-                const session = await apiClient<{ authenticated: boolean; role?: string }>("/auth/session", { method: "GET" });
+                // Session fetch removed (using useAuth)
+                const session = { authenticated: true, role: role, employee: { permissions } };
                 if (session?.authenticated) {
-                    setRole(session.role || null);
+                    // setRole(session.role || null);
                 }
             } catch { }
         })();

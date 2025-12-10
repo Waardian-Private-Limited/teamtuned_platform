@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { apiClient } from "@/lib/apiClient";
+import { useAuth } from "@/context/AuthContext";
 import {
   Settings,
   CheckCircle,
@@ -61,6 +62,7 @@ const OPTIONS = [
 ];
 
 export default function AttendanceConfig() {
+  const { role, permissions, organization, employee } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -70,8 +72,7 @@ export default function AttendanceConfig() {
   const [selected, setSelected] = useState<string>(OPTIONS[0].key);
   const [notes, setNotes] = useState<string>("");
   const [editMode, setEditMode] = useState<boolean>(false);
-  const [role, setRole] = useState<string | null>(null);
-  const [permissions, setPermissions] = useState<string[]>([]);
+
   const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
 
   const isOrgAdmin = (role || "") === "OrgAdmin";
@@ -80,18 +81,17 @@ export default function AttendanceConfig() {
   const canEdit = isOrgAdmin || hasPerm("ATTENDCONFIG_EDIT");
   const canDelete = isOrgAdmin || hasPerm("ATTENDCONFIG_DELETE");
 
+
+
   useEffect(() => {
     // Fetch session to determine role and employee permissions
     (async () => {
       try {
-        const session = await apiClient<{
-          authenticated: boolean;
-          role: string;
-          employee?: { permissions?: string[] } | null;
-        }>("/auth/session", { method: "GET" });
+        // Session fetch removed (using useAuth)
+        const session = { authenticated: true, role: role, employee: { permissions } };
         if (session?.authenticated) {
-          setRole(session.role || null);
-          setPermissions(session.employee?.permissions || []);
+          // setRole(session.role || null);
+          // setPermissions(session.employee?.permissions || []);
         }
       } catch (_) { }
     })();

@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 
+import { useAuth } from "@/context/AuthContext";
 export type Department = {
   id: number;
   name: string;
@@ -94,6 +95,7 @@ const DepartmentFormFields = React.memo(({
 DepartmentFormFields.displayName = 'DepartmentFormFields';
 
 export default function DepartmentsManager() {
+  const { role, permissions, user, organization, employee } = useAuth();
   const [departments, setDepartments] = React.useState<Department[]>([]);
   const [loading, setLoading] = React.useState<boolean>(true);
   const [error, setError] = React.useState<string>("");
@@ -128,14 +130,17 @@ export default function DepartmentsManager() {
   const [employees, setEmployees] = React.useState<any[]>([]);
   const [employeesLoading, setEmployeesLoading] = React.useState<boolean>(false);
 
+
   // Permissions
-  const [role, setRole] = React.useState<string | null>(null);
-  const [permissions, setPermissions] = React.useState<string[]>([]);
   const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
 
   const onChange = React.useCallback((key: keyof Department, value: any) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   }, []);
+
+  // // const { role, permissions, user, organization } = useAuth();
+
+
 
   const fetchDepartments = async () => {
     if (role === "Employee" && !hasPerm("DEPT_VIEW")) {
@@ -173,14 +178,11 @@ export default function DepartmentsManager() {
   React.useEffect(() => {
     (async () => {
       try {
-        const session = await apiClient<{
-          authenticated: boolean;
-          role: string;
-          employee?: { permissions?: string[] } | null;
-        }>("/auth/session", { method: "GET" });
+        // Session fetch removed (using useAuth)
+        const session = { authenticated: true, role: role, employee: { permissions } };
         if (session?.authenticated) {
-          setRole(session.role || null);
-          setPermissions(session.employee?.permissions || []);
+          // setRole(session.role || null);
+          // setPermissions(session.employee?.permissions || []);
         }
       } catch (_) { }
     })();
@@ -242,7 +244,8 @@ export default function DepartmentsManager() {
     try {
       let createdBy: number | undefined = undefined;
       try {
-        const session = await apiClient<{ authenticated: boolean; user?: { id: number } }>("/auth/session", { method: "GET" });
+        // Session fetch removed (using useAuth)
+        const session = { authenticated: true, role: role, user: user, employee: { permissions } };
         if (session?.authenticated && session?.user?.id) createdBy = session.user.id;
       } catch { }
 

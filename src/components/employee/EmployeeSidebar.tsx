@@ -39,6 +39,7 @@ import {
   Cog,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
+import { useAuth } from "@/context/AuthContext";
 
 export default function EmployeeSidebar({
   isCollapsed,
@@ -73,16 +74,26 @@ export default function EmployeeSidebar({
   const [attendanceOpen, setAttendanceOpen] = React.useState(true);
   const [otherOpen, setOtherOpen] = React.useState(false);
 
+  // Use AuthContext for immediate updates, fallback to props if context is initial loading (though context is preferred)
+  const { permissions: authPermissions, role: authRole, organization } = useAuth();
+
+  // Prefer context values over props for immediate reactivity after login
+  const effectivePermissions = authPermissions && authPermissions.length > 0 ? authPermissions : (permissions || []);
+  const effectiveRole = authRole || role;
+  // Features might need to be fetched or passed. For now, we'll use props or if available in context (AuthContext doesn't have features explicitly in interface but we can add or assume props are okay for features if not dynamic per user)
+  // Actually AuthContext has organization which might have features, or we rely on props for features. 
+  // checking AuthContext definition... organization has features?
+
   const hasFeature = (code: string) => {
     if (!features) return false;
     return features.includes(code);
   };
 
   const hasAnyPerm = (codes: string[]) => {
-    const list = (permissions || []).map((p) => (p || "").toUpperCase());
+    const list = (effectivePermissions || []).map((p) => (p || "").toUpperCase());
     return codes.some((c) => list.includes(c.toUpperCase()));
   };
-  const isOrgAdmin = (role || "").toLowerCase() === "orgadmin";
+  const isOrgAdmin = (effectiveRole || "").toLowerCase() === "orgadmin";
 
   const Item = ({
     icon: Icon,

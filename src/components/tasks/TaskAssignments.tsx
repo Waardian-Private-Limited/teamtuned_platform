@@ -7,6 +7,7 @@ import { Loader2, AlertCircle, Calendar, RefreshCw, MoreVertical, Eye, Edit2, To
 import TaskAssignmentViewer from "@/components/tasks/TaskAssignmentViewer";
 import TaskCreate from "@/components/tasks/TaskCreate";
 
+import { useAuth } from "@/context/AuthContext";
 type Task = {
   id: number;
   title?: string | null;
@@ -52,24 +53,10 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
   const [total, setTotal] = React.useState<number>(0);
   const [hasNext, setHasNext] = React.useState<boolean>(false);
 
-  // Permission state
-  const [userRole, setUserRole] = React.useState<string | null>(null);
-  const [permissions, setPermissions] = React.useState<string[]>([]);
-  const [checkingPerms, setCheckingPerms] = React.useState(true);
-
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const session = await apiClient<any>("/auth/session", { method: "GET" });
-        if (session?.authenticated) {
-          setUserRole(session.role);
-          setPermissions(session.employee?.permissions || []);
-        }
-      } catch (_) { } finally {
-        setCheckingPerms(false);
-      }
-    })();
-  }, []);
+  // Use centralized auth
+  const { role: authRole, permissions, loading: authLoading } = useAuth();
+  const userRole = authRole;
+  const checkingPerms = authLoading;
 
   const isOrgAdmin = (userRole || "").toLowerCase() === "orgadmin";
   const canView = isOrgAdmin || permissions.some(p => ["TASK_VIEW", "TASK_ASSIGN"].includes(p));
@@ -131,6 +118,8 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
       } catch { }
     })();
   }, []);
+
+
 
   const runScheduler = async () => {
     setRunning(true);

@@ -7,8 +7,11 @@ import { Clock, MapPin, CheckCircle, XCircle, Coffee, Briefcase, Filter, Chevron
 import { format, parseISO, differenceInMinutes } from 'date-fns';
 import { toast } from 'react-hot-toast';
 
+import { useAuth } from "@/context/AuthContext";
 function useCountUp(target: number, duration = 800) {
     const [v, setV] = useState(0);
+    const { role, permissions, user, employee } = useAuth();
+
     useEffect(() => {
         let raf: number;
         const start = performance.now();
@@ -34,8 +37,7 @@ type Props = {
 
 export default function SessionRequests({ defaultStatus = 'Pending', defaultHQ = true, showHQToggle = true, externalControl = false, hqMode: extHq, selectedSiteId: extSiteId }: Props) {
     // Permissions
-    const [role, setRole] = useState<string | null>(null);
-    const [permissions, setPermissions] = useState<string[]>([]);
+    const { role, permissions } = useAuth();
     const isEmployee = (role || "").toLowerCase() === "employee";
     const isOrgAdmin = (role || "").toLowerCase() === "orgadmin";
     const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
@@ -77,10 +79,11 @@ export default function SessionRequests({ defaultStatus = 'Pending', defaultHQ =
     useEffect(() => {
         (async () => {
             try {
-                const session = await apiClient<{ authenticated: boolean; role?: string; employee?: { permissions?: string[] } | null }>("/auth/session", { method: "GET" });
+                // Session fetch removed (using useAuth)
+                const session = { authenticated: true, role: role, employee: { permissions } };
                 if (session?.authenticated) {
-                    setRole((session.role || null) as string | null);
-                    setPermissions(session.employee?.permissions || []);
+                    // setRole((session.role || null) as string | null);
+                    // setPermissions(session.employee?.permissions || []);
                     if ((session.role || '').toLowerCase() === 'orgadmin') {
                         setHqMode(true);
                     }

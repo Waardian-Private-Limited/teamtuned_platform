@@ -5,6 +5,7 @@ import { apiClient } from "@/lib/apiClient";
 import { Building2, Search, Plus, Edit, Eye, Trash2, RefreshCw } from "lucide-react";
 import Link from "next/link";
 
+import { useAuth } from "@/context/AuthContext";
 type Provider = {
     id: number;
     name: string;
@@ -17,21 +18,24 @@ type Provider = {
 };
 
 export default function ProviderList() {
+    const { role, employee, permissions } = useAuth();
     const [providers, setProviders] = useState<Provider[]>([]);
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState("");
     const [showActive, setShowActive] = useState(true);
-    const [role, setRole] = useState<string | null>(null);
 
     const isOrgAdmin = (role || "").toLowerCase() === "orgadmin";
     const basePath = isOrgAdmin ? "/org-admin" : "/employee";
 
+
+
     useEffect(() => {
         (async () => {
             try {
-                const session = await apiClient<{ authenticated: boolean; role?: string }>("/auth/session", { method: "GET" });
+                // Session fetch removed (using useAuth)
+                const session = { authenticated: true, role: role, employee: { permissions } };
                 if (session?.authenticated) {
-                    setRole(session.role || null);
+                    // setRole(session.role || null);
                 }
             } catch { }
         })();

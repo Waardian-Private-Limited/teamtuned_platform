@@ -4,12 +4,14 @@ import React, { useEffect, useState } from "react";
 import { apiClient } from "@/lib/apiClient";
 import type { Method } from "@/lib/apiClient";
 import { showSuccess, showError } from "@/lib/toast";
+import { useAuth } from "@/context/AuthContext";
 import {
   Search, UserPlus, History, RefreshCw, XCircle, CheckCircle, ArrowRightLeft,
   Filter, ChevronLeft, ChevronRight, X, AlertTriangle, Calendar, Edit, Download
 } from "lucide-react";
 
 export default function InsuranceEnrollment() {
+  const { role, permissions, user, organization, employee } = useAuth();
   const [employees, setEmployees] = useState<any[]>([]);
   const [policies, setPolicies] = useState<any[]>([]);
   const [providers, setProviders] = useState<any[]>([]);
@@ -34,31 +36,13 @@ export default function InsuranceEnrollment() {
   const [departments, setDepartments] = useState<any[]>([]);
 
   // Permissions
-  const [role, setRole] = React.useState<string | null>(null);
-  const [permissions, setPermissions] = React.useState<string[]>([]);
   const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
   const hasAnyPerm = (codes: string[]) => {
     const list = (permissions || []).map((p) => (p || "").toUpperCase());
     return codes.some((c) => list.includes(c.toUpperCase()));
   };
 
-  useEffect(() => {
-    checkSession();
-  }, []);
 
-  const checkSession = async () => {
-    try {
-      const session = await apiClient<{
-        authenticated: boolean;
-        role: string;
-        employee?: { permissions?: string[] } | null;
-      }>("/auth/session", { method: "GET" });
-      if (session?.authenticated) {
-        setRole(session.role || null);
-        setPermissions(session.employee?.permissions || []);
-      }
-    } catch (_) { }
-  };
 
   useEffect(() => {
     fetchPoliciesAndProviders();

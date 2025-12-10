@@ -1,93 +1,69 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import OrgSidebar from "@/components/org/OrgSidebar";
 import GlobalHeader from "@/components/shared/GlobalHeader";
 import GlobalFooter from "@/components/shared/GlobalFooter";
 import { OrgProvider } from "@/components/shared/OrgContext";
 import { InventoryStoreProvider } from "@/components/inventory/InventoryStoreContext";
-import { apiClient } from "@/lib/apiClient";
-
+import { useAuth } from "@/context/AuthContext";
 import { useUserStore } from "@/lib/store/userStore";
 
 export default function OrgAdminLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const [isCollapsed, setIsCollapsed] = React.useState(false);
-    const [orgName, setOrgName] = React.useState<string | null>(null);
-    const [orgLogoUrl, setOrgLogoUrl] = React.useState<string | null>(null);
-    const [firstName, setFirstName] = React.useState<string | null>(null);
-    const [lastName, setLastName] = React.useState<string | null>(null);
-    const [permissions, setPermissions] = React.useState<string[]>([]);
-    const [role, setRole] = React.useState<string | null>(null);
-    const [features, setFeatures] = React.useState<string[]>([]);
-    const [isLoading, setIsLoading] = React.useState(true);
     const { setUser } = useUserStore();
 
-    React.useEffect(() => {
-        (async () => {
-            try {
-                const session = await apiClient<{
-                    authenticated: boolean;
-                    role: string;
-                    user?: { id: string; email: string; name?: string; first_name?: string | null; last_name?: string | null };
-                    organization?: { name?: string | null; logo_url?: string | null } | null;
-                    employee?: { permissions?: string[] } | null;
-                    organization_features?: { code: string }[];
-                }>("/auth/session", { method: "GET" });
+    // Use centralized auth context
+    const { user, role, permissions, organization, isAuthenticated, loading, logout } = useAuth();
 
-                if (session?.authenticated && session.role) {
-                    const userRole = session.role.toLowerCase();
+    // Extract organization features
+    const features = React.useMemo(() => {
+        return (organization?.organization_features || []).map(f => f.code);
+    }, [organization]);
 
-                    // Allow superadmin and orgadmin
-                    if (userRole === "superadmin" || userRole === "orgadmin") {
-                        setOrgName(session.organization?.name || null);
-                        setOrgLogoUrl(session.organization?.logo_url || null);
-                        setFirstName(session.user?.first_name || null);
-                        setLastName(session.user?.last_name || null);
-                        setPermissions(session.employee?.permissions || []);
-                        setRole(session.role);
+    // Sync with user store and handle role-based redirects
+    useEffect(() => {
+        if (loading) return;
 
-                        const featureCodes = (session.organization_features || []).map(f => f.code);
-                        setFeatures(featureCodes);
+        if (!isAuthenticated) {
+            router.replace("/login");
+            return;
+        }
 
-                        setUser({
-                            id: session.user?.id || "",
-                            email: session.user?.email || "",
-                            role: session.role,
-                            name: session.user?.name || "",
-                            features: featureCodes,
-                        });
+        const userRole = role?.toLowerCase();
 
-                        setIsLoading(false);
-                        return;
-                    }
-
-                    // Redirect employees
-                    if (userRole === "employee") {
-                        router.replace("/employee");
-                        return;
-                    }
-                }
-
-                // Default fallback for unauthenticated or unknown roles
-                try { await apiClient("/auth/logout", { method: "POST" }); } catch { }
-                router.replace("/login");
-
-            } catch (e) {
-                router.replace("/login");
+        // Allow superadmin and orgadmin
+        if (userRole === "superadmin" || userRole === "orgadmin") {
+            // Update user store
+            if (user) {
+                setUser({
+                    id: user.id.toString(),
+                    email: user.email,
+                    role: role || "",
+                    name: `${user.first_name || ""} ${user.last_name || ""}`.trim(),
+                    features,
+                });
             }
-        })();
-    }, [router, setUser]);
+            return;
+        }
+
+        // Redirect employees
+        if (userRole === "employee") {
+            router.replace("/employee");
+            return;
+        }
+
+        // Unknown role
+        router.replace("/login");
+    }, [isAuthenticated, role, user, loading, router, setUser, features]);
 
     const handleLogout = async () => {
-        try {
-            await apiClient("/auth/logout", { method: "POST" });
-        } catch { }
-        router.replace("/login");
+        await logout();
     };
 
-    if (isLoading) {
+    if (loading) {
         return (
             <div className="flex h-screen w-full items-center justify-center bg-gray-50">
                 <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600" />
@@ -105,8 +81,8 @@ export default function OrgAdminLayout({ children }: { children: React.ReactNode
                     <OrgSidebar
                         isCollapsed={isCollapsed}
                         setIsCollapsed={setIsCollapsed}
-                        orgName={orgName || undefined}
-                        orgLogoUrl={orgLogoUrl || undefined}
+                        orgName={organization?.name}
+                        orgLogoUrl={organization?.logo_url}
                         onLogout={handleLogout}
                         permissions={permissions}
                         role={role || undefined}
@@ -115,8 +91,8 @@ export default function OrgAdminLayout({ children }: { children: React.ReactNode
                     <div className="flex flex-col h-screen overflow-hidden relative bg-gray-50">
                         <GlobalHeader
                             role="org-admin"
-                            firstName={firstName}
-                            lastName={lastName}
+                            firstName={user?.first_name}
+                            lastName={user?.last_name}
                             userRole={role}
                             onLogout={handleLogout}
                         />
@@ -125,7 +101,7 @@ export default function OrgAdminLayout({ children }: { children: React.ReactNode
                                 {children}
                             </div>
                         </main>
-                        <GlobalFooter orgName={orgName} />
+                        <GlobalFooter orgName={organization?.name} />
                     </div>
                 </div>
             </InventoryStoreProvider>

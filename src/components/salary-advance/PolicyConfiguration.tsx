@@ -5,6 +5,7 @@ import { apiClient } from "@/lib/apiClient";
 import { showSuccess, showError } from "@/lib/toast";
 import { Settings, Save, AlertCircle, DollarSign, Shield } from "lucide-react";
 
+import { useAuth } from "@/context/AuthContext";
 type Policy = {
     id?: number;
     max_percentage_of_earned_salary: number | null;
@@ -41,6 +42,10 @@ function WorkflowDesigner({ workflow, onChange, emiDecisionMode }: WorkflowDesig
     const [roles, setRoles] = useState<any[]>([]);
     const [employees, setEmployees] = useState<any[]>([]);
     const [levels, setLevels] = useState<any[]>([]);
+
+    const { role, permissions } = useAuth();
+
+
 
     useEffect(() => {
         fetchWorkflowOptions();
@@ -374,6 +379,7 @@ function AccountsConfiguration({ accounts, onChange, isEditing }: AccountsConfig
 }
 
 export default function PolicyConfiguration() {
+    const { role, permissions } = useAuth();
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
@@ -405,17 +411,16 @@ export default function PolicyConfiguration() {
     });
 
     // Permission state
-    const [userRole, setUserRole] = useState<string | null>(null);
-    const [permissions, setPermissions] = useState<string[]>([]);
-    const [checkingPerms, setCheckingPerms] = useState(true);
+    const [userRole, setUserRole] = useState<string | null>(null); const [checkingPerms, setCheckingPerms] = useState(true);
 
     useEffect(() => {
         (async () => {
             try {
-                const session = await apiClient<any>("/auth/session", { method: "GET" });
+                // Session fetch removed (using useAuth)
+                const session = { authenticated: true, role: role, employee: { permissions } };
                 if (session?.authenticated) {
                     setUserRole(session.role);
-                    setPermissions(session.employee?.permissions || []);
+                    // setPermissions(session.employee?.permissions || []);
                 }
             } catch (_) { } finally {
                 setCheckingPerms(false);

@@ -4,6 +4,7 @@ import React from "react";
 import { apiClient } from "@/lib/apiClient";
 import { Loader2, AlertCircle, Eye, Download, Filter, X, Calendar, MapPin, User, Search, ChevronDown, ChevronUp } from "lucide-react";
 
+import { useAuth } from "@/context/AuthContext";
 type Assignment = {
   id: number;
   task_id: number;
@@ -55,6 +56,10 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
   const [toast, setToast] = React.useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   React.useEffect(() => { if (toast) { const t = setTimeout(() => setToast(null), 4000); return () => clearTimeout(t); } }, [toast]);
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => setToast({ message, type });
+
+  const { user, employee } = useAuth();
+
+
 
   const doExport = async () => {
     if (!exportFrom || !exportTo) { showToast('Please select From and To dates', 'error'); return; }
@@ -141,7 +146,7 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
         const desc = (res?.task?.description || '').toString();
         setTaskTitle(title);
         setTaskDescription(desc);
-      } catch (_) {}
+      } catch (_) { }
     })();
   }, [taskId]);
 
@@ -153,10 +158,11 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
         setSites(normalized);
       } catch (e) {
         try {
-          const sess = await apiClient<{ authenticated: boolean; employee?: { sites?: Array<{ id: number; name?: string; code?: string }> } }>("/auth/session", { method: "GET", withAuth: true });
-          const normalized = (sess?.employee?.sites || []).map((x: any) => ({ id: Number(x.id), name: String(x.name || x.code || x.id) }));
+          // Fallback to employee's assigned sites from auth context
+          const authorizedSites = (employee as any)?.sites || [];
+          const normalized = authorizedSites.map((x: any) => ({ id: Number(x.id), name: String(x.name || x.code || x.id) }));
           setSites(normalized);
-        } catch {}
+        } catch { }
       }
     })();
   }, []);
@@ -214,7 +220,7 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
 
   const filteredAssignments = assignments.filter(assignment => {
     if (!searchTerm) return true;
-    
+
     const searchLower = searchTerm.toLowerCase();
     return (
       assignment.first_name?.toLowerCase().includes(searchLower) ||
@@ -243,7 +249,7 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex-1">
             <div className="flex items-center gap-3">
-              <button 
+              <button
                 onClick={onClose}
                 className="p-2 rounded-lg bg-white border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 hover:scale-105"
               >
@@ -257,7 +263,7 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
               </div>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-gray-200 shadow-sm">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
@@ -282,7 +288,7 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
           <div className="flex items-center gap-2">
             <span>Rows per page</span>
             <select className="border rounded px-2 py-1" value={String(limit)} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}>
-              {['10','20','50','100'].map((sz) => (<option key={sz} value={sz}>{sz}</option>))}
+              {['10', '20', '50', '100'].map((sz) => (<option key={sz} value={sz}>{sz}</option>))}
             </select>
           </div>
           <div className="flex items-center gap-2">
@@ -336,8 +342,8 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
                 {/* Status Filter */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">Status</label>
-                  <select 
-                    value={status} 
+                  <select
+                    value={status}
                     onChange={(e) => setStatus(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                   >
@@ -353,8 +359,8 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
                 {/* Site Filter */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">Site</label>
-                  <select 
-                    value={siteId} 
+                  <select
+                    value={siteId}
                     onChange={(e) => setSiteId(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                   >
@@ -368,9 +374,9 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
                 {/* Date From */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">From Date</label>
-                  <input 
-                    type="date" 
-                    value={dateFrom} 
+                  <input
+                    type="date"
+                    value={dateFrom}
                     onChange={(e) => { setDateFrom(e.target.value); setRange(''); }}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                   />
@@ -379,9 +385,9 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
                 {/* Date To */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">To Date</label>
-                  <input 
-                    type="date" 
-                    value={dateTo} 
+                  <input
+                    type="date"
+                    value={dateTo}
                     onChange={(e) => { setDateTo(e.target.value); setRange(''); }}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                   />
@@ -390,8 +396,8 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
                 {/* Quick Range */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">Quick Range</label>
-                  <select 
-                    value={range} 
+                  <select
+                    value={range}
                     onChange={(e) => { setRange(e.target.value); setDateFrom(''); setDateTo(''); }}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                   >
@@ -508,7 +514,7 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         {assignment.submission_id && assignment.status !== 'pending' ? (
-                          <button 
+                          <button
                             onClick={() => openViewer(assignment.submission_id!)}
                             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-all duration-200 border border-blue-200 hover:scale-105"
                           >
@@ -542,7 +548,7 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
               </div>
               <div className="flex items-center gap-3">
                 {viewerLoading && <Loader2 className="w-4 h-4 animate-spin text-gray-600" />}
-                <button 
+                <button
                   onClick={closeViewer}
                   className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-all duration-200 hover:scale-105"
                 >
@@ -550,21 +556,21 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
                 </button>
               </div>
             </div>
-            
+
             {viewerError && (
               <div className="px-6 py-3 text-sm text-red-700 bg-red-50 border-b border-red-200 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4" /> 
+                <AlertCircle className="w-4 h-4" />
                 {viewerError}
               </div>
             )}
-            
+
             <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 120px)' }}>
               {viewerData ? (
-                <SubmissionReadOnly 
-                  data={viewerData} 
-                  approvals={viewerApprovals} 
-                  expandedGps={expandedGps} 
-                  setExpandedGps={setExpandedGps} 
+                <SubmissionReadOnly
+                  data={viewerData}
+                  approvals={viewerApprovals}
+                  expandedGps={expandedGps}
+                  setExpandedGps={setExpandedGps}
                 />
               ) : (
                 !viewerLoading && (
@@ -629,7 +635,7 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
 
       {toast && (
         <div className="fixed bottom-4 right-4 z-[60]">
-          <div className={`px-4 py-3 rounded-xl shadow-lg border text-sm ${toast.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : toast.type === 'error' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-gray-50 border-gray-200 text-gray-800'}`}> 
+          <div className={`px-4 py-3 rounded-xl shadow-lg border text-sm ${toast.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : toast.type === 'error' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-gray-50 border-gray-200 text-gray-800'}`}>
             {toast.message}
           </div>
         </div>
@@ -638,14 +644,14 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
   );
 }
 
-function SubmissionReadOnly({ data, approvals, expandedGps, setExpandedGps }: { 
-  data: any; 
-  approvals: any[]; 
-  expandedGps: Set<string>; 
-  setExpandedGps: (s: Set<string>) => void; 
+function SubmissionReadOnly({ data, approvals, expandedGps, setExpandedGps }: {
+  data: any;
+  approvals: any[];
+  expandedGps: Set<string>;
+  setExpandedGps: (s: Set<string>) => void;
 }) {
   const isDataUrl = (s: string) => s?.startsWith('data:image/');
-  
+
   const decodeBase64 = (s: string) => {
     try {
       const pure = s.includes(',') ? s.split(',').pop() as string : s;
@@ -689,10 +695,10 @@ function SubmissionReadOnly({ data, approvals, expandedGps, setExpandedGps }: {
           const src = s.startsWith('http') ? s : (isDataUrl(s) ? s : decodeBase64(s));
           return (
             <a key={idx} href={src} target="_blank" rel="noreferrer" className="relative border border-gray-200 rounded-xl overflow-hidden bg-gray-50 hover:shadow-md transition-all duration-200">
-              <img 
-                src={src} 
-                className={`${isSignature ? 'object-contain h-32' : 'object-cover h-28'} w-full`} 
-                alt="Submission image" 
+              <img
+                src={src}
+                className={`${isSignature ? 'object-contain h-32' : 'object-cover h-28'} w-full`}
+                alt="Submission image"
               />
             </a>
           );
@@ -717,8 +723,8 @@ function SubmissionReadOnly({ data, approvals, expandedGps, setExpandedGps }: {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <code className="text-sm font-mono text-gray-600 bg-gray-100 px-3 py-1.5 rounded-lg">{s}</code>
-          <button 
-            onClick={toggle} 
+          <button
+            onClick={toggle}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-all duration-200 border border-blue-200"
           >
             <MapPin className="w-4 h-4" />
@@ -727,15 +733,15 @@ function SubmissionReadOnly({ data, approvals, expandedGps, setExpandedGps }: {
         </div>
         {expanded && Number.isFinite(lat) && Number.isFinite(lon) && (
           <div className="space-y-2">
-            <iframe 
-              title={`map-${key}`} 
-              className="w-full h-64 rounded-xl border border-gray-200" 
-              src={buildGoogleEmbed(lat, lon)} 
+            <iframe
+              title={`map-${key}`}
+              className="w-full h-64 rounded-xl border border-gray-200"
+              src={buildGoogleEmbed(lat, lon)}
             />
-            <a 
-              href={`https://www.google.com/maps?q=${lat},${lon}`} 
-              target="_blank" 
-              rel="noreferrer" 
+            <a
+              href={`https://www.google.com/maps?q=${lat},${lon}`}
+              target="_blank"
+              rel="noreferrer"
               className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-all duration-200 border border-green-200 text-sm"
             >
               Open in Google Maps
@@ -754,7 +760,7 @@ function SubmissionReadOnly({ data, approvals, expandedGps, setExpandedGps }: {
         const out = new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(dt);
         return <span className="font-medium">{out}</span>;
       }
-    } catch {}
+    } catch { }
     return <span>{s}</span>;
   };
 
@@ -813,10 +819,10 @@ function SubmissionReadOnly({ data, approvals, expandedGps, setExpandedGps }: {
                   <div className="text-gray-700">
                     {isImage || isSignature ? renderImage(value, isSignature)
                       : isGps ? renderGps(key, value)
-                      : isDate ? renderDateTime(value, true)
-                      : isTime ? <span className="font-medium">{formatTime12h(String(value))}</span>
-                      : isArray ? renderArray(value)
-                      : <span className="text-gray-900">{String(value ?? '')}</span>}
+                        : isDate ? renderDateTime(value, true)
+                          : isTime ? <span className="font-medium">{formatTime12h(String(value))}</span>
+                            : isArray ? renderArray(value)
+                              : <span className="text-gray-900">{String(value ?? '')}</span>}
                   </div>
                 </>
               )}
@@ -837,7 +843,7 @@ function SubmissionReadOnly({ data, approvals, expandedGps, setExpandedGps }: {
               <div className="text-sm text-gray-600">{approvals.length} approval entries</div>
             </div>
           </div>
-          
+
           <div className="space-y-3">
             {approvals.map((h, i) => {
               const name = `${String(h?.first_name || '')} ${String(h?.last_name || '')}`.trim();
@@ -845,17 +851,17 @@ function SubmissionReadOnly({ data, approvals, expandedGps, setExpandedGps }: {
               const comments = String(h?.comments || '');
               const level = String(h?.level || '');
               const ts = String(h?.action_at || h?.created_at || '');
-              const color = status === 'APPROVED' ? 'text-green-700 bg-green-50 border-green-200' : 
-                          status === 'REJECTED' ? 'text-red-700 bg-red-50 border-red-200' : 
-                          'text-yellow-700 bg-yellow-50 border-yellow-200';
+              const color = status === 'APPROVED' ? 'text-green-700 bg-green-50 border-green-200' :
+                status === 'REJECTED' ? 'text-red-700 bg-red-50 border-red-200' :
+                  'text-yellow-700 bg-yellow-50 border-yellow-200';
               const dt = ts ? new Date(ts) : null;
-              const tsFmt = dt ? new Intl.DateTimeFormat('en-IN', { 
-                day: '2-digit', 
-                month: 'short', 
-                year: 'numeric', 
-                hour: '2-digit', 
-                minute: '2-digit', 
-                hour12: true 
+              const tsFmt = dt ? new Intl.DateTimeFormat('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
               }).format(dt) : ts;
 
               return (
@@ -891,15 +897,15 @@ function DownloadReport({ taskId, submissionId }: { taskId: number; submissionId
     try {
       const base = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3002/api/v1';
       const url = `${base}/tasks/${taskId}/submissions/${submissionId}/report`;
-      const headers: Record<string,string> = { 'ngrok-skip-browser-warning': 'true' };
-      try { 
-        const token = localStorage.getItem('token'); 
-        if (token) headers['Authorization'] = `Bearer ${token}`; 
-      } catch {}
-      
+      const headers: Record<string, string> = { 'ngrok-skip-browser-warning': 'true' };
+      try {
+        const token = localStorage.getItem('token');
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+      } catch { }
+
       const res = await fetch(url, { method: 'GET', credentials: 'include', headers });
       if (!res.ok) throw new Error(`Failed: ${await res.text()}`);
-      
+
       const blob = await res.blob();
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
@@ -916,8 +922,8 @@ function DownloadReport({ taskId, submissionId }: { taskId: number; submissionId
   };
 
   return (
-    <button 
-      onClick={handleDownload} 
+    <button
+      onClick={handleDownload}
       disabled={downloading}
       className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 transition-all duration-200 border border-indigo-200 hover:scale-105"
     >

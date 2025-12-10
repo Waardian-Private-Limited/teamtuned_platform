@@ -6,6 +6,7 @@ import { showSuccess, showError } from "@/lib/toast";
 import { Shield, CheckCircle, XCircle, RefreshCw, MessageSquare, Eye } from "lucide-react";
 import RequestDetails from "./RequestDetails";
 
+import { useAuth } from "@/context/AuthContext";
 type PendingApproval = {
     id: number;
     employee_id: number;
@@ -42,9 +43,7 @@ export default function ApprovalQueue() {
     const [policy, setPolicy] = useState<Policy | null>(null);
 
     // Permission state
-    const [userRole, setUserRole] = useState<string | null>(null);
-    const [permissions, setPermissions] = useState<string[]>([]);
-    const [checkingPerms, setCheckingPerms] = useState(true);
+    const [userRole, setUserRole] = useState<string | null>(null);const [checkingPerms, setCheckingPerms] = useState(true);
 
     // EMI decision fields (for request_level mode)
     const [emiMethod, setEmiMethod] = useState<'auto' | 'percentage' | 'fixed_amount'>('auto');
@@ -52,13 +51,18 @@ export default function ApprovalQueue() {
     const [emiFixedAmount, setEmiFixedAmount] = useState<string>('');
     const [repaymentMonths, setRepaymentMonths] = useState<string>('');
 
+    const { role, permissions, employee } = useAuth();
+
+    
+
     useEffect(() => {
         (async () => {
             try {
-                const session = await apiClient<any>("/auth/session", { method: "GET" });
+                // Session fetch removed (using useAuth)
+        const session = { authenticated: true, role: role, employee: { permissions } };
                 if (session?.authenticated) {
                     setUserRole(session.role);
-                    setPermissions(session.employee?.permissions || []);
+                    // setPermissions(session.employee?.permissions || []);
                 }
                 // Fetch data only if allowed
                 if ((session?.role || "").toLowerCase() === "orgadmin" || (session?.employee?.permissions || []).includes("SALADV_APPROVE")) {

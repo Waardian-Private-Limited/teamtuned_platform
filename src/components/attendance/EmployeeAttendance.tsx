@@ -7,6 +7,7 @@ import AttendanceCalendar from "@/components/attendance/AttendanceCalendar";
 import LeavesManagement from "@/components/leaves/LeavesManagement";
 import AttendanceDetailsModal from "./AttendanceDetailsModal";
 import RedeemHistory from "@/components/redeem/RedeemHistory";
+import { useAuth } from "@/context/AuthContext";
 import {
   Search,
   Filter,
@@ -51,6 +52,7 @@ type Props = {
 };
 
 export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = true, externalControl = false, hqMode: extHq, selectedSiteId: extSiteId }: Props) {
+  const { role, permissions, user, employee } = useAuth();
   const [hqMode, setHqMode] = React.useState<boolean>(extHq ?? defaultHQ);
   const [inchargeSites, setInchargeSites] = React.useState<Array<Record<string, any>>>([]);
   const [allSites, setAllSites] = React.useState<Array<Record<string, any>>>([]);
@@ -86,8 +88,6 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
   });
 
   // Session-based permission gating
-  const [role, setRole] = React.useState<string | null>(null);
-  const [permissions, setPermissions] = React.useState<string[]>([]);
   const isEmployee = (role || "").toLowerCase() === "employee";
   const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
   const canHRMode = !isEmployee || hasPerm("HR_MODE");
@@ -187,10 +187,11 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
   React.useEffect(() => {
     (async () => {
       try {
-        const session = await apiClient<{ authenticated: boolean; role?: string; employee?: { permissions?: string[] } | null }>("/auth/session", { method: "GET" });
+        // Session fetch removed (using useAuth)
+        const session = { authenticated: true, role: role, employee: { permissions } };
         if (session?.authenticated) {
-          setRole((session.role || null) as string | null);
-          setPermissions(session.employee?.permissions || []);
+          // setRole((session.role || null) as string | null);
+          // setPermissions(session.employee?.permissions || []);
         }
       } catch { }
 

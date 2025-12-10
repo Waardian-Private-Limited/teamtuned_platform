@@ -27,10 +27,12 @@ import {
 } from "lucide-react";
 import AttendanceDetailsModal from "../attendance/AttendanceDetailsModal";
 
+import { useAuth } from "@/context/AuthContext";
 type AttendanceRecord = Record<string, any>;
 type SalaryItem = { name: string; type: "credit" | "debit"; amount: number; is_taxable?: boolean };
 
 export default function PayrollCycleCalendar({ employeeId }: { employeeId?: number }) {
+  const { role, permissions, user, employee } = useAuth();
   const [now, setNow] = React.useState<Date>(new Date());
   const [items, setItems] = React.useState<AttendanceRecord[]>([]);
   const [breakdown, setBreakdown] = React.useState<SalaryItem[]>([]);
@@ -111,8 +113,8 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
     try {
       let empId = employeeId;
       if (!empId) {
-        const session = await apiClient<any>("/auth/session", { method: "GET", withAuth: true });
-        empId = Number(session?.employee?.id || session?.employee_id || session?.id || 0) || 0;
+        // Session fetch removed (using useAuth)
+        empId = employee?.id || 0;
       }
       if (!empId) throw new Error("Missing employee id");
 

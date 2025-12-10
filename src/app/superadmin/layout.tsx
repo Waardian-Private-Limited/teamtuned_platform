@@ -1,54 +1,44 @@
-import React from "react";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+"use client";
+
+import React, { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import SuperadminShell from "@/components/superadmin/SuperadminShell";
+import { useAuth } from "@/context/AuthContext";
 
-export const dynamic = "force-dynamic";
+export default function SuperadminLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const { isAuthenticated, role, loading, logout } = useAuth();
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3002/api/v1";
+  useEffect(() => {
+    if (loading) return;
 
-const roleRoutes: Record<string, string> = {
-  superAdmin: "/superadmin",
-  OrgAdmin: "/org-admin",
-  Employee: "/employee",
-};
-
-export default async function Layout({ children }: { children: React.ReactNode }) {
-  const headerList = await headers();
-  const cookieHeader = headerList.get("cookie") || "";
-
-  const res = await fetch(`${BASE_URL}/auth/session`, {
-    method: "GET",
-    headers: { cookie: cookieHeader },
-    cache: "no-store",
-  });
-
-  if (!res.ok) {
-    redirect("/login");
-  }
-
-  const data = await res.json();
-  const isAuthenticated = !!data.authenticated;
-  const role: string | undefined = data.role;
-
-  if (!isAuthenticated) {
-    redirect("/login");
-  }
-
-  if (role !== "superAdmin") {
-    const userRoute = role ? roleRoutes[role] : undefined;
-    if (userRoute) {
-      redirect(userRoute);
-    } else {
-      try {
-        await fetch(`${BASE_URL}/auth/logout`, {
-          method: "POST",
-          headers: { cookie: cookieHeader },
-          cache: "no-store",
-        });
-      } catch {}
-      redirect("/login");
+    if (!isAuthenticated) {
+      router.replace("/login");
+      return;
     }
+
+    // Only superadmins allowed
+    if (role !== "superAdmin") {
+      const roleRoutes: Record<string, string> = {
+        OrgAdmin: "/org-admin",
+        Employee: "/employee",
+      };
+
+      const userRoute = role ? roleRoutes[role] : undefined;
+      if (userRoute) {
+        router.replace(userRoute);
+      } else {
+        logout();
+      }
+    }
+  }, [isAuthenticated, role, loading, router, logout]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
   }
 
   return <SuperadminShell>{children}</SuperadminShell>;

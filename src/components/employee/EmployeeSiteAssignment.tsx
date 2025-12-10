@@ -49,6 +49,8 @@ type EmployeeDetail = {
 
 function useCountUp(target: number, duration = 800) {
   const [v, setV] = useState(0);
+  const { role, permissions, user, organization, employee } = useAuth();
+
   useEffect(() => {
     let raf: number;
     const start = performance.now();
@@ -65,14 +67,14 @@ function useCountUp(target: number, duration = 800) {
 
 import { useFeatures } from "@/lib/hooks/useFeatures";
 
+import { useAuth } from "@/context/AuthContext";
 export default function EmployeeSiteAssignment() {
+  const { role, permissions, user, employee } = useAuth();
   // Features
   const { hasFeature } = useFeatures();
   const hasCoreFeature = hasFeature('PAYROLL_FEATURE');
 
   // Permissions
-  const [role, setRole] = useState<string | null>(null);
-  const [permissions, setPermissions] = useState<string[]>([]);
   const isOrgAdmin = (role || "").toUpperCase() === "ORGADMIN" || (role || "").toUpperCase() === "SUPERADMIN";
   const isHRMode = (permissions || []).some((p) => (p || "").toUpperCase() === "HR_MODE");
   const hasPerm = (code: string | string[]) => {
@@ -126,10 +128,11 @@ export default function EmployeeSiteAssignment() {
   useEffect(() => {
     (async () => {
       try {
-        const session = await apiClient<{ authenticated: boolean; role?: string; employee?: { permissions?: string[] } | null }>("/auth/session", { method: "GET" });
+        // Session fetch removed (using useAuth)
+        const session = { authenticated: true, role: role, employee: { permissions } };
         if (session?.authenticated) {
-          setRole((session.role || null) as string | null);
-          setPermissions(session.employee?.permissions || []);
+          // setRole((session.role || null) as string | null);
+          // setPermissions(session.employee?.permissions || []);
         }
       } catch { }
     })();

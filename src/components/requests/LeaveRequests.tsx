@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { apiClient } from "@/lib/apiClient";
+import { useAuth } from "@/context/AuthContext";
 import {
   Search,
   Filter,
@@ -41,6 +42,8 @@ type Props = {
 
 function useCountUp(target: number, duration = 800) {
   const [v, setV] = useState(0);
+  const { role, permissions, user, organization, employee } = useAuth();
+
   useEffect(() => {
     let raf: number;
     const start = performance.now();
@@ -56,9 +59,8 @@ function useCountUp(target: number, duration = 800) {
 }
 
 export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, externalControl = false, hqMode: extHq, selectedSiteId: extSiteId }: Props) {
+  const { role, permissions, user, employee } = useAuth();
   // Permissions
-  const [role, setRole] = useState<string | null>(null);
-  const [permissions, setPermissions] = useState<string[]>([]);
   const isEmployee = (role || "").toLowerCase() === "employee";
   const isOrgAdmin = (role || "").toLowerCase() === "orgadmin";
   const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
@@ -143,10 +145,11 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
   useEffect(() => {
     (async () => {
       try {
-        const session = await apiClient<{ authenticated: boolean; role?: string; employee?: { permissions?: string[] } | null }>("/auth/session", { method: "GET" });
+        // Session fetch removed (using useAuth)
+        const session = { authenticated: true, role: role, employee: { permissions } };
         if (session?.authenticated) {
-          setRole((session.role || null) as string | null);
-          setPermissions(session.employee?.permissions || []);
+          // setRole((session.role || null) as string | null);
+          // setPermissions(session.employee?.permissions || []);
           if ((session.role || '').toLowerCase() === 'orgadmin') {
             setHqMode(true);
           }
@@ -193,7 +196,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
       if (status && status !== "All") params["status"] = status;
       const effHq = isOrgAdmin || (((externalControl ? (extHq ?? hqMode) : hqMode)) && canHRMode);
       const effSite = externalControl ? (extSiteId ?? selectedSiteId) : selectedSiteId;
-      
+
       if (!effHq && (!effSite || Number(effSite) <= 0)) {
         setItems([]);
         throw new Error("Select a site or enable HR mode to view leave requests");

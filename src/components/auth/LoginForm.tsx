@@ -6,6 +6,7 @@ import { Mail, Lock, Smartphone, Building2 } from 'lucide-react';
 import { login, verifyOtp, checkAccounts, loginWithAccount, sendWebOtp, Account } from '@/lib/apiClient';
 import { useRouter } from 'next/navigation';
 import { useUserStore } from '@/lib/store/userStore';
+import { useAuth } from '@/context/AuthContext';
 
 type LoginStep = 'email' | 'accounts' | 'password' | 'otp' | 'verify' | 'account-otp' | 'superadmin-password';
 
@@ -24,6 +25,8 @@ export default function LoginFormTabs() {
 
   const router = useRouter();
   const setUser = useUserStore((state) => state.setUser);
+
+  const { setAuthState } = useAuth();
 
   // Tab switcher: reset state and set appropriate first step
   const handleTabSwitch = (newTab: 'password' | 'otp') => {
@@ -112,6 +115,7 @@ export default function LoginFormTabs() {
 
         const user = {
           ...response.user,
+          id: String(response.user.id),
           role: response.role || '',
           name: response.user.name || email,
           features: response.organization_features ? response.organization_features.map((f: any) => f.code) : [],
@@ -124,6 +128,11 @@ export default function LoginFormTabs() {
           Employee: '/employee',
           default: '/dashboard',
         };
+        // Refresh auth context
+        if (response.token) {
+          localStorage.setItem('token', response.token);
+        }
+        setAuthState(response);
         router.push(roleRoutes[response.role || 'default'] || roleRoutes.default);
       } else {
         setError(response.message || 'Login failed');
@@ -148,6 +157,7 @@ export default function LoginFormTabs() {
       if (response.success && response.user) {
         const user = {
           ...response.user,
+          id: String(response.user.id),
           role: response.role || '',
           name: response.user.name || selectedAccount.username,
           societyName: selectedAccount.societyName || '',
@@ -161,6 +171,11 @@ export default function LoginFormTabs() {
           Employee: '/employee',
           default: '/dashboard',
         };
+        // Refresh auth context
+        if (response.token) {
+          localStorage.setItem('token', response.token);
+        }
+        setAuthState(response);
         router.push(roleRoutes[response.role || 'default'] || roleRoutes.default);
       } else {
         setError(response.message || 'Login failed');
@@ -228,6 +243,7 @@ export default function LoginFormTabs() {
       if (response.success && response.user) {
         const user = {
           ...response.user,
+          id: String(response.user.id),
           role: response.role || '',
           name: response.user.name || selectedAccount?.username || '',
           features: response.organization_features ? response.organization_features.map((f: any) => f.code) : [],
@@ -240,6 +256,11 @@ export default function LoginFormTabs() {
           Employee: '/employee',
           default: '/dashboard',
         };
+        // Refresh auth context
+        if (response.token) {
+          localStorage.setItem('token', response.token);
+        }
+        setAuthState(response);
         router.push(roleRoutes[response.role || 'default'] || roleRoutes.default);
       } else if (response.accounts && response.accounts.length > 1) {
         setAccounts(response.accounts);

@@ -2,6 +2,7 @@
 import React from "react";
 import Image from "next/image";
 import { apiClient } from "@/lib/apiClient";
+import { useAuth } from "@/context/AuthContext";
 import {
   Edit2,
   Save,
@@ -37,10 +38,9 @@ export default function OrganizationProfile() {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [notice, setNotice] = React.useState<string | null>(null);
-  const [role, setRole] = React.useState<string | null>(null);
-  const [permissions, setPermissions] = React.useState<string[]>([]);
-  const [isEditing, setIsEditing] = React.useState(false);
+  const [notice, setNotice] = React.useState<string | null>(null); const [isEditing, setIsEditing] = React.useState(false);
+
+  const { role, permissions, organization, employee } = useAuth();
 
   const showNotice = (msg: string) => {
     setNotice(msg);
@@ -52,6 +52,8 @@ export default function OrganizationProfile() {
     return list.includes(code.toUpperCase());
   };
   const canEdit = (role || "") === "OrgAdmin" || hasPerm("ORGPROFILE_EDIT");
+
+
 
   const fetchProfile = async () => {
     setLoading(true);
@@ -69,14 +71,11 @@ export default function OrganizationProfile() {
 
   const fetchSession = async () => {
     try {
-      const session = await apiClient<{
-        authenticated: boolean;
-        role?: string | null;
-        employee?: { permissions?: string[] } | null;
-      }>("/auth/session", { method: "GET" });
+      // Session fetch removed (using useAuth)
+      const session = { authenticated: true, role: role, employee: { permissions } };
       if (session?.authenticated) {
-        setRole(session.role || null);
-        setPermissions(session.employee?.permissions || []);
+        // setRole(session.role || null);
+        // setPermissions(session.employee?.permissions || []);
       }
     } catch (e) {
       // ignore

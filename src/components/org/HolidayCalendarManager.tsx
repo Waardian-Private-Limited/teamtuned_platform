@@ -2,6 +2,7 @@
 
 import React from "react";
 import { apiClient } from "@/lib/apiClient";
+import { useAuth } from "@/context/AuthContext";
 import {
   Plus,
   Search,
@@ -73,9 +74,10 @@ export default function HolidayCalendarManager() {
   const [selectedHoliday, setSelectedHoliday] = React.useState<Holiday | null>(null);
   const [actionLoading, setActionLoading] = React.useState<string | null>(null);
 
+  // Use centralized auth
+  const { role, permissions } = useAuth();
+
   // Permissions
-  const [role, setRole] = React.useState<string | null>(null);
-  const [permissions, setPermissions] = React.useState<string[]>([]);
   const hasPerm = React.useCallback(
     (codes: string | string[]) => {
       const list = (permissions || []).map((p) => (p || "").toUpperCase());
@@ -134,19 +136,8 @@ export default function HolidayCalendarManager() {
   }, [startDate, endDate, searchTerm, typeFilter, statusFilter, currentPage, pageSize, canView]);
 
   React.useEffect(() => {
-    // Load session for role and permissions
+    // Load organization timezone
     (async () => {
-      try {
-        const session = await apiClient<{
-          authenticated: boolean;
-          role: string;
-          employee?: { permissions?: string[] } | null
-        }>("/auth/session", { method: "GET" });
-        if (session?.authenticated) {
-          setRole(session.role || null);
-          setPermissions(session.employee?.permissions || []);
-        }
-      } catch (_) { }
       try {
         const prof = await apiClient<{ organization?: { timezone?: string } }>("/organization/profile", { method: "GET", withAuth: true });
         const tzRaw = prof?.organization?.timezone || 'Asia/Kolkata';
@@ -211,6 +202,8 @@ export default function HolidayCalendarManager() {
       status: "active"
     });
   };
+
+
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();

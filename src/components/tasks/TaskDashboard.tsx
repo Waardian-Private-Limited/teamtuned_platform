@@ -4,6 +4,7 @@ import React from "react";
 import { apiClient } from "@/lib/apiClient";
 import { Loader2, TrendingUp, Users, Clock, AlertCircle, CheckCircle, XCircle, BarChart3, MapPin, Calendar, Zap, Activity, Shield } from "lucide-react";
 
+import { useAuth } from "@/context/AuthContext";
 type TrendsEntry = { date: string; pending?: number; submitted?: number; in_review?: number; approved?: number; rejected?: number };
 type SiteRow = { site_name: string | null; approved: number; pending: number; rejected: number };
 type AnalyticsResponse = {
@@ -18,6 +19,7 @@ type AnalyticsResponse = {
 };
 
 export default function TaskDashboard({ scope = "org" }: { scope?: "org" | "my" }) {
+  const { role, permissions, user, employee } = useAuth();
   const [loading, setLoading] = React.useState<boolean>(true);
   const [error, setError] = React.useState<string>("");
   const [tasksCounts, setTasksCounts] = React.useState<{ total: number; active: number; paused: number; cancelled: number }>({ total: 0, active: 0, paused: 0, cancelled: 0 });
@@ -30,17 +32,16 @@ export default function TaskDashboard({ scope = "org" }: { scope?: "org" | "my" 
   const [lifecycle, setLifecycle] = React.useState<AnalyticsResponse["lifecycle"]>([]);
 
   // Permission state
-  const [userRole, setUserRole] = React.useState<string | null>(null);
-  const [permissions, setPermissions] = React.useState<string[]>([]);
-  const [checkingPerms, setCheckingPerms] = React.useState(true);
+  const [userRole, setUserRole] = React.useState<string | null>(null);const [checkingPerms, setCheckingPerms] = React.useState(true);
 
   React.useEffect(() => {
     (async () => {
       try {
-        const session = await apiClient<any>("/auth/session", { method: "GET" });
+        // Session fetch removed (using useAuth)
+        const session = { authenticated: true, role: role, employee: { permissions } };
         if (session?.authenticated) {
           setUserRole(session.role);
-          setPermissions(session.employee?.permissions || []);
+          // setPermissions(session.employee?.permissions || []);
         }
       } catch (_) { } finally {
         setCheckingPerms(false);

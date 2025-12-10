@@ -23,6 +23,7 @@ import { useRouter, usePathname } from "next/navigation";
 import WalletExpenses from "./WalletExpenses";
 import { showSuccess, showError } from "@/lib/toast";
 import { Toaster } from "react-hot-toast";
+import { useAuth } from "@/context/AuthContext";
 import {
   AreaChart,
   Area,
@@ -58,13 +59,13 @@ export default function WalletsOverview() {
   const [todayInfo, setTodayInfo] = React.useState<Record<number, { opening: number; count: number }>>({});
   const [showExportModal, setShowExportModal] = React.useState(false);
   const [siteOptions, setSiteOptions] = React.useState<{ id: number; name: string }[]>([]);
-  const [categories, setCategories] = React.useState<{ id: number; name: string }[]>([]);
-  const [role, setRole] = React.useState<string | null>(null);
-  const [showExpenses, setShowExpenses] = React.useState(false);
+  const [categories, setCategories] = React.useState<{ id: number; name: string }[]>([]); const [showExpenses, setShowExpenses] = React.useState(false);
   const [defaultSiteId, setDefaultSiteId] = React.useState<number | null>(null);
   const [defaultWalletId, setDefaultWalletId] = React.useState<number | null>(null);
 
   // Load data
+  const { role, user, employee } = useAuth();
+
   const loadWallets = async () => {
     setLoadingWallets(true);
     try {
@@ -108,14 +109,7 @@ export default function WalletsOverview() {
     })();
   }, []);
 
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const session = await apiClient<{ role?: string; authenticated: boolean }>("/auth/session", { method: "GET", withAuth: true });
-        setRole(session?.role || null);
-      } catch { setRole(null); }
-    })();
-  }, []);
+
 
   const pathname = usePathname();
 
@@ -168,7 +162,7 @@ export default function WalletsOverview() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Wallet_${walletId}_Expenses_${new Date().toISOString().slice(0,10)}.xlsx`;
+      a.download = `Wallet_${walletId}_Expenses_${new Date().toISOString().slice(0, 10)}.xlsx`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -552,7 +546,7 @@ function ExportModal({ current, categories, siteOptions, onClose }: { current: {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Expenses_Report_${new Date().toISOString().slice(0,10)}.xlsx`;
+      a.download = `Expenses_Report_${new Date().toISOString().slice(0, 10)}.xlsx`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

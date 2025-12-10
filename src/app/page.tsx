@@ -1,37 +1,39 @@
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
+"use client";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3002/api/v1';
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
-export default async function Home() {
-  try {
-    const cookieHeader = (await cookies()).toString();
-    const res = await fetch(`${BASE_URL}/auth/session`, {
-      method: 'GET',
-      headers: { cookie: cookieHeader },
-      cache: 'no-store',
-    });
+export default function Home() {
+  const router = useRouter();
+  const { isAuthenticated, role, loading } = useAuth();
 
-    if (!res.ok) {
-      redirect('/login');
-    }
-
-    const data = await res.json();
-    const isAuthenticated = !!data.authenticated;
-    const role: string | undefined = data.role;
+  useEffect(() => {
+    if (loading) return;
 
     if (!isAuthenticated) {
-      redirect('/login');
+      router.push("/login");
+      return;
     }
 
     const roleRoutes: Record<string, string> = {
-      superAdmin: '/superadmin',
-      OrgAdmin: '/org-admin',
-      Employee: '/employee',
+      superAdmin: "/superadmin",
+      OrgAdmin: "/org-admin",
+      Employee: "/employee",
     };
 
-    redirect(roleRoutes[role ?? ''] ?? '/dashboard');
-  } catch (err) {
-    redirect('/login');
+    const targetRoute = roleRoutes[role ?? ""] ?? "/login";
+    router.push(targetRoute);
+  }, [isAuthenticated, role, loading, router]);
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
   }
+
+  return null;
 }

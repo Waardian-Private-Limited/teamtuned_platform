@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 
+import { useAuth } from "@/context/AuthContext";
 export type AttendancePolicy = {
   id?: number;
   policy_name: string;
@@ -114,6 +115,7 @@ const defaultPolicy: AttendancePolicy = {
 };
 
 export default function AttendanceRulesManager() {
+  const { role, permissions, user, employee } = useAuth();
   const [policies, setPolicies] = React.useState<AttendancePolicy[]>([]);
   const [loading, setLoading] = React.useState<boolean>(true);
   const [error, setError] = React.useState<string>("");
@@ -147,9 +149,8 @@ export default function AttendanceRulesManager() {
   const [wizardStep, setWizardStep] = React.useState<number>(1);
   const [formErrors, setFormErrors] = React.useState<Partial<Record<keyof AttendancePolicy, string>>>({});
 
+
   // Permissions
-  const [role, setRole] = React.useState<string | null>(null);
-  const [permissions, setPermissions] = React.useState<string[]>([]);
   const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
 
   const formatMinutesToHours = (minutes: number): string => {
@@ -164,18 +165,19 @@ export default function AttendanceRulesManager() {
   React.useEffect(() => {
     (async () => {
       try {
-        const session = await apiClient<{
-          authenticated: boolean;
-          role: string;
-          employee?: { permissions?: string[] } | null;
-        }>("/auth/session", { method: "GET" });
+        // Session fetch removed (using useAuth)
+        const session = { authenticated: true, role: role, employee: { permissions } };
         if (session?.authenticated) {
-          setRole(session.role || null);
-          setPermissions(session.employee?.permissions || []);
+          // setRole(session.role || null);
+          // setPermissions(session.employee?.permissions || []);
         }
       } catch (_) { }
     })();
   }, []);
+
+  // // const { role, permissions, user, employee } = useAuth();
+
+
 
   const fetchPolicies = async () => {
     if (role === "Employee" && !hasPerm("POLICY_VIEW")) {

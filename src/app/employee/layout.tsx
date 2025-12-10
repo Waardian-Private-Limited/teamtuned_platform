@@ -1,86 +1,71 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import EmployeeSidebar from "@/components/employee/EmployeeSidebar";
 import GlobalHeader from "@/components/shared/GlobalHeader";
 import GlobalFooter from "@/components/shared/GlobalFooter";
 import { OrgProvider } from "@/components/shared/OrgContext";
 import { InventoryStoreProvider } from "@/components/inventory/InventoryStoreContext";
-import { apiClient } from "@/lib/apiClient";
-
+import { useAuth } from "@/context/AuthContext";
 import { useUserStore } from "@/lib/store/userStore";
 
 export default function EmployeeLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [isCollapsed, setIsCollapsed] = React.useState(false);
-  const [orgName, setOrgName] = React.useState<string | null>(null);
-  const [orgLogoUrl, setOrgLogoUrl] = React.useState<string | null>(null);
-  const [firstName, setFirstName] = React.useState<string | null>(null);
-  const [lastName, setLastName] = React.useState<string | null>(null);
-  const [permissions, setPermissions] = React.useState<string[]>([]);
-  const [role, setRole] = React.useState<string | null>(null);
-  const [features, setFeatures] = React.useState<string[]>([]);
   const { setUser } = useUserStore();
 
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const session = await apiClient<{
-          authenticated: boolean;
-          role: string;
-          user?: { id: string; email: string; name?: string; first_name?: string | null; last_name?: string | null };
-          organization?: { name?: string | null; logo_url?: string | null } | null;
-          employee?: { permissions?: string[] } | null;
-          organization_features?: { code: string }[];
-        }>("/auth/session", { method: "GET" });
+  // Use centralized auth context
+  const { user, role, permissions, employee, organization, isAuthenticated, loading, logout } = useAuth();
 
-        if (session?.authenticated) {
-          setOrgName(session.organization?.name || null);
-          setOrgLogoUrl(session.organization?.logo_url || null);
-          setFirstName(session.user?.first_name || null);
-          setLastName(session.user?.last_name || null);
-          setPermissions(session.employee?.permissions || []);
-          setRole(session.role || null);
+  // Extract organization features
+  const features = React.useMemo(() => {
+    return (organization?.organization_features || []).map(f => f.code);
+  }, [organization]);
 
-          const featureCodes = (session.organization_features || []).map(f => f.code);
-          setFeatures(featureCodes);
+  // Sync with user store and handle role-based redirects
+  useEffect(() => {
+    if (loading) return;
 
-          setUser({
-            id: session.user?.id || "",
-            email: session.user?.email || "",
-            role: session.role,
-            name: session.user?.name || "",
-            features: featureCodes,
-          });
+    if (!isAuthenticated) {
+      router.replace("/login");
+      return;
+    }
 
-          // Employees only in this layout; redirect other roles
-          if (session.role === "OrgAdmin") {
-            router.replace("/org-admin");
-            return;
-          }
-          if (session.role === "superAdmin") {
-            router.replace("/superadmin");
-            return;
-          }
-        }
-        else {
-          try { await apiClient("/auth/logout", { method: "POST" }); } catch { }
-          router.replace("/login");
-          return;
-        }
-      } catch (e) {
-        // ignore
-      }
-    })();
-  }, [router, setUser]);
+    // Redirect non-employees
+    if (role === "OrgAdmin") {
+      router.replace("/org-admin");
+      return;
+    }
+    if (role === "superAdmin") {
+      router.replace("/superadmin");
+      return;
+    }
+
+    // Update user store
+    if (user) {
+      setUser({
+        id: user.id.toString(),
+        email: user.email,
+        role: role || "",
+        name: `${user.first_name || ""} ${user.last_name || ""}`.trim(),
+        features,
+      });
+    }
+  }, [isAuthenticated, role, user, loading, router, setUser, features]);
 
   const handleLogout = async () => {
-    try {
-      await apiClient("/auth/logout", { method: "POST" });
-    } catch { }
-    router.replace("/login");
+    await logout();
   };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
 
   return (
     <OrgProvider defaultHQ={false}>
@@ -92,8 +77,8 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
           <EmployeeSidebar
             isCollapsed={isCollapsed}
             setIsCollapsed={setIsCollapsed}
-            orgName={orgName || undefined}
-            orgLogoUrl={orgLogoUrl || undefined}
+            orgName={organization?.name}
+            orgLogoUrl={organization?.logo_url}
             onLogout={handleLogout}
             permissions={permissions}
             role={role || undefined}
@@ -102,8 +87,8 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
           <div className="flex flex-col h-screen overflow-hidden relative bg-gray-50">
             <GlobalHeader
               role="employee"
-              firstName={firstName}
-              lastName={lastName}
+              firstName={user?.first_name}
+              lastName={user?.last_name}
               userRole={role}
               onLogout={handleLogout}
             />
@@ -112,7 +97,7 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
                 {children}
               </div>
             </main>
-            <GlobalFooter orgName={orgName} />
+            <GlobalFooter orgName={organization?.name} />
           </div>
         </div>
       </InventoryStoreProvider>

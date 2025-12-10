@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { createPortal } from "react-dom";
+import { useAuth } from "@/context/AuthContext";
 import {
     AreaChart,
     Area,
@@ -123,9 +124,8 @@ export default function AttendanceDashboard() {
     const [departments, setDepartments] = useState<any[]>([]);
     const [roles, setRoles] = useState<any[]>([]);
 
-    // Permission state
-    const [role, setRole] = useState<string | null>(null);
-    const [permissions, setPermissions] = useState<string[]>([]);
+    // Use centralized auth
+    const { role, permissions, organization } = useAuth();
 
     // Modal state
     const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
@@ -140,16 +140,9 @@ export default function AttendanceDashboard() {
     const canHRMode = !isEmployee || hasPerm("HR_MODE");
     const canViewAttendance = !isEmployee || ["ATTEND_VIEW", "ATTEND_ADD", "ATTEND_EDIT"].some((c) => hasPerm(c));
 
-    // Load session and initial data
+    // Load initial data
     useEffect(() => {
         (async () => {
-            try {
-                const session = await apiClient<{ authenticated: boolean; role?: string; employee?: { permissions?: string[] } | null }>("/auth/session", { method: "GET" });
-                if (session?.authenticated) {
-                    setRole((session.role || null) as string | null);
-                    setPermissions(session.employee?.permissions || []);
-                }
-            } catch { }
 
             try {
                 const res = await apiClient<{ sites?: any[] }>("/attendance/incharge-sites", { withAuth: true });

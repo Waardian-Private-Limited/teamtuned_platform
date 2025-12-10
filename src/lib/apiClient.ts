@@ -113,7 +113,7 @@ export interface OtpVerificationResponse {
   detail?: string;
   role?: string;
   user?: {
-    id: string;
+    id: number;
     email: string;
     societyId: string;
     name?: string;
@@ -121,6 +121,7 @@ export interface OtpVerificationResponse {
   accounts?: Account[];
   organization_features?: { id: number; code: string; name: string }[];
   error?: string;
+  token?: string;
 }
 
 // Auth helpers (referenced by the login form)

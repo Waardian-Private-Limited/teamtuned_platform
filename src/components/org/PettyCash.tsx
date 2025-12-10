@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { apiClient } from "@/lib/apiClient";
+import { useAuth } from "@/context/AuthContext";
 import {
     Plus,
     Eye,
@@ -47,6 +48,8 @@ type Site = { id: number; name: string };
 
 function useCountUp(target: number, duration = 800) {
     const [v, setV] = useState(0);
+    const { permissions, user, employee, role } = useAuth();
+
     useEffect(() => {
         let raf: number;
         const start = performance.now();
@@ -62,11 +65,10 @@ function useCountUp(target: number, duration = 800) {
 }
 
 export default function PettyCash() {
+    const { role, permissions, user, employee } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
     // Permissions
-    const [role, setRole] = useState<string | null>(null);
-    const [permissions, setPermissions] = useState<string[]>([]);
     const isOrgAdmin = (role || '').toLowerCase() === 'orgadmin';
     const hasPerm = (code: string) => (permissions || []).some((p) => (p || '').toUpperCase() === code.toUpperCase());
     const isWalletAdmin = hasPerm('WALLET_ADMIN');
@@ -125,10 +127,11 @@ export default function PettyCash() {
     useEffect(() => {
         (async () => {
             try {
-                const session = await apiClient<{ authenticated: boolean; role?: string; employee?: { permissions?: string[] } | null }>("/auth/session", { method: "GET", withAuth: true });
-                setRole(session.role || null);
+                // Session fetch removed (using useAuth)
+                const session = { authenticated: true, role: role, employee: { permissions } };
+                // setRole(session.role || null);
                 const perms = (session.employee?.permissions || []).map((p) => (p || '').toUpperCase());
-                setPermissions(perms);
+                // setPermissions(perms);
             } catch (_) { }
         })();
     }, []);

@@ -4,6 +4,7 @@ import React from "react";
 import { Eye, Pencil, Power, Users, Search, X, ChevronLeft, ChevronRight, Plus, MoreVertical, RefreshCw, Filter, Download, Building2, MapPin, Globe, ChevronDown, ChevronUp } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 
+import { useAuth } from "@/context/AuthContext";
 type Site = {
     id: number;
     name: string;
@@ -133,6 +134,7 @@ const SiteFormFields = React.memo(({
 SiteFormFields.displayName = 'SiteFormFields';
 
 export default function OrgAdminSitesPage() {
+  const { role, permissions, user, organization, employee } = useAuth();
     const [sites, setSites] = React.useState<Site[]>([]);
     const [loading, setLoading] = React.useState<boolean>(true);
     const [error, setError] = React.useState<string>("");
@@ -181,13 +183,15 @@ export default function OrgAdminSitesPage() {
     const [inchargeSaving, setInchargeSaving] = React.useState<boolean>(false);
 
     // Permissions
-    const [role, setRole] = React.useState<string | null>(null);
-    const [permissions, setPermissions] = React.useState<string[]>([]);
-    const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
+  const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
 
     const onChange = React.useCallback((key: keyof Site, value: any) => {
         setForm((prev) => ({ ...prev, [key]: value }));
     }, []);
+
+    // // const { role, permissions, organization } = useAuth();
+
+    
 
     const fetchPincodeDetails = async (pin: string) => {
         if (!pin || pin.length !== 6) return;
@@ -258,14 +262,11 @@ export default function OrgAdminSitesPage() {
     React.useEffect(() => {
         (async () => {
             try {
-                const session = await apiClient<{
-                    authenticated: boolean;
-                    role: string;
-                    employee?: { permissions?: string[] } | null;
-                }>("/auth/session", { method: "GET" });
+                // Session fetch removed (using useAuth)
+        const session = { authenticated: true, role: role, employee: { permissions } };
                 if (session?.authenticated) {
-                    setRole(session.role || null);
-                    setPermissions(session.employee?.permissions || []);
+                    // setRole(session.role || null);
+                    // setPermissions(session.employee?.permissions || []);
                 }
             } catch (_) { }
         })();

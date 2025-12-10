@@ -117,8 +117,11 @@ const normalizeDateForInput = (val: unknown): string => {
 
 import EmployeeLeaveHistory from "@/components/leaves/EmployeeLeaveHistory";
 
+import { useAuth } from "@/context/AuthContext";
 function useCountUp(target: number, duration = 800) {
   const [v, setV] = useState(0);
+  const { role, permissions, user, organization } = useAuth();
+
   useEffect(() => {
     let raf: number;
     const start = performance.now();
@@ -134,10 +137,8 @@ function useCountUp(target: number, duration = 800) {
 }
 
 export default function EmployeeManagement() {
+  const { role, permissions } = useAuth();
   // Permissions
-  const [role, setRole] = useState<string | null>(null);
-  const [permissions, setPermissions] = useState<string[]>([]);
-
   const isOrgAdmin = (role || "").toLowerCase() === "orgadmin";
 
   const hasPerm = (code: string | string[]) => {
@@ -254,10 +255,11 @@ export default function EmployeeManagement() {
   useEffect(() => {
     (async () => {
       try {
-        const session = await apiClient<{ authenticated: boolean; role?: string; employee?: { permissions?: string[] } | null }>("/auth/session", { method: "GET" });
+        // Session fetch removed (using useAuth)
+        const session = { authenticated: true, role: role, employee: { permissions } };
         if (session?.authenticated) {
-          setRole((session.role || null) as string | null);
-          setPermissions(session.employee?.permissions || []);
+          // setRole((session.role || null) as string | null);
+          // setPermissions(session.employee?.permissions || []);
         }
       } catch { }
     })();

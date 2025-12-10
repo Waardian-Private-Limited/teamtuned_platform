@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/lib/apiClient";
 
+import { useAuth } from "@/context/AuthContext";
 type Weekday = "Sun" | "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat";
 
 export default function TaskCreate({ mode = "create", initialTask, initialAssignees, initialApprovalChain, onSaved, readOnly, defaultSiteId }: { mode?: "create" | "edit" | "view"; initialTask?: any; initialAssignees?: number[]; initialApprovalChain?: Array<{ level: number; approver_user_id?: number; is_mandatory?: boolean }>; onSaved?: () => void; readOnly?: boolean; defaultSiteId?: number }) {
@@ -72,12 +73,14 @@ export default function TaskCreate({ mode = "create", initialTask, initialAssign
   };
 
   // Load templates and sites on mount
+  const { role, user, organization, employee } = useAuth();
+
   useEffect(() => {
     (async () => {
       try {
         const t = await apiClient<Array<{ id: number; name: string }>>("/templates", { method: "GET", withAuth: true });
         setTemplates(Array.isArray(t) ? t : []);
-      } catch {}
+      } catch { }
       try {
         const s = await apiClient<{ sites: any[] }>("/sites", { method: "GET", withAuth: true });
         const normalized = (s?.sites || []).map((x: any) => ({ id: Number(x.id), name: String(x.name || x.code || x.id) }));
@@ -85,10 +88,10 @@ export default function TaskCreate({ mode = "create", initialTask, initialAssign
       } catch (e) {
         // Fallback for employees without SITE_VIEW: use sites from session
         try {
-          const sess = await apiClient<{ authenticated: boolean; employee?: { sites?: Array<{ id: number; name?: string; code?: string }> } }>("/auth/session", { method: "GET", withAuth: true });
-          const normalized = (sess?.employee?.sites || []).map((x: any) => ({ id: Number(x.id), name: String(x.name || x.code || x.id) }));
+          const authorizedSites = (employee as any)?.sites || [];
+          const normalized = authorizedSites.map((x: any) => ({ id: Number(x.id), name: String(x.name || x.code || x.id) }));
           setSites(normalized);
-        } catch {}
+        } catch { }
       }
     })();
   }, []);
@@ -230,8 +233,8 @@ export default function TaskCreate({ mode = "create", initialTask, initialAssign
       recurrence === "weekly"
         ? JSON.stringify({ weekdays: weeklyDays })
         : recurrence === "monthly"
-        ? JSON.stringify({ monthDays: monthlyDays })
-        : null;
+          ? JSON.stringify({ monthDays: monthlyDays })
+          : null;
 
     const siteAssigneesArr: Array<{ site_id: number; assignee_user_ids: number[] }> = [];
     if (siteId && selectedAssignees.length) {
@@ -413,7 +416,7 @@ export default function TaskCreate({ mode = "create", initialTask, initialAssign
           </div>
           {recurrence === "one_time" && (
             <div className="flex items-center gap-2">
-            <input id="assignNextWorkingDay" type="checkbox" checked={assignNextWorkingDay} onChange={(e) => setAssignNextWorkingDay(e.target.checked)} disabled={!!readOnly} />
+              <input id="assignNextWorkingDay" type="checkbox" checked={assignNextWorkingDay} onChange={(e) => setAssignNextWorkingDay(e.target.checked)} disabled={!!readOnly} />
               <label htmlFor="assignNextWorkingDay" className="text-sm">Assign on Next Working Day</label>
             </div>
           )}

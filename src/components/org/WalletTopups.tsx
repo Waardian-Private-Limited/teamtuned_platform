@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 
+import { useAuth } from "@/context/AuthContext";
 type Wallet = {
   id: number;
   site_id: number;
@@ -59,6 +60,8 @@ const paymentModes = ["Cash", "Bank", "UPI", "Card", "Other"] as const;
 
 function useCountUp(target: number, duration = 800) {
   const [value, setValue] = useState(0);
+  const { role, permissions, user, employee } = useAuth();
+
   useEffect(() => {
     let raf: number;
     const start = performance.now();
@@ -74,12 +77,11 @@ function useCountUp(target: number, duration = 800) {
 }
 
 export default function WalletTopups() {
+  const { role, permissions, user, employee } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
   // Permissions
-  const [role, setRole] = useState<string | null>(null);
-  const [permissions, setPermissions] = useState<string[]>([]);
   const isOrgAdmin = (role || '').toLowerCase() === 'orgadmin';
   const hasPerm = React.useCallback((code: string) => {
     const list = (permissions || []).map((p) => (p || '').toUpperCase());
@@ -205,10 +207,11 @@ export default function WalletTopups() {
   React.useEffect(() => {
     (async () => {
       try {
-        const session = await apiClient<{ authenticated: boolean; role?: string; employee?: { permissions?: string[] } | null }>("/auth/session", { method: "GET", withAuth: true });
-        setRole(session.role || null);
+        // Session fetch removed (using useAuth)
+        const session = { authenticated: true, role: role, employee: { permissions } };
+        // setRole(session.role || null);
         const perms = (session.employee?.permissions || []).map((p) => (p || '').toUpperCase());
-        setPermissions(perms);
+        // setPermissions(perms);
       } catch (_) { }
     })();
   }, []);

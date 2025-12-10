@@ -6,6 +6,7 @@ import { Loader2, Search, FileText, CheckCircle, XCircle, X, Shield } from "luci
 import { showSuccess, showError } from "@/lib/toast";
 import { format } from "date-fns";
 
+import { useAuth } from "@/context/AuthContext";
 interface Request {
     id: number;
     employee_id: number;
@@ -41,17 +42,20 @@ export default function AccountsList() {
     const [submitting, setSubmitting] = useState(false);
 
     // Permission state
-    const [userRole, setUserRole] = useState<string | null>(null);
-    const [permissions, setPermissions] = useState<string[]>([]);
-    const [checkingPerms, setCheckingPerms] = useState(true);
+    const [userRole, setUserRole] = useState<string | null>(null);const [checkingPerms, setCheckingPerms] = useState(true);
+
+    const { role, permissions, employee } = useAuth();
+
+    
 
     useEffect(() => {
         (async () => {
             try {
-                const session = await apiClient<any>("/auth/session", { method: "GET" });
+                // Session fetch removed (using useAuth)
+        const session = { authenticated: true, role: role, employee: { permissions } };
                 if (session?.authenticated) {
                     setUserRole(session.role);
-                    setPermissions(session.employee?.permissions || []);
+                    // setPermissions(session.employee?.permissions || []);
                 }
             } catch (_) { } finally {
                 setCheckingPerms(false);

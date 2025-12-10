@@ -7,9 +7,11 @@ import PayrollCycleCalendar from "@/components/payroll/PayrollCycleCalendar";
 import { Search, Filter, Users, Phone, Building, Clock, MapPin, MoreVertical, ChevronLeft, ChevronRight, Calendar, User, Shield, Eye, RefreshCw, X, CheckCircle, AlertCircle, LogOut, Layers, ChevronDown, Download, FileText, CreditCard, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 
+import { useAuth } from "@/context/AuthContext";
 type EmployeeItem = Record<string, any>;
 
 export default function PayrollManagement({ defaultHQ = true, showHQToggle = true, externalControl = false, hqMode: extHq, selectedSiteId: extSiteId }: { defaultHQ?: boolean; showHQToggle?: boolean; externalControl?: boolean; hqMode?: boolean; selectedSiteId?: number | null }) {
+  const { role, permissions, user, employee } = useAuth();
   const [hqMode, setHqMode] = React.useState<boolean>(extHq ?? defaultHQ);
   const [inchargeSites, setInchargeSites] = React.useState<Array<Record<string, any>>>([]);
   const [allSites, setAllSites] = React.useState<Array<Record<string, any>>>([]);
@@ -33,11 +35,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
   }, [closeMenu]);
 
   const [search, setSearch] = React.useState<string>("");
-  const [department, setDepartment] = React.useState<string>("");
-
-  const [role, setRole] = React.useState<string | null>(null);
-  const [permissions, setPermissions] = React.useState<string[]>([]);
-  const isEmployee = (role || "").toLowerCase() === "employee";
+  const [department, setDepartment] = React.useState<string>(""); const isEmployee = (role || "").toLowerCase() === "employee";
   const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
   const canHRMode = !isEmployee || hasPerm("HR_MODE");
 
@@ -188,10 +186,11 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
   React.useEffect(() => {
     (async () => {
       try {
-        const session = await apiClient<{ authenticated: boolean; role?: string; employee?: { permissions?: string[] } | null }>("/auth/session", { method: "GET" });
+        // Session fetch removed (using useAuth)
+        const session = { authenticated: true, role: role, employee: { permissions } };
         if (session?.authenticated) {
-          setRole((session.role || null) as string | null);
-          setPermissions(session.employee?.permissions || []);
+          // setRole((session.role || null) as string | null);
+          // setPermissions(session.employee?.permissions || []);
         }
       } catch { }
 
@@ -221,8 +220,8 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
 
       // Fetch policy data to get cycle configuration
       try {
-        const session = await apiClient<any>("/auth/session", { method: "GET", withAuth: true });
-        const empId = Number(session?.employee?.id || session?.employee_id || session?.id || 0);
+        // Session fetch removed (using useAuth)
+        const empId = employee?.id || 0;
         if (empId) {
           const payrollRes = await apiClient<any>("/attendance/payroll-cycle", {
             method: "GET",

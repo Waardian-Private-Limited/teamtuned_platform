@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight, Search, Filter, RefreshCw, DollarSign, Calen
 import Pagination from "./Pagination";
 import TableSkeleton from "./TableSkeleton";
 
+import { useAuth } from "@/context/AuthContext";
 type RepaymentSchedule = {
     request_id: number;
     approved_amount: number;
@@ -48,9 +49,7 @@ export default function RepaymentScheduleList() {
     const [loadingEmis, setLoadingEmis] = useState<Record<number, boolean>>({});
 
     // Permission state
-    const [userRole, setUserRole] = useState<string | null>(null);
-    const [permissions, setPermissions] = useState<string[]>([]);
-    const [checkingPerms, setCheckingPerms] = useState(true);
+    const [userRole, setUserRole] = useState<string | null>(null);const [checkingPerms, setCheckingPerms] = useState(true);
 
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
@@ -58,13 +57,18 @@ export default function RepaymentScheduleList() {
     const [totalItems, setTotalItems] = useState(0);
     const itemsPerPage = 15;
 
+    const { role, permissions, employee } = useAuth();
+
+    
+
     useEffect(() => {
         (async () => {
             try {
-                const session = await apiClient<any>("/auth/session", { method: "GET" });
+                // Session fetch removed (using useAuth)
+        const session = { authenticated: true, role: role, employee: { permissions } };
                 if (session?.authenticated) {
                     setUserRole(session.role);
-                    setPermissions(session.employee?.permissions || []);
+                    // setPermissions(session.employee?.permissions || []);
                 }
             } catch (_) { } finally {
                 setCheckingPerms(false);

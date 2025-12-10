@@ -7,6 +7,7 @@ import RequestDetails from "./RequestDetails";
 import Pagination from "./Pagination";
 import TableSkeleton from "./TableSkeleton";
 
+import { useAuth } from "@/context/AuthContext";
 type Request = {
     id: number;
     employee_id: number;
@@ -40,9 +41,7 @@ export default function AdvanceRequests() {
     const [departments, setDepartments] = useState<Department[]>([]);
 
     // Permission state
-    const [userRole, setUserRole] = useState<string | null>(null);
-    const [permissions, setPermissions] = useState<string[]>([]);
-    const [checkingPerms, setCheckingPerms] = useState(true);
+    const [userRole, setUserRole] = useState<string | null>(null);const [checkingPerms, setCheckingPerms] = useState(true);
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -50,13 +49,18 @@ export default function AdvanceRequests() {
     const [totalItems, setTotalItems] = useState(0);
     const itemsPerPage = 20;
 
+    const { role, permissions, organization, employee } = useAuth();
+
+    
+
     useEffect(() => {
         (async () => {
             try {
-                const session = await apiClient<any>("/auth/session", { method: "GET" });
+                // Session fetch removed (using useAuth)
+        const session = { authenticated: true, role: role, employee: { permissions } };
                 if (session?.authenticated) {
                     setUserRole(session.role);
-                    setPermissions(session.employee?.permissions || []);
+                    // setPermissions(session.employee?.permissions || []);
                 }
             } catch (_) { } finally {
                 setCheckingPerms(false);

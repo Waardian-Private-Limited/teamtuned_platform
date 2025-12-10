@@ -1,35 +1,40 @@
 "use client";
 
 import React from "react";
-import dynamic from "next/dynamic";
-import { apiClient } from "@/lib/apiClient";
-
-const EmployeeSiteAssignment = dynamic(() => import("@/components/employee/EmployeeSiteAssignment"), { ssr: false });
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
+import EmployeeSiteAssignment from "@/components/employee/EmployeeSiteAssignment";
 
 export default function EmployeeSitesPage() {
-  const [role, setRole] = React.useState<string | null>(null);
-  const [permissions, setPermissions] = React.useState<string[]>([]);
-  const [loading, setLoading] = React.useState(true);
+  const router = useRouter();
+  const { permissions, isAuthenticated, loading } = useAuth();
 
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const session = await apiClient<{ authenticated: boolean; role?: string; employee?: { permissions?: string[] } | null }>("/auth/session", { method: "GET" });
-        if (session?.authenticated) {
-          setRole((session.role || null) as string | null);
-          setPermissions(session.employee?.permissions || []);
-        }
-      } catch { }
-      setLoading(false);
-    })();
-  }, []);
+  // Handle loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
 
-  const isEmployee = (role || "").toLowerCase() === "employee";
-  const hasPerm = (...codes: string[]) => !isEmployee || codes.some(code => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase()));
+  // Redirect if not authenticated
+  if (!isAuthenticated) {
+    router.replace("/login");
+    return null;
+  }
 
-  if (loading) return <div className="text-sm text-gray-600">Loading...</div>;
-  if (isEmployee && !hasPerm("EMPLOYEE_ASSIGN_SITE", "EMPSITE_VIEW")) {
-    return <div className="text-sm text-red-600">You do not have permission to assign sites to employees.</div>;
+  // Check permissions
+  const hasPermission = permissions.includes("view_employee_sites") || permissions.includes("manage_employee_sites");
+
+  if (!hasPermission) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-800">You do not have permission to view this page.</p>
+        </div>
+      </div>
+    );
   }
 
   return <EmployeeSiteAssignment />;

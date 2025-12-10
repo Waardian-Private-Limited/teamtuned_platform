@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { apiClient } from "@/lib/apiClient";
+import { useAuth } from "@/context/AuthContext";
 import { showSuccess, showError } from "@/lib/toast";
 import { Plus, Search, Building2, Phone, Mail, MapPin, Edit2, Trash2, X, AlertTriangle } from "lucide-react";
 
@@ -13,28 +14,9 @@ export default function InsuranceProviders() {
   const [editingProvider, setEditingProvider] = useState<any>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; provider: any | null }>({ show: false, provider: null });
 
-  // Permissions
-  const [role, setRole] = React.useState<string | null>(null);
-  const [permissions, setPermissions] = React.useState<string[]>([]);
+  // Use centralized auth
+  const { role, permissions } = useAuth();
   const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
-
-  useEffect(() => {
-    checkSession();
-  }, []);
-
-  const checkSession = async () => {
-    try {
-      const session = await apiClient<{
-        authenticated: boolean;
-        role: string;
-        employee?: { permissions?: string[] } | null;
-      }>("/auth/session", { method: "GET" });
-      if (session?.authenticated) {
-        setRole(session.role || null);
-        setPermissions(session.employee?.permissions || []);
-      }
-    } catch (_) { }
-  };
 
   useEffect(() => {
     if (role === "Employee" && !hasPerm("INS_PROVIDER_VIEW")) return;

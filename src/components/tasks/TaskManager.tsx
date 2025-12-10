@@ -4,6 +4,7 @@ import React from "react";
 import { apiClient } from "@/lib/apiClient";
 import { Plus, RefreshCw, Shield } from "lucide-react";
 
+import { useAuth } from "@/context/AuthContext";
 type Task = {
   id: number;
   template_id: number;
@@ -23,13 +24,13 @@ type Props = {
 };
 
 export default function TaskManager({ role }: Props) {
+  const { role: authRole, permissions, user, employee } = useAuth();
   const [tasks, setTasks] = React.useState<Task[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [showCreate, setShowCreate] = React.useState(false);
 
   // Permissions
-  const [permissions, setPermissions] = React.useState<string[]>([]);
   const [userRole, setUserRole] = React.useState<string | null>(null);
   const [checkingPerms, setCheckingPerms] = React.useState(true);
 
@@ -49,10 +50,11 @@ export default function TaskManager({ role }: Props) {
   React.useEffect(() => {
     (async () => {
       try {
-        const session = await apiClient<any>("/auth/session", { method: "GET" });
+        // Session fetch removed (using useAuth)
+        const session = { authenticated: true, role: authRole, employee: { permissions } };
         if (session?.authenticated) {
           setUserRole(session.role);
-          setPermissions(session.employee?.permissions || []);
+          // setPermissions(session.employee?.permissions || []);
         }
       } catch (_) { } finally {
         setCheckingPerms(false);
@@ -64,6 +66,10 @@ export default function TaskManager({ role }: Props) {
   const isOrgAdmin = (userRole || "").toLowerCase() === "orgadmin";
   const canView = isOrgAdmin || hasPerm("TASK_VIEW") || hasPerm("TASK_TEMPLATES");
   const canCreate = isOrgAdmin || hasPerm("TASK_CREATE") || hasPerm("TASK_TEMPLATES");
+
+
+
+
 
   const fetchTasks = async () => {
     if (!canView && !checkingPerms) return;

@@ -16,6 +16,7 @@ import ChartSkeleton from "./ChartSkeleton";
 import TableSkeleton from "./TableSkeleton";
 import Pagination from "./Pagination";
 
+import { useAuth } from "@/context/AuthContext";
 type OverviewMetrics = {
     total_approved: number;
     total_pending: number;
@@ -85,17 +86,20 @@ export default function SalaryAdvanceAnalytics() {
     const [employeePage, setEmployeePage] = useState(1);
 
     // Permission state
-    const [userRole, setUserRole] = useState<string | null>(null);
-    const [permissions, setPermissions] = useState<string[]>([]);
-    const [checkingPerms, setCheckingPerms] = useState(true);
+    const [userRole, setUserRole] = useState<string | null>(null);const [checkingPerms, setCheckingPerms] = useState(true);
+
+    const { role, permissions, organization } = useAuth();
+
+    
 
     useEffect(() => {
         (async () => {
             try {
-                const session = await apiClient<any>("/auth/session", { method: "GET" });
+                // Session fetch removed (using useAuth)
+        const session = { authenticated: true, role: role, employee: { permissions } };
                 if (session?.authenticated) {
                     setUserRole(session.role);
-                    setPermissions(session.employee?.permissions || []);
+                    // setPermissions(session.employee?.permissions || []);
                 }
             } catch (_) { } finally {
                 setCheckingPerms(false);
