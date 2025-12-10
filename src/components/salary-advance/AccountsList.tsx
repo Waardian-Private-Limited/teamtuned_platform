@@ -42,20 +42,25 @@ export default function AccountsList() {
     const [submitting, setSubmitting] = useState(false);
 
     // Permission state
-    const [userRole, setUserRole] = useState<string | null>(null);const [checkingPerms, setCheckingPerms] = useState(true);
+    const [userRole, setUserRole] = useState<string | null>(null); const [checkingPerms, setCheckingPerms] = useState(true);
 
     const { role, permissions, employee } = useAuth();
 
-    
+
 
     useEffect(() => {
         (async () => {
             try {
                 // Session fetch removed (using useAuth)
-        const session = { authenticated: true, role: role, employee: { permissions } };
+                const session = { authenticated: true, role: role, employee: { permissions } };
                 if (session?.authenticated) {
                     setUserRole(session.role);
                     // setPermissions(session.employee?.permissions || []);
+
+                    if ((session.role || "").toLowerCase() === "orgadmin") {
+                        setAccessDenied(false); // OrgAdmin always has access
+                        setCheckingPerms(false);
+                    }
                 }
             } catch (_) { } finally {
                 setCheckingPerms(false);

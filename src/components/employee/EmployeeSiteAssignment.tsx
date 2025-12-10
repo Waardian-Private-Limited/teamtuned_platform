@@ -171,8 +171,9 @@ export default function EmployeeSiteAssignment() {
       if (inchargeOnly) params.set("incharge_only", "true");
       if (statusFilter !== "all") params.set("status", statusFilter);
 
-      const data = await apiClient<{ items: EmployeeLite[]; total: number; page: number; limit: number; hasNext: boolean }>(`/organization/employees?${params.toString()}`, { method: "GET" });
-      const items = Array.isArray(data.items) ? data.items : [];
+      const data = await apiClient<{ data?: EmployeeLite[]; items?: EmployeeLite[]; total: number; page: number; limit: number; hasNext: boolean }>(`/organization/employees?${params.toString()}`, { method: "GET" });
+      // API returns 'data' key for array, but we were looking for 'items'.
+      const items = Array.isArray(data.data) ? data.data : (Array.isArray(data.items) ? data.items : []);
       setEmployees(items);
       setTotalEntries(Number(data.total || 0));
     } catch (e: any) {

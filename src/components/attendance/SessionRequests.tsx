@@ -157,10 +157,11 @@ export default function SessionRequests({ defaultStatus = 'Pending', defaultHQ =
 
     // Derive stats from current list
     useEffect(() => {
-        const pending = requests.filter(r => r.status === 'Pending').length;
-        const approved = requests.filter(r => r.status === 'Approved').length;
-        const rejected = requests.filter(r => r.status === 'Rejected').length;
-        setStats({ pending, approved, rejected, total: requests.length });
+        const safeRequests = requests || [];
+        const pending = safeRequests.filter(r => r.status === 'Pending').length;
+        const approved = safeRequests.filter(r => r.status === 'Approved').length;
+        const rejected = safeRequests.filter(r => r.status === 'Rejected').length;
+        setStats({ pending, approved, rejected, total: safeRequests.length });
     }, [requests]);
 
     // CountUp hooks
@@ -170,7 +171,7 @@ export default function SessionRequests({ defaultStatus = 'Pending', defaultHQ =
     const totalCount = useCountUp(stats.total);
 
     // Filtered Items 
-    const visibleItems = requests;
+    const visibleItems = requests || [];
     const totalEntries = visibleItems.length;
     const totalPages = Math.max(1, Math.ceil(totalEntries / pageSize));
     const pageStart = (page - 1) * pageSize;

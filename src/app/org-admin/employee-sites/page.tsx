@@ -25,7 +25,8 @@ export default function OrgAdminEmployeeSitesPage() {
   }
 
   // Check permissions
-  const hasPermission = permissions.includes("view_employee_sites") || permissions.includes("manage_employee_sites");
+  const isOrgAdmin = (useAuth().role || "").toLowerCase() === "orgadmin";
+  const hasPermission = isOrgAdmin || permissions.includes("view_employee_sites") || permissions.includes("manage_employee_sites");
 
   if (!hasPermission) {
     return (

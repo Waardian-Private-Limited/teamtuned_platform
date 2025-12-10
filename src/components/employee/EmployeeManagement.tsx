@@ -507,8 +507,10 @@ export default function EmployeeManagement() {
       if (typeof filterRoleId === "number") params.set("role_id", String(filterRoleId));
       if (statusFilter !== "all") params.set("status", statusFilter);
 
-      const data = await apiClient<{ items: Employee[]; total: number; page: number; limit: number; hasNext: boolean }>(`/organization/employees?${params.toString()}`, { method: "GET" });
-      const items = Array.isArray((data as any)?.items) ? (data as any).items : [];
+      const data = await apiClient<{ data: Employee[]; total: number; page: number; limit: number; hasNext: boolean }>(`/organization/employees?${params.toString()}`, { method: "GET" });
+      // API returns 'data' key for array, but we were looking for 'items'.
+      // Also handle case where it might be 'items' for other endpoints if shared.
+      const items = Array.isArray((data as any)?.data) ? (data as any).data : (Array.isArray((data as any)?.items) ? (data as any).items : []);
       setEmployees(items);
       // Track server pagination meta for UI controls
       const total = Number((data as any)?.total || 0);
