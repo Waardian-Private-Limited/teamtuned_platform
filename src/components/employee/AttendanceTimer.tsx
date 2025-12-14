@@ -33,49 +33,66 @@ const AttendanceTimer: React.FC<AttendanceTimerProps> = ({ summary }) => {
             const isOnBreak = summary.active_session_type === 'break';
 
             if (punchInTime > 0) {
+                // Update timer loop logic
+                // ... (I need to replace the updateTimer function body or specific section)
+
+                // Actually, I'll replace the full updateTimer function logic or the block inside.
+
+                // Let's replace lines 36-62 logic.
+
+                /* Timer Logic Replacement */
                 if (isOnBreak && summary.break_start_time) {
-                    // Frozen at break start
-                    const breakStart = new Date(summary.break_start_time).getTime();
-                    // Worked = (BreakStart - PunchIn) - (TotalBreaks - CurrentBreakDuration?) 
-                    // Wait, usually total_break_minutes only includes *completed* breaks.
-                    // So worked = (BreakStart - PunchIn) - TotalBreaks(completed)
-                    // Mobile logic: liveWorked = breakStart.difference(inDt); "FROZEN"
-                    // But mobile logic doesn't subtract totalBreakMinutes in the frozen case? 
-                    // Let's look at mobile again:
-                    // liveWorked = breakStart.difference(inDt);
-                    // It seems mobile assumes breakStart - PunchIn IS the worked duration? 
-                    // That implies TotalBreaks(completed) happened *between* PunchIn and BreakStart?
-                    // Mobile logic seems effectively: (BreakStart - PunchIn) - (TotalBreaks BEFORE this break).
-                    // If total_break_minutes includes PAST breaks, then yes, we should subtract it.
-                    // But the mobile code snippet showed: liveWorked = breakStart.difference(inDt); 
-                    // It missed subtracting totalBreakMinutes there. Let's replicate mobile logic exactly for now, or improve it if obviously wrong.
-                    // Wait, if I worked 1h, took 10m break, worked 1h, now starting 2nd break.
-                    // PunchIn: 9:00. Break1: 10:00-10:10. TotalBreak: 10. Break2 Start: 11:10.
-                    // Worked = (11:10 - 9:00) - 10m = 2h 10m - 10m = 2h.
-                    // If I just do BreakStart - PunchIn, it's 2h 10m. That includes the previous break!
-                    // So subtracting totalBreakMs is likely correct.
-                    liveWorkedMs = Math.max(0, (breakStart - punchInTime) - totalBreakMs);
+                    // Break Countdown Logic
+                    let targetEnd = 0;
+                    if (summary.strict_return && summary.strict_return_time) {
+                        targetEnd = new Date(summary.strict_return_time).getTime();
+                    } else {
+                        const duration = summary.break_approved_duration || 60;
+                        const start = new Date(summary.break_start_time).getTime();
+                        targetEnd = start + duration * 60000;
+                    }
+
+                    const diff = targetEnd - now;
+                    const isOverdue = diff < 0;
+                    const absMs = Math.abs(diff);
+
+                    const h = Math.floor(absMs / 3600000);
+                    const m = Math.floor((absMs % 3600000) / 60000);
+                    const s = Math.floor((absMs % 60000) / 1000);
+
+                    setElapsed(`${isOverdue ? '-' : ''}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+
+                    // Progress for break (optional, or just set 0/100)
+                    setProgress(isOverdue ? 100 : 50); // Simplified
                 } else {
                     // Working live
-                    // Worked = (Now - PunchIn) - TotalBreaks
                     liveWorkedMs = Math.max(0, (now - punchInTime) - totalBreakMs);
+
+                    const totalSec = Math.floor(liveWorkedMs / 1000);
+                    const h = Math.floor(totalSec / 3600);
+                    const m = Math.floor((totalSec % 3600) / 60);
+                    const s = totalSec % 60;
+
+                    setElapsed(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+
+                    if (summary.expected_minutes > 0) {
+                        const p = Math.min(100, (liveWorkedMs / (summary.expected_minutes * 60 * 1000)) * 100);
+                        setProgress(p);
+                    }
                 }
             } else {
-                // Fallback
+                // Fallback (Not checked in)
                 liveWorkedMs = (summary.total_work_minutes || 0) * 60 * 1000;
+                const totalSec = Math.floor(liveWorkedMs / 1000);
+                // ... (Format logic repeated? I should reuse formatting if possible)
+                // Just keep existing fallback logic structure
+                const totalSec2 = Math.floor(liveWorkedMs / 1000);
+                const h = Math.floor(totalSec2 / 3600);
+                const m = Math.floor((totalSec2 % 3600) / 60);
+                const s = totalSec2 % 60;
+                setElapsed(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
             }
 
-            const totalSec = Math.floor(liveWorkedMs / 1000);
-            const h = Math.floor(totalSec / 3600);
-            const m = Math.floor((totalSec % 3600) / 60);
-            const s = totalSec % 60;
-
-            setElapsed(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
-
-            if (summary.expected_minutes > 0) {
-                const p = Math.min(100, (liveWorkedMs / (summary.expected_minutes * 60 * 1000)) * 100);
-                setProgress(p);
-            }
         };
 
         const interval = setInterval(updateTimer, 1000);
@@ -179,7 +196,7 @@ const AttendanceTimer: React.FC<AttendanceTimerProps> = ({ summary }) => {
                             {elapsed}
                         </span>
                         <span className="text-xs text-gray-500 font-medium mt-1 uppercase tracking-wider">
-                            {isOnBreak ? 'ON BREAK' : (isOffDay ? 'DAY OFF' : 'WORK HOURS')}
+                            {isOnBreak ? (summary.strict_return ? 'STRICT RETURN' : 'ON BREAK') : (isOffDay ? 'DAY OFF' : 'WORK HOURS')}
                         </span>
                     </div>
                 </div>

@@ -131,11 +131,9 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
   const [selectedSiteId, setSelectedSiteId] = React.useState<number | null>(initialSiteId || null);
   const [selectedWalletId, setSelectedWalletId] = React.useState<number | null>(initialWalletId || null);
 
-  // Initialize date range (this month)
-  const today = new Date();
-  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-  const [dateFrom, setDateFrom] = React.useState<string>(firstDay.toISOString().slice(0, 10));
-  const [dateTo, setDateTo] = React.useState<string>(today.toISOString().slice(0, 10));
+  // Initialize date range (no default filter)
+  const [dateFrom, setDateFrom] = React.useState<string>("");
+  const [dateTo, setDateTo] = React.useState<string>("");
 
   const [balanceSummary, setBalanceSummary] = React.useState<any>(null);
   const [showBalanceSummary, setShowBalanceSummary] = React.useState<boolean>(false);
@@ -286,7 +284,7 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
         id: Number(e.id),
         invoice_no: String(e.invoice_no || "-"),
         description: e.description || undefined,
-        date: e.updated_at || e.date || e.created_at,
+        date: e.created_at || e.date || e.updated_at,
         grand_total: Number(String(e.grand_total || e.total_amount || 0).replace(/,/g, "")),
         payment_mode: e.payment_mode || undefined,
         status: (e.status || "-") as string,
@@ -857,23 +855,26 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
 
           {/* Date Filters */}
           <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-gray-700">Expense Date:</span>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:border-blue-500"
-              />
-              <span className="text-gray-400">-</span>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:border-blue-500"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Expense From</label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Expense To</label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                />
+              </div>
             </div>
-
             <div className="w-px h-4 bg-gray-200 mx-1 hidden md:block"></div>
 
             <div className="flex items-center gap-2">
@@ -1797,6 +1798,31 @@ function ExpenseDetailModal({ loading, error, detail, onClose, onUpdatePhysicalC
                             </div>
                           )}
                         </div>
+                        <div className="mt-4 pt-4 border-t border-gray-100 space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <div className="text-xs text-gray-500 mb-1">Invoice Number</div>
+                              <div className="text-sm font-medium text-gray-900">{detail.expense?.invoice_no || "-"}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500 mb-1">Status</div>
+                              <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(detail.expense?.status || "")}`}>
+                                {detail.expense?.status || "-"}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <div className="text-xs text-gray-500 mb-1">Expense Date (Created)</div>
+                              <div className="text-sm font-medium text-gray-900">{formatDateFlexible(detail.expense?.created_at)}</div>
+                            </div>
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                              <div className="text-xs text-yellow-700 font-semibold mb-1">📅 Invoice Date</div>
+                              <div className="text-sm font-bold text-yellow-900">{formatDateFlexible(detail.expense?.date)}</div>
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
                       {/* Buyer (Right) */}
@@ -2264,11 +2290,11 @@ function ExportModal({ current, searchTerm, notify, categories, siteOptions, onC
             </select>
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Updated From</label>
+            <label className="block text-xs text-gray-500 mb-1">Expense From</label>
             <input type="date" value={local.dateFrom} onChange={(e) => setLocal({ ...local, dateFrom: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Updated To</label>
+            <label className="block text-xs text-gray-500 mb-1">Expense To</label>
             <input type="date" value={local.dateTo} onChange={(e) => setLocal({ ...local, dateTo: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
           </div>
           <div>

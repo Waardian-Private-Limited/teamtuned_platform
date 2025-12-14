@@ -145,7 +145,7 @@ export default function SessionRequests({ defaultStatus = 'Pending', defaultHQ =
             setLoading(true);
             const res = await fetchPendingSessionRequests(filter, fromDate, toDate, effHq, Number(effSite) || null);
             if (res.success) {
-                setRequests(res.requests);
+                setRequests(res.requests || []);
             }
         } catch (error) {
             console.error(error);
@@ -372,7 +372,7 @@ export default function SessionRequests({ defaultStatus = 'Pending', defaultHQ =
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                            {loading && requests.length === 0 ? (
+                            {loading && (requests || []).length === 0 ? (
                                 [...Array(5)].map((_, i) => (
                                     <tr key={i} className="animate-pulse">
                                         <td className="px-4 py-3"><div className="h-4 bg-gray-100 rounded w-32"></div></td>
@@ -405,7 +405,7 @@ export default function SessionRequests({ defaultStatus = 'Pending', defaultHQ =
                                         <td className="px-4 py-3 text-sm text-gray-900">
                                             {req.request_type === 'break' && (req.approved_duration_minutes || req.expected_duration_minutes || 0) + ' min'}
                                             {req.request_type === 'outside_work' && req.expected_return_time && (
-                                                <span className="text-gray-500 text-xs block">Ret: {format(parseISO(req.expected_return_time), 'h:mm a')}</span>
+                                                <span className="text-gray-500 text-xs block">Ret: {format(parseISO(req.expected_return_time), 'MMM d, h:mm a')}</span>
                                             )}
                                         </td>
                                         <td className="px-4 py-3 text-sm text-gray-900 max-w-[200px] truncate" title={req.reason}>
@@ -602,6 +602,8 @@ function RequestModal({ request, mode, setMode, onClose }: { request: SessionReq
         request.approved_duration_minutes?.toString() || request.expected_duration_minutes?.toString() || '0'
     );
     const [disableGeofence, setDisableGeofence] = useState(request.disable_geofence === true || request.disable_geofence === 1);
+    const [strictReturn, setStrictReturn] = useState(false);
+    const [strictReturnTime, setStrictReturnTime] = useState('');
     const [rejectReason, setRejectReason] = useState('');
     const [processing, setProcessing] = useState(false);
 
@@ -609,28 +611,84 @@ function RequestModal({ request, mode, setMode, onClose }: { request: SessionReq
         if (request.status === 'Pending' && request.expected_return_time) {
             try {
                 const remaining = differenceInMinutes(parseISO(request.expected_return_time), new Date());
-                if (remaining > 0 && remaining < 1440) setDuration(remaining.toString());
+                if (remaining > 0 && remaining < 1440) {
+                    setDuration(remaining.toString());
+
+                    // If this is a break request, also pre-fill strict return time
+                    if (isBreak) {
+                        const returnTime = parseISO(request.expected_return_time);
+                        const hours = returnTime.getHours().toString().padStart(2, '0');
+                        const minutes = returnTime.getMinutes().toString().padStart(2, '0');
+                        setStrictReturnTime(`${hours}:${minutes}`);
+                    }
+                }
             } catch (e) { }
         }
-    }, [request]);
+    }, [request, isBreak]);
 
     async function handleApprove() {
+        const parsedDuration = parseInt(duration);
+        if (isNaN(parsedDuration) || parsedDuration <= 0) {
+            toast.error('Please enter a valid duration');
+            return;
+        }
+
+        // Validate strict return for break requests
+        if (isBreak && strictReturn && !strictReturnTime) {
+            toast.error('Please select a return time');
+            return;
+        }
+
         setProcessing(true);
         try {
-            await approveSessionRequest(request.id, { approved_duration_minutes: parseInt(duration), disable_geofence: disableGeofence });
+            const data: any = {
+                approved_duration_minutes: parsedDuration,
+            };
+
+            if (isBreak) {
+                data.strict_return = strictReturn;
+                if (strictReturn && strictReturnTime) {
+                    // Combine today's date with selected time
+                    const today = new Date();
+                    const [hours, minutes] = strictReturnTime.split(':');
+                    const returnDateTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), parseInt(hours), parseInt(minutes));
+                    // Send as UTC ISO string to ensure backend saves exact UTC time
+                    data.strict_return_time = returnDateTime.toISOString();
+                }
+            } else {
+                data.disable_geofence = disableGeofence;
+            }
+
+            console.log('🔍 [WEB] Sending approval data:', data);
+
+            await approveSessionRequest(request.id, data);
             toast.success('Request approved');
             onClose();
-        } catch (e) { toast.error('Failed to approve'); } finally { setProcessing(false); }
+            window.location.reload(); // Refresh to show updated data
+        } catch (e: any) {
+            toast.error(e?.message || 'Failed to approve');
+        } finally {
+            setProcessing(false);
+        }
     }
 
     async function handleReject() {
-        if (!rejectReason) { toast.error('Please provide a reason'); return; }
+        if (!rejectReason.trim()) {
+            toast.error('Please provide a rejection reason');
+            return;
+        }
+
         setProcessing(true);
         try {
             await rejectSessionRequest(request.id, rejectReason);
             toast.success('Request rejected');
             onClose();
-        } catch (e) { toast.error('Failed to reject'); } finally { setProcessing(false); }
+            window.location.reload(); // Refresh to show updated data
+        } catch (e: any) {
+            toast.error(e?.message || 'Failed to reject');
+        } finally {
+            setProcessing(false);
+        }
     }
 
     const mapUrl = (request.outside_location_lat && request.outside_location_lng)
@@ -682,12 +740,127 @@ function RequestModal({ request, mode, setMode, onClose }: { request: SessionReq
                         )}
                     </div>
 
+                    {/* Location Map Display */}
+                    {(request.request_location_lat && request.request_location_lng) && (
+                        <div className="mt-4">
+                            <p className="text-sm font-semibold text-gray-700 mb-2">Request Location</p>
+                            <div className="h-48 rounded-lg overflow-hidden border border-gray-200">
+                                <iframe
+                                    width="100%"
+                                    height="100%"
+                                    frameBorder="0"
+                                    style={{ border: 0 }}
+                                    src={`https://www.google.com/maps?q=${request.request_location_lat},${request.request_location_lng}&output=embed`}
+                                    allowFullScreen
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Approver Information */}
+                    {request.status !== 'Pending' && (request.approved_by_name || request.approved_at || request.strict_return) && (
+                        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Approval Details</p>
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                                {request.approved_by_name && (
+                                    <div>
+                                        <span className="text-gray-500">Approved By:</span>
+                                        <p className="font-medium">{request.approved_by_name}</p>
+                                    </div>
+                                )}
+                                {request.approved_at && (
+                                    <div>
+                                        <span className="text-gray-500">Approved At:</span>
+                                        <p className="font-medium">{format(parseISO(request.approved_at), 'MMM d, h:mm a')}</p>
+                                    </div>
+                                )}
+                                {request.strict_return && request.strict_return_time && (
+                                    <div className="col-span-2">
+                                        <span className="text-gray-500">Strict Return Time:</span>
+                                        <p className="font-medium text-amber-700 flex items-center gap-1">
+                                            <Clock className="w-4 h-4" />
+                                            {format(parseISO(request.strict_return_time), 'h:mm a')}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {mode === 'approve' && (
                         <div className="bg-green-50 p-4 rounded-xl space-y-4 border border-green-100">
                             <div>
                                 <label className="block text-xs font-bold text-green-800 uppercase tracking-wider mb-1.5">Approved Duration (Min)</label>
                                 <input type="number" value={duration} onChange={(e) => setDuration(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-green-300 focus:ring-2 focus:ring-green-500 outline-none" />
+                                {strictReturn && strictReturnTime && duration && (
+                                    <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                                        <Clock className="w-3 h-3" />
+                                        Auto-calculated from return time
+                                    </p>
+                                )}
                             </div>
+
+                            {isBreak && (
+                                <>
+                                    {/* Strict Return Toggle */}
+                                    <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-green-200">
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-700">
+                                                Strict Return Time
+                                            </label>
+                                            <p className="text-xs text-gray-500 mt-0.5">
+                                                Require employee to return at exact time
+                                            </p>
+                                        </div>
+                                        <input
+                                            type="checkbox"
+                                            checked={strictReturn}
+                                            onChange={(e) => setStrictReturn(e.target.checked)}
+                                            className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                                        />
+                                    </div>
+
+                                    {/* Return Time Picker */}
+                                    {strictReturn && (
+                                        <div>
+                                            <label className="block text-xs font-bold text-green-800 uppercase tracking-wider mb-1.5">
+                                                Return Time (Today) *
+                                            </label>
+                                            <input
+                                                type="time"
+                                                value={strictReturnTime}
+                                                onChange={(e) => {
+                                                    const timeValue = e.target.value;
+                                                    setStrictReturnTime(timeValue);
+
+                                                    // Auto-calculate duration if time is selected
+                                                    if (timeValue && isBreak) {
+                                                        const now = new Date();
+                                                        const [hours, minutes] = timeValue.split(':');
+                                                        const selectedDateTime = new Date(
+                                                            now.getFullYear(),
+                                                            now.getMonth(),
+                                                            now.getDate(),
+                                                            parseInt(hours),
+                                                            parseInt(minutes)
+                                                        );
+
+                                                        const durationMinutes = Math.floor((selectedDateTime.getTime() - now.getTime()) / (1000 * 60));
+
+                                                        // Always override with calculated duration if positive
+                                                        if (durationMinutes > 0) {
+                                                            setDuration(durationMinutes.toString());
+                                                        }
+                                                    }
+                                                }}
+                                                className="w-full px-3 py-2 rounded-lg border border-green-300 focus:ring-2 focus:ring-green-500 outline-none"
+                                                required
+                                            />
+                                        </div>
+                                    )}
+                                </>
+                            )}
+
                             {!isBreak && (
                                 <label className="flex items-center gap-2 cursor-pointer">
                                     <input type="checkbox" checked={disableGeofence} onChange={(e) => setDisableGeofence(e.target.checked)} className="rounded text-green-600 focus:ring-green-500" />

@@ -327,7 +327,16 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
     if (s.includes("work_from_home") || s.includes("wfh")) {
       return "WFH";
     }
-    if (s.includes("break") || s.includes("on_break")) {
+    if (s.includes("break_requested") || s.includes("break requested")) {
+      return "Break Requested";
+    }
+    if (s.includes("break_approved") || s.includes("break approved")) {
+      return "Break Approved";
+    }
+    if (s.includes("break_availed") || s.includes("break availed")) {
+      return "Break Availed";
+    }
+    if (s.includes("on_break") || s.includes("break")) {
       return "On Break";
     }
     if (s.includes("outside_work") || s.includes("outside work")) {
@@ -412,6 +421,27 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
         border: "border-teal-200",
       };
     }
+    if (formattedStatus.includes("break requested")) {
+      return {
+        text: "text-blue-700",
+        bg: "bg-blue-50",
+        border: "border-blue-200",
+      };
+    }
+    if (formattedStatus.includes("break approved")) {
+      return {
+        text: "text-green-700",
+        bg: "bg-green-50",
+        border: "border-green-200",
+      };
+    }
+    if (formattedStatus.includes("break availed")) {
+      return {
+        text: "text-purple-700",
+        bg: "bg-purple-50",
+        border: "border-purple-200",
+      };
+    }
     if (formattedStatus.includes("on break")) {
       return {
         text: "text-amber-600",
@@ -448,6 +478,9 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
     if (formattedStatus.includes("holiday")) return <Gift className="w-3 h-3" />;
     if (formattedStatus.includes("on leave")) return <Leaf className="w-3 h-3" />;
     if (formattedStatus.includes("wfh")) return <Home className="w-3 h-3" />;
+    if (formattedStatus.includes("break requested")) return <Clock className="w-3 h-3" />;
+    if (formattedStatus.includes("break approved")) return <CheckCircle className="w-3 h-3" />;
+    if (formattedStatus.includes("break availed")) return <CheckCircle className="w-3 h-3" />;
     if (formattedStatus.includes("on break")) return <Clock className="w-3 h-3" />;
     if (formattedStatus.includes("outside work")) return <MapPin className="w-3 h-3" />;
 
@@ -985,27 +1018,66 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
                         </span>
 
                         {/* Session Badges */}
-                        {employee.badges?.map((badge: any) => {
-                          if (badge.type === 'break') {
+                        {employee.badges?.map((badge: any, idx: number) => {
+                          // Break Requested (Blue)
+                          if (badge.type === 'break_requested') {
                             return (
-                              <span key={badge.type} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200 w-fit">
+                              <span key={`${badge.type}-${idx}`} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 w-fit">
                                 <Clock className="w-3 h-3" />
                                 {badge.label}
                               </span>
                             );
                           }
+                          // Break Approved (Green)
+                          if (badge.type === 'break_approved') {
+                            return (
+                              <span key={`${badge.type}-${idx}`} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-green-50 text-green-700 border border-green-200 w-fit">
+                                <CheckCircle className="w-3 h-3" />
+                                {badge.label}
+                              </span>
+                            );
+                          }
+                          // On Break (Orange)
+                          if (badge.type === 'on_break' || badge.type === 'break') {
+                            return (
+                              <span key={`${badge.type}-${idx}`} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200 w-fit">
+                                <Clock className="w-3 h-3" />
+                                {badge.label}
+                              </span>
+                            );
+                          }
+                          // Break Availed (Purple)
                           if (badge.type === 'break_availed') {
                             return (
-                              <span key={badge.type} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200 w-fit">
-                                <Clock className="w-3 h-3" />
+                              <span key={`${badge.type}-${idx}`} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200 w-fit">
+                                <CheckCircle className="w-3 h-3" />
                                 {badge.label}
                               </span>
                             );
                           }
+                          // Outside Work (Cyan)
                           if (badge.type === 'outside_work') {
                             return (
-                              <span key={badge.type} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-cyan-50 text-cyan-700 border border-cyan-200 w-fit">
+                              <span key={`${badge.type}-${idx}`} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-cyan-50 text-cyan-700 border border-cyan-200 w-fit">
                                 <MapPin className="w-3 h-3" />
+                                {badge.label}
+                              </span>
+                            );
+                          }
+                          // Other badges (Late, Overtime, etc.) - use badge color from backend
+                          if (badge.color) {
+                            const bgColor = badge.color.replace('#', '');
+                            return (
+                              <span
+                                key={`${badge.type}-${idx}`}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium w-fit"
+                                style={{
+                                  backgroundColor: `${badge.color}15`,
+                                  color: badge.color,
+                                  borderColor: `${badge.color}40`,
+                                  borderWidth: '1px'
+                                }}
+                              >
                                 {badge.label}
                               </span>
                             );

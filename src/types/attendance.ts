@@ -9,6 +9,9 @@ export interface AttendanceSummary {
     active_session_type: string | null;
     break_start_time: string | null;
     active_session_start: string | null;
+    strict_return: boolean | null;
+    strict_return_time: string | null;
+    break_approved_duration: number | null;
     total_break_minutes: number;
     total_outside_work_minutes: number;
     break_timeline: any[];

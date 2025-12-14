@@ -107,12 +107,9 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
   const rejectedCount = useCountUp(stats?.rejected || 0);
   const totalCount = useCountUp(stats?.total || 0);
 
-  // Filtered items
+  // Filtered items - backend already filters by status, just use what it returns
   const visibleItems = React.useMemo(() => {
-    return items.filter((it) => {
-      const s = String(it.status || '').toLowerCase();
-      return s === 'pending' || s === 'approved' || s === 'rejected';
-    });
+    return items; // Backend handles all filtering (status + site)
   }, [items]);
 
   const totalEntries = visibleItems.length;
@@ -182,7 +179,8 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
     setError(null);
     try {
       const params: Record<string, string> = {};
-      if (status && status !== "All") params["status"] = status;
+      // Always send status parameter (including 'All')
+      if (status) params["status"] = status;
       const effHq = isOrgAdmin || (((externalControl ? (extHq ?? hqMode) : hqMode)) && canHRMode);
       const effSite = externalControl ? (extSiteId ?? selectedSiteId) : selectedSiteId;
 
@@ -750,13 +748,63 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
                     </div>
 
                     {viewData?.reason || activeItem?.reason ? (
-                      <div>
+                      <div className="col-span-full">
                         <span className="text-sm text-gray-600">Reason:</span>
                         <p className="text-sm mt-1 bg-white p-3 rounded border">{String(viewData?.reason || activeItem?.reason)}</p>
                       </div>
                     ) : null}
+
+                    {/* Requested At timestamp */}
+                    {(viewData?.created_at || activeItem?.created_at) && (
+                      <div>
+                        <span className="text-sm text-gray-600">Requested At:</span>
+                        <p className="font-medium">{fmtDt(viewData?.created_at || activeItem?.created_at)}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
+
+                {/* ✅ Approval/Rejection Details - Only show for Approved or Rejected status */}
+                {(viewData?.approved_by_name || activeItem?.approved_by_name) &&
+                  String(viewData?.status || activeItem?.status).toLowerCase() !== 'pending' && (
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900 mb-4">
+                        {String(viewData?.status || activeItem?.status).toLowerCase() === 'approved' ? 'Approval Details' : 'Rejection Details'}
+                      </h4>
+                      <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <span className="text-sm text-gray-600">
+                              {String(viewData?.status || activeItem?.status).toLowerCase() === 'approved' ? 'Approved By:' : 'Rejected By:'}
+                            </span>
+                            <p className="font-medium">{String(viewData?.approved_by_name || activeItem?.approved_by_name)}</p>
+                          </div>
+
+                          {/* Show status changed to only for approved requests */}
+                          {String(viewData?.status || activeItem?.status).toLowerCase() === 'approved' &&
+                            (viewData?.current_status || activeItem?.current_status) && (
+                              <div>
+                                <span className="text-sm text-gray-600">Status Changed To:</span>
+                                <p className="font-medium">
+                                  {String(viewData?.current_status || activeItem?.current_status)}
+                                  {(viewData?.status_timeline || activeItem?.status_timeline) &&
+                                    ` (${String(viewData?.status_timeline || activeItem?.status_timeline)})`}
+                                </p>
+                              </div>
+                            )}
+                        </div>
+
+                        {/* Show remarks for rejected requests */}
+                        {String(viewData?.status || activeItem?.status).toLowerCase() === 'rejected' &&
+                          (viewData?.remarks || activeItem?.remarks) && (
+                            <div className="mt-3 pt-3 border-t border-gray-200">
+                              <span className="text-sm text-gray-600">Rejection Reason:</span>
+                              <p className="text-sm mt-1 bg-white p-3 rounded border">{String(viewData?.remarks || activeItem?.remarks)}</p>
+                            </div>
+                          )}
+                      </div>
+                    </div>
+                  )}
 
                 {/* Location Information */}
                 {(viewData?.punch_in_site_name || viewData?.punch_out_site_name) && (
@@ -790,7 +838,7 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
                           <h5 className="text-sm font-medium text-gray-900 mb-2">Check-In Image</h5>
                           <img
                             src={String(viewData.punch_in_image)}
-                            className="w-full h-48 object-cover rounded-lg border"
+                            className="w-full h-48 object-contain rounded-lg border"
                             alt="Check-in"
                           />
                         </div>
@@ -801,7 +849,7 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
                           <h5 className="text-sm font-medium text-gray-900 mb-2">Check-Out Image</h5>
                           <img
                             src={String(viewData.punch_out_image)}
-                            className="w-full h-48 object-cover rounded-lg border"
+                            className="w-full h-48 object-contain rounded-lg border"
                             alt="Check-out"
                           />
                         </div>

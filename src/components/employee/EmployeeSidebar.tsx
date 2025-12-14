@@ -1,8 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Home,
   ChevronDown,
@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
+import TeamTunedLoader from "@/components/common/TeamTunedLoader";
 
 export default function EmployeeSidebar({
   isCollapsed,
@@ -73,6 +74,12 @@ export default function EmployeeSidebar({
   const [managementOpen, setManagementOpen] = React.useState(false);
   const [attendanceOpen, setAttendanceOpen] = React.useState(true);
   const [otherOpen, setOtherOpen] = React.useState(false);
+  const [isNavigating, setIsNavigating] = React.useState(false);
+
+  // Track navigation for loading state
+  useEffect(() => {
+    setIsNavigating(false);
+  }, [pathname]);
 
   // Use AuthContext for immediate updates, fallback to props if context is initial loading (though context is preferred)
   const { permissions: authPermissions, role: authRole, organization } = useAuth();
@@ -108,6 +115,7 @@ export default function EmployeeSidebar({
   }) => (
     <Link
       href={href}
+      onClick={() => setIsNavigating(true)}
       className={`group flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-all duration-200 ${active
         ? "bg-black text-white font-medium shadow-md"
         : "text-black hover:bg-gray-100"
@@ -270,6 +278,8 @@ export default function EmployeeSidebar({
             </div>
           </div>
         )}
+        {/* Navigation Loader */}
+        {isNavigating && <TeamTunedLoader />}
         <button
           type="button"
           onClick={() => setIsCollapsed(!isCollapsed)}
@@ -427,12 +437,12 @@ export default function EmployeeSidebar({
                       active={pathname?.startsWith("/employee/leave-requests") || false}
                     />
                   )}
-                  {canViewEmployeeAttendance && (
+                  {canViewLeaveRequests && (
                     <Item
-                      icon={ClipboardList}
-                      label="Attendance Logs"
-                      href="/employee/attendance"
-                      active={pathname === "/employee/attendance" || (pathname?.startsWith("/employee/attendance") && !pathname?.includes("attendance-dashboard") && !pathname?.includes("sessions")) || false}
+                      icon={Clock}
+                      label="Comp-Off Requests"
+                      href="/employee/comp-offs"
+                      active={pathname?.startsWith("/employee/comp-offs") || false}
                     />
                   )}
                   {showPayroll && (
@@ -476,14 +486,6 @@ export default function EmployeeSidebar({
                       label="Employee Sites"
                       href="/employee/employee-sites"
                       active={pathname?.startsWith("/employee/employee-sites") || false}
-                    />
-                  )}
-                  {canViewInsurance && (
-                    <Item
-                      icon={Heart}
-                      label="Insurance"
-                      href="/employee/insurance"
-                      active={pathname?.startsWith("/employee/insurance") || false}
                     />
                   )}
                 </div>

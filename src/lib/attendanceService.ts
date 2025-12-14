@@ -9,6 +9,8 @@ export interface SessionRequest {
     outside_location?: string;
     outside_location_lat?: number;
     outside_location_lng?: number;
+    request_location_lat?: number;
+    request_location_lng?: number;
     expected_duration_minutes?: number;
     expected_return_time?: string;
     status: 'Pending' | 'Approved' | 'Rejected';
@@ -16,6 +18,10 @@ export interface SessionRequest {
     notes?: string;
     disable_geofence?: boolean | number;
     approved_duration_minutes?: number;
+    approved_by_name?: string;
+    approved_at?: string;
+    strict_return?: boolean | number;
+    strict_return_time?: string;
     site_name?: string;
     distance_from_site?: number;
     raised_from_within_site?: number | boolean;
@@ -23,7 +29,8 @@ export interface SessionRequest {
 
 export async function fetchPendingSessionRequests(status: string | 'All' = 'Pending', start?: string, end?: string, hq?: boolean, site_id?: number | null) {
     const params: Record<string, string> = {};
-    if (status) params.status = status;
+    // Only send status if it's not 'All' - let backend return all records when no status filter
+    if (status && status !== 'All') params.status = status;
     if (start) params.start = start;
     if (end) params.end = end;
     if (hq) params.hq = '1';
@@ -42,13 +49,13 @@ export async function fetchMySessionRequests() {
 export async function approveSessionRequest(requestId: number, data: { approved_duration_minutes?: number; disable_geofence?: boolean }) {
     return await apiClient<{ success: boolean; message: string }>(`/attendance/session/approve/${requestId}`, {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: data,
     });
 }
 
 export async function rejectSessionRequest(requestId: number, reason: string) {
     return await apiClient<{ success: boolean; message: string }>(`/attendance/session/reject/${requestId}`, {
         method: 'POST',
-        body: JSON.stringify({ rejection_reason: reason }),
+        body: { rejection_reason: reason },
     });
 }
