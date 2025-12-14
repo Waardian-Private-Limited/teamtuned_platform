@@ -299,4 +299,4 @@ export default function OrgSidebar({
             {isNavigating && <TeamTunedLoader />}
         </>
     );
-    src = { orgLogoUrl }
+}
