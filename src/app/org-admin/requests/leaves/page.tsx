@@ -1,5 +1,9 @@
-import LeavesManagement from '@/components/leaves/LeavesManagement';
+"use client";
+
+import LeaveRequests from '@/components/requests/LeaveRequests';
+import { useOrgContext } from '@/components/shared/OrgContext';
 
 export default function LeaveRequestsPage() {
-  return <LeavesManagement />;
+  const ctx = useOrgContext();
+  return <LeaveRequests hqMode={ctx.hqMode} selectedSiteId={ctx.selectedSiteId} />;
 }
