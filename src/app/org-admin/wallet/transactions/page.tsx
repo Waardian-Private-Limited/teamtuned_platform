@@ -1,5 +1,7 @@
-import WalletTransactions from '@/components/org/WalletTransactions';
+"use client";
+
+import WalletsOverview from '@/components/org/WalletsOverview';
 
 export default function WalletTransactionsPage() {
-  return <WalletTransactions />;
+  return <WalletsOverview />;
 }
