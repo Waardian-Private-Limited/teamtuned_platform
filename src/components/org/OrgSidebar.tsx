@@ -37,6 +37,7 @@ import {
     ArrowUpCircle,
     Receipt,
     Cog,
+    Upload,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
@@ -70,6 +71,7 @@ export default function OrgSidebar({
     const [walletOpen, setWalletOpen] = React.useState(false);
     const [taskOpen, setTaskOpen] = React.useState(false);
     const [insuranceOpen, setInsuranceOpen] = React.useState(false);
+    const [pettyCashOpen, setPettyCashOpen] = React.useState(false);
     const [salaryAdvanceOpen, setSalaryAdvanceOpen] = React.useState(false);
     const [dashboardOpen, setDashboardOpen] = React.useState(false);
     const [managementOpen, setManagementOpen] = React.useState(false);
@@ -156,26 +158,26 @@ export default function OrgSidebar({
     return (
         <>
             <aside
-                className={`fixed left-0 top-0 h-screen bg-white border-r border-gray-200 transition-all duration-300 z-40 flex flex-col ${isCollapsed ? "w-20" : "w-64"
+                className={`h-screen bg-white border-r border-gray-200 transition-all duration-300 flex flex-col ${isCollapsed ? "w-20" : "w-64"
                     }`}
             >
                 {/* Header */}
                 <div className="p-4 border-b border-gray-200 flex items-center justify-between">
                     {!isCollapsed && (
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
                             {orgLogoUrl ? (
                                 <img
                                     src={orgLogoUrl}
                                     alt={orgName || "Organization"}
-                                    className="w-8 h-8 rounded object-cover"
+                                    className="w-8 h-8 rounded object-cover flex-shrink-0"
                                 />
                             ) : (
-                                <div className="w-8 h-8 rounded bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center">
+                                <div className="w-8 h-8 rounded bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center flex-shrink-0">
                                     <Building2 size={18} className="text-white" />
                                 </div>
                             )}
                             <div className="flex-1 min-w-0">
-                                <h2 className="text-sm font-bold text-gray-900 truncate">
+                                <h2 className="text-sm font-bold text-gray-900 leading-tight break-words">
                                     {orgName || "TeamTuned"}
                                 </h2>
                                 <p className="text-xs text-gray-500">Organization</p>
@@ -213,6 +215,8 @@ export default function OrgSidebar({
                     {managementOpen && (
                         <div className="space-y-1 ml-2">
                             <Item icon={Users} label="Employees" href="/org-admin/employees" active={pathname === "/org-admin/employees"} />
+                            <Item icon={Upload} label="Import Employees" href="/org-admin/employees/import" active={pathname === "/org-admin/employees/import"} />
+                            <Item icon={Clock} label="Shift Management" href="/org-admin/employees/shifts" active={pathname === "/org-admin/employees/shifts"} />
                             <Item icon={UserCog} label="Roles" href="/org-admin/roles" active={pathname === "/org-admin/roles"} />
                             <Item icon={Building} label="Departments" href="/org-admin/departments" active={pathname === "/org-admin/departments"} />
                             <Item icon={MapPin} label="Sites" href="/org-admin/sites" active={pathname === "/org-admin/sites"} />
@@ -238,16 +242,19 @@ export default function OrgSidebar({
                     )}
 
                     {/* Salary Advance Section */}
-                    {hasFeature("SALARY_ADVANCE") && (
-                        <>
-                            <CategoryButton label="Salary Advance" isOpen={salaryAdvanceOpen} onClick={() => setSalaryAdvanceOpen(!salaryAdvanceOpen)} />
-                            {salaryAdvanceOpen && (
-                                <div className="space-y-1 ml-2">
-                                    <Item icon={ArrowUpCircle} label="Requests" href="/org-admin/salary-advance/requests" active={pathname === "/org-admin/salary-advance/requests"} />
-                                </div>
-                            )}
-                        </>
-                    )}
+                    <>
+                        <CategoryButton label="Salary Advance" isOpen={salaryAdvanceOpen} onClick={() => setSalaryAdvanceOpen(!salaryAdvanceOpen)} />
+                        {salaryAdvanceOpen && (
+                            <div className="space-y-1 ml-2">
+                                <Item icon={ClipboardList} label="All Requests" href="/org-admin/salary-advance/requests" active={pathname === "/org-admin/salary-advance/requests"} />
+                                <Item icon={CheckSquare} label="Approval Queue" href="/org-admin/salary-advance/approvals" active={pathname === "/org-admin/salary-advance/approvals"} />
+                                <Item icon={Calendar} label="Repayment Schedule" href="/org-admin/salary-advance/repayments" active={pathname === "/org-admin/salary-advance/repayments"} />
+                                <Item icon={TrendingUp} label="Analytics" href="/org-admin/salary-advance/analytics" active={pathname === "/org-admin/salary-advance/analytics"} />
+                                <Item icon={Settings} label="Policy Configuration" href="/org-admin/salary-advance/policy" active={pathname === "/org-admin/salary-advance/policy"} />
+                                <Item icon={Users} label="Accounts" href="/org-admin/salary-advance/accounts" active={pathname === "/org-admin/salary-advance/accounts"} />
+                            </div>
+                        )}
+                    </>
 
                     {/* Inventory Section */}
                     {hasFeature("INVENTORY") && (
@@ -273,6 +280,38 @@ export default function OrgSidebar({
                             )}
                         </>
                     )}
+
+                    {/* Insurance Section */}
+                    <>
+                        <CategoryButton label="Insurance" isOpen={insuranceOpen} onClick={() => setInsuranceOpen(!insuranceOpen)} />
+                        {insuranceOpen && (
+                            <div className="space-y-1 ml-2">
+                                <Item icon={LayoutGrid} label="Dashboard" href="/org-admin/insurance/dashboard" active={pathname === "/org-admin/insurance/dashboard"} />
+                                <Item icon={Building2} label="Providers" href="/org-admin/insurance/providers" active={pathname === "/org-admin/insurance/providers"} />
+                                <Item icon={Shield} label="Policies" href="/org-admin/insurance/policies" active={pathname === "/org-admin/insurance/policies"} />
+                                <Item icon={UserCheck} label="Enrollment" href="/org-admin/insurance/enrollment" active={pathname === "/org-admin/insurance/enrollment"} />
+                                <Item icon={Users} label="Dependents" href="/org-admin/insurance/dependents" active={pathname === "/org-admin/insurance/dependents"} />
+                                <Item icon={Heart} label="Beneficiaries" href="/org-admin/insurance/beneficiaries" active={pathname === "/org-admin/insurance/beneficiaries"} />
+                                <Item icon={ClipboardList} label="Claims" href="/org-admin/insurance/claims" active={pathname === "/org-admin/insurance/claims"} />
+                                <Item icon={FileText} label="Reports" href="/org-admin/insurance/reports" active={pathname === "/org-admin/insurance/reports"} />
+                            </div>
+                        )}
+                    </>
+
+
+                    {/* Petty Cash Section */}
+                    <>
+                        <CategoryButton label="Petty Cash" isOpen={pettyCashOpen} onClick={() => setPettyCashOpen(!pettyCashOpen)} />
+                        {pettyCashOpen && (
+                            <div className="space-y-1 ml-2">
+                                <Item icon={DollarSign} label="Wallets" href="/org-admin/petty-cash" active={pathname === "/org-admin/petty-cash"} />
+                                <Item icon={Receipt} label="Wallet Expenses" href="/org-admin/wallet-overview" active={pathname === "/org-admin/wallet-overview"} />
+                                <Item icon={Cog} label="Wallet Config" href="/org-admin/wallet-config" active={pathname === "/org-admin/wallet-config"} />
+                                <Item icon={ArrowUpCircle} label="Wallet Topups" href="/org-admin/wallet-topups" active={pathname === "/org-admin/wallet-topups"} />
+                            </div>
+                        )}
+                    </>
+
 
                     {/* Settings */}
                     <CategoryButton label="Settings" isOpen={false} onClick={() => { }} />

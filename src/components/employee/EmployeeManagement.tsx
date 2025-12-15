@@ -1229,17 +1229,33 @@ export default function EmployeeManagement() {
               {filtersExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
             {(isOrgAdmin || hasPerm("EMP_ADD")) && (
-              <button
-                onClick={() => {
-                  resetForm();
-                  setEditingEmployeeId(null);
-                  setShowAdd(true);
-                }}
-                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-1 text-sm"
-              >
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">Add Employee</span>
-              </button>
+              <>
+                <button
+                  onClick={() => window.location.href = isOrgAdmin ? '/org-admin/employees/import' : '/employee/employees/import'}
+                  className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-1 text-sm"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span className="hidden sm:inline">Import</span>
+                </button>
+                <button
+                  onClick={() => window.location.href = isOrgAdmin ? '/org-admin/employees/shifts' : '/employee/employees/shifts'}
+                  className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center space-x-1 text-sm"
+                >
+                  <Clock className="w-4 h-4" />
+                  <span className="hidden sm:inline">Shifts</span>
+                </button>
+                <button
+                  onClick={() => {
+                    resetForm();
+                    setEditingEmployeeId(null);
+                    setShowAdd(true);
+                  }}
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-1 text-sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span className="hidden sm:inline">Add Employee</span>
+                </button>
+              </>
             )}
           </div>
         </div>

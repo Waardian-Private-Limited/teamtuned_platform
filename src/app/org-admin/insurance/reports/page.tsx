@@ -1,7 +1,8 @@
 "use client";
 
-import InsuranceReports from "@/components/insurance/InsuranceReports";
+import React from "react";
+import InsuranceReports from "@/components/insurance/Reports";
 
-export default function ReportsPage() {
+export default function Page() {
   return <InsuranceReports />;
 }

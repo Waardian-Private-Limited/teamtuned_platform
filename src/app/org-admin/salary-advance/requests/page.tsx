@@ -1,5 +1,5 @@
-import AdvanceRequests from "@/components/salary-advance/AdvanceRequests";
+import AdvanceRequests from '@/components/salary-advance/AdvanceRequests';
 
-export default function OrgAdminSalaryAdvanceRequestsPage() {
-    return <AdvanceRequests />;
+export default function SalaryAdvanceRequestsPage() {
+  return <AdvanceRequests />;
 }

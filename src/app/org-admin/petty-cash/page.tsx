@@ -1,14 +1,8 @@
-import React from 'react';
-import PettyCash from '@/components/org/PettyCash';
+"use client";
 
-export const metadata = {
-  title: 'Petty Cash',
-};
+import React from "react";
+import PettyCash from "@/components/org/PettyCash";
 
-export default function Page() {
-  return (
-    <div>
-      <PettyCash />
-    </div>
-  );
+export default function EmployeePettyCashPage() {
+  return <PettyCash />;
 }

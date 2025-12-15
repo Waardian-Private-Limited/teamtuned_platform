@@ -74,10 +74,7 @@ export default function OrgAdminLayout({ children }: { children: React.ReactNode
     return (
         <OrgProvider defaultHQ={true}>
             <InventoryStoreProvider>
-                <div
-                    className="h-screen grid bg-gray-50 text-black"
-                    style={{ gridTemplateColumns: isCollapsed ? "64px 1fr" : "256px 1fr" }}
-                >
+                <div className="h-screen flex bg-gray-50 text-black">
                     <OrgSidebar
                         isCollapsed={isCollapsed}
                         setIsCollapsed={setIsCollapsed}
@@ -88,7 +85,7 @@ export default function OrgAdminLayout({ children }: { children: React.ReactNode
                         role={role || undefined}
                         features={features}
                     />
-                    <div className="flex flex-col h-screen overflow-hidden relative bg-gray-50">
+                    <div className="flex-1 flex flex-col h-screen overflow-hidden">
                         <GlobalHeader
                             role="org-admin"
                             firstName={user?.first_name}
@@ -96,7 +93,7 @@ export default function OrgAdminLayout({ children }: { children: React.ReactNode
                             userRole={role}
                             onLogout={handleLogout}
                         />
-                        <main className="flex-1 overflow-hidden px-2 pb-2">
+                        <main className="flex-1 overflow-auto p-2">
                             <div className="h-full w-full bg-white rounded-3xl shadow-sm overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 p-6">
                                 {children}
                             </div>

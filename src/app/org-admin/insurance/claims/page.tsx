@@ -1,7 +1,5 @@
-"use client";
-
-import ClaimManagement from "@/components/insurance/ClaimManagement";
+import ClaimManagement from '@/components/insurance/ClaimManagement';
 
 export default function ClaimsPage() {
-    return <ClaimManagement />;
+  return <ClaimManagement />;
 }

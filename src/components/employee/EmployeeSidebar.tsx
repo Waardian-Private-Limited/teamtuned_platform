@@ -37,6 +37,7 @@ import {
   ArrowUpCircle,
   Receipt,
   Cog,
+  Upload,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
@@ -269,7 +270,7 @@ export default function EmployeeSidebar({
               </div>
             )}
             <div className="flex flex-col min-w-0">
-              <span className="text-sm font-bold text-black truncate leading-tight">
+              <span className="text-sm font-bold text-black leading-tight break-words">
                 {orgName || "Organization"}
               </span>
               <span className="text-xs text-gray-500 truncate">
@@ -479,6 +480,22 @@ export default function EmployeeSidebar({
                       href="/employee/employee-management"
                       active={pathname?.startsWith("/employee/employee-management") || false}
                     />
+                  )}
+                  {(isOrgAdmin || hasAnyPerm(['EMP_ADD'])) && (
+                    <>
+                      <Item
+                        icon={Upload}
+                        label="Import Employees"
+                        href="/employee/employees/import"
+                        active={pathname?.startsWith("/employee/employees/import") || false}
+                      />
+                      <Item
+                        icon={Clock}
+                        label="Shift Management"
+                        href="/employee/employees/shifts"
+                        active={pathname?.startsWith("/employee/employees/shifts") || false}
+                      />
+                    </>
                   )}
                   {canAssignEmployeeSites && (
                     <Item

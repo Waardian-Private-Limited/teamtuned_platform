@@ -1,8 +1,5 @@
-"use client";
+import Policies from '@/components/insurance/Policies';
 
-import React from "react";
-import InsurancePolicies from "@/components/insurance/Policies";
-
-export default function InsurancePoliciesPage() {
-  return <InsurancePolicies />;
+export default function PoliciesPage() {
+  return <Policies />;
 }
