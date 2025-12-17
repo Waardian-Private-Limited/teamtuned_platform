@@ -23,6 +23,7 @@ import {
   X,
   Shield,
   DollarSign,
+  Coins,
   Clock,
   CheckSquare,
   AlertCircle,
@@ -101,6 +102,9 @@ export default function EmployeeSidebar({
     const list = (effectivePermissions || []).map((p) => (p || "").toUpperCase());
     return codes.some((c) => list.includes(c.toUpperCase()));
   };
+
+  const hasPerm = (code: string) => (effectivePermissions || []).some((p: any) => (p || "").toUpperCase() === code.toUpperCase());
+
   const isOrgAdmin = (effectiveRole || "").toLowerCase() === "orgadmin";
 
   const Item = ({
@@ -210,6 +214,7 @@ export default function EmployeeSidebar({
     canViewPolicies,
     canViewAttendanceConfig,
     canViewHoliday,
+    hasPerm("SITE_BUDGET_VIEW") || hasPerm("SITE_BUDGET_REQUEST") || hasPerm("SITE_BUDGET_APPROVE"),
   ].some(Boolean);
 
   const showManagement = [
@@ -328,7 +333,15 @@ export default function EmployeeSidebar({
                       icon={MapPin}
                       label="Sites"
                       href="/employee/sites"
-                      active={pathname?.startsWith("/employee/sites") || false}
+                      active={pathname === "/employee/sites"}
+                    />
+                  )}
+                  {(hasPerm("SITE_BUDGET_VIEW") || hasPerm("SITE_BUDGET_REQUEST") || hasPerm("SITE_BUDGET_APPROVE")) && (
+                    <Item
+                      icon={DollarSign}
+                      label="Budget Requests"
+                      href="/employee/site-budget-requests"
+                      active={pathname === "/employee/site-budget-requests"}
                     />
                   )}
                   {canViewDepartments && (
@@ -498,12 +511,36 @@ export default function EmployeeSidebar({
                     </>
                   )}
                   {canAssignEmployeeSites && (
-                    <Item
-                      icon={MapPin}
-                      label="Employee Sites"
-                      href="/employee/employee-sites"
-                      active={pathname?.startsWith("/employee/employee-sites") || false}
-                    />
+                    <>
+                      <Item
+                        icon={MapPin}
+                        label="Employee Sites"
+                        href="/employee/employee-sites"
+                        active={pathname?.startsWith("/employee/employee-sites") || false}
+                      />
+                      <Item
+                        icon={MapPin}
+                        label="Other Locations"
+                        href="/employee/other-locations"
+                        active={pathname?.startsWith("/employee/other-locations") || false}
+                      />
+                    </>
+                  )}
+                  {(isOrgAdmin || hasAnyPerm(['EMP_ADD'])) && (
+                    <>
+                      <Item
+                        icon={Coins}
+                        label="Salary Components"
+                        href="/employee/salary-components"
+                        active={pathname?.startsWith("/employee/salary-components") || false}
+                      />
+                      <Item
+                        icon={ListChecks}
+                        label="Debit Rules"
+                        href="/employee/debit-rules"
+                        active={pathname?.startsWith("/employee/debit-rules") || false}
+                      />
+                    </>
                   )}
                 </div>
               </div>

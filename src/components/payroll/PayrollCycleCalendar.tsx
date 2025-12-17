@@ -29,7 +29,21 @@ import AttendanceDetailsModal from "../attendance/AttendanceDetailsModal";
 
 import { useAuth } from "@/context/AuthContext";
 type AttendanceRecord = Record<string, any>;
-type SalaryItem = { name: string; type: "credit" | "debit"; amount: number; is_taxable?: boolean };
+type SalaryItem = {
+  name: string;
+  type: "credit" | "debit";
+  amount: number;
+  is_taxable?: boolean;
+  breakdown?: {
+    debit_type: string;
+    reference_type: string;
+    steps: Array<{
+      step: string;
+      value: number;
+      formula: string;
+    }>;
+  };
+};
 
 export default function PayrollCycleCalendar({ employeeId }: { employeeId?: number }) {
   const { role, permissions, user, employee } = useAuth();
@@ -440,9 +454,27 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
                   <div className="space-y-1 pt-2">
                     <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Deductions</h4>
                     {breakdown.filter(i => i.type === 'debit').map((item, i) => (
-                      <div key={`d-${i}`} className="flex items-center justify-between py-1">
-                        <span className="text-slate-600">{item.name}</span>
-                        <span className="font-medium text-rose-600">-₹{item.amount.toLocaleString()}</span>
+                      <div key={`d-${i}`} className="space-y-1">
+                        <div className="flex items-center justify-between py-1">
+                          <span className="text-slate-600">{item.name}</span>
+                          <span className="font-medium text-rose-600">-₹{item.amount.toLocaleString()}</span>
+                        </div>
+                        {/* Show calculation breakdown if available */}
+                        {item.breakdown && item.breakdown.steps && item.breakdown.steps.length > 0 && (
+                          <details className="ml-4 text-xs text-slate-500">
+                            <summary className="cursor-pointer hover:text-slate-700 select-none">
+                              View calculation
+                            </summary>
+                            <div className="mt-2 space-y-1 pl-3 border-l-2 border-slate-200">
+                              {item.breakdown.steps.map((step, stepIdx) => (
+                                <div key={stepIdx} className="flex items-start justify-between gap-2 py-0.5">
+                                  <span className="text-slate-600 font-medium">{step.step}:</span>
+                                  <span className="text-slate-700 text-right">{step.formula}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        )}
                       </div>
                     ))}
                     <div className="pt-2 border-t border-slate-100 flex items-center justify-between font-medium">

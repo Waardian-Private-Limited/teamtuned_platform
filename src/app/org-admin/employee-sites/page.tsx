@@ -24,19 +24,5 @@ export default function OrgAdminEmployeeSitesPage() {
     return null;
   }
 
-  // Check permissions
-  const isOrgAdmin = (useAuth().role || "").toLowerCase() === "orgadmin";
-  const hasPermission = isOrgAdmin || permissions.includes("view_employee_sites") || permissions.includes("manage_employee_sites");
-
-  if (!hasPermission) {
-    return (
-      <div className="p-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">You do not have permission to view this page.</p>
-        </div>
-      </div>
-    );
-  }
-
   return <EmployeeSiteAssignment />;
 }

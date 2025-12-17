@@ -23,6 +23,7 @@ import {
     X,
     Shield,
     DollarSign,
+    Coins,
     Clock,
     CheckSquare,
     AlertCircle,
@@ -38,6 +39,13 @@ import {
     Receipt,
     Cog,
     Upload,
+    ListTodo,
+    UserPlus,
+    PlusCircle,
+    ShoppingCart,
+    Zap,
+    CreditCard,
+    PieChart,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
@@ -63,6 +71,9 @@ export default function OrgSidebar({
     features?: string[];
 }) {
     const pathname = usePathname();
+
+    const hasPerm = (code: string) => (permissions || []).some((p: any) => (p || "").toUpperCase() === code.toUpperCase());
+
     const [mainOpen, setMainOpen] = React.useState(true);
     const [inventoryOpen, setInventoryOpen] = React.useState(false);
     const [masterDataOpen, setMasterDataOpen] = React.useState(false);
@@ -202,11 +213,14 @@ export default function OrgSidebar({
                         <div className="space-y-1 ml-2">
                             <Item icon={LayoutDashboard} label="Dashboard" href="/org-admin/attendance/dashboard" active={pathname === "/org-admin/attendance/dashboard"} />
                             <Item icon={UserCheck} label="Employee Attendance" href="/org-admin/attendance/employee" active={pathname === "/org-admin/attendance/employee"} />
+                            <Item icon={Settings} label="Attendance Config" href="/org-admin/attendance-config" active={pathname === "/org-admin/attendance-config"} />
+                            <Item icon={Settings} label="Attendance Rules" href="/org-admin/attendance-rules" active={pathname === "/org-admin/attendance-rules"} />
                             <Item icon={ClipboardList} label="Leave Requests" href="/org-admin/requests/leaves" active={pathname === "/org-admin/requests/leaves"} />
                             <Item icon={Calendar} label="Comp-Off Requests" href="/org-admin/requests/comp-offs" active={pathname === "/org-admin/requests/comp-offs"} />
                             <Item icon={Clock} label="Regularization" href="/org-admin/requests/regularization" active={pathname === "/org-admin/requests/regularization"} />
                             <Item icon={AlertCircle} label="Verification Issues" href="/org-admin/requests/verification" active={pathname === "/org-admin/requests/verification"} />
                             <Item icon={ListChecks} label="Session Requests" href="/org-admin/requests/sessions" active={pathname === "/org-admin/requests/sessions"} />
+                            <Item icon={ListChecks} label="Payroll" href="/org-admin/payroll" active={pathname === "/org-admin/payroll"} />
                         </div>
                     )}
 
@@ -220,10 +234,11 @@ export default function OrgSidebar({
                             <Item icon={UserCog} label="Roles" href="/org-admin/roles" active={pathname === "/org-admin/roles"} />
                             <Item icon={Building} label="Departments" href="/org-admin/departments" active={pathname === "/org-admin/departments"} />
                             <Item icon={MapPin} label="Sites" href="/org-admin/sites" active={pathname === "/org-admin/sites"} />
-                            <Item icon={Heart} label="Dependents" href="/org-admin/dependents" active={pathname === "/org-admin/dependents"} />
-                            {hasFeature("INSURANCE") && (
-                                <Item icon={Shield} label="Insurance" href="/org-admin/insurance" active={pathname.startsWith("/org-admin/insurance")} />
-                            )}
+                            <Item icon={MapPin} label="Employee Sites" href="/org-admin/employee-sites" active={pathname === "/org-admin/employee-sites"} />
+                            <Item icon={MapPin} label="Other Locations" href="/org-admin/other-locations" active={pathname === "/org-admin/other-locations"} />
+                            <Item icon={DollarSign} label="Budget Requests" href="/org-admin/site-budget-requests" active={pathname === "/org-admin/site-budget-requests"} />
+                            <Item icon={Coins} label="Salary Components" href="/org-admin/salary-components" active={pathname === "/org-admin/salary-components"} />
+                            <Item icon={ListChecks} label="Debit Rules" href="/org-admin/debit-rules" active={pathname === "/org-admin/debit-rules"} />
                         </div>
                     )}
 
@@ -242,19 +257,17 @@ export default function OrgSidebar({
                     )}
 
                     {/* Salary Advance Section */}
-                    <>
-                        <CategoryButton label="Salary Advance" isOpen={salaryAdvanceOpen} onClick={() => setSalaryAdvanceOpen(!salaryAdvanceOpen)} />
-                        {salaryAdvanceOpen && (
-                            <div className="space-y-1 ml-2">
-                                <Item icon={ClipboardList} label="All Requests" href="/org-admin/salary-advance/requests" active={pathname === "/org-admin/salary-advance/requests"} />
-                                <Item icon={CheckSquare} label="Approval Queue" href="/org-admin/salary-advance/approvals" active={pathname === "/org-admin/salary-advance/approvals"} />
-                                <Item icon={Calendar} label="Repayment Schedule" href="/org-admin/salary-advance/repayments" active={pathname === "/org-admin/salary-advance/repayments"} />
-                                <Item icon={TrendingUp} label="Analytics" href="/org-admin/salary-advance/analytics" active={pathname === "/org-admin/salary-advance/analytics"} />
-                                <Item icon={Settings} label="Policy Configuration" href="/org-admin/salary-advance/policy" active={pathname === "/org-admin/salary-advance/policy"} />
-                                <Item icon={Users} label="Accounts" href="/org-admin/salary-advance/accounts" active={pathname === "/org-admin/salary-advance/accounts"} />
-                            </div>
-                        )}
-                    </>
+                    <CategoryButton label="Salary Advance" isOpen={salaryAdvanceOpen} onClick={() => setSalaryAdvanceOpen(!salaryAdvanceOpen)} />
+                    {salaryAdvanceOpen && (
+                        <div className="ml-4 space-y-1">
+                            <Item icon={ClipboardList} label="All Requests" href="/org-admin/salary-advance/requests" active={pathname === "/org-admin/salary-advance/requests"} />
+                            <Item icon={CheckSquare} label="Approval Queue" href="/org-admin/salary-advance/approvals" active={pathname === "/org-admin/salary-advance/approvals"} />
+                            <Item icon={Calendar} label="Repayment Schedule" href="/org-admin/salary-advance/repayments" active={pathname === "/org-admin/salary-advance/repayments"} />
+                            <Item icon={TrendingUp} label="Analytics" href="/org-admin/salary-advance/analytics" active={pathname === "/org-admin/salary-advance/analytics"} />
+                            <Item icon={Settings} label="Policy Configuration" href="/org-admin/salary-advance/policy" active={pathname === "/org-admin/salary-advance/policy"} />
+                            <Item icon={Users} label="Accounts" href="/org-admin/salary-advance/accounts" active={pathname === "/org-admin/salary-advance/accounts"} />
+                        </div>
+                    )}
 
                     {/* Inventory Section */}
                     {hasFeature("INVENTORY") && (
@@ -270,15 +283,14 @@ export default function OrgSidebar({
                     )}
 
                     {/* Task Section */}
-                    {hasFeature("TASK") && (
-                        <>
-                            <CategoryButton label="Tasks" isOpen={taskOpen} onClick={() => setTaskOpen(!taskOpen)} />
-                            {taskOpen && (
-                                <div className="space-y-1 ml-2">
-                                    <Item icon={CheckSquare} label="All Tasks" href="/org-admin/tasks" active={pathname === "/org-admin/tasks"} />
-                                </div>
-                            )}
-                        </>
+                    <CategoryButton label="Tasks" isOpen={taskOpen} onClick={() => setTaskOpen(!taskOpen)} />
+                    {taskOpen && (
+                        <div className="space-y-1 ml-2">
+                            <Item icon={CheckSquare} label="All Tasks" href="/org-admin/tasks" active={pathname === "/org-admin/tasks"} />
+                            <Item icon={ListTodo} label="Task Dashboard" href="/org-admin/task-dashboard" active={pathname === "/org-admin/task-dashboard"} />
+                            <Item icon={UserPlus} label="Task Assignments" href="/org-admin/task-assignments" active={pathname === "/org-admin/task-assignments"} />
+                            <Item icon={PlusCircle} label="Create Task" href="/org-admin/task-create" active={pathname === "/org-admin/task-create"} />
+                        </div>
                     )}
 
                     {/* Insurance Section */}

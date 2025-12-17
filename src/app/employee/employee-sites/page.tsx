@@ -25,7 +25,7 @@ export default function EmployeeSitesPage() {
   }
 
   // Check permissions
-  const hasPermission = permissions.includes("view_employee_sites") || permissions.includes("manage_employee_sites");
+  const hasPermission = permissions.includes("EMPSITE_VIEW") || permissions.includes("EMPLOYEE_ASSIGN_SITE");
 
   if (!hasPermission) {
     return (

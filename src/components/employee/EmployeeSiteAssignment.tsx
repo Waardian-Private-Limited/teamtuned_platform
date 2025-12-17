@@ -26,6 +26,15 @@ import {
 
 type Department = { id: number; name: string };
 type Site = { id: number; name: string; code: string };
+type OtherLocation = {
+  id: number;
+  location_name: string;
+  location_type: 'home' | 'client' | 'field' | 'other';
+  address: string;
+  latitude: number;
+  longitude: number;
+  radius: number;
+};
 type EmployeeLite = {
   id: number;
   first_name: string;
@@ -44,7 +53,8 @@ type EmployeeDetail = {
   department_id?: number | null;
   first_name: string;
   last_name: string;
-  sites: { id: number; name: string; code: string; is_incharge: boolean }[];
+  salary_amount?: number; // Added for budget check
+  sites: { id: number; name: string; code: string; is_incharge: boolean; is_primary: boolean }[];
 };
 
 function useCountUp(target: number, duration = 800) {
@@ -89,6 +99,7 @@ export default function EmployeeSiteAssignment() {
   const [employees, setEmployees] = useState<EmployeeLite[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
+  const [otherLocations, setOtherLocations] = useState<OtherLocation[]>([]);
 
   // Filters & Pagination
   const [searchQuery, setSearchQuery] = useState("");
@@ -105,8 +116,15 @@ export default function EmployeeSiteAssignment() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editAssigned, setEditAssigned] = useState<Set<number>>(new Set());
   const [editIncharge, setEditIncharge] = useState<Set<number>>(new Set());
+  const [editPrimarySite, setEditPrimarySite] = useState<number | null>(null);
+  const [originalPrimarySiteId, setOriginalPrimarySiteId] = useState<number | null>(null);
+  const [editEmployeeSalary, setEditEmployeeSalary] = useState<number>(0);
+  const [liveValidationMessage, setLiveValidationMessage] = useState<string>("");
+  const [editOtherLocations, setEditOtherLocations] = useState<Set<number>>(new Set());
+  const [canCheckinAnySite, setCanCheckinAnySite] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string>("");
+  const [activeTab, setActiveTab] = useState<'sites' | 'other_locations'>('sites');
 
   // Stats animation
   const totalCount = useCountUp(totalEntries || 0);
@@ -145,13 +163,15 @@ export default function EmployeeSiteAssignment() {
       const shouldFetchAssignedOnly = !canAssignSites;
       const sitesUrl = shouldFetchAssignedOnly ? "/sites?assigned_only=1" : "/sites";
 
-      const [deptData, sitesData] = await Promise.all([
+      const [deptData, sitesData, otherLocsData] = await Promise.all([
         apiClient<Department[]>("/organization/departments", { method: "GET" }).catch(() => []),
         apiClient<{ sites: any[] }>(sitesUrl, { method: "GET" }).catch(() => ({ sites: [] })),
+        apiClient<{ locations: OtherLocation[] }>("/organization/employees/other-locations", { method: "GET" }).catch(() => ({ locations: [] })),
       ]);
       setDepartments(Array.isArray(deptData) ? deptData : []);
       const normalizedSites: Site[] = (sitesData.sites || []).map((s: any) => ({ id: s.id, name: s.name, code: s.code }));
       setSites(normalizedSites);
+      setOtherLocations(otherLocsData.locations || []);
     } catch (e) { }
   };
 
@@ -202,19 +222,71 @@ export default function EmployeeSiteAssignment() {
     setEditingId(employeeId);
     setEditError("");
     setEditLoading(true);
+    setActiveTab('sites');
     try {
-      const detail = await apiClient<EmployeeDetail>(`/organization/employees/${employeeId}`, { method: "GET" });
+      const [detail, otherLocs] = await Promise.all([
+        apiClient<EmployeeDetail>(`/organization/employees/${employeeId}`, { method: "GET" }),
+        apiClient<{ locations: OtherLocation[] }>(`/organization/employees/${employeeId}/other-locations`, { method: "GET" }).catch(() => ({ locations: [] }))
+      ]);
       const assigned = new Set<number>((detail.sites || []).map((s) => s.id));
       const incharge = new Set<number>((detail.sites || []).filter((s) => s.is_incharge).map((s) => s.id));
+      const primarySite = (detail.sites || []).find((s: any) => s.is_primary);
+      const otherLocationIds = new Set<number>((otherLocs.locations || []).map((l) => l.id));
+
+      // Handle can_checkin_any_site (can be boolean or 0/1 from backend)
+      const canCheckinValue = (detail as any).can_checkin_any_site;
+      const hasFlexibleAccess = canCheckinValue === true || canCheckinValue === 1 || canCheckinValue === '1';
+
       setEditAssigned(assigned);
       setEditIncharge(incharge);
+      setEditPrimarySite(primarySite ? primarySite.id : null);
+      setOriginalPrimarySiteId(primarySite ? primarySite.id : null);
+      setEditEmployeeSalary(Number(detail.salary_amount) || 0);
+      setLiveValidationMessage(""); // Reset validation
+      setEditOtherLocations(otherLocationIds);
+      setCanCheckinAnySite(hasFlexibleAccess);
     } catch (e: any) {
       setEditError(e?.message || "Failed to load employee");
       setEditAssigned(new Set());
       setEditIncharge(new Set());
+      setEditPrimarySite(null);
+      setOriginalPrimarySiteId(null);
+      setEditEmployeeSalary(0);
+      setLiveValidationMessage("");
+      setEditOtherLocations(new Set());
+      setCanCheckinAnySite(false);
     } finally {
       setEditLoading(false);
     }
+  };
+
+  const checkBudgetForSite = async (siteId: number) => {
+    try {
+      setLiveValidationMessage(""); // Clear previous
+      const budget = await apiClient<any>(`/organization/employees/sites/${siteId}/budget`);
+
+      if (!budget || !budget.has_budget) return; // No budget to check
+
+      const salary = editEmployeeSalary;
+      let available = Number(budget.budget_remaining) || 0;
+
+      // If this is the original primary site, add back the salary to available
+      // because "used" currently includes this employee
+      if (siteId === originalPrimarySiteId) {
+        available += salary;
+      }
+
+      if (salary > available) {
+        setLiveValidationMessage(`Insufficient Budget: Salary (₹${salary.toLocaleString()}) > Available (₹${available.toLocaleString()})`);
+      }
+    } catch (e) {
+      console.error("Budget check failed", e);
+    }
+  };
+
+  const handlePrimaryChange = (siteId: number) => {
+    setEditPrimarySite(siteId);
+    checkBudgetForSite(siteId);
   };
 
   const toggleAssign = (siteId: number) => {
@@ -244,6 +316,18 @@ export default function EmployeeSiteAssignment() {
     });
   };
 
+  const toggleOtherLocation = (locationId: number) => {
+    setEditOtherLocations((prev) => {
+      const next = new Set(prev);
+      if (next.has(locationId)) {
+        next.delete(locationId);
+      } else {
+        next.add(locationId);
+      }
+      return next;
+    });
+  };
+
   const saveAssignments = async () => {
     if (!editingId) return;
     if (!hasPerm("EMPLOYEE_ASSIGN_SITE") && !isOrgAdmin && !isHRMode) {
@@ -254,15 +338,39 @@ export default function EmployeeSiteAssignment() {
     setEditLoading(true);
     setEditError("");
     try {
-      const site_assignments = Array.from(editAssigned).map((sid) => ({ site_id: sid, is_incharge: editIncharge.has(sid) }));
+      // Save site assignments
+      const site_assignments = Array.from(editAssigned).map((sid) => ({
+        site_id: sid,
+        is_incharge: editIncharge.has(sid),
+        is_primary: sid === editPrimarySite
+      }));
       await apiClient(`/organization/employees/${editingId}/sites`, {
         method: "PUT",
         body: { site_assignments },
       });
+
+      // Save other location assignments
+      const location_ids = Array.from(editOtherLocations);
+      await apiClient(`/organization/employees/${editingId}/other-locations`, {
+        method: "PUT",
+        body: { location_ids },
+      });
+
+      // Save can_checkin_any_site flag using dedicated endpoint
+      await apiClient(`/organization/employees/${editingId}/flexible-site-access`, {
+        method: "PATCH",
+        body: { can_checkin_any_site: canCheckinAnySite },
+      });
+
       setEditingId(null);
       fetchEmployees();
     } catch (e: any) {
-      setEditError(e?.message || "Failed to save assignments");
+      if (e?.code === 'BUDGET_EXHAUSTED' || e?.message?.includes('Insufficient budget')) {
+        setEditError(`Budget Limit Reached: ${e?.message}`);
+        // Optionally, we could show a more complex modal here, but a specific error message in the modal is suitable.
+      } else {
+        setEditError(e?.message || "Failed to save assignments");
+      }
     } finally {
       setEditLoading(false);
     }
@@ -593,11 +701,19 @@ export default function EmployeeSiteAssignment() {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900">{deptName}</td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center space-x-1.5">
-                        <MapPin className="w-3 h-3 text-gray-400" />
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${assignedSites > 0 ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
-                          {assignedSites} site{assignedSites !== 1 ? 's' : ''}
-                        </span>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <div className="flex items-center space-x-1.5">
+                          <MapPin className="w-3 h-3 text-gray-400" />
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${assignedSites > 0 ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                            {assignedSites} site{assignedSites !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        {(employee as any).can_checkin_any_site && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800" title="Can check-in at any site">
+                            <Building className="w-3 h-3 mr-1" />
+                            All Sites
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -615,7 +731,7 @@ export default function EmployeeSiteAssignment() {
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${canAssign
                           ? 'bg-blue-600 text-white hover:bg-blue-700'
                           : 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                          }`}
+                          } `}
                       >
                         Manage Sites
                       </button>
@@ -688,7 +804,7 @@ export default function EmployeeSiteAssignment() {
                         className={`px-2 py-1 rounded text-xs transition-colors ${page === 1
                           ? 'bg-blue-600 text-white'
                           : 'border border-gray-300 hover:bg-gray-50'
-                          }`}
+                          } `}
                       >
                         1
                       </button>
@@ -703,7 +819,7 @@ export default function EmployeeSiteAssignment() {
                         className={`px-2 py-1 rounded text-xs transition-colors ${page === pageNum
                           ? 'bg-blue-600 text-white'
                           : 'border border-gray-300 hover:bg-gray-50'
-                          }`}
+                          } `}
                       >
                         {pageNum}
                       </button>
@@ -718,7 +834,7 @@ export default function EmployeeSiteAssignment() {
                         className={`px-2 py-1 rounded text-xs transition-colors ${page === totalPages
                           ? 'bg-blue-600 text-white'
                           : 'border border-gray-300 hover:bg-gray-50'
-                          }`}
+                          } `}
                       >
                         {totalPages}
                       </button>
@@ -744,13 +860,41 @@ export default function EmployeeSiteAssignment() {
         <div className="fixed inset-0 bg-opacity-20 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
             <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-semibold text-gray-900">Manage Site Assignment</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold text-gray-900">Manage Assignments</h3>
                 <button
                   onClick={() => setEditingId(null)}
                   className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+
+              {/* Tabs */}
+              <div className="flex gap-2 border-b border-gray-200 -mb-6 pb-0">
+                <button
+                  onClick={() => setActiveTab('sites')}
+                  className={`px-4 py-2 font-medium transition-colors border-b-2 ${activeTab === 'sites'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                    } `}
+                >
+                  <div className="flex items-center gap-2">
+                    <Building className="w-4 h-4" />
+                    Sites
+                  </div>
+                </button>
+                <button
+                  onClick={() => setActiveTab('other_locations')}
+                  className={`px-4 py-2 font-medium transition-colors border-b-2 ${activeTab === 'other_locations'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                    } `}
+                >
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4" />
+                    Other Locations
+                  </div>
                 </button>
               </div>
             </div>
@@ -772,67 +916,163 @@ export default function EmployeeSiteAssignment() {
                 </div>
               ) : (
                 <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {sites.map((site) => (
-                      <div
-                        key={site.id}
-                        className={`border rounded-lg p-3 transition-all ${editAssigned.has(site.id)
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 bg-white'
-                          }`}
-                      >
+                  {/* Sites Tab */}
+                  {activeTab === 'sites' && (
+                    <>
+                      {/* Can Check-in Any Site Toggle */}
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                         <div className="flex items-start justify-between">
-                          <div className="flex items-center space-x-3 flex-1">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Building className="w-5 h-5 text-blue-600" />
+                              <h4 className="font-semibold text-gray-900">Flexible Site Access</h4>
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              Allow this employee to check in/out from any organizational site (geo-fencing still applies)
+                            </p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer ml-4">
                             <input
                               type="checkbox"
-                              checked={editAssigned.has(site.id)}
-                              onChange={() => toggleAssign(site.id)}
-                              className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                              checked={canCheckinAnySite}
+                              onChange={(e) => setCanCheckinAnySite(e.target.checked)}
+                              className="sr-only peer"
                             />
-                            <div className="flex-1">
-                              <div className="font-medium text-gray-900">{site.name}</div>
-                              <div className="text-sm text-gray-500">{site.code}</div>
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {sites.map((site) => (
+                          <div
+                            key={site.id}
+                            className={`border rounded-lg p-3 transition-all ${editAssigned.has(site.id)
+                              ? 'border-blue-500 bg-blue-50'
+                              : 'border-gray-200 bg-white'
+                              } `}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-center space-x-3 flex-1">
+                                <input
+                                  type="checkbox"
+                                  checked={editAssigned.has(site.id)}
+                                  onChange={() => toggleAssign(site.id)}
+                                  className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                                />
+                                <div className="flex-1">
+                                  <div className="font-medium text-gray-900">{site.name}</div>
+                                  <div className="text-sm text-gray-500">{site.code}</div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {editAssigned.has(site.id) && (
+                              <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
+                                <label className="flex items-center space-x-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={editIncharge.has(site.id)}
+                                    onChange={() => toggleIncharge(site.id)}
+                                    className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                                  />
+                                  <span className="text-sm font-medium text-gray-700">Site Incharge</span>
+                                </label>
+                                <label className="flex items-center space-x-2">
+                                  <input
+                                    type="radio"
+                                    checked={editPrimarySite === site.id}
+                                    onChange={() => handlePrimaryChange(site.id)}
+                                    className="h-4 w-4 text-green-600 focus:ring-green-500"
+                                  />
+                                  <span className="text-sm font-medium text-green-700">Primary Site</span>
+                                </label>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {liveValidationMessage && (
+                        <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm font-medium flex items-center">
+                          <X className="w-4 h-4 mr-2" />
+                          {liveValidationMessage}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                        <div className="text-sm text-gray-600">
+                          {editAssigned.size} site{editAssigned.size !== 1 ? 's' : ''} selected •
+                          {editIncharge.size} incharge role{editIncharge.size !== 1 ? 's' : ''}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Other Locations Tab */}
+                  {activeTab === 'other_locations' && (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {otherLocations.map((location) => (
+                          <div
+                            key={location.id}
+                            className={`border rounded-lg p-3 transition-all ${editOtherLocations.has(location.id)
+                              ? 'border-blue-500 bg-blue-50'
+                              : 'border-gray-200 bg-white'
+                              } `}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-center space-x-3 flex-1">
+                                <input
+                                  type="checkbox"
+                                  checked={editOtherLocations.has(location.id)}
+                                  onChange={() => toggleOtherLocation(location.id)}
+                                  className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                                />
+                                <div className="flex-1">
+                                  <div className="font-medium text-gray-900">{location.location_name}</div>
+                                  <div className="text-xs text-gray-500 capitalize">{location.location_type}</div>
+                                  {location.address && (
+                                    <div className="text-xs text-gray-400 mt-1">{location.address}</div>
+                                  )}
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </div>
-
-                        {editAssigned.has(site.id) && (
-                          <div className="mt-3 pt-3 border-t border-gray-200">
-                            <label className="flex items-center space-x-2">
-                              <input
-                                type="checkbox"
-                                checked={editIncharge.has(site.id)}
-                                onChange={() => toggleIncharge(site.id)}
-                                className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
-                              />
-                              <span className="text-sm font-medium text-gray-700">Site Incharge</span>
-                            </label>
-                          </div>
-                        )}
+                        ))}
                       </div>
-                    ))}
-                  </div>
 
-                  <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                    <div className="text-sm text-gray-600">
-                      {editAssigned.size} site{editAssigned.size !== 1 ? 's' : ''} selected •
-                      {editIncharge.size} incharge role{editIncharge.size !== 1 ? 's' : ''}
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => setEditingId(null)}
-                        className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={saveAssignments}
-                        disabled={editLoading}
-                        className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors text-sm"
-                      >
-                        {editLoading ? 'Saving...' : 'Save Changes'}
-                      </button>
-                    </div>
+                      {otherLocations.length === 0 && (
+                        <div className="text-center py-8 text-gray-500">
+                          <MapPin className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+                          <p>No other locations available</p>
+                          <p className="text-sm mt-1">Create locations from the Other Locations page</p>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                        <div className="text-sm text-gray-600">
+                          {editOtherLocations.size} location{editOtherLocations.size !== 1 ? 's' : ''} selected
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center justify-end space-x-2 pt-4 border-t border-gray-200">
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={saveAssignments}
+                      disabled={editLoading || !!liveValidationMessage}
+                      className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                    >
+                      {editLoading ? 'Saving...' : 'Save Changes'}
+                    </button>
                   </div>
                 </div>
               )}

@@ -60,6 +60,7 @@ export type AttendancePolicy = {
   // Late check-in rules
   allow_full_day_if_late_checkin: boolean;
   half_day_threshold_percent: number;
+  full_day_threshold_percent: number;
   late_threshold_for_halfday_minutes: number;
 
   // Leave policy
@@ -100,6 +101,7 @@ const defaultPolicy: AttendancePolicy = {
 
   allow_full_day_if_late_checkin: false,
   half_day_threshold_percent: 50,
+  full_day_threshold_percent: 75,
   late_threshold_for_halfday_minutes: 48,
 
   total_annual_leaves: 18,
@@ -343,6 +345,7 @@ export default function AttendanceRulesManager() {
     if (policy.allow_early_login && policy.early_login_minutes < 0) errs.early_login_minutes = "Enter 0 or more";
     if (policy.dont_allow_checkin_after_minutes < 0) errs.dont_allow_checkin_after_minutes = "Enter 0 or more";
     if (policy.half_day_threshold_percent < 1 || policy.half_day_threshold_percent > 99) errs.half_day_threshold_percent = "Enter a percentage between 1 and 99";
+    if (policy.full_day_threshold_percent < 1 || policy.full_day_threshold_percent > 100) errs.full_day_threshold_percent = "Enter a percentage between 1 and 100";
     if (policy.late_threshold_for_halfday_minutes < 0) errs.late_threshold_for_halfday_minutes = "Enter 0 or more";
 
     setFormErrors((prev) => ({ ...prev, ...errs }));
@@ -1434,19 +1437,39 @@ export default function AttendanceRulesManager() {
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Minimum Threshold (%) for Half-day
+                          Half Day Threshold (%)
+                          <span className="text-xs text-gray-500 ml-2">Minimum % of shift to mark half day</span>
                         </label>
                         <input
                           type="number"
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.half_day_threshold_percent ? 'border-red-500' : 'border-gray-300'
-                            }`}
-                          min={1}
-                          max={99}
+                          min="1"
+                          max="99"
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.half_day_threshold_percent ? 'border-red-500' : 'border-gray-300'}`}
+                          placeholder="50"
                           value={policy.half_day_threshold_percent}
                           onChange={(e) => setField("half_day_threshold_percent", Number(e.target.value))}
                         />
                         {formErrors.half_day_threshold_percent && (
                           <p className="mt-1 text-sm text-red-600">{formErrors.half_day_threshold_percent}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Full Day Threshold (%)
+                          <span className="text-xs text-gray-500 ml-2">Minimum % of shift to mark full day</span>
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="100"
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.full_day_threshold_percent ? 'border-red-500' : 'border-gray-300'}`}
+                          placeholder="75"
+                          value={policy.full_day_threshold_percent}
+                          onChange={(e) => setField("full_day_threshold_percent", Number(e.target.value))}
+                        />
+                        {formErrors.full_day_threshold_percent && (
+                          <p className="mt-1 text-sm text-red-600">{formErrors.full_day_threshold_percent}</p>
                         )}
                         <p className="mt-1 text-xs text-gray-500">Day becomes half-day if worked hours fall below this percentage of standard hours.</p>
                       </div>

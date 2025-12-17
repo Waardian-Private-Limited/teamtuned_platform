@@ -1,7 +1,11 @@
 "use client";
 
 import React from "react";
-import { Eye, Pencil, Power, Users, Search, X, ChevronLeft, ChevronRight, Plus, MoreVertical, RefreshCw, Filter, Download, Building2, MapPin, Globe, ChevronDown, ChevronUp } from "lucide-react";
+import {
+    Eye, Pencil, Power, Users, Search, X, ChevronLeft, ChevronRight, Plus, MoreVertical, RefreshCw, Filter, Download, Building2, MapPin, Globe, ChevronDown, ChevronUp, CheckCircle,
+    User,
+    Briefcase
+} from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 
 import { useAuth } from "@/context/AuthContext";
@@ -16,6 +20,63 @@ type Site = {
     country?: string;
     status?: "active" | "inactive" | string;
     is_head_office?: boolean;
+    has_expiry: boolean;
+    expiry_date?: string | null;
+    has_budget: boolean;
+    budget_amount?: string | number | null;
+    budget_used?: number;
+    final_budget_allocated?: string | number | null;
+    actual_budget_approved?: string | number | null;
+    remaining_final_budget_allocated?: string | number | null;
+};
+
+type BudgetUsageData = {
+    site: Site;
+    active: {
+        id: number;
+        employee_id: number;
+        first_name: string;
+        last_name: string;
+        designation: string;
+        emp_code: number;
+        amount: string;
+        created_at: string;
+    }[];
+    history: {
+        id: number;
+        employee_id: number;
+        first_name: string;
+        last_name: string;
+        designation: string;
+        emp_code: number;
+        amount: string;
+        status: 'active' | 'released';
+        created_at: string;
+        released_at: string;
+    }[];
+    stats: {
+        budget: number;
+        used: number;
+        remaining: number;
+        final_allocated?: number;
+        actual_approved?: number;
+        remaining_final?: number;
+    };
+    ledger?: {
+        month_year: string;
+        final_budget_allocated: number;
+        actual_budget_approved: number;
+        total_budget: number;
+        used_budget: number;
+        remaining_budget: number;
+        remaining_final_budget_allocated: number;
+        snapshot_at: string;
+    }[];
+    pagination?: {
+        active: { total: number; page: number; pageSize: number; pages: number };
+        history: { total: number; page: number; pageSize: number; pages: number };
+        ledger: { total: number; page: number; pageSize: number; pages: number };
+    };
 };
 
 // Memoized form component to prevent re-renders and focus loss
@@ -24,13 +85,17 @@ const SiteFormFields = React.memo(({
     onChange,
     pinLoading,
     fetchPincodeDetails,
-    idPrefix
+    originalFlags,
+    idPrefix = "site",
+    role
 }: {
     form: Partial<Site>;
-    onChange: (key: keyof Site, value: any) => void;
+    onChange: (field: keyof Site, value: any) => void;
     pinLoading: boolean;
-    fetchPincodeDetails: (pin: string) => void;
-    idPrefix: string;
+    fetchPincodeDetails: (pincode: string) => void;
+    originalFlags?: { had_expiry_ever: boolean; had_budget_ever: boolean; original_budget_amount: string | number | null; original_budget_used: string | number | null; original_final_budget_allocated: string | number | null; original_actual_budget_approved: string | number | null };
+    idPrefix?: string;
+    role?: string | null;
 }) => {
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -127,14 +192,147 @@ const SiteFormFields = React.memo(({
                     Head Office (HQ)
                 </label>
             </div>
-        </div>
+
+            {/* Expiry Date Section */}
+            <div className="md:col-span-2 space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex items-center space-x-2">
+                    <input
+                        id={`${idPrefix}_has_expiry`}
+                        type="checkbox"
+                        checked={Boolean(form.has_expiry)}
+                        onChange={(e) => onChange("has_expiry", e.target.checked)}
+                        disabled={originalFlags?.had_expiry_ever}
+                        className={`rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500 ${originalFlags?.had_expiry_ever ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    />
+                    <label htmlFor={`${idPrefix}_has_expiry`} className={`text-sm font-medium ${originalFlags?.had_expiry_ever ? 'text-gray-500' : 'text-gray-700'}`}>
+                        Has Expiry Date
+                        {originalFlags?.had_expiry_ever && <span className="ml-2 text-xs text-gray-500">(Locked)</span>}
+                    </label>
+                </div>
+
+                {form.has_expiry && (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Expiry Date</label>
+                        <input
+                            type="date"
+                            value={form.expiry_date as string}
+                            onChange={(e) => onChange("expiry_date", e.target.value)}
+                            min={new Date().toISOString().split('T')[0]}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                        <p className="mt-1 text-xs text-gray-500">Only future dates are allowed</p>
+                    </div>
+                )}
+            </div>
+
+            {/* Budget Section */}
+            <div className="md:col-span-2 space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex items-center space-x-2">
+                    <input
+                        id={`${idPrefix}_has_budget`}
+                        type="checkbox"
+                        checked={Boolean(form.has_budget)}
+                        onChange={(e) => onChange("has_budget", e.target.checked)}
+                        disabled={originalFlags?.had_budget_ever}
+                        className={`rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500 ${originalFlags?.had_budget_ever ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    />
+                    <label htmlFor={`${idPrefix}_has_budget`} className={`text-sm font-medium ${originalFlags?.had_budget_ever ? 'text-gray-500' : 'text-gray-700'}`}>
+                        Has Budget
+                        {originalFlags?.had_budget_ever && <span className="ml-2 text-xs text-gray-500">(Locked)</span>}
+                    </label>
+                </div>
+
+                {form.has_budget && (
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Total Budget Amount <span className="text-red-500">*</span></label>
+                                <input
+                                    required
+                                    type="number"
+                                    min="0"
+                                    value={form.budget_amount || ''}
+                                    onChange={(e) => onChange("budget_amount", e.target.value)}
+                                    disabled={originalFlags?.had_budget_ever}
+                                    className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all ${originalFlags?.had_budget_ever ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''}`}
+                                    placeholder="Enter total budget allocated"
+                                />
+                            </div>
+
+                            {/* Comparison Fields - Locked once set, except for orgadmin */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Final Budget Allocated {originalFlags?.had_budget_ever && originalFlags?.original_final_budget_allocated && <span className="text-xs text-gray-500">(Locked)</span>}</label>
+                                    <input
+                                        type="number"
+                                        className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border ${originalFlags?.had_budget_ever && originalFlags?.original_final_budget_allocated ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''}`}
+                                        value={form.final_budget_allocated || ''}
+                                        onChange={(e) => onChange('final_budget_allocated', e.target.value)}
+                                        disabled={!!(originalFlags?.had_budget_ever && originalFlags?.original_final_budget_allocated && role !== 'OrgAdmin')}
+                                        placeholder="0.00"
+                                    />
+                                    <p className="text-xs text-gray-400 mt-1">Opening balance - locked once set</p>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Actual Budget Approved {originalFlags?.had_budget_ever && originalFlags?.original_actual_budget_approved && <span className="text-xs text-gray-500">(Locked)</span>}</label>
+                                    <input
+                                        type="number"
+                                        className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border ${originalFlags?.had_budget_ever && originalFlags?.original_actual_budget_approved ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''}`}
+                                        value={form.actual_budget_approved || ''}
+                                        onChange={(e) => onChange('actual_budget_approved', e.target.value)}
+                                        disabled={!!(originalFlags?.had_budget_ever && originalFlags?.original_actual_budget_approved && role !== 'OrgAdmin')}
+                                        placeholder="0.00"
+                                    />
+                                    <p className="text-xs text-gray-400 mt-1">Approved amount - locked once set</p>
+                                </div>
+                            </div>
+
+                            {/* Display Remaining Final Budget (read-only, only in edit mode with existing value) */}
+                            {form.remaining_final_budget_allocated !== undefined && form.remaining_final_budget_allocated !== null && form.remaining_final_budget_allocated !== '' && (
+                                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-sm font-medium text-blue-900">Remaining Final Budget (Wallet)</span>
+                                        <span className="text-lg font-bold text-blue-700">₹{Number(form.remaining_final_budget_allocated || 0).toLocaleString()}</span>
+                                    </div>
+                                    <p className="text-xs text-blue-600 mt-1">Auto-calculated: Final Allocated - Budget Used. Updated on monthly snapshots.</p>
+                                </div>
+                            )}
+                        </div>
+                        {/* Display stats if editing existing site with budget AND has usage */}
+                        {Boolean(originalFlags?.had_budget_ever) && Number(form.budget_used) > 0 && (
+                            <div className="space-y-2">
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-gray-500">Used Budget:</span>
+                                    <span className="font-medium text-gray-900">₹{Number(form.budget_used || 0).toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-gray-500">Remaining:</span>
+                                    <span className={`font-medium ${(Number(form.budget_amount) - Number(form.budget_used || 0)) < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                        ₹{(Number(form.budget_amount) - Number(form.budget_used || 0)).toLocaleString()}
+                                    </span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                                    <div
+                                        className={`h-1.5 rounded-full ${Number(form.budget_used) > Number(form.budget_amount) ? 'bg-red-500' : 'bg-blue-600'}`}
+                                        style={{ width: `${Math.min(100, (Number(form.budget_used || 0) / Number(form.budget_amount || 1)) * 100)}%` }}
+                                    ></div>
+                                </div>
+                                <p className="text-xs text-gray-400 mt-1">
+                                    Budget amount cannot be changed once active.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div >
     );
 });
 
 SiteFormFields.displayName = 'SiteFormFields';
 
 export default function OrgAdminSitesPage() {
-  const { role, permissions, user, organization, employee } = useAuth();
+    const { role, permissions, user, organization, employee } = useAuth();
     const [sites, setSites] = React.useState<Site[]>([]);
     const [loading, setLoading] = React.useState<boolean>(true);
     const [error, setError] = React.useState<string>("");
@@ -173,6 +371,13 @@ export default function OrgAdminSitesPage() {
         state: "",
         country: "",
         is_head_office: false,
+        has_expiry: false,
+        expiry_date: "",
+        has_budget: false,
+        budget_amount: "",
+        budget_used: 0,
+        final_budget_allocated: "",
+        actual_budget_approved: ""
     });
 
     const [selectedSite, setSelectedSite] = React.useState<Site | null>(null);
@@ -182,8 +387,39 @@ export default function OrgAdminSitesPage() {
     const [employeeQuery, setEmployeeQuery] = React.useState<string>("");
     const [inchargeSaving, setInchargeSaving] = React.useState<boolean>(false);
 
+    // Budget Usage Modal
+    const [showBudgetModal, setShowBudgetModal] = React.useState(false);
+    const [budgetData, setBudgetData] = React.useState<BudgetUsageData | null>(null);
+    const [budgetLoading, setBudgetLoading] = React.useState(false);
+    const [budgetTab, setBudgetTab] = React.useState<'active' | 'history' | 'ledger'>('active');
+
+    // Pagination state for each tab
+    const [activePage, setActivePage] = React.useState(1);
+    const [activePageSize] = React.useState(10);
+    const [historyPage, setHistoryPage] = React.useState(1);
+    const [historyPageSize] = React.useState(10);
+    const [ledgerPage, setLedgerPage] = React.useState(1);
+    const [ledgerPageSize] = React.useState(10);
+
+    // Track original flags to prevent disabling once enabled
+    const [originalSiteFlags, setOriginalSiteFlags] = React.useState<{
+        had_expiry_ever: boolean;
+        had_budget_ever: boolean;
+        original_budget_amount: string | number | null;
+        original_budget_used: string | number | null;
+        original_final_budget_allocated: string | number | null;
+        original_actual_budget_approved: string | number | null;
+    }>({
+        had_expiry_ever: false,
+        had_budget_ever: false,
+        original_budget_amount: null,
+        original_budget_used: null,
+        original_final_budget_allocated: null,
+        original_actual_budget_approved: null,
+    });
+
     // Permissions
-  const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
+    const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
 
     const onChange = React.useCallback((key: keyof Site, value: any) => {
         setForm((prev) => ({ ...prev, [key]: value }));
@@ -191,7 +427,7 @@ export default function OrgAdminSitesPage() {
 
     // // const { role, permissions, organization } = useAuth();
 
-    
+
 
     const fetchPincodeDetails = async (pin: string) => {
         if (!pin || pin.length !== 6) return;
@@ -248,6 +484,14 @@ export default function OrgAdminSitesPage() {
                 country: s.country,
                 status: s.status ?? "active",
                 is_head_office: s.is_head_office,
+                has_expiry: s.has_expiry,
+                expiry_date: s.expiry_date ? s.expiry_date.toString().substring(0, 10) : "",
+                has_budget: s.has_budget,
+                budget_amount: s.budget_amount || "",
+                budget_used: s.budget_used || 0,
+                final_budget_allocated: s.final_budget_allocated || "",
+                actual_budget_approved: s.actual_budget_approved || "",
+                remaining_final_budget_allocated: s.remaining_final_budget_allocated || "",
             }));
             setSites(normalized);
             setTotalItems(Number(data.total || 0));
@@ -263,7 +507,7 @@ export default function OrgAdminSitesPage() {
         (async () => {
             try {
                 // Session fetch removed (using useAuth)
-        const session = { authenticated: true, role: role, employee: { permissions } };
+                const session = { authenticated: true, role: role, employee: { permissions } };
                 if (session?.authenticated) {
                     // setRole(session.role || null);
                     // setPermissions(session.employee?.permissions || []);
@@ -326,6 +570,12 @@ export default function OrgAdminSitesPage() {
                 state: (form.state || "").trim() || null,
                 country: (form.country || "").trim() || null,
                 is_head_office: Boolean(form.is_head_office),
+                has_expiry: Boolean(form.has_expiry),
+                expiry_date: form.has_expiry ? (form.expiry_date || null) : null,
+                has_budget: Boolean(form.has_budget),
+                budget_amount: form.has_budget && form.budget_amount ? Number(form.budget_amount) : null,
+                final_budget_allocated: form.has_budget && form.final_budget_allocated ? Number(form.final_budget_allocated) : null,
+                actual_budget_approved: form.has_budget && form.actual_budget_approved ? Number(form.actual_budget_approved) : null,
             };
             const data = await apiClient<{ site: any }>("/sites", { method: "POST", body: payload });
             setShowCreateModal(false);
@@ -338,6 +588,13 @@ export default function OrgAdminSitesPage() {
                 state: "",
                 country: "",
                 is_head_office: false,
+                has_expiry: false,
+                expiry_date: "",
+                has_budget: false,
+                budget_amount: "",
+                budget_used: 0,
+                final_budget_allocated: "",
+                actual_budget_approved: ""
             });
             fetchSites(); // Refresh the list
         } catch (e: any) {
@@ -352,7 +609,44 @@ export default function OrgAdminSitesPage() {
         setShowViewModal(true);
     };
 
+    const openCreate = () => {
+        // Reset form to empty state
+        setForm({
+            name: "",
+            code: "",
+            address: "",
+            pincode: "",
+            city: "",
+            state: "",
+            country: "",
+            is_head_office: false,
+            has_expiry: false,
+            expiry_date: "",
+            has_budget: false,
+            budget_amount: "",
+            budget_used: 0,
+            final_budget_allocated: "",
+            actual_budget_approved: ""
+        });
+        setSelectedSite(null);
+        setOriginalSiteFlags({
+            had_expiry_ever: false,
+            had_budget_ever: false,
+            original_budget_amount: null,
+            original_budget_used: null,
+            original_final_budget_allocated: null,
+            original_actual_budget_approved: null,
+        });
+        setShowCreateModal(true);
+    };
+
+    const closeEdit = () => {
+        if (typeof window !== 'undefined') localStorage.removeItem('lastEditedSiteId');
+        setShowEditModal(false);
+    };
+
     const openEdit = (site: Site) => {
+        if (typeof window !== 'undefined') localStorage.setItem('lastEditedSiteId', String(site.id));
         setSelectedSite(site);
         setForm({
             name: site.name,
@@ -363,9 +657,39 @@ export default function OrgAdminSitesPage() {
             state: site.state || "",
             country: site.country || "",
             is_head_office: Boolean(site.is_head_office),
+            has_expiry: Boolean(site.has_expiry),
+            expiry_date: site.expiry_date ? String(site.expiry_date).split('T')[0] : "",
+            has_budget: Boolean(site.has_budget),
+            budget_amount: site.budget_amount ? String(site.budget_amount) : "",
+            budget_used: site.budget_used || 0,
+            final_budget_allocated: site.final_budget_allocated ? String(site.final_budget_allocated) : "",
+            actual_budget_approved: site.actual_budget_approved ? String(site.actual_budget_approved) : "",
+            remaining_final_budget_allocated: site.remaining_final_budget_allocated ? String(site.remaining_final_budget_allocated) : "",
+        });
+        // Track if these features were ever enabled (to lock them)
+        setOriginalSiteFlags({
+            had_expiry_ever: Boolean(site.has_expiry),
+            had_budget_ever: Boolean(site.has_budget),
+            original_budget_amount: site.budget_amount || null,
+            original_budget_used: site.budget_used || null,
+            original_final_budget_allocated: site.final_budget_allocated || null,
+            original_actual_budget_approved: site.actual_budget_approved || null,
         });
         setShowEditModal(true);
     };
+
+    // Restore functionality for edit site modal
+    React.useEffect(() => {
+        if (sites.length > 0 && typeof window !== 'undefined' && !showEditModal) {
+            const cachedId = localStorage.getItem('lastEditedSiteId');
+            if (cachedId) {
+                const siteToRestore = sites.find(s => s.id === Number(cachedId));
+                if (siteToRestore) {
+                    openEdit(siteToRestore);
+                }
+            }
+        }
+    }, [sites]);
 
     const toggleStatus = async (site: Site) => {
         const next = site.status === "inactive" ? "active" : "inactive";
@@ -383,6 +707,11 @@ export default function OrgAdminSitesPage() {
                 country: data.site.country,
                 status: data.site.status ?? next,
                 is_head_office: data.site.is_head_office,
+                has_expiry: data.site.has_expiry,
+                expiry_date: data.site.expiry_date,
+                has_budget: data.site.has_budget,
+                budget_amount: data.site.budget_amount,
+                budget_used: data.site.budget_used, // Added budget_used
             };
             setSites((prev) => prev.map((s) => (s.id === site.id ? updated : s)));
             if (selectedSite?.id === site.id) setSelectedSite(updated);
@@ -408,6 +737,12 @@ export default function OrgAdminSitesPage() {
                 state: (form.state || "").trim() || null,
                 country: (form.country || "").trim() || null,
                 is_head_office: Boolean(form.is_head_office),
+                has_expiry: Boolean(form.has_expiry),
+                expiry_date: form.has_expiry ? (form.expiry_date || null) : null,
+                has_budget: Boolean(form.has_budget),
+                budget_amount: form.has_budget && form.budget_amount ? Number(form.budget_amount) : null,
+                final_budget_allocated: form.has_budget && form.final_budget_allocated ? Number(form.final_budget_allocated) : null,
+                actual_budget_approved: form.has_budget && form.actual_budget_approved ? Number(form.actual_budget_approved) : null,
             };
             const data = await apiClient<{ site: any }>(`/sites/${selectedSite.id}`, { method: "PUT", body: payload });
             const updated: Site = {
@@ -421,9 +756,14 @@ export default function OrgAdminSitesPage() {
                 country: data.site.country,
                 status: data.site.status ?? selectedSite.status,
                 is_head_office: data.site.is_head_office,
+                has_expiry: data.site.has_expiry,
+                expiry_date: data.site.expiry_date,
+                has_budget: data.site.has_budget,
+                budget_amount: data.site.budget_amount,
+                budget_used: data.site.budget_used, // Added budget_used
             };
             setSites((prev) => prev.map((s) => (s.id === selectedSite.id ? updated : s)));
-            setShowEditModal(false);
+            closeEdit();
             setSelectedSite(null);
         } catch (e: any) {
             setError(e?.message || "Failed to update site");
@@ -464,6 +804,50 @@ export default function OrgAdminSitesPage() {
         } finally {
             setInchargeSaving(false);
         }
+    };
+
+    const openBudgetUsage = async (site: Site, resetPagination = false) => {
+        if (resetPagination) {
+            setActivePage(1);
+            setHistoryPage(1);
+            setLedgerPage(1);
+        }
+        setBudgetLoading(true);
+        setShowBudgetModal(true);
+        setSelectedSite(site);
+        try {
+            const params = new URLSearchParams({
+                activePage: String(resetPagination ? 1 : activePage),
+                activePageSize: String(activePageSize),
+                historyPage: String(resetPagination ? 1 : historyPage),
+                historyPageSize: String(historyPageSize),
+                ledgerPage: String(resetPagination ? 1 : ledgerPage),
+                ledgerPageSize: String(ledgerPageSize)
+            });
+            const data = await apiClient<BudgetUsageData>(`/sites/${site.id}/budget-usage?${params.toString()}`);
+            setBudgetData(data);
+        } catch (err: any) {
+            console.error("Error fetching budget usage:", err);
+            setBudgetData(null);
+        } finally {
+            setBudgetLoading(false);
+        }
+    };
+
+    // Handler for pagination changes
+    const handlePageChange = (tab: 'active' | 'history' | 'ledger', newPage: number) => {
+        if (!selectedSite) return;
+
+        if (tab === 'active') {
+            setActivePage(newPage);
+        } else if (tab === 'history') {
+            setHistoryPage(newPage);
+        } else if (tab === 'ledger') {
+            setLedgerPage(newPage);
+        }
+
+        // Re-fetch with new page
+        setTimeout(() => openBudgetUsage(selectedSite), 0);
     };
 
     const removeIncharge = async (employeeId: number) => {
@@ -569,7 +953,6 @@ export default function OrgAdminSitesPage() {
                                         <span>Edit Site</span>
                                     </button>
                                 )}
-
                                 <button
                                     onClick={() => { openIncharges(site); setIsOpen(false); }}
                                     className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
@@ -577,6 +960,15 @@ export default function OrgAdminSitesPage() {
                                     <Users className="w-4 h-4" />
                                     <span>Manage Incharges</span>
                                 </button>
+                                {!!site.has_budget && (
+                                    <button
+                                        onClick={() => { openBudgetUsage(site); setIsOpen(false); }}
+                                        className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                    >
+                                        <Briefcase className="w-4 h-4" />
+                                        <span>Budget Usage</span>
+                                    </button>
+                                )}
 
                                 <div className="border-t border-gray-100 my-1" />
 
@@ -742,6 +1134,33 @@ export default function OrgAdminSitesPage() {
                                             </span>
                                         </div>
                                     </div>
+
+                                    {/* Expiry Date - Only show if has_expiry is true */}
+                                    {selectedSite.has_expiry && (
+                                        <div>
+                                            <h4 className="text-sm font-medium text-gray-500">Expiry Date</h4>
+                                            <p className="mt-1 text-gray-900">
+                                                {selectedSite.expiry_date ? new Date(selectedSite.expiry_date).toLocaleDateString('en-IN', {
+                                                    year: 'numeric',
+                                                    month: 'long',
+                                                    day: 'numeric'
+                                                }) : '-'}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {/* Budget - Only show if has_budget is true */}
+                                    {selectedSite.has_budget && (
+                                        <div>
+                                            <h4 className="text-sm font-medium text-gray-500">Budget Amount</h4>
+                                            <p className="mt-1 text-gray-900 font-medium">
+                                                {selectedSite.budget_amount ? `₹${Number(selectedSite.budget_amount).toLocaleString('en-IN', {
+                                                    minimumFractionDigits: 2,
+                                                    maximumFractionDigits: 2
+                                                })}` : '-'}
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -776,7 +1195,7 @@ export default function OrgAdminSitesPage() {
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-xl font-semibold text-gray-900">Edit Site</h3>
                                     <button
-                                        onClick={() => setShowEditModal(false)}
+                                        onClick={closeEdit}
                                         className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                                     >
                                         <X className="w-5 h-5 text-gray-500" />
@@ -791,12 +1210,13 @@ export default function OrgAdminSitesPage() {
                                     pinLoading={pinLoading}
                                     fetchPincodeDetails={fetchPincodeDetails}
                                     idPrefix="edit"
+                                    originalFlags={originalSiteFlags}
                                 />
                             </div>
 
                             <div className="p-6 border-t border-gray-200 flex justify-end space-x-3">
                                 <button
-                                    onClick={() => setShowEditModal(false)}
+                                    onClick={closeEdit}
                                     className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                                 >
                                     Cancel
@@ -837,10 +1257,12 @@ export default function OrgAdminSitesPage() {
                             <div className="p-6 overflow-y-auto flex-1">
                                 <SiteFormFields
                                     form={form}
-                                    onChange={onChange}
+                                    onChange={(key, value) => setForm((prev) => ({ ...prev, [key]: value }))}
                                     pinLoading={pinLoading}
                                     fetchPincodeDetails={fetchPincodeDetails}
+                                    originalFlags={originalSiteFlags}
                                     idPrefix="create"
+                                    role={role}
                                 />
                             </div>
 
@@ -1007,7 +1429,7 @@ export default function OrgAdminSitesPage() {
                         </button>
                         {(role !== "Employee" || hasPerm("SITE_ADD")) && (
                             <button
-                                onClick={() => setShowCreateModal(true)}
+                                onClick={openCreate}
                                 className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-1 text-sm"
                             >
                                 <Plus className="w-4 h-4" />
@@ -1167,7 +1589,7 @@ export default function OrgAdminSitesPage() {
                         <p className="text-xs text-gray-500 mb-3">No sites match your current filters.</p>
                         {(role !== "Employee" || hasPerm("SITE_ADD")) && (
                             <button
-                                onClick={() => setShowCreateModal(true)}
+                                onClick={openCreate}
                                 className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-1 text-sm mx-auto"
                             >
                                 <Plus className="w-3 h-3" />
@@ -1295,6 +1717,279 @@ export default function OrgAdminSitesPage() {
                     </div>
                 )
             }
+
+            {/* Budget Usage Modal */}
+            {showBudgetModal && selectedSite && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+                        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-900">Budget Usage: {selectedSite.name}</h3>
+                                <p className="text-sm text-gray-500 mt-1">Track effective budget consumption by active employees</p>
+                            </div>
+                            <button onClick={() => setShowBudgetModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        {budgetLoading ? (
+                            <div className="p-12 flex justify-center">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                            </div>
+                        ) : budgetData ? (
+                            <div className="flex-1 overflow-y-auto p-6">
+                                {/* Stats Cards */}
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                                        <p className="text-sm font-medium text-blue-600 mb-1">Total Budget</p>
+                                        <p className="text-2xl font-bold text-blue-900">₹{Number(budgetData.stats.budget).toLocaleString()}</p>
+                                    </div>
+                                    <div className="bg-amber-50 p-4 rounded-lg border border-amber-100">
+                                        <p className="text-sm font-medium text-amber-600 mb-1">Used Budget</p>
+                                        <p className="text-2xl font-bold text-amber-900">₹{Number(budgetData.stats.used).toLocaleString()}</p>
+                                    </div>
+                                    <div className={`p-4 rounded-lg border ${budgetData.stats.remaining < 0 ? 'bg-red-50 border-red-100' : 'bg-green-50 border-green-100'}`}>
+                                        <p className={`text-sm font-medium mb-1 ${budgetData.stats.remaining < 0 ? 'text-red-600' : 'text-green-600'}`}>Remaining</p>
+                                        <p className="text-2xl font-bold mt-1 text-green-700">₹{budgetData.stats.remaining.toLocaleString()}</p>
+                                        <p className="text-xs text-green-600 mt-1">Available for allocation</p>
+                                    </div>
+                                    <div className="bg-purple-50 p-4 rounded-xl border border-purple-100">
+                                        <p className="text-sm font-medium text-purple-600">Final Alloc. Budget</p>
+                                        <p className="text-xl font-bold mt-1 text-purple-700">₹{(budgetData.stats.final_allocated || 0).toLocaleString()}</p>
+                                        <p className="text-xs text-purple-600 mt-1">Project Total</p>
+                                    </div>
+                                    <div className="bg-teal-50 p-4 rounded-xl border border-teal-100">
+                                        <p className="text-sm font-medium text-teal-600">Actual Budget Approved</p>
+                                        <p className="text-xl font-bold mt-1 text-teal-700">₹{(budgetData.stats.actual_approved || 0).toLocaleString()}</p>
+                                        <p className="text-xs text-teal-600 mt-1">Officially approved</p>
+                                    </div>
+                                    <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                                        <p className="text-sm font-medium text-indigo-600">Rem. Final Budget</p>
+                                        <p className="text-xl font-bold mt-1 text-indigo-700">₹{(budgetData.stats.remaining_final || 0).toLocaleString()}</p>
+                                        <p className="text-xs text-indigo-600 mt-1">After total usage</p>
+                                    </div>
+                                </div>
+
+                                {/* Tabs */}
+                                <div className="flex border-b border-gray-200 mb-4">
+                                    <button
+                                        onClick={() => setBudgetTab('active')}
+                                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${budgetTab === 'active' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        Active Salaries
+                                    </button>
+                                    <button
+                                        onClick={() => setBudgetTab('history')}
+                                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${budgetTab === 'history' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        Release History
+                                    </button>
+                                    <button
+                                        onClick={() => setBudgetTab('ledger')}
+                                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${budgetTab === 'ledger' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        Monthly Ledger
+                                    </button>
+                                </div>
+
+                                {/* Table */}
+                                <div className="overflow-hidden rounded-lg border border-gray-200">
+                                    {budgetTab === 'ledger' ? (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-sm text-left">
+                                                <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+                                                    <tr>
+                                                        <th className="px-4 py-3">Month</th>
+                                                        <th className="px-4 py-3 text-right">Final Alloc.</th>
+                                                        <th className="px-4 py-3 text-right">Approved</th>
+                                                        <th className="px-4 py-3 text-right">Total Budget</th>
+                                                        <th className="px-4 py-3 text-right">Used</th>
+                                                        <th className="px-4 py-3 text-right">Remaining</th>
+                                                        <th className="px-4 py-3">Snapshot Date</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {(budgetData.ledger || []).map((row, i) => (
+                                                        <tr key={i} className="border-b hover:bg-gray-50">
+                                                            <td className="px-4 py-3 font-medium">{row.month_year}</td>
+                                                            <td className="px-4 py-3 text-right text-gray-600">₹{Number(row.final_budget_allocated).toLocaleString()}</td>
+                                                            <td className="px-4 py-3 text-right text-gray-600">₹{Number(row.actual_budget_approved).toLocaleString()}</td>
+                                                            <td className="px-4 py-3 text-right text-gray-900 font-medium">₹{Number(row.total_budget).toLocaleString()}</td>
+                                                            <td className="px-4 py-3 text-right text-amber-600">₹{Number(row.used_budget).toLocaleString()}</td>
+                                                            <td className="px-4 py-3 text-right text-green-600">₹{Number(row.remaining_budget).toLocaleString()}</td>
+                                                            <td className="px-4 py-3 text-gray-500 text-xs">
+                                                                {new Date(row.snapshot_at).toLocaleDateString()}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                    {(!budgetData.ledger || budgetData.ledger.length === 0) && (
+                                                        <tr>
+                                                            <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                                                                No ledger history found
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                            {/* Ledger Pagination */}
+                                            {budgetData.pagination && budgetData.pagination.ledger.pages > 1 && (
+                                                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
+                                                    <div className="text-sm text-gray-700">
+                                                        Page {budgetData.pagination.ledger.page} of {budgetData.pagination.ledger.pages} ({budgetData.pagination.ledger.total} records)
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => handlePageChange('ledger', ledgerPage - 1)}
+                                                            disabled={ledgerPage === 1 || budgetLoading}
+                                                            className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        >
+                                                            Previous
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handlePageChange('ledger', ledgerPage + 1)}
+                                                            disabled={ledgerPage >= budgetData.pagination.ledger.pages || budgetLoading}
+                                                            className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        >
+                                                            Next
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="overflow-x-auto">                                            <table className="min-w-full divide-y divide-gray-200">
+                                            <thead className="bg-gray-50">
+                                                <tr>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Designation</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount Captured</th>
+                                                    {budgetTab === 'history' && (
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                                    )}
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="bg-white divide-y divide-gray-200">
+                                                {(budgetTab === 'active' ? budgetData.active : budgetData.history).length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={budgetTab === 'history' ? 5 : 4} className="px-6 py-8 text-center text-gray-500 text-sm">
+                                                            No records found
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    ((budgetTab === 'active' ? budgetData.active : budgetData.history) as any[]).map((record) => (
+                                                        <tr key={record.id} className="hover:bg-gray-50">
+                                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-sm font-medium text-gray-900">
+                                                                        {record.first_name} {record.last_name}
+                                                                    </span>
+                                                                    <span className="text-xs text-gray-500">#{record.emp_code}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                                {record.designation || '-'}
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                                ₹{Number(record.amount).toLocaleString()}
+                                                            </td>
+                                                            {budgetTab === 'history' && (
+                                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${record.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                                                        }`}>
+                                                                        {record.status === 'active' ? 'Active' : 'Released'}
+                                                                    </span>
+                                                                </td>
+                                                            )}
+                                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                                {new Date(record.status === 'released' && record.released_at ? record.released_at : record.created_at).toLocaleDateString()}
+                                                                <div className="text-xs text-gray-400">
+                                                                    {new Date(record.status === 'released' && record.released_at ? record.released_at : record.created_at).toLocaleTimeString()}
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                )}
+                                            </tbody>
+                                        </table>
+                                            {/* Active Pagination */}
+                                            {budgetData.pagination && budgetTab === 'active' && budgetData.pagination.active.pages > 1 && (
+                                                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
+                                                    <div className="text-sm text-gray-700">
+                                                        Page {activePage} of {budgetData.pagination.active.pages} ({budgetData.pagination.active.total} records)
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => handlePageChange('active', activePage - 1)}
+                                                            disabled={activePage === 1 || budgetLoading}
+                                                            className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        >
+                                                            Previous
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handlePageChange('active', activePage + 1)}
+                                                            disabled={activePage >= budgetData.pagination.active.pages || budgetLoading}
+                                                            className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        >
+                                                            Next
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {budgetTab === 'history' && budgetData.pagination && budgetData.pagination.history.pages > 1 && (
+                                                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
+                                                    <div className="text-sm text-gray-700">
+                                                        Page {budgetData.pagination.history.page} of {budgetData.pagination.history.pages} ({budgetData.pagination.history.total} records)
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => handlePageChange('history', historyPage - 1)}
+                                                            disabled={historyPage === 1 || budgetLoading}
+                                                            className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        >
+                                                            Previous
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handlePageChange('history', historyPage + 1)}
+                                                            disabled={historyPage >= budgetData.pagination.history.pages || budgetLoading}
+                                                            className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        >
+                                                            Next
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="p-12 text-center text-red-500">Failed to load budget data</div>
+                        )
+                        }
+                    </div>
+                </div>
+            )}
         </div>
     );
-}
+};
+
+const getStatusIcon = (status: string) => {
+    switch (status) {
+        case 'active': return <div className="w-2 h-2 rounded-full bg-green-500"></div>;
+        case 'inactive': return <div className="w-2 h-2 rounded-full bg-red-500"></div>;
+        default: return <div className="w-2 h-2 rounded-full bg-gray-500"></div>;
+    }
+};
+
+const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+        case 'active': return 'bg-green-100 text-green-800';
+        case 'inactive': return 'bg-red-100 text-red-800';
+        default: return 'bg-gray-100 text-gray-800';
+    }
+};
+
+const getHQColor = (isHQ: boolean) => {
+    return isHQ ? 'bg-purple-100 text-purple-800' : 'text-gray-400';
+};

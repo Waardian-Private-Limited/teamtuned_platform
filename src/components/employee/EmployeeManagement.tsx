@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { apiClient } from "@/lib/apiClient";
+import AdditionalDebitsWizard from "./AdditionalDebitsWizard";
 import {
   Users,
   Search,
@@ -198,10 +199,24 @@ export default function EmployeeManagement() {
   const [assignedSiteIds, setAssignedSiteIds] = useState<Set<number>>(new Set());
   const [inchargeSiteIds, setInchargeSiteIds] = useState<Set<number>>(new Set());
   const [allowPunchFromHQ, setAllowPunchFromHQ] = useState<boolean>(false);
+
+  // Primary site and budget
+  const [primarySiteId, setPrimarySiteId] = useState<number | "">("");
+  const [siteBudget, setSiteBudget] = useState<any>(null);
+  const [budgetLoading, setBudgetLoading] = useState(false);
+  const [originalSalary, setOriginalSalary] = useState<number>(0);
+  const [originalPrimarySiteId, setOriginalPrimarySiteId] = useState<number | null>(null);
+
+  // Additional debits
+  const [availableDebits, setAvailableDebits] = useState<any[]>([]);
+  const [assignedDebitIds, setAssignedDebitIds] = useState<Set<number>>(new Set());
+  const [showDebitWizard, setShowDebitWizard] = useState(false);
+
   const [salaryType, setSalaryType] = useState<string>(""); // Monthly / Daily / Hourly
   const [salaryAmount, setSalaryAmount] = useState<string>("");
   const [yearlyPackage, setYearlyPackage] = useState<string>("");
-  const [salaryItems, setSalaryItems] = useState<{ name: string; type: "credit" | "debit"; amount: number }[]>([]);
+  const [salaryItems, setSalaryItems] = useState<{ component_id: number; component_name: string; component_type: "credit" | "debit"; amount: number }[]>([]);
+  const [salaryComponents, setSalaryComponents] = useState<{ id: number; component_name: string; component_type: "credit" | "debit" }[]>([]);
   const [bankAccountNo, setBankAccountNo] = useState<string>("");
   const [ifscCode, setIfscCode] = useState<string>("");
   const [bankName, setBankName] = useState<string>("");
@@ -269,7 +284,48 @@ export default function EmployeeManagement() {
         }
       } catch { }
     })();
+  }, [role, permissions]);
+
+  // Fetch salary components
+  useEffect(() => {
+    const fetchComponents = async () => {
+      try {
+        const data = await apiClient('/organization/salary-components?status=active');
+        setSalaryComponents(data || []);
+      } catch (error) {
+        console.error('Failed to fetch salary components:', error);
+      }
+    };
+    fetchComponents();
   }, []);
+
+  // Fetch available debits
+  useEffect(() => {
+    const fetchDebits = async () => {
+      try {
+        const data = await apiClient('/organization/employees/additional-debits?status=active');
+        setAvailableDebits(data || []);
+      } catch (error) {
+        console.error('Failed to fetch debits:', error);
+      }
+    };
+    fetchDebits();
+  }, []);
+
+  // Fetch assigned debits
+  useEffect(() => {
+    const fetchDebits = async () => {
+      if (!viewData?.id) return; // Don't fetch if no employee ID
+
+      try {
+        const data = await apiClient(`/organization/employees/${viewData.id}/debits`);
+        setAssignedDebitIds(new Set(data.map((d: any) => d.id)) || new Set());
+      } catch (error) {
+        console.error('Failed to fetch assigned debits:', error);
+      }
+    };
+    fetchDebits();
+  }, [viewData?.id]);
 
   const deleteEmployee = async (id: number) => {
     if (!hasPerm("EMP_DELETE")) {
@@ -376,6 +432,68 @@ export default function EmployeeManagement() {
     });
   };
 
+  // Check site budget
+  const checkSiteBudget = async (siteId: number) => {
+    if (!siteId) {
+      setSiteBudget(null);
+      return;
+    }
+
+    setBudgetLoading(true);
+    try {
+      const budget = await apiClient(`/organization/employees/sites/${siteId}/budget`);
+      setSiteBudget(budget);
+    } catch (error: any) {
+      console.error('Failed to fetch site budget:', error);
+      setSiteBudget(null);
+    } finally {
+      setBudgetLoading(false);
+    }
+  };
+
+  // Handle primary site change
+  const handlePrimarySiteChange = async (siteId: number | "") => {
+    setPrimarySiteId(siteId);
+    if (siteId) {
+      setAssignedSiteIds((prev) => {
+        const next = new Set(prev);
+        next.add(siteId);
+        return next;
+      });
+      await checkSiteBudget(siteId);
+    } else {
+      setSiteBudget(null);
+    }
+  };
+
+  // Validate salary against budget
+  const validateSalaryAgainstBudget = (): boolean => {
+    // If no primary site or no budget loaded, we can't validate yet (or budget is disabled)
+    // Note: If budget is disabled for the site, siteBudget.has_budget should be false.
+    if (!primarySiteId || !siteBudget || !siteBudget.has_budget) return true;
+
+    const newSalary = Number(salaryAmount) || 0;
+    let available = Number(siteBudget.budget_remaining) || 0;
+
+    // If editing and the primary site hasn't changed, 
+    // we should add back the *original* salary to the "available" pool,
+    // because that amount is currently consumed by *this* employee.
+    if (editingEmployeeId && Number(primarySiteId) === Number(originalPrimarySiteId)) {
+      available += (Number(originalSalary) || 0);
+    }
+
+    if (newSalary > available) {
+      const msg = `Salary amount (₹${newSalary.toLocaleString()}) exceeds available budget (₹${available.toLocaleString()})`;
+      setError(msg);
+      showNotification(msg, 'error');
+      // Scroll to top
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return false;
+    }
+
+    return true;
+  };
+
   const lookupIFSC = async () => {
     const code = ifscCode.trim().toUpperCase();
     const pattern = /^[A-Z]{4}0[A-Z0-9]{6}$/;
@@ -414,6 +532,9 @@ export default function EmployeeManagement() {
     setAssignedSiteIds(new Set());
     setInchargeSiteIds(new Set());
     setAllowPunchFromHQ(false);
+    setPrimarySiteId("");
+    setSiteBudget(null);
+    setAssignedDebitIds(new Set());
     setSalaryType("");
     setSalaryAmount("");
     setYearlyPackage("");
@@ -464,6 +585,17 @@ export default function EmployeeManagement() {
         ? siteArr.filter((s: any) => !!s?.is_incharge).map((s: any) => Number(s.id)).filter((n: any) => Number.isFinite(n))
         : (((data as any).incharge ? sids : []) as number[]);
       setInchargeSiteIds(new Set(inchargeIds));
+
+      // Set Primary Site
+      const pSite = siteArr.find((s: any) => s.is_primary);
+      const pSiteId = pSite ? pSite.id : "";
+      setPrimarySiteId(pSiteId);
+      setOriginalPrimarySiteId(pSite ? pSite.id : null);
+      if (pSiteId) {
+        checkSiteBudget(pSiteId);
+      } else {
+        setSiteBudget(null);
+      }
       setAllowPunchFromHQ(!!(data as any).allow_punch_from_hq);
       setShiftStart((data as any).shift_start_time || "");
       setShiftEnd((data as any).shift_end_time || "");
@@ -471,12 +603,21 @@ export default function EmployeeManagement() {
       setFlexibleHours(((data as any).flexible_hours != null && !Number.isNaN(Number((data as any).flexible_hours))) ? String(Number((data as any).flexible_hours)) : "");
       setPolicyId((data as any).attendance_policy_id || "");
       setSalaryType((data as any).salary_type || "");
-      setSalaryAmount((data as any).salary_amount != null ? String(Number((data as any).salary_amount)) : "");
+      const salAmt = (data as any).salary_amount != null ? Number((data as any).salary_amount) : 0;
+      setSalaryAmount(salAmt ? String(salAmt) : "");
+      setOriginalSalary(salAmt); // Track original salary
       setYearlyPackage((data as any).yearly_package != null ? String(Number((data as any).yearly_package)) : "");
       const sitems = Array.isArray((data as any).salary_breakdown)
-        ? (data as any).salary_breakdown.map((i: any) => ({ name: i.name, type: i.type, amount: Number(i.amount) }))
+        ? (data as any).salary_breakdown.map((i: any) => ({
+          component_id: i.component_id,
+          component_name: i.name,
+          component_type: i.type,
+          amount: Number(i.amount)
+        }))
         : [];
       setSalaryItems(sitems);
+      const debitIds = Array.isArray((data as any).assigned_debit_ids) ? (data as any).assigned_debit_ids : [];
+      setAssignedDebitIds(new Set(debitIds));
       const bd = (data as any).bank_details || {};
       setBankAccountNo(bd.bank_account_no || "");
       setIfscCode(bd.ifsc_code || "");
@@ -587,7 +728,7 @@ export default function EmployeeManagement() {
     );
   };
   const isJobValid = () => {
-    return Boolean(workType) && Boolean(startDate) && typeof departmentId === "number" && typeof roleId === "number";
+    return Boolean(workType) && Boolean(startDate) && typeof departmentId === "number" && typeof roleId === "number" && Boolean(primarySiteId); // Primary site is mandatory
   };
   const isAttendanceValid = () => {
     if (typeof policyId !== "number") return false;
@@ -605,9 +746,17 @@ export default function EmployeeManagement() {
 
   const next = () => {
     if (step === 1 && !isPersonalValid()) { setValidationMessage("Please fill First Name, Last Name, and provide a valid Email and numeric Phone."); return; }
-    if (step === 2 && !isJobValid()) { setValidationMessage("Please select Department, Role, Work Type, and Employment Start Date."); return; }
+    if (step === 2 && !isJobValid()) { setValidationMessage("Please select Department, Role, Work Type, Employment Start Date, and Primary Site."); return; }
     if (step === 3 && !isAttendanceValid()) { setValidationMessage("Select Weekly Off Day(s), Shift Start/End, and a Policy."); return; }
-    if (step === 4 && !isSalaryValid()) { setValidationMessage("Enter Salary Type and Amount (ensure total breakdown equals amount)."); return; }
+    if (step === 4) {
+      if (!isSalaryValid()) {
+        setValidationMessage("Enter Salary Type and Amount (ensure total breakdown equals amount).");
+        return;
+      }
+      if (!validateSalaryAgainstBudget()) {
+        return;
+      }
+    }
     setValidationMessage("");
     setStep((s) => Math.min(5, s + 1));
   };
@@ -634,6 +783,14 @@ export default function EmployeeManagement() {
       setError("Not authorized to add employees");
       return;
     }
+
+    // Validate salary against budget
+    if (!validateSalaryAgainstBudget()) {
+      setSaving(false);
+      return;
+    }
+
+    if (!validateSalaryAgainstBudget()) return;
     setSaving(true);
     const payload = {
       first_name: firstName.trim(),
@@ -650,14 +807,21 @@ export default function EmployeeManagement() {
       work_type: workType || null,
       employment_start_date: startDate || null,
       site_ids: Array.from(assignedSiteIds),
+      primary_site_id: primarySiteId || null,
+      assigned_debit_ids: Array.from(assignedDebitIds),
       site_incharge_ids: Array.from(inchargeSiteIds),
-      site_assignments: Array.from(assignedSiteIds).map((id) => ({ site_id: id, is_incharge: inchargeSiteIds.has(id) })),
+      site_assignments: Array.from(assignedSiteIds).map((id) => ({ site_id: id, is_incharge: inchargeSiteIds.has(id), is_primary: id === Number(primarySiteId) })),
       incharge: inchargeSiteIds.size > 0,
       allow_punch_from_hq: allowPunchFromHQ,
       salary_type: salaryType || null,
       salary_amount: salaryAmount ? Number(salaryAmount) : null,
       yearly_package: yearlyPackage ? Number(yearlyPackage) : null,
-      salary_breakdown: salaryItems.length ? salaryItems.map((si) => ({ name: si.name, type: si.type, amount: Number(si.amount) })) : [],
+      salary_breakdown: salaryItems.length ? salaryItems.map((si) => ({
+        component_id: si.component_id,
+        name: si.component_name,
+        type: si.component_type,
+        amount: Number(si.amount)
+      })) : [],
       bank_account_no: bankAccountNo || null,
       ifsc_code: ifscCode || null,
       bank_name: bankName || null,
@@ -694,6 +858,7 @@ export default function EmployeeManagement() {
       setError("Not authorized to edit employees");
       return;
     }
+    if (!validateSalaryAgainstBudget()) return;
     setSaving(true);
     const payload = {
       first_name: firstName.trim(),
@@ -710,14 +875,20 @@ export default function EmployeeManagement() {
       work_type: workType || null,
       employment_start_date: startDate || null,
       site_ids: Array.from(assignedSiteIds),
+      assigned_debit_ids: Array.from(assignedDebitIds),
       site_incharge_ids: Array.from(inchargeSiteIds),
-      site_assignments: Array.from(assignedSiteIds).map((id) => ({ site_id: id, is_incharge: inchargeSiteIds.has(id) })),
+      site_assignments: Array.from(assignedSiteIds).map((id) => ({ site_id: id, is_incharge: inchargeSiteIds.has(id), is_primary: id === Number(primarySiteId) })),
       incharge: inchargeSiteIds.size > 0,
       allow_punch_from_hq: allowPunchFromHQ,
       salary_type: salaryType || null,
       salary_amount: salaryAmount ? Number(salaryAmount) : null,
       yearly_package: yearlyPackage ? Number(yearlyPackage) : null,
-      salary_breakdown: salaryItems.length ? salaryItems.map((si) => ({ name: si.name, type: si.type, amount: Number(si.amount) })) : [],
+      salary_breakdown: salaryItems.length ? salaryItems.map((si) => ({
+        component_id: si.component_id,
+        name: si.component_name,
+        type: si.component_type,
+        amount: Number(si.amount)
+      })) : [],
       bank_account_no: bankAccountNo || null,
       ifsc_code: ifscCode || null,
       bank_name: bankName || null,
@@ -1729,30 +1900,45 @@ export default function EmployeeManagement() {
                     <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full border rounded px-2 py-2" />
                   </div>
                   <div className="md:col-span-2">
-                    <label className="block text-xs text-gray-600 mb-2">Assigned Site(s)</label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <label className="block text-xs text-gray-600 mb-2">
+                      Primary Site <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={primarySiteId}
+                      onChange={(e) => handlePrimarySiteChange(Number(e.target.value) || "")}
+                      className="w-full border rounded px-2 py-2"
+                      required
+                    >
+                      <option value="">Select Primary Site</option>
                       {sites.map((s) => (
-                        <div key={s.id} className="flex items-center justify-between gap-2 text-sm">
-                          <label className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={assignedSiteIds.has(s.id)}
-                              onChange={() => toggleSite(s.id)}
-                            />
-                            <span>{s.name} ({s.code})</span>
-                          </label>
-                          <label className={`flex items-center gap-2 ${assignedSiteIds.has(s.id) ? '' : 'opacity-50'}`}>
-                            <input
-                              type="checkbox"
-                              disabled={!assignedSiteIds.has(s.id)}
-                              checked={inchargeSiteIds.has(s.id)}
-                              onChange={() => toggleInchargeSite(s.id)}
-                            />
-                            <span>Incharge</span>
-                          </label>
-                        </div>
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.code})
+                        </option>
                       ))}
-                    </div>
+                    </select>
+
+                    {budgetLoading && (
+                      <p className="text-xs text-gray-500 mt-1">Loading budget...</p>
+                    )}
+
+                    {siteBudget && siteBudget.has_budget && (
+                      <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded">
+                        <div className="text-xs space-y-1">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Total Budget:</span>
+                            <span className="font-medium">₹{siteBudget.budget_amount?.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Used:</span>
+                            <span className="font-medium">₹{siteBudget.budget_used?.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Remaining:</span>
+                            <span className="font-medium text-green-600">₹{siteBudget.budget_remaining?.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     <label className="flex items-center gap-2 text-sm">
@@ -1904,82 +2090,119 @@ export default function EmployeeManagement() {
                     <div className="space-y-2">
                       {salaryItems.map((item, idx) => (
                         <div key={idx} className="grid grid-cols-12 gap-2">
-                          <input
-                            placeholder="Item name"
-                            value={item.name}
+                          <select
+                            value={item.component_id || ''}
                             onChange={(e) => {
-                              const v = e.target.value;
-                              setSalaryItems((prev) => {
-                                const next = [...prev];
-                                next[idx] = { ...next[idx], name: v };
-                                return next;
-                              });
+                              const componentId = Number(e.target.value);
+                              const component = salaryComponents.find(c => c.id === componentId);
+                              if (component) {
+                                setSalaryItems((prev) => {
+                                  const next = [...prev];
+                                  next[idx] = {
+                                    ...next[idx],
+                                    component_id: componentId,
+                                    component_name: component.component_name,
+                                    component_type: component.component_type
+                                  };
+                                  return next;
+                                });
+                              }
                             }}
                             className="col-span-6 border rounded px-2 py-2"
-                          />
-                          <select
-                            value={item.type}
-                            onChange={(e) => {
-                              const v = e.target.value as "credit" | "debit";
-                              setSalaryItems((prev) => {
-                                const next = [...prev];
-                                next[idx] = { ...next[idx], type: v };
-                                return next;
-                              });
-                            }}
-                            className="col-span-3 border rounded px-2 py-2"
                           >
-                            <option value="credit">Credit</option>
-                            <option value="debit">Debit</option>
+                            <option value="">Select component</option>
+                            {salaryComponents.map((comp) => (
+                              <option key={comp.id} value={comp.id}>
+                                {comp.component_name} ({comp.component_type})
+                              </option>
+                            ))}
                           </select>
                           <input
                             type="number"
                             placeholder="Amount"
-                            value={item.amount}
+                            value={item.amount || ''}
                             onChange={(e) => {
-                              const v = e.target.value;
+                              const v = Number(e.target.value);
                               setSalaryItems((prev) => {
                                 const next = [...prev];
-                                next[idx] = { ...next[idx], amount: Number(v) };
+                                next[idx] = { ...next[idx], amount: v };
                                 return next;
                               });
                             }}
-                            className="col-span-2 border rounded px-2 py-2"
+                            className="col-span-4 border rounded px-2 py-2"
                           />
                           <button
                             type="button"
-                            onClick={() => {
-                              setSalaryItems((prev) => prev.filter((_, i) => i !== idx));
-                            }}
-                            className="col-span-1 border rounded px-1 py-1 text-xs"
+                            onClick={() => setSalaryItems((prev) => prev.filter((_, i) => i !== idx))}
+                            className="col-span-2 bg-red-500 text-white rounded px-2 py-2"
                           >
                             Remove
                           </button>
                         </div>
                       ))}
-                      <div>
-                        <button
-                          type="button"
-                          onClick={() => setSalaryItems((prev) => [...prev, { name: "", type: "credit", amount: 0 }])}
-                          className="text-xs px-2 py-1 border rounded"
-                        >
-                          Add item
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSalaryItems((prev) => [...prev, { component_id: 0, component_name: '', component_type: 'credit', amount: 0 }])}
+                        className="w-full bg-gray-200 rounded px-2 py-2"
+                      >
+                        + Add Item
+                      </button>
                       <div className="text-xs text-gray-600">
                         Total: {salaryItems.reduce((acc, item) => acc + (Number(item.amount) || 0), 0)}
                       </div>
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-xs text-gray-600 mb-1">Employer PF (Excluded from CTC)</label>
-                    <input
-                      type="number"
-                      value={employerPfAmount}
-                      onChange={(e) => setEmployerPfAmount(e.target.value)}
-                      placeholder="Amount"
-                      className="w-full border rounded px-2 py-2"
-                    />
+
+                  <div className="md:col-span-2">
+                    <label className="block text-xs text-gray-600 mb-2">Additional Debits</label>
+                    <div className="space-y-2 max-h-48 overflow-y-auto border rounded p-3">
+                      {availableDebits.length === 0 ? (
+                        <p className="text-xs text-gray-500">No additional debits available</p>
+                      ) : (
+                        availableDebits.map((debit) => (
+                          <label key={debit.id} className="flex items-start gap-2 text-sm hover:bg-gray-50 p-2 rounded cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={assignedDebitIds.has(debit.id)}
+                              onChange={(e) => {
+                                const newSet = new Set(assignedDebitIds);
+                                if (e.target.checked) {
+                                  newSet.add(debit.id);
+                                } else {
+                                  newSet.delete(debit.id);
+                                }
+                                setAssignedDebitIds(newSet);
+                              }}
+                              className="mt-0.5"
+                            />
+                            <div className="flex-1">
+                              <div className="font-medium">{debit.debit_name}</div>
+                              {debit.description && (
+                                <div className="text-xs text-gray-500">{debit.description}</div>
+                              )}
+                              <div className="text-xs text-gray-600 mt-1">
+                                {debit.debit_type === 'fixed'
+                                  ? `₹${debit.fixed_amount}`
+                                  : `${debit.percentage_value}% of ${debit.reference_amount?.replace('_', ' ')}`}
+                              </div>
+                            </div>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between mt-2">
+                      <p className="text-xs text-gray-500">
+                        Select debits to apply to this employee's salary
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setShowDebitWizard(true)}
+                        className="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3" />
+                        Create New Debit
+                      </button>
+                    </div>
                   </div>
 
                   <div>
@@ -2052,6 +2275,23 @@ export default function EmployeeManagement() {
           />
         )
       }
+
+      {/* Additional Debits Wizard */}
+      {showDebitWizard && (
+        <AdditionalDebitsWizard
+          onClose={() => setShowDebitWizard(false)}
+          salaryItems={salaryItems.map(s => ({ id: s.component_id, name: s.component_name, type: s.component_type, amount: Number(s.amount) }))}
+          onSuccess={async () => {
+            // Refresh debits list
+            try {
+              const data = await apiClient('/organization/employees/additional-debits?status=active');
+              setAvailableDebits(data || []);
+            } catch (error) {
+              console.error('Failed to refresh debits:', error);
+            }
+          }}
+        />
+      )}
     </div >
   );
 }

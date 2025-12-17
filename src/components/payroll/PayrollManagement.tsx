@@ -553,7 +553,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                           <div className="text-sm text-slate-600 truncate">#{employee.id}</div>
 
                           {/* Site */}
-                          <div className="text-sm text-slate-600 truncate">{employee.site_names || "-"}</div>
+                          <div className="text-sm text-slate-600 truncate">{employee.primary_site_name || "Unassigned"}</div>
 
                           {/* Total Days */}
                           <div className="text-sm text-slate-900 font-medium text-right">{metrics.total_days || 0}</div>
