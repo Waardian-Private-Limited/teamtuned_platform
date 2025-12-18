@@ -109,6 +109,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
     leave_type: "",
     start_date: "",
     end_date: "",
+    session: "Full Day",
     reason: "",
   });
 
@@ -356,6 +357,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
       leave_type: "",
       start_date: "",
       end_date: "",
+      session: "Full Day",
       reason: "",
     });
   };
@@ -375,6 +377,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
           leave_type: addLeaveForm.leave_type,
           start_date: addLeaveForm.start_date,
           end_date: addLeaveForm.end_date,
+          session: addLeaveForm.session,
           reason: addLeaveForm.reason,
           auto_approve: true,
         },
@@ -618,7 +621,12 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                   </div>
                   <div>
                     <span className="text-gray-600">Duration:</span>
-                    <p className="font-medium">{Number(activeItem.duration_days || activeItem.days || 0)} days</p>
+                    <p className="font-medium">{Number(activeItem.duration_days || activeItem.days || 0).toFixed(1)} days</p>
+                    {activeItem.session && activeItem.session !== 'Full Day' && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 mt-1">
+                        {activeItem.session}
+                      </span>
+                    )}
                   </div>
                   <div>
                     <span className="text-gray-600">Period:</span>
@@ -731,7 +739,12 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                         </div>
                         <div>
                           <span className="text-sm text-gray-600">Duration:</span>
-                          <p className="font-medium">{Number(activeItem.duration_days || activeItem.days || 0)} days</p>
+                          <p className="font-medium">{Number(activeItem.duration_days || activeItem.days || 0).toFixed(1)} days</p>
+                          {activeItem.session && activeItem.session !== 'Full Day' && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 mt-1">
+                              {activeItem.session}
+                            </span>
+                          )}
                         </div>
                         <div>
                           <span className="text-sm text-gray-600">Start Date:</span>
@@ -853,11 +866,37 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                 </div>
               </div>
 
+              {/* Session Selector - Only for single-day leaves */}
+              {duration === 1 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Session
+                  </label>
+                  <select
+                    value={addLeaveForm.session}
+                    onChange={(e) => setAddLeaveForm({ ...addLeaveForm, session: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="Full Day">Full Day</option>
+                    <option value="Morning">Morning Session (Half Day)</option>
+                    <option value="Afternoon">Afternoon Session (Half Day)</option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Select Morning or Afternoon for half-day leave
+                  </p>
+                </div>
+              )}
+
               {duration > 0 && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                   <div className="flex items-center space-x-2 text-blue-800">
                     <Calendar className="w-4 h-4" />
-                    <span className="text-sm font-medium">Duration: {duration} day{duration !== 1 ? 's' : ''}</span>
+                    <span className="text-sm font-medium">
+                      Duration: {duration === 1 && (addLeaveForm.session === 'Morning' || addLeaveForm.session === 'Afternoon') ? '0.5' : duration} day{duration !== 1 || (addLeaveForm.session !== 'Morning' && addLeaveForm.session !== 'Afternoon') ? 's' : ''}
+                      {duration === 1 && (addLeaveForm.session === 'Morning' || addLeaveForm.session === 'Afternoon') && (
+                        <span className="ml-2 text-xs">({addLeaveForm.session})</span>
+                      )}
+                    </span>
                   </div>
                 </div>
               )}
@@ -1241,9 +1280,16 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                       <div className="text-xs text-gray-500">to {end}</div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                        {days} day{days !== 1 ? 's' : ''}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                          {days.toFixed(1)} day{days !== 1 ? 's' : ''}
+                        </span>
+                        {item.session && item.session !== 'Full Day' && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                            {item.session}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center space-x-1.5">

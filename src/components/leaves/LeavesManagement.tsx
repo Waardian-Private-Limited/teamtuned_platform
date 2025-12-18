@@ -65,7 +65,7 @@ export default function LeavesManagement({ employeeId, employeeName }: Props) {
         balancesData = Array.isArray(res?.leave_balances) ? res.leave_balances : [];
         compoffData = Array.isArray(res?.compoff) ? res.compoff : [];
       } catch (e) {
-        console.warn("Summary endpoint failed");
+        // console.warn("Summary endpoint failed");
       }
 
       // Fetch applications
@@ -84,7 +84,7 @@ export default function LeavesManagement({ employeeId, employeeName }: Props) {
           Array.isArray(res2?.applications) ? res2.applications :
             Array.isArray(res2?.data) ? res2.data : [];
       } catch (e) {
-        console.warn("Application endpoint failed");
+        // console.warn("Application endpoint failed");
       }
 
       setBalances(balancesData);

@@ -4,7 +4,7 @@ const path = require('path')
 let mainWindow
 
 function createWindow() {
-  console.log("Creating BrowserWindow...")
+  // console.log("Creating BrowserWindow...")
 
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -21,10 +21,10 @@ function createWindow() {
 
   const port = process.env.PORT || '3000'
   const url = process.env.APP_URL || `http://localhost:${port}`
-  console.log("Loading URL:", url)
+  // console.log("Loading URL:", url)
 
   mainWindow.once('ready-to-show', () => {
-    console.log("Window ready, showing")
+    // console.log("Window ready, showing")
     mainWindow.show()
   })
 
@@ -48,7 +48,7 @@ if (!gotLock) {
   })
 
   app.whenReady().then(() => {
-    console.log("App ready")
+    // console.log("App ready")
     createWindow()
   })
 

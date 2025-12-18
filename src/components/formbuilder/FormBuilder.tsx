@@ -125,9 +125,9 @@ function defaultFieldForType(type: FieldType, sequence: number): FormField {
     field_type: type,
     options: type === "choice" || type === "checkbox" || type === "select"
       ? [
-          { value: "opt1", label: "Option 1" },
-          { value: "opt2", label: "Option 2" },
-        ]
+        { value: "opt1", label: "Option 1" },
+        { value: "opt2", label: "Option 2" },
+      ]
       : undefined,
     metadata: { required: false, autoOptionValues: true, ...(type === 'gps' ? { gpsMode: 'any' } : {}) },
     is_active: true,
@@ -236,14 +236,14 @@ function ensureUniqueOptionValues(options: FieldOption[]): FieldOption[] {
 }
 
 // Memoized Option Input Row Component
-const OptionInputRow = React.memo(({ 
-  field, 
-  option, 
-  index, 
+const OptionInputRow = React.memo(({
+  field,
+  option,
+  index,
   onUpdate,
   onRemove,
   totalOptions
-}: { 
+}: {
   field: FormField;
   option: FieldOption;
   index: number;
@@ -254,7 +254,7 @@ const OptionInputRow = React.memo(({
   const handleLabelChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const current = Array.isArray(field.options) ? field.options : [];
     let next = current.map((o, i) => (i === index ? { ...o, label: e.target.value } : o));
-    
+
     if (field.metadata?.autoOptionValues !== false) {
       const gen = slugifyIdentifier(e.target.value);
       next = next.map((o, i) => (i === index ? { ...o, value: gen } : o));
@@ -401,7 +401,7 @@ export default function FormBuilder({
                 case 'time':
                 case 'datetime': return { liveOnly: false, captureMode: 'manual' };
                 case 'image': return { liveOnly: false, uploadMode: 'any', multiple: false };
-                case 'barcode': return { scanTypes: ['barcode','qr'] };
+                case 'barcode': return { scanTypes: ['barcode', 'qr'] };
                 case 'choice':
                 case 'select': return { autoOptionValues: parsedMeta?.autoOptionValues !== false };
                 default: return {};
@@ -428,7 +428,7 @@ export default function FormBuilder({
           setNameInput(res?.template?.name || templateName);
           setDescInput(res?.template?.description || templateDescription);
         } catch (e: any) {
-          console.warn("Failed to load template from server", e?.message);
+          // console.warn("Failed to load template from server", e?.message);
         }
       } else {
         try {
@@ -439,7 +439,7 @@ export default function FormBuilder({
             setFields(ensureSystemFields(item.snapshot.fields as FormField[]));
             setDirty(false);
           }
-        } catch {}
+        } catch { }
       }
     })();
   }, [templateId, templateName, templateDescription]);
@@ -535,7 +535,7 @@ export default function FormBuilder({
     const snapshot: TemplateSnapshot = { version: 1, name: templateName, fields: ensureSystemFields(fields) };
     try {
       const raw = localStorage.getItem("form_builder_templates") || "[]";
-      const list = JSON.parse(raw) as Array<{ id: string; name: string; description?: string; snapshot?: TemplateSnapshot }>; 
+      const list = JSON.parse(raw) as Array<{ id: string; name: string; description?: string; snapshot?: TemplateSnapshot }>;
       let updated = false;
       const next = list.map((t) => {
         if (templateId && t.id === templateId) {
@@ -547,9 +547,9 @@ export default function FormBuilder({
       const finalList = updated
         ? next
         : [
-            ...next,
-            { id: templateId || Math.random().toString(36).slice(2), name: templateName, description: templateDescription, snapshot },
-          ];
+          ...next,
+          { id: templateId || Math.random().toString(36).slice(2), name: templateName, description: templateDescription, snapshot },
+        ];
       localStorage.setItem("form_builder_templates", JSON.stringify(finalList));
       setDirty(false);
       setToast({ type: "success", msg: "Template saved locally." });
@@ -608,48 +608,46 @@ export default function FormBuilder({
             </div>
           )}
         </div>
-        
+
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg">
             <EyeIcon size={16} className="text-slate-600" />
             <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input 
-                type="checkbox" 
-                checked={showSystemFields} 
+              <input
+                type="checkbox"
+                checked={showSystemFields}
                 onChange={(e) => setShowSystemFields(e.target.checked)}
                 className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
               />
               System Fields
             </label>
           </div>
-          
-          <button 
+
+          <button
             className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition-colors"
             onClick={preview}
           >
             <EyeIcon size={18} />
             Preview
           </button>
-          
+
           <button
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-colors ${
-              !canSave 
-                ? "bg-indigo-400 cursor-not-allowed opacity-60 text-white" 
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-colors ${!canSave
+                ? "bg-indigo-400 cursor-not-allowed opacity-60 text-white"
                 : "bg-indigo-600 hover:bg-indigo-700 text-white"
-            }`}
+              }`}
             onClick={saveSnapshot}
             disabled={!canSave}
           >
             <Save size={18} />
             Save Locally
           </button>
-          
+
           <button
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-colors ${
-              !canSave 
-                ? "bg-green-400 cursor-not-allowed opacity-60 text-white" 
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-colors ${!canSave
+                ? "bg-green-400 cursor-not-allowed opacity-60 text-white"
                 : "bg-green-600 hover:bg-green-700 text-white"
-            }`}
+              }`}
             onClick={saveServer}
             disabled={!canSave}
           >
@@ -667,7 +665,7 @@ export default function FormBuilder({
             <h2 className="text-lg font-semibold text-slate-900 mb-2">Widget Library</h2>
             <p className="text-sm text-slate-600">Drag and drop fields to build your form</p>
           </div>
-          
+
           <div className="p-4 space-y-6">
             {WIDGET_GROUPS.map((group) => (
               <div key={group.title} className="space-y-3">
@@ -798,7 +796,7 @@ export default function FormBuilder({
               {/* Basic Properties */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Basic Properties</h3>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Field Label</label>
                   <input
@@ -812,11 +810,10 @@ export default function FormBuilder({
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Field Key</label>
                   <input
-                    className={`w-full border rounded-lg px-4 py-3 text-sm focus:ring-2 focus:border-transparent transition-all ${
-                      duplicateKeys.has(selectedField.field_key)
+                    className={`w-full border rounded-lg px-4 py-3 text-sm focus:ring-2 focus:border-transparent transition-all ${duplicateKeys.has(selectedField.field_key)
                         ? "border-red-300 focus:ring-red-500"
                         : "border-slate-300 focus:ring-blue-500"
-                    }`}
+                      }`}
                     value={selectedField.field_key}
                     onChange={(e) => updateSelected({ field_key: e.target.value })}
                     placeholder="Enter field key"
@@ -1012,7 +1009,7 @@ export default function FormBuilder({
               </div>
             </div>
             <div className="flex gap-3 justify-end">
-              <button 
+              <button
                 className="px-4 py-2.5 text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
                 onClick={() => setShowConfirm(false)}
               >
@@ -1123,11 +1120,10 @@ export default function FormBuilder({
       )}
 
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-50 px-6 py-4 rounded-xl shadow-lg border-l-4 ${
-          toast.type === "success" 
-            ? "bg-green-50 border-green-500 text-green-800" 
+        <div className={`fixed bottom-6 right-6 z-50 px-6 py-4 rounded-xl shadow-lg border-l-4 ${toast.type === "success"
+            ? "bg-green-50 border-green-500 text-green-800"
             : "bg-red-50 border-red-500 text-red-800"
-        }`}>
+          }`}>
           <div className="flex items-center gap-3">
             {toast.type === "success" ? (
               <CheckCircle size={20} className="text-green-500" />
@@ -1179,24 +1175,22 @@ const FieldCard = React.memo(({
 
   return (
     <div
-      className={`group relative p-6 rounded-xl border-2 transition-all duration-200 ${
-        isSelected
+      className={`group relative p-6 rounded-xl border-2 transition-all duration-200 ${isSelected
           ? "border-blue-500 bg-blue-50 shadow-lg"
           : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-md"
-      } ${field.system ? "bg-slate-900 text-white border-slate-700" : ""}`}
+        } ${field.system ? "bg-slate-900 text-white border-slate-700" : ""}`}
       onClick={onSelect}
     >
       {/* Field Header */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3 flex-1">
-          <div className={`p-2 rounded-lg ${
-            field.system 
-              ? "bg-slate-800 text-slate-200" 
+          <div className={`p-2 rounded-lg ${field.system
+              ? "bg-slate-800 text-slate-200"
               : "bg-blue-100 text-blue-600"
-          }`}>
+            }`}>
             {TYPE_ICON[field.field_type]}
           </div>
-          
+
           <div className="flex-1 min-w-0">
             {isEditingLabel && !field.system ? (
               <form onSubmit={handleLabelSubmit} className="flex items-center gap-2">
@@ -1227,7 +1221,7 @@ const FieldCard = React.memo(({
                 )}
               </div>
             )}
-            
+
             <div className={`text-sm mt-1 ${field.system ? "text-slate-300" : "text-slate-500"}`}>
               <span className="capitalize">{field.field_type}</span>
               {hasDuplicateKey && (
@@ -1266,9 +1260,8 @@ const FieldCard = React.memo(({
       </div>
 
       {/* Field Preview */}
-      <div className={`p-4 rounded-lg border ${
-        field.system ? "bg-slate-800 border-slate-700" : "bg-slate-50 border-slate-200"
-      }`}>
+      <div className={`p-4 rounded-lg border ${field.system ? "bg-slate-800 border-slate-700" : "bg-slate-50 border-slate-200"
+        }`}>
         <FieldPreview field={field} />
       </div>
     </div>

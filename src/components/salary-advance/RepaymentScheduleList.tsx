@@ -28,6 +28,10 @@ type RepaymentSchedule = {
     overdue_emis: number;
     total_paid_amount: number;
     pending_amount: number;
+    disbursed_at?: string | null;
+    disbursement_mode?: string | null;
+    disbursement_reference?: string | null;
+    disbursed_by_name?: string | null;
 };
 
 type EMI = {
@@ -49,7 +53,7 @@ export default function RepaymentScheduleList() {
     const [loadingEmis, setLoadingEmis] = useState<Record<number, boolean>>({});
 
     // Permission state
-    const [userRole, setUserRole] = useState<string | null>(null);const [checkingPerms, setCheckingPerms] = useState(true);
+    const [userRole, setUserRole] = useState<string | null>(null); const [checkingPerms, setCheckingPerms] = useState(true);
 
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
@@ -59,13 +63,13 @@ export default function RepaymentScheduleList() {
 
     const { role, permissions, employee } = useAuth();
 
-    
+
 
     useEffect(() => {
         (async () => {
             try {
                 // Session fetch removed (using useAuth)
-        const session = { authenticated: true, role: role, employee: { permissions } };
+                const session = { authenticated: true, role: role, employee: { permissions } };
                 if (session?.authenticated) {
                     setUserRole(session.role);
                     // setPermissions(session.employee?.permissions || []);
@@ -369,39 +373,76 @@ export default function RepaymentScheduleList() {
                                                                         <div className="animate-spin w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full"></div>
                                                                     </div>
                                                                 ) : (
-                                                                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                                                                        <table className="w-full text-sm">
-                                                                            <thead className="bg-gray-50 border-b border-gray-200">
-                                                                                <tr>
-                                                                                    <th className="px-4 py-2 text-left font-medium text-gray-500">EMI #</th>
-                                                                                    <th className="px-4 py-2 text-left font-medium text-gray-500">Due Date</th>
-                                                                                    <th className="px-4 py-2 text-left font-medium text-gray-500">Amount</th>
-                                                                                    <th className="px-4 py-2 text-left font-medium text-gray-500">Status</th>
-                                                                                    <th className="px-4 py-2 text-left font-medium text-gray-500">Paid Date</th>
-                                                                                    <th className="px-4 py-2 text-left font-medium text-gray-500">Mode</th>
-                                                                                    <th className="px-4 py-2 text-left font-medium text-gray-500">Ref</th>
-                                                                                    <th className="px-4 py-2 text-left font-medium text-gray-500">Notes</th>
-                                                                                </tr>
-                                                                            </thead>
-                                                                            <tbody className="divide-y divide-gray-100">
-                                                                                {emis[schedule.request_id]?.map((emi: any) => (
-                                                                                    <tr key={emi.id} className="hover:bg-gray-50">
-                                                                                        <td className="px-4 py-2 text-gray-900">{emi.emi_number}</td>
-                                                                                        <td className="px-4 py-2 text-gray-600">{formatDate(emi.due_date)}</td>
-                                                                                        <td className="px-4 py-2 font-medium text-gray-900">{formatCurrency(emi.emi_amount)}</td>
-                                                                                        <td className="px-4 py-2">
-                                                                                            <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium border ${getStatusColor(emi.status)}`}>
-                                                                                                {emi.status}
-                                                                                            </span>
-                                                                                        </td>
-                                                                                        <td className="px-4 py-2 text-gray-600">{formatDate(emi.paid_date || '')}</td>
-                                                                                        <td className="px-4 py-2 text-gray-600">{emi.payment_mode || '-'}</td>
-                                                                                        <td className="px-4 py-2 text-gray-600 text-xs">{emi.transaction_ref || '-'}</td>
-                                                                                        <td className="px-4 py-2 text-gray-600 text-xs max-w-[150px] truncate" title={emi.notes}>{emi.notes || '-'}</td>
+                                                                    <div className="space-y-4">
+                                                                        {/* Disbursement Details */}
+                                                                        {schedule.disbursed_at && (
+                                                                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                                                                <h4 className="text-sm font-semibold text-green-900 mb-3 flex items-center gap-2">
+                                                                                    <CheckCircle size={14} className="text-green-600" />
+                                                                                    Disbursement Information
+                                                                                </h4>
+                                                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                                                                                    <div>
+                                                                                        <div className="text-green-700 font-medium mb-1">Disbursed On</div>
+                                                                                        <div className="text-green-900 font-semibold">{formatDate(schedule.disbursed_at)}</div>
+                                                                                    </div>
+                                                                                    {schedule.disbursement_mode && (
+                                                                                        <div>
+                                                                                            <div className="text-green-700 font-medium mb-1">Payment Mode</div>
+                                                                                            <div className="text-green-900 capitalize">{schedule.disbursement_mode.replace('_', ' ')}</div>
+                                                                                        </div>
+                                                                                    )}
+                                                                                    {schedule.disbursement_reference && (
+                                                                                        <div>
+                                                                                            <div className="text-green-700 font-medium mb-1">Reference</div>
+                                                                                            <div className="text-green-900">{schedule.disbursement_reference}</div>
+                                                                                        </div>
+                                                                                    )}
+                                                                                    {schedule.disbursed_by_name && (
+                                                                                        <div>
+                                                                                            <div className="text-green-700 font-medium mb-1">Disbursed By</div>
+                                                                                            <div className="text-green-900">{schedule.disbursed_by_name}</div>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* EMI Schedule Table */}
+                                                                        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                                                                            <table className="w-full text-sm">
+                                                                                <thead className="bg-gray-50 border-b border-gray-200">
+                                                                                    <tr>
+                                                                                        <th className="px-4 py-2 text-left font-medium text-gray-500">EMI #</th>
+                                                                                        <th className="px-4 py-2 text-left font-medium text-gray-500">Due Date</th>
+                                                                                        <th className="px-4 py-2 text-left font-medium text-gray-500">Amount</th>
+                                                                                        <th className="px-4 py-2 text-left font-medium text-gray-500">Status</th>
+                                                                                        <th className="px-4 py-2 text-left font-medium text-gray-500">Paid Date</th>
+                                                                                        <th className="px-4 py-2 text-left font-medium text-gray-500">Mode</th>
+                                                                                        <th className="px-4 py-2 text-left font-medium text-gray-500">Ref</th>
+                                                                                        <th className="px-4 py-2 text-left font-medium text-gray-500">Notes</th>
                                                                                     </tr>
-                                                                                ))}
-                                                                            </tbody>
-                                                                        </table>
+                                                                                </thead>
+                                                                                <tbody className="divide-y divide-gray-100">
+                                                                                    {emis[schedule.request_id]?.map((emi: any) => (
+                                                                                        <tr key={emi.id} className="hover:bg-gray-50">
+                                                                                            <td className="px-4 py-2 text-gray-900">{emi.emi_number}</td>
+                                                                                            <td className="px-4 py-2 text-gray-600">{formatDate(emi.due_date)}</td>
+                                                                                            <td className="px-4 py-2 font-medium text-gray-900">{formatCurrency(emi.emi_amount)}</td>
+                                                                                            <td className="px-4 py-2">
+                                                                                                <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium border ${getStatusColor(emi.status)}`}>
+                                                                                                    {emi.status}
+                                                                                                </span>
+                                                                                            </td>
+                                                                                            <td className="px-4 py-2 text-gray-600">{formatDate(emi.paid_date || '')}</td>
+                                                                                            <td className="px-4 py-2 text-gray-600">{emi.payment_mode || '-'}</td>
+                                                                                            <td className="px-4 py-2 text-gray-600 text-xs">{emi.transaction_ref || '-'}</td>
+                                                                                            <td className="px-4 py-2 text-gray-600 text-xs max-w-[150px] truncate" title={emi.notes}>{emi.notes || '-'}</td>
+                                                                                        </tr>
+                                                                                    ))}
+                                                                                </tbody>
+                                                                            </table>
+                                                                        </div>
                                                                     </div>
                                                                 )}
                                                             </div>

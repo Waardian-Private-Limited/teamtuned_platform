@@ -43,7 +43,7 @@ export default function ApprovalQueue() {
     const [policy, setPolicy] = useState<Policy | null>(null);
 
     // Permission state
-    const [userRole, setUserRole] = useState<string | null>(null);const [checkingPerms, setCheckingPerms] = useState(true);
+    const [userRole, setUserRole] = useState<string | null>(null); const [checkingPerms, setCheckingPerms] = useState(true);
 
     // EMI decision fields (for request_level mode)
     const [emiMethod, setEmiMethod] = useState<'auto' | 'percentage' | 'fixed_amount'>('auto');
@@ -53,13 +53,13 @@ export default function ApprovalQueue() {
 
     const { role, permissions, employee } = useAuth();
 
-    
+
 
     useEffect(() => {
         (async () => {
             try {
                 // Session fetch removed (using useAuth)
-        const session = { authenticated: true, role: role, employee: { permissions } };
+                const session = { authenticated: true, role: role, employee: { permissions } };
                 if (session?.authenticated) {
                     setUserRole(session.role);
                     // setPermissions(session.employee?.permissions || []);
@@ -181,7 +181,8 @@ export default function ApprovalQueue() {
             month: 'short',
             year: 'numeric',
             hour: '2-digit',
-            minute: '2-digit'
+            minute: '2-digit',
+            timeZone: 'Asia/Kolkata'
         });
     };
 
@@ -226,7 +227,7 @@ export default function ApprovalQueue() {
                     ) : (
                         <div className="divide-y divide-gray-200">
                             {approvals.map((approval) => {
-                                console.log(`Approval Debug - ID: ${approval.id}, Level: ${approval.level_index}, Current: ${approval.current_level_index}`);
+                                // console.log(`Approval Debug - ID: ${approval.id}, Level: ${approval.level_index}, Current: ${approval.current_level_index}`);
                                 return (
                                     <div key={approval.id} className="p-6 hover:bg-gray-50 transition-colors">
                                         <div className="flex items-start justify-between gap-4">
@@ -281,14 +282,14 @@ export default function ApprovalQueue() {
                                                     <Eye size={18} />
                                                 </button>
 
-                                                {Number(approval.level_index) === Number(approval.current_level_index) ? (
+                                                {Number(approval.level_index) >= Number(approval.current_level_index) ? (
                                                     <>
                                                         <button
                                                             onClick={() => setActionModal({ type: 'approve', request: approval })}
                                                             className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                                                         >
                                                             <CheckCircle size={16} />
-                                                            Approve
+                                                            {Number(approval.level_index) > Number(approval.current_level_index) ? 'Direct Approve' : 'Approve'}
                                                         </button>
                                                         <button
                                                             onClick={() => setActionModal({ type: 'reject', request: approval })}
@@ -333,16 +334,37 @@ export default function ApprovalQueue() {
                                 </div>
                             </div>
 
-                            {/* EMI Decision (only for request_level mode and approve action AND if current level decides EMI) */}
+                            {/* EMI Decision (only for request_level mode and approve action) */}
                             {(() => {
                                 if (actionModal.type !== 'approve' || policy?.emi_decision_mode !== 'request_level') return null;
 
-                                // Check decides_emi flag from approval log
-                                if (!actionModal.request.decides_emi) return null;
+                                // For Direct Approve: Always show EMI options (since they're skipping to final approval)
+                                const isDirectApprove = Number(actionModal.request.level_index) > Number(actionModal.request.current_level_index);
+
+                                // console.log('EMI Decision Check:', {
+                                //     isDirectApprove,
+                                //     level_index: actionModal.request.level_index,
+                                //     current_level_index: actionModal.request.current_level_index,
+                                //     decides_emi: actionModal.request.decides_emi,
+                                //     policy_mode: policy?.emi_decision_mode,
+                                //     workflow: policy?.workflow_definition
+                                // });
+
+                                // Show EMI options if:
+                                // 1. Direct Approve (higher level approving) - they make final decision
+                                // 2. Regular approve AND current level decides EMI
+                                const shouldShowEMI = isDirectApprove || actionModal.request.decides_emi;
+
+                                if (!shouldShowEMI) return null;
 
                                 return (
                                     <div className="space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                                         <div className="font-semibold text-gray-900">EMI Configuration</div>
+                                        {isDirectApprove && (
+                                            <div className="text-xs text-blue-700 mb-2">
+                                                ⚡ Direct Approve: You are making the final EMI decision
+                                            </div>
+                                        )}
 
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">

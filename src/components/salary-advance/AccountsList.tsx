@@ -151,7 +151,7 @@ export default function AccountsList() {
 
             await apiClient(`/salary-advance/requests/${selectedRequest.id}/disburse`, {
                 method: "POST",
-                body: JSON.stringify(payload),
+                body: payload,
                 withAuth: true,
             });
 

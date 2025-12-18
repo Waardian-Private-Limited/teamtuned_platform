@@ -30,6 +30,11 @@ type RequestDetail = {
     employee_code: string;
     department_name?: string;
     monthly_salary: number;
+    disbursed_at?: string | null;
+    disbursed_by?: number | null;
+    disbursement_mode?: string | null;
+    disbursement_reference?: string | null;
+    disbursed_by_name?: string | null;
 };
 
 type Props = {
@@ -214,6 +219,40 @@ export default function RequestDetails({ requestId, onClose }: Props) {
                             </div>
                         </div>
                     </div>
+
+                    {/* Disbursement Details */}
+                    {request.disbursed_at && (
+                        <div>
+                            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                <CheckCircle size={16} className="text-green-600" />
+                                Disbursement Details
+                            </h3>
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
+                                <div className="flex items-center gap-3 text-sm">
+                                    <div className="w-32 text-green-700 font-medium">Disbursed On:</div>
+                                    <div className="font-semibold text-green-900">{formatDate(request.disbursed_at)}</div>
+                                </div>
+                                {request.disbursement_mode && (
+                                    <div className="flex items-center gap-3 text-sm">
+                                        <div className="w-32 text-green-700 font-medium">Payment Mode:</div>
+                                        <div className="font-medium text-green-900 capitalize">{request.disbursement_mode.replace('_', ' ')}</div>
+                                    </div>
+                                )}
+                                {request.disbursement_reference && (
+                                    <div className="flex items-center gap-3 text-sm">
+                                        <div className="w-32 text-green-700 font-medium">Reference:</div>
+                                        <div className="font-medium text-green-900">{request.disbursement_reference}</div>
+                                    </div>
+                                )}
+                                {request.disbursed_by_name && (
+                                    <div className="flex items-center gap-3 text-sm">
+                                        <div className="w-32 text-green-700 font-medium">Disbursed By:</div>
+                                        <div className="font-medium text-green-900">{request.disbursed_by_name}</div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Approval Workflow */}
                     {approvalLogs.length > 0 && (

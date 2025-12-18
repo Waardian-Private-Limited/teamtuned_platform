@@ -659,7 +659,7 @@ function RequestModal({ request, mode, setMode, onClose }: { request: SessionReq
                 data.disable_geofence = disableGeofence;
             }
 
-            console.log('🔍 [WEB] Sending approval data:', data);
+            // console.log('🔍 [WEB] Sending approval data:', data);
 
             await approveSessionRequest(request.id, data);
             toast.success('Request approved');

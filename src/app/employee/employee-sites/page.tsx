@@ -1,41 +1,13 @@
 "use client";
 
 import React from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
 import EmployeeSiteAssignment from "@/components/employee/EmployeeSiteAssignment";
+import RouteGuard from "@/components/auth/RouteGuard";
 
 export default function EmployeeSitesPage() {
-  const router = useRouter();
-  const { permissions, isAuthenticated, loading } = useAuth();
-
-  // Handle loading state
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-      </div>
-    );
-  }
-
-  // Redirect if not authenticated
-  if (!isAuthenticated) {
-    router.replace("/login");
-    return null;
-  }
-
-  // Check permissions
-  const hasPermission = permissions.includes("EMPSITE_VIEW") || permissions.includes("EMPLOYEE_ASSIGN_SITE");
-
-  if (!hasPermission) {
-    return (
-      <div className="p-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">You do not have permission to view this page.</p>
-        </div>
-      </div>
-    );
-  }
-
-  return <EmployeeSiteAssignment />;
+  return (
+    <RouteGuard requiredPermissions={["EMPSITE_VIEW", "EMPLOYEE_ASSIGN_SITE"]} requireAny>
+      <EmployeeSiteAssignment />
+    </RouteGuard>
+  );
 }

@@ -158,14 +158,16 @@ export default function AttendanceDashboard() {
 
     useEffect(() => {
         (async () => {
-            if (!canHRMode || allSites.length > 0) return;
+            // Load all sites for org admin, otherwise load only if canHRMode
+            const isOrgAdmin = (role || "").toLowerCase() === "orgadmin";
+            if ((!canHRMode && !isOrgAdmin) || allSites.length > 0) return;
             try {
                 const res = await apiClient<{ sites?: any[]; data?: any[] }>("/sites", { method: "GET", withAuth: true, params: { incharge_only: "0" } });
                 const list = Array.isArray(res?.sites) ? res!.sites! : (Array.isArray(res?.data) ? res!.data! : []);
                 setAllSites(list as any[]);
             } catch { }
         })();
-    }, [canHRMode, allSites.length]);
+    }, [canHRMode, role, allSites.length]);
 
     useEffect(() => {
         (async () => {
@@ -225,7 +227,7 @@ export default function AttendanceDashboard() {
     const fetchEmployees = useCallback(async (status: string, pageNum: number = 1, search: string = "") => {
         setEmployeesLoading(true);
         try {
-            const params: any = { date, status, page: String(pageNum), limit: "20", q: search };
+            const params: any = { date, status, page: String(pageNum), limit: "10", q: search };
             if (selectedSiteId) params.site_id = String(selectedSiteId);
             if (selectedDepartmentId) params.department_id = String(selectedDepartmentId);
             if (selectedRoleId) params.role_id = String(selectedRoleId);
@@ -354,14 +356,6 @@ export default function AttendanceDashboard() {
         }));
     }, [analytics]);
 
-    const leaveData = useMemo(() => {
-        return (analytics?.leave_distribution || []).map((d, i) => ({
-            name: d.leave_type,
-            value: d.count,
-            color: CHART_COLORS[i % CHART_COLORS.length]
-        }));
-    }, [analytics]);
-
     const StatCard = ({ title, value, icon: Icon, color, subtitle, trend, onClick }: { title: string; value: number; icon: any; color: string; subtitle?: string; trend?: number | string | null; onClick?: () => void }) => (
         <div
             onClick={onClick}
@@ -451,7 +445,7 @@ export default function AttendanceDashboard() {
                                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                                 >
                                     {hqMode && canHRMode ? <option value="">All Sites</option> : <option value="">Select Site</option>}
-                                    {(canHRMode && hqMode ? allSites : inchargeSites).map((site) => (
+                                    {(canHRMode && hqMode ? allSites : (role || "").toLowerCase() === "orgadmin" ? allSites : inchargeSites).map((site) => (
                                         <option key={site.id} value={site.id}>{site.name}</option>
                                     ))}
                                 </select>
@@ -521,7 +515,7 @@ export default function AttendanceDashboard() {
                                         <BarChart3 className="w-5 h-5 text-blue-600" />
                                     </div>
                                 </div>
-                                <div className="h-72">
+                                <div className="h-56">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart data={analytics?.site_performance || []} layout="vertical" margin={{ left: 20 }}>
                                             <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={false} stroke="#f0f0f0" />
@@ -548,7 +542,7 @@ export default function AttendanceDashboard() {
                                         <Clock className="w-5 h-5 text-indigo-600" />
                                     </div>
                                 </div>
-                                <div className="h-64">
+                                <div className="h-52">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <PieChart>
                                             <Pie
@@ -571,41 +565,6 @@ export default function AttendanceDashboard() {
                                     </ResponsiveContainer>
                                 </div>
                             </div>
-
-                            {/* Leave Distribution */}
-                            <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-gray-200 p-6">
-                                <div className="flex items-center justify-between mb-6">
-                                    <div>
-                                        <h3 className="text-lg font-bold text-gray-900">Leave Distribution</h3>
-                                        <p className="text-sm text-gray-500">By leave type (Current Month)</p>
-                                    </div>
-                                    <div className="p-2 bg-purple-50 rounded-lg">
-                                        <PieChartIcon className="w-5 h-5 text-purple-600" />
-                                    </div>
-                                </div>
-                                <div className="h-64">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <PieChart>
-                                            <Pie
-                                                data={analytics?.leave_distribution || []}
-                                                cx="50%"
-                                                cy="50%"
-                                                innerRadius={60}
-                                                outerRadius={80}
-                                                paddingAngle={5}
-                                                dataKey="count"
-                                                nameKey="leave_type"
-                                            >
-                                                {(analytics?.leave_distribution || []).map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                                                ))}
-                                            </Pie>
-                                            <Tooltip contentStyle={{ borderRadius: '8px', border: 'none' }} />
-                                            <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                                        </PieChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
                         </div>
                     )}
                     {analytics && (
@@ -620,7 +579,7 @@ export default function AttendanceDashboard() {
                                         <TrendingUp className="w-5 h-5 text-emerald-600" />
                                     </div>
                                 </div>
-                                <div className="h-64">
+                                <div className="h-56">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <AreaChart data={trendData} margin={{ left: 10, right: 10 }}>
                                             <defs>
@@ -648,7 +607,7 @@ export default function AttendanceDashboard() {
                                         <Clock className="w-5 h-5 text-sky-600" />
                                     </div>
                                 </div>
-                                <div className="h-64">
+                                <div className="h-56">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart data={clockInData} margin={{ left: 10, right: 10 }}>
                                             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -733,7 +692,7 @@ export default function AttendanceDashboard() {
                             <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
                                 <div className="flex items-center justify-between p-6 border-b border-gray-100">
                                     <div>
-                                        <h2 className="text-xl font-bold text-gray-900 capitalize flex items-center gap-2">
+                                        <h2 className="text-lg font-bold text-gray-900 capitalize flex items-center gap-2">
                                             {selectedStatus.replace('_', ' ')} Employees
                                             <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">
                                                 {typeof stats?.[selectedStatus as keyof AttendanceStats] === 'number' ? stats[selectedStatus as keyof AttendanceStats] as number : 0}
@@ -758,7 +717,7 @@ export default function AttendanceDashboard() {
                                             />
                                         </div>
                                         <button onClick={closeModal} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
-                                            <X className="w-5 h-5 text-gray-500" />
+                                            <X className="w-5 h-5 text-gray-900" />
                                         </button>
                                     </div>
                                 </div>
@@ -780,12 +739,20 @@ export default function AttendanceDashboard() {
                                                 <div key={emp.id} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all group">
                                                     <div className="flex items-start justify-between mb-3">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center text-blue-700 font-bold text-sm">
-                                                                {emp.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
-                                                            </div>
+                                                            {emp.punch_in_image ? (
+                                                                <img
+                                                                    src={emp.punch_in_image}
+                                                                    alt={emp.name}
+                                                                    className="w-10 h-10 rounded-full object-cover border-2 border-gray-100"
+                                                                />
+                                                            ) : (
+                                                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center text-blue-700 font-bold text-sm">
+                                                                    {emp.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                                                                </div>
+                                                            )}
                                                             <div>
                                                                 <h4 className="text-sm font-bold text-gray-900">{emp.name}</h4>
-                                                                <p className="text-xs text-gray-500">{emp.role}</p>
+                                                                <p className="text-xs text-gray-900">{emp.role}</p>
                                                             </div>
                                                         </div>
                                                         <span className={`px-2 py-1 text-xs font-bold rounded-full ${emp.status.includes('Present') ? 'bg-emerald-100 text-emerald-700' :
@@ -803,13 +770,13 @@ export default function AttendanceDashboard() {
                                                         </span>
                                                     </div>
 
-                                                    <div className="space-y-2 text-xs text-gray-600 mb-3">
+                                                    <div className="space-y-2 text-xs text-gray-900 mb-3">
                                                         <div className="flex items-center gap-2">
-                                                            <Building2 className="w-3.5 h-3.5 text-gray-400" />
+                                                            <Building2 className="w-3.5 h-3.5 text-gray-900" />
                                                             <span className="truncate">{emp.site}</span>
                                                         </div>
                                                         <div className="flex items-center gap-2">
-                                                            <Briefcase className="w-3.5 h-3.5 text-gray-400" />
+                                                            <Briefcase className="w-3.5 h-3.5 text-gray-900" />
                                                             <span className="truncate">{emp.department}</span>
                                                         </div>
                                                     </div>

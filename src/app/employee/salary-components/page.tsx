@@ -2,7 +2,12 @@
 
 import React from 'react';
 import SalaryComponents from '@/components/org/SalaryComponents';
+import RouteGuard from '@/components/auth/RouteGuard';
 
 export default function EmployeeSalaryComponentsPage() {
-    return <SalaryComponents />;
+    return (
+        <RouteGuard requireOrgAdmin>
+            <SalaryComponents />
+        </RouteGuard>
+    );
 }
