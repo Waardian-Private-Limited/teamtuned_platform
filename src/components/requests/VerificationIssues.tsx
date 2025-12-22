@@ -26,6 +26,7 @@ import {
   ChevronUp,
   Users
 } from "lucide-react";
+import { format, parseISO } from "date-fns";
 
 type IssueItem = Record<string, any>;
 
@@ -424,7 +425,24 @@ export default function VerificationIssues({
     try {
       const d = new Date(v);
       if (isNaN(d.getTime())) return String(v);
-      return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+      return format(d, 'MMM d, yyyy h:mm a');
+    } catch {
+      return String(v);
+    }
+  };
+
+  const fmtDate = (v: any): string => {
+    if (!v) return "-";
+    try {
+      // Handle YYYY-MM-DD format
+      if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+        const d = parseISO(v);
+        if (isNaN(d.getTime())) return String(v);
+        return format(d, 'MMM d, yyyy');
+      }
+      const d = new Date(v);
+      if (isNaN(d.getTime())) return String(v);
+      return format(d, 'MMM d, yyyy');
     } catch {
       return String(v);
     }
@@ -523,7 +541,7 @@ export default function VerificationIssues({
                   <span>View Details</span>
                 </button>
 
-                {statusLower === "pending" && (!isEmployee || hasPerm("VERIFICATION_APPROVE")) && (
+                {statusLower === "pending" && (!isEmployee || hasPerm("ATTVERIFY_APPROVE")) && (
                   <>
                     <div className="border-t border-gray-100 my-1" />
                     <button
@@ -599,7 +617,7 @@ export default function VerificationIssues({
                     </div>
                     <div>
                       <span className="text-gray-600">Date:</span>
-                      <p className="font-medium">{String(item.attendance_date || "-")}</p>
+                      <p className="font-medium">{fmtDate(item.attendance_date)}</p>
                     </div>
                     <div>
                       <span className="text-gray-600">Issues:</span>
@@ -642,7 +660,7 @@ export default function VerificationIssues({
                       <h4 className="text-sm font-medium text-gray-900 mb-2">Check-In Image</h4>
                       <img
                         src={String(item.punch_in_image)}
-                        className={`w-full h-48 object-cover rounded-lg ${getBorderColor('image', 'in')}`}
+                        className={`w-full h-48 object-contain rounded-lg ${getBorderColor('image', 'in')}`}
                         alt="Check-in"
                       />
                     </div>
@@ -653,7 +671,7 @@ export default function VerificationIssues({
                       <h4 className="text-sm font-medium text-gray-900 mb-2">Check-Out Image</h4>
                       <img
                         src={String(item.punch_out_image)}
-                        className={`w-full h-48 object-cover rounded-lg ${getBorderColor('image', 'out')}`}
+                        className={`w-full h-48 object-contain rounded-lg ${getBorderColor('image', 'out')}`}
                         alt="Check-out"
                       />
                     </div>
@@ -686,7 +704,7 @@ export default function VerificationIssues({
                 </div>
 
                 {/* Review Section for Pending Issues */}
-                {!isFinalized && statusVal.toLowerCase() === "pending" && (!isEmployee || hasPerm("VERIFICATION_APPROVE")) && (
+                {!isFinalized && statusVal.toLowerCase() === "pending" && (!isEmployee || hasPerm("ATTVERIFY_APPROVE")) && (
                   <div className="border border-gray-200 rounded-lg p-4 bg-white">
                     <h4 className="text-sm font-medium text-gray-900 mb-3">
                       {modalDecision === "approve" ? "Approve Issue" : "Reject Issue"}
@@ -792,7 +810,7 @@ export default function VerificationIssues({
               Close
             </button>
 
-            {!isFinalized && statusVal.toLowerCase() === "pending" && (!isEmployee || hasPerm("VERIFICATION_APPROVE")) && (
+            {!isFinalized && statusVal.toLowerCase() === "pending" && (!isEmployee || hasPerm("ATTVERIFY_APPROVE")) && (
               <button
                 onClick={confirmModal}
                 disabled={actionLoading?.includes(`review_${activeItem.id}`) || (modalDecision === "reject" && !modalReason.trim())}
@@ -866,7 +884,7 @@ export default function VerificationIssues({
             </div>
           </div>
           <div className="divide-y divide-gray-200">
-            {[...Array(5)].map((_, i) => (
+            {[...Array(10)].map((_, i) => (
               <div key={i} className="grid grid-cols-8 gap-4 px-4 py-3 animate-pulse">
                 <div className="space-y-2">
                   <div className="h-4 bg-gray-200 rounded w-32"></div>
@@ -925,6 +943,16 @@ export default function VerificationIssues({
             <h1 className="text-xl font-bold text-gray-900">Verification Issues</h1>
           </div>
           <div className="flex items-center space-x-3">
+            {/* Refresh Button */}
+            <button
+              onClick={fetchList}
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium text-gray-700"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </button>
+
             {!externalControl && showHQToggle && canHRMode && !isOrgAdmin && (
               <label className="inline-flex items-center gap-2 text-sm text-gray-700 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
                 <input
@@ -937,6 +965,19 @@ export default function VerificationIssues({
                 <span>HR Mode</span>
               </label>
             )}
+
+            {/* Status Filter */}
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+            >
+              <option value="All">All Status</option>
+              <option value="Pending">Pending</option>
+              <option value="Approved">Approved</option>
+              <option value="Rejected">Rejected</option>
+            </select>
+
             {!externalControl && (
               <select
                 className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
@@ -980,18 +1021,7 @@ export default function VerificationIssues({
         {/* Collapsible Filters */}
         {filtersExpanded && (
           <div className="mt-4 pt-4 border-t border-gray-200">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
-              >
-                <option value="All">All Status</option>
-                <option value="Pending">Pending</option>
-                <option value="Approved">Approved</option>
-                <option value="Rejected">Rejected</option>
-              </select>
-
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-3">
               <input
                 type="date"
                 className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
@@ -1011,8 +1041,8 @@ export default function VerificationIssues({
               <div className="flex items-center space-x-2"></div>
             </div>
 
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="md:col-span-4 flex items-center space-x-2">
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="md:col-span-2 flex items-center space-x-2">
                 <button
                   onClick={fetchList}
                   className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm flex-1"
@@ -1150,7 +1180,7 @@ export default function VerificationIssues({
                         <div className="text-sm text-gray-500">#{String(item.employee_id || "-")}</div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{String(item.attendance_date || "-")}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{fmtDate(item.attendance_date)}</td>
                     <td className="px-4 py-3">
                       <div className="text-sm text-gray-900">{issueTypes}</div>
                       {Number(item.issue_count || 0) > 1 && (
