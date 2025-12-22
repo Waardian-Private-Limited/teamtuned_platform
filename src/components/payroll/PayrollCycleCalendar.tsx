@@ -5,6 +5,8 @@ import { apiClient } from "@/lib/apiClient";
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   AlertCircle,
   Clock,
   Calendar as CalendarIcon,
@@ -23,7 +25,8 @@ import {
   Award,
   Sun,
   Sunset,
-  Coffee
+  Coffee,
+  Calculator
 } from "lucide-react";
 import AttendanceDetailsModal from "../attendance/AttendanceDetailsModal";
 
@@ -64,6 +67,21 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
   const [overrideOpen, setOverrideOpen] = React.useState<boolean>(false);
 
   const [policyData, setPolicyData] = React.useState<any>(null);
+
+  // Custom calculator states
+  const [customCalcOpen, setCustomCalcOpen] = React.useState<boolean>(false);
+  const [customMetrics, setCustomMetrics] = React.useState({
+    total_days: 0,
+    present_days: 0,
+    absent_days: 0,
+    half_days: 0,
+    full_days: 0,
+    late_days: 0,
+    paid_leave_days: 0,
+    week_offs: 0,
+    holidays: 0,
+    comp_off_days: 0
+  });
 
   const computeCycle = React.useCallback((ref: Date, startDay: number, endDay: number) => {
     let cycleYear = ref.getFullYear();
@@ -195,6 +213,24 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
   React.useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Initialize custom metrics from actual data
+  React.useEffect(() => {
+    if (payrollData?.metrics) {
+      setCustomMetrics({
+        total_days: payrollData.metrics.total_days || 0,
+        present_days: payrollData.metrics.present_days || 0,
+        absent_days: payrollData.metrics.absent_days || 0,
+        half_days: payrollData.metrics.half_days || 0,
+        full_days: payrollData.metrics.full_days || 0,
+        late_days: payrollData.metrics.late_days || 0,
+        paid_leave_days: payrollData.metrics.total_paid_leave_days || 0,
+        week_offs: payrollData.metrics.total_week_offs || 0,
+        holidays: payrollData.metrics.total_holidays || 0,
+        comp_off_days: payrollData.metrics.comp_off_days || 0
+      });
+    }
+  }, [payrollData]);
 
   const attMap = React.useMemo(() => {
     const m = new Map<string, AttendanceRecord>();
@@ -333,6 +369,14 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
                   className="p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all disabled:opacity-50"
                 >
                   <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                </button>
+
+                <button
+                  onClick={() => setCustomCalcOpen(true)}
+                  className="p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200 transition-all"
+                  title="Custom Calculation"
+                >
+                  <Calculator className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -592,6 +636,18 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
           onClose={() => setDetailOpen(false)}
         />
       )}
+
+      {/* Custom Calculator Modal */}
+      {customCalcOpen && (
+        <CustomCalculatorModal
+          metrics={customMetrics}
+          onMetricsChange={setCustomMetrics}
+          payrollData={payrollData}
+          breakdown={breakdown}
+          employeeId={employeeId || employee?.id || 0}
+          onClose={() => setCustomCalcOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -622,3 +678,352 @@ function MetricCard({ label, value, color, icon: Icon }: { label: string; value:
     </div>
   );
 }
+
+// Custom Calculator Modal Component
+function CustomCalculatorModal({
+  metrics,
+  onMetricsChange,
+  payrollData,
+  breakdown,
+  employeeId,
+  onClose
+}: {
+  metrics: any;
+  onMetricsChange: (m: any) => void;
+  payrollData: any;
+  breakdown: SalaryItem[];
+  employeeId: number;
+  onClose: () => void;
+}) {
+  const [calculatedResults, setCalculatedResults] = React.useState<any>(null);
+  const [calculating, setCalculating] = React.useState(false);
+  const [calculateError, setCalculateError] = React.useState<string | null>(null);
+
+  // Calculate using backend API
+  const handleCalculate = async () => {
+    setCalculating(true);
+    setCalculateError(null);
+
+    try {
+      if (!employeeId) throw new Error("Missing employee id");
+
+      // Use the same cycle dates from payrollData
+      const cycleStart = payrollData?.cycle_start || '';
+      const cycleEnd = payrollData?.cycle_end || '';
+
+      // Call backend API with custom metrics
+      // We'll create a new endpoint for this
+      const response = await apiClient<any>("/attendance/payroll-calculate-custom", {
+        method: "POST",
+        withAuth: true,
+        body: {
+          employee_id: employeeId,
+          cycle_start: cycleStart,
+          cycle_end: cycleEnd,
+          custom_metrics: {
+            total_days: metrics.total_days,
+            full_days: metrics.full_days,
+            half_days: metrics.half_days,
+            absent_days: metrics.absent_days,
+            paid_leave_days: metrics.paid_leave_days,
+            week_offs: metrics.week_offs,
+            holidays: metrics.holidays,
+            comp_off_days: metrics.comp_off_days,
+            late_days: metrics.late_days
+          }
+        }
+      });
+
+      setCalculatedResults(response);
+    } catch (e: any) {
+      setCalculateError(e?.message || "Failed to calculate");
+    } finally {
+      setCalculating(false);
+    }
+  };
+
+  // State for expandable sections
+  const [creditsExpanded, setCreditsExpanded] = React.useState(false);
+  const [debitsExpanded, setDebitsExpanded] = React.useState(false);
+
+  // Validation: Check if total attendance days exceed total days
+  const validation = React.useMemo(() => {
+    const totalDays = metrics.total_days || 0;
+    const fullDays = metrics.full_days || 0;
+    const halfDays = metrics.half_days || 0;
+    const absentDays = metrics.absent_days || 0;
+    const paidLeaveDays = metrics.paid_leave_days || 0;
+    const weekOffs = metrics.week_offs || 0;
+    const holidays = metrics.holidays || 0;
+
+    // Calculate total accounted days (counting half days as 0.5)
+    const totalAccountedDays = fullDays + halfDays + absentDays + paidLeaveDays + weekOffs + holidays;
+
+    const isValid = totalAccountedDays <= totalDays;
+    const difference = totalAccountedDays - totalDays;
+
+    return {
+      isValid,
+      totalAccountedDays: Number(totalAccountedDays.toFixed(2)),
+      difference: Number(difference.toFixed(2)),
+      message: isValid
+        ? `Valid: ${totalAccountedDays.toFixed(2)} / ${totalDays} days accounted`
+        : `Invalid: ${totalAccountedDays.toFixed(2)} days exceeds ${totalDays} total days by ${difference.toFixed(2)} days`
+    };
+  }, [metrics]);
+
+  const handleInputChange = (field: string, value: string) => {
+    const numValue = parseFloat(value) || 0;
+    onMetricsChange({ ...metrics, [field]: numValue });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-emerald-50 to-blue-50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-emerald-100 rounded-lg">
+                <Calculator className="w-5 h-5 text-emerald-700" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Custom Payroll Calculator</h2>
+                <p className="text-sm text-slate-600">Enter custom attendance values for verification</p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/50 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5 text-slate-600" />
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Input Section */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wide">Input Metrics</h3>
+
+              <div className="grid grid-cols-2 gap-3">
+                <InputField label="Total Days" value={metrics.total_days} onChange={(v) => handleInputChange('total_days', v)} color="blue" />
+                <InputField label="Full Days" value={metrics.full_days} onChange={(v) => handleInputChange('full_days', v)} color="emerald" />
+                <InputField label="Half Days" value={metrics.half_days} onChange={(v) => handleInputChange('half_days', v)} color="amber" />
+                <InputField label="Absent Days" value={metrics.absent_days} onChange={(v) => handleInputChange('absent_days', v)} color="rose" />
+                <InputField label="Paid Leaves" value={metrics.paid_leave_days} onChange={(v) => handleInputChange('paid_leave_days', v)} color="teal" />
+                <InputField label="Week Offs" value={metrics.week_offs} onChange={(v) => handleInputChange('week_offs', v)} color="slate" />
+                <InputField label="Holidays" value={metrics.holidays} onChange={(v) => handleInputChange('holidays', v)} color="violet" />
+                <InputField label="Comp Off" value={metrics.comp_off_days} onChange={(v) => handleInputChange('comp_off_days', v)} color="cyan" />
+                <InputField label="Late Days" value={metrics.late_days} onChange={(v) => handleInputChange('late_days', v)} color="orange" />
+              </div>
+
+              {/* Validation Indicator */}
+              <div className={`mt-4 p-3 rounded-lg border ${validation.isValid ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
+                <div className="flex items-start gap-2">
+                  {validation.isValid ? (
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                  )}
+                  <div>
+                    <p className={`text-sm font-medium ${validation.isValid ? 'text-emerald-900' : 'text-rose-900'}`}>
+                      {validation.isValid ? 'Valid Configuration' : 'Invalid Configuration'}
+                    </p>
+                    <p className={`text-xs mt-1 ${validation.isValid ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      {validation.message}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Calculation Results */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wide">Calculated Results</h3>
+                <button
+                  onClick={handleCalculate}
+                  disabled={calculating || !validation.isValid}
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {calculating ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Calculating...
+                    </>
+                  ) : (
+                    <>
+                      <Calculator className="w-4 h-4" />
+                      Calculate
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {calculateError && (
+                <div className="bg-rose-50 border border-rose-200 rounded-lg p-3 flex items-start gap-2">
+                  <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                  <p className="text-sm text-rose-700">{calculateError}</p>
+                </div>
+              )}
+
+              {!calculatedResults && !calculating && (
+                <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-8 border border-slate-200 text-center">
+                  <Calculator className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+                  <p className="text-sm text-slate-600">Click "Calculate" to see results</p>
+                  <p className="text-xs text-slate-500 mt-1">Backend will calculate accurate salary based on your custom metrics</p>
+                </div>
+              )}
+
+              {calculatedResults && (
+                <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-4 space-y-3 border border-slate-200">
+                  <ResultRow label="Working Days" value={calculatedResults.metrics?.working_days || 0} />
+                  <ResultRow label="Present Days" value={calculatedResults.metrics?.present_days || 0} />
+                  <ResultRow label="Attendance Ratio" value={`${((calculatedResults.metrics?.present_days / calculatedResults.metrics?.total_days) * 100).toFixed(2)}%`} />
+
+                  <div className="border-t border-slate-300 my-2" />
+
+                  <ResultRow label="Gross Salary" value={`₹${calculatedResults.salary?.gross_salary?.toLocaleString() || '0'}`} highlight />
+                  <ResultRow label="Adjusted Gross" value={`₹${calculatedResults.salary?.adjusted_gross?.toLocaleString() || '0'}`} highlight />
+
+                  <div className="border-t border-slate-300 my-2" />
+
+                  {/* Expandable Credits Section */}
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => setCreditsExpanded(!creditsExpanded)}
+                      className="w-full flex items-center justify-between p-2 hover:bg-slate-200/50 rounded-lg transition-colors"
+                    >
+                      <span className="text-sm font-semibold text-emerald-700">Total Credits</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-emerald-700">₹{calculatedResults.salary?.credit_total?.toLocaleString() || '0'}</span>
+                        {creditsExpanded ? (
+                          <ChevronUp className="w-4 h-4 text-slate-600" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-slate-600" />
+                        )}
+                      </div>
+                    </button>
+                    {creditsExpanded && (
+                      <div className="pl-4 space-y-1 border-l-2 border-emerald-200">
+                        {calculatedResults.salary_breakdown?.filter((b: any) => b.type === 'credit').map((item: any, idx: number) => (
+                          <div key={idx} className="flex items-center justify-between text-xs py-1">
+                            <span className="text-slate-600">{item.name}</span>
+                            <span className="font-medium text-emerald-600">+₹{item.amount.toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Expandable Debits Section */}
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => setDebitsExpanded(!debitsExpanded)}
+                      className="w-full flex items-center justify-between p-2 hover:bg-slate-200/50 rounded-lg transition-colors"
+                    >
+                      <span className="text-sm font-semibold text-rose-700">All Debits</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-rose-700">₹{calculatedResults.salary?.debit_total?.toLocaleString() || '0'}</span>
+                        {debitsExpanded ? (
+                          <ChevronUp className="w-4 h-4 text-slate-600" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-slate-600" />
+                        )}
+                      </div>
+                    </button>
+                    {debitsExpanded && (
+                      <div className="pl-4 space-y-1 border-l-2 border-rose-200">
+                        {calculatedResults.salary_breakdown?.filter((b: any) => b.type === 'debit').map((item: any, idx: number) => (
+                          <div key={idx} className="flex items-center justify-between text-xs py-1">
+                            <span className="text-slate-600">{item.name}</span>
+                            <span className="font-medium text-rose-600">-₹{item.amount.toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <ResultRow label="Salary Advance EMI" value={`₹${calculatedResults.salary?.salary_advance_emi?.toLocaleString() || '0'}`} color="orange" />
+                  <ResultRow label="Total Deductions" value={`₹${calculatedResults.salary?.total_deductions?.toLocaleString() || '0'}`} color="rose" highlight />
+
+                  <div className="border-t-2 border-slate-400 my-2" />
+
+                  <ResultRow label="Net Payment" value={`₹${calculatedResults.salary?.net_payment?.toLocaleString() || '0'}`} color="blue" highlight large />
+                  <ResultRow label="Bank Payment" value={`₹${calculatedResults.salary?.bank_payment?.toLocaleString() || '0'}`} color="blue" highlight />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+          <p className="text-xs text-slate-500">
+            * Calculations are performed by the backend for 100% accuracy
+          </p>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors font-medium"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Input Field Component
+function InputField({ label, value, onChange, color = "blue" }: { label: string; value: number; onChange: (v: string) => void; color?: string }) {
+  const colorMap: Record<string, string> = {
+    blue: "border-blue-200 focus:border-blue-500 focus:ring-blue-500",
+    emerald: "border-emerald-200 focus:border-emerald-500 focus:ring-emerald-500",
+    amber: "border-amber-200 focus:border-amber-500 focus:ring-amber-500",
+    rose: "border-rose-200 focus:border-rose-500 focus:ring-rose-500",
+    teal: "border-teal-200 focus:border-teal-500 focus:ring-teal-500",
+    slate: "border-slate-200 focus:border-slate-500 focus:ring-slate-500",
+    violet: "border-violet-200 focus:border-violet-500 focus:ring-violet-500",
+    cyan: "border-cyan-200 focus:border-cyan-500 focus:ring-cyan-500",
+    orange: "border-orange-200 focus:border-orange-500 focus:ring-orange-500",
+  };
+
+  return (
+    <div>
+      <label className="block text-xs font-medium text-slate-700 mb-1">{label}</label>
+      <input
+        type="number"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-all ${colorMap[color] || colorMap.blue}`}
+        min="0"
+        step="0.5"
+      />
+    </div>
+  );
+}
+
+// Result Row Component
+function ResultRow({ label, value, color, highlight, large }: { label: string; value: string | number; color?: string; highlight?: boolean; large?: boolean }) {
+  const colorMap: Record<string, string> = {
+    emerald: "text-emerald-700",
+    rose: "text-rose-700",
+    blue: "text-blue-700",
+    orange: "text-orange-700",
+  };
+
+  const textColor = color ? colorMap[color] : "text-slate-900";
+  const fontWeight = highlight ? "font-bold" : "font-medium";
+  const fontSize = large ? "text-lg" : "text-sm";
+
+  return (
+    <div className="flex items-center justify-between">
+      <span className={`${fontSize} ${highlight ? 'font-semibold' : ''} text-slate-700`}>{label}</span>
+      <span className={`${fontSize} ${fontWeight} ${textColor}`}>{value}</span>
+    </div>
+  );
+}
+

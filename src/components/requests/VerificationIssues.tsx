@@ -585,7 +585,7 @@ export default function VerificationIssues({
 
     return (
       <div className="fixed inset-0 bg-opacity-20 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-        <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+        <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[85vh] flex flex-col overflow-hidden">
           <div className="p-6 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <h3 className="text-xl font-semibold text-gray-900">
@@ -600,13 +600,13 @@ export default function VerificationIssues({
             </div>
           </div>
 
-          <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+          <div className="flex-1 overflow-y-auto p-6">
             {detailsLoading ? (
               <div className="flex items-center justify-center py-8">
                 <RefreshCw className="w-8 h-8 animate-spin text-gray-400" />
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-6 pb-6">
                 {/* Basic Information */}
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h4 className="text-sm font-medium text-gray-900 mb-2">Issue Information</h4>
@@ -802,7 +802,7 @@ export default function VerificationIssues({
             )}
           </div>
 
-          <div className="p-6 border-t border-gray-200 flex justify-end space-x-3">
+          <div className="shrink-0 p-6 border-t border-gray-200 flex justify-end space-x-3">
             <button
               onClick={closeModal}
               className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"

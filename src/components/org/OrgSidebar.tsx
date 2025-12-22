@@ -46,6 +46,7 @@ import {
     Zap,
     CreditCard,
     PieChart,
+    Phone,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
@@ -88,6 +89,43 @@ export default function OrgSidebar({
     const [managementOpen, setManagementOpen] = React.useState(false);
     const [attendanceOpen, setAttendanceOpen] = React.useState(true);
     const [isNavigating, setIsNavigating] = React.useState(false);
+
+    // Auto-collapse on hover state
+    const [isHovered, setIsHovered] = React.useState(false);
+    const hoverTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+
+    // Auto-collapse effect
+    useEffect(() => {
+        if (isHovered) {
+            // Clear any pending collapse and expand immediately
+            if (hoverTimeoutRef.current) {
+                clearTimeout(hoverTimeoutRef.current);
+            }
+            setIsCollapsed(false);
+        } else {
+            // Collapse after 500ms when not hovered
+            hoverTimeoutRef.current = setTimeout(() => {
+                setIsCollapsed(true);
+                // Auto-open all categories when collapsed to prevent lag
+                setMainOpen(true);
+                setAttendanceOpen(true);
+                setManagementOpen(true);
+                setInsuranceOpen(true);
+                setSalaryAdvanceOpen(true);
+                setPettyCashOpen(true);
+                setInventoryOpen(true);
+                setTaskOpen(true);
+                setDashboardOpen(true);
+            }, 500);
+        }
+
+        return () => {
+            if (hoverTimeoutRef.current) {
+                clearTimeout(hoverTimeoutRef.current);
+            }
+        };
+    }, [isHovered, setIsCollapsed]);
 
     // Track navigation for loading state
     useEffect(() => {
@@ -169,6 +207,8 @@ export default function OrgSidebar({
     return (
         <>
             <aside
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
                 className={`h-screen bg-white border-r border-gray-200 transition-all duration-300 flex flex-col ${isCollapsed ? "w-20" : "w-64"
                     }`}
             >
@@ -229,6 +269,7 @@ export default function OrgSidebar({
                     {managementOpen && (
                         <div className="space-y-1 ml-2">
                             <Item icon={Users} label="Employees" href="/org-admin/employees" active={pathname === "/org-admin/employees"} />
+                            <Item icon={Phone} label="Emergency Contacts" href="/org-admin/emergency-contacts" active={pathname === "/org-admin/emergency-contacts"} />
                             <Item icon={Upload} label="Import Employees" href="/org-admin/employees/import" active={pathname === "/org-admin/employees/import"} />
                             <Item icon={Clock} label="Shift Management" href="/org-admin/employees/shifts" active={pathname === "/org-admin/employees/shifts"} />
                             <Item icon={UserCog} label="Roles" href="/org-admin/roles" active={pathname === "/org-admin/roles"} />

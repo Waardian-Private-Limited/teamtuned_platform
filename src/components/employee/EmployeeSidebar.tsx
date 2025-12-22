@@ -39,6 +39,7 @@ import {
   Receipt,
   Cog,
   Upload,
+  Phone,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
@@ -77,6 +78,41 @@ export default function EmployeeSidebar({
   const [attendanceOpen, setAttendanceOpen] = React.useState(true);
   const [otherOpen, setOtherOpen] = React.useState(false);
   const [isNavigating, setIsNavigating] = React.useState(false);
+
+  // Auto-collapse on hover state
+  const [isHovered, setIsHovered] = React.useState(false);
+  const hoverTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Auto-collapse effect
+  useEffect(() => {
+    if (isHovered) {
+      // Clear any pending collapse and expand immediately
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+      setIsCollapsed(false);
+    } else {
+      // Collapse after 500ms when not hovered
+      hoverTimeoutRef.current = setTimeout(() => {
+        setIsCollapsed(true);
+        // Auto-open all categories when collapsed to prevent lag
+        setMainOpen(true);
+        setAttendanceOpen(true);
+        setManagementOpen(true);
+        setInsuranceOpen(true);
+        setSalaryAdvanceOpen(true);
+        setOtherOpen(true);
+        setInventoryOpen(true);
+        setTaskOpen(true);
+      }, 500);
+    }
+
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, [isHovered, setIsCollapsed]);
 
   // Track navigation for loading state
   useEffect(() => {
@@ -256,6 +292,8 @@ export default function EmployeeSidebar({
 
   return (
     <aside
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       className={`h-screen bg-gray-50 ${isCollapsed ? "w-16" : "w-64"
         } flex flex-col transition-all duration-300 ease-in-out z-50`}
     >
@@ -487,12 +525,20 @@ export default function EmployeeSidebar({
               <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
                 <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
                   {canViewEmployeeManagement && (
-                    <Item
-                      icon={Users}
-                      label="Employees"
-                      href="/employee/employee-management"
-                      active={pathname?.startsWith("/employee/employee-management") || false}
-                    />
+                    <>
+                      <Item
+                        icon={Users}
+                        label="Employees"
+                        href="/employee/employee-management"
+                        active={pathname?.startsWith("/employee/employee-management") || false}
+                      />
+                      <Item
+                        icon={Phone}
+                        label="Emergency Contacts"
+                        href="/employee/emergency-contacts"
+                        active={pathname?.startsWith("/employee/emergency-contacts") || false}
+                      />
+                    </>
                   )}
                   {(isOrgAdmin || hasAnyPerm(['EMP_ADD'])) && (
                     <>

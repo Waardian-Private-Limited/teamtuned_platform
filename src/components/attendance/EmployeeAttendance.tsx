@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useRef } from "react";
 import { createPortal } from "react-dom";
 import { apiClient } from "@/lib/apiClient";
 import AttendanceCalendar from "@/components/attendance/AttendanceCalendar";
@@ -76,6 +76,8 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
 
   // Filters & UI State
   const [search, setSearch] = React.useState<string>("");
+  const [debouncedSearch, setDebouncedSearch] = React.useState<string>("");
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [department, setDepartment] = React.useState<string>("");
   const [departments, setDepartments] = React.useState<any[]>([]);
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
@@ -251,7 +253,7 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
       if (date) params["date"] = date;
 
       // Filters
-      const s = search.trim();
+      const s = debouncedSearch.trim();
       if (s) params["search"] = s;
       if (department) {
         const dep = departments.find(d => String(d.name) === department);
@@ -272,7 +274,7 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
     } finally {
       setLoading(false);
     }
-  }, [hqMode, selectedSiteId, canHRMode, externalControl, extHq, extSiteId, date, search, department, statusFilter, departments]);
+  }, [hqMode, selectedSiteId, canHRMode, externalControl, extHq, extSiteId, date, debouncedSearch, department, statusFilter, departments]);
 
   React.useEffect(() => {
     fetchList();
@@ -285,6 +287,7 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
 
   const clearFilters = () => {
     setSearch("");
+    setDebouncedSearch("");
     setDepartment("");
     setStatusFilter("all");
     setCurrentPage(1);
@@ -546,13 +549,6 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
                   <span>View Attendance</span>
                 </button>
                 <button
-                  onClick={() => { setActiveEmployee(employee); setActiveView("leaves"); setIsOpen(false); }}
-                  className="flex items-center gap-3 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                >
-                  <Leaf className="w-4 h-4 text-slate-500" />
-                  <span>View Leaves</span>
-                </button>
-                <button
                   onClick={() => { setActiveEmployee(employee); setActiveView("redeems"); setIsOpen(false); }}
                   className="flex items-center gap-3 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
                 >
@@ -568,7 +564,7 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
                   className="flex items-center gap-3 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
                 >
                   <Eye className="w-4 h-4 text-slate-500" />
-                  <span>View Details</span>
+                  <span>Today's Attendance</span>
                 </button>
               </div>
             </div>
@@ -660,8 +656,24 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
     return (
       <div className="min-h-screen bg-white p-6">
         <div className="max-w-7xl mx-auto space-y-5">
+          {/* Header Skeleton */}
+          <div className="space-y-3">
+            <div className="h-6 bg-slate-200 rounded w-64 animate-pulse"></div>
+            <div className="h-4 bg-slate-200 rounded w-96 animate-pulse"></div>
+          </div>
 
+          {/* Filters Skeleton */}
+          <div className="bg-white border border-slate-200 rounded-lg p-4 animate-pulse">
+            <div className="grid grid-cols-12 gap-3">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="col-span-2">
+                  <div className="h-10 bg-slate-100 rounded-lg"></div>
+                </div>
+              ))}
+            </div>
+          </div>
 
+          {/* Table Skeleton */}
           <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
             <div className="bg-slate-50 border-b border-slate-200">
               <div className="grid grid-cols-6 gap-4 px-5 py-3">
@@ -671,7 +683,7 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
               </div>
             </div>
             <div className="divide-y divide-slate-100">
-              {[...Array(8)].map((_, i) => (
+              {[...Array(10)].map((_, i) => (
                 <div key={i} className="grid grid-cols-6 gap-4 px-5 py-3.5 animate-pulse">
                   <div className="space-y-2">
                     <div className="h-3 bg-slate-100 rounded w-32"></div>
@@ -827,13 +839,26 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
               {/* Search */}
               <div className="col-span-12 md:col-span-2">
                 <div className="relative">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Search className="w-4 h-4 text-blue-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
-                    placeholder="Search..."
+                    placeholder="Search by name, email, or phone..."
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full pl-10 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setSearch(value);
+
+                      // Clear existing timeout
+                      if (searchTimeoutRef.current) {
+                        clearTimeout(searchTimeoutRef.current);
+                      }
+
+                      // Set new timeout for 500ms
+                      searchTimeoutRef.current = setTimeout(() => {
+                        setDebouncedSearch(value);
+                      }, 500);
+                    }}
+                    className="w-full pl-10 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-gray-900 font-medium placeholder:text-slate-400 placeholder:font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   />
                 </div>
               </div>

@@ -19,16 +19,19 @@ import {
   RefreshCw,
   CheckCircle,
   AlertCircle,
+  Check,
   Eye,
   ThumbsUp,
   ThumbsDown,
   FileText,
+  Settings,
   MapPin,
   Plus,
   ChevronDown,
   ChevronUp,
   Users
 } from "lucide-react";
+import LeaveWorkflowConfig from "../org/LeaveWorkflowConfig";
 
 type LeaveItem = Record<string, any>;
 
@@ -56,6 +59,58 @@ function useCountUp(target: number, duration = 800) {
     return () => { if (raf) cancelAnimationFrame(raf); };
   }, [target, duration]);
   return v;
+}
+
+// Countdown hook for timeline
+function useCountdown(targetDate: string | null, timelineHours: number | null) {
+  const [timeLeft, setTimeLeft] = useState<{ hours: number, minutes: number, seconds: number, expired: boolean } | null>(null);
+
+  useEffect(() => {
+    if (!targetDate || !timelineHours || timelineHours <= 0) {
+      setTimeLeft(null);
+      return;
+    }
+
+    const calculateTimeLeft = () => {
+      try {
+        // Parse the UTC timestamp and keep it in UTC
+        const dateStr = targetDate.includes('Z') ? targetDate : targetDate + 'Z';
+        const start = new Date(dateStr).getTime();
+
+        // Validate the parsed date
+        if (isNaN(start)) {
+          return { hours: 0, minutes: 0, seconds: 0, expired: true };
+        }
+
+        const deadline = start + (timelineHours * 60 * 60 * 1000);
+        const now = Date.now(); // Current time in UTC milliseconds
+
+        const diff = deadline - now;
+
+        if (diff <= 0) {
+          return { hours: 0, minutes: 0, seconds: 0, expired: true };
+        }
+
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+        return { hours, minutes, seconds, expired: false };
+      } catch (error) {
+        console.error('Error calculating countdown:', error);
+        return { hours: 0, minutes: 0, seconds: 0, expired: true };
+      }
+    };
+
+    setTimeLeft(calculateTimeLeft());
+    const interval = setInterval(() => {
+      setTimeLeft(calculateTimeLeft());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [targetDate, timelineHours]);
+
+  return timeLeft;
 }
 
 export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, externalControl = false, hqMode: extHq, selectedSiteId: extSiteId }: Props) {
@@ -93,6 +148,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
   const [modalMode, setModalMode] = useState<"approve" | "reject">("approve");
   const [modalReason, setModalReason] = useState<string>("");
   const [activeItem, setActiveItem] = useState<LeaveItem | null>(null);
+  const [rejectOption, setRejectOption] = useState<"reject_final" | "proceed_next">("reject_final");
 
   // Details view modal state
   const [viewOpen, setViewOpen] = useState<boolean>(false);
@@ -102,16 +158,28 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
 
   // Add Leave modal state
   const [addLeaveOpen, setAddLeaveOpen] = useState<boolean>(false);
+  const [workflowConfigOpen, setWorkflowConfigOpen] = useState<boolean>(false);
   const [employees, setEmployees] = useState<Array<Record<string, any>>>([]);
-  const [leaveTypes, setLeaveTypes] = useState<string[]>([]);
+  const [leaveTypes, setLeaveTypes] = useState<Array<Record<string, any>>>([]);
   const [addLeaveForm, setAddLeaveForm] = useState({
-    employee_id: "",
+    employee_ids: [] as string[],  // Changed from employee_id to support multi-select
     leave_type: "",
     start_date: "",
     end_date: "",
     session: "Full Day",
     reason: "",
   });
+
+  // Employee selector optimization states
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [employeeDepartmentFilter, setEmployeeDepartmentFilter] = useState("");
+  const [employeePage, setEmployeePage] = useState(1);
+  const [employeePageSize] = useState(20);
+  const [employeesLoading, setEmployeesLoading] = useState(false);
+  const [employeesTotal, setEmployeesTotal] = useState(0);
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [selectedEmployees, setSelectedEmployees] = useState<Array<Record<string, any>>>([]);
+  const [leaveBalances, setLeaveBalances] = useState<Record<string, number>>({});
 
   // Stats animation
   const pendingCount = useCountUp(stats?.pending_overall || 0);
@@ -253,12 +321,53 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
     })();
   }, [status, externalControl ? extHq : hqMode, externalControl ? extSiteId : selectedSiteId, fromDate, toDate]);
 
+  // Fetch employees when search/filter/page changes (with debounce for search)
+  useEffect(() => {
+    if (!addLeaveOpen) return;
+
+    const timer = setTimeout(() => {
+      fetchEmployeesForLeave();
+    }, employeeSearch ? 500 : 0); // 500ms debounce for search, immediate for filter/page
+
+    return () => clearTimeout(timer);
+  }, [employeeSearch, employeeDepartmentFilter, employeePage, addLeaveOpen]);
+
+  // Helper function to check if current user can approve the current level
+  const canUserApproveLevel = (item: LeaveItem, timeline?: any[]) => {
+    if (!timeline || timeline.length === 0) return false;
+
+    // Find the current pending level
+    const currentLevel = timeline.find(t => t.is_current && t.status === 'pending');
+    if (!currentLevel) return false;
+
+    const currentEmployeeId = employee?.id;
+    if (!currentEmployeeId) return false;
+
+    // Check if user is in the approver list for this level
+    if (currentLevel.approver_type === 'employee' && currentLevel.approver_employee_ids) {
+      const approverIds = currentLevel.approver_employee_ids.split(',').map((id: string) => parseInt(id.trim()));
+      return approverIds.includes(currentEmployeeId);
+    }
+
+    // For role-based, we'd need to check if user has that role
+    // This would require additional data from the backend
+    return false;
+  };
+
+
   const approve = async (id: number) => {
     try {
       setActionLoading(`approve_${id}`);
-      await apiClient(`/leaves/requests/${id}`, { method: "PATCH", body: { status: "approved" }, withAuth: true });
-      setItems((prev) => prev.map((r) => (Number(r.id) === id ? { ...r, status: "approved" } : r)));
+      // Use workflow-aware endpoint
+      await apiClient(`/leaves/requests/${id}/approve-level`, {
+        method: "POST",
+        body: { remarks: "" }, // Approval typically doesn't need remarks in this UI flow
+        withAuth: true
+      });
+      setItems((prev) => prev.map((r) => (Number(r.id) === id ? { ...r, status: "Approved", workflow_status: "approved" } : r)));
       showNotification('Leave request approved successfully', 'success');
+      // Refresh to get updated status/next level details
+      fetchList();
     } catch (e: any) {
       setError(e?.message || "Failed to approve");
       showNotification(e?.message || "Failed to approve leave request", 'error');
@@ -267,12 +376,21 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
     }
   };
 
-  const reject = async (id: number, reason: string) => {
+  const reject = async (id: number, reason: string, option: "reject_final" | "proceed_next" = "reject_final") => {
     try {
       setActionLoading(`reject_${id}`);
-      await apiClient(`/leaves/requests/${id}`, { method: "PATCH", body: { status: "rejected", reject_reason: reason }, withAuth: true });
-      setItems((prev) => prev.map((r) => (Number(r.id) === id ? { ...r, status: "rejected", reject_reason: reason } : r)));
+      // Use workflow-aware endpoint
+      await apiClient(`/leaves/requests/${id}/reject-level`, {
+        method: "POST",
+        body: {
+          remarks: reason
+        },
+        withAuth: true
+      });
+      setItems((prev) => prev.map((r) => (Number(r.id) === id ? { ...r, status: "Rejected", workflow_status: "rejected", reject_reason: reason } : r)));
       showNotification('Leave request rejected successfully', 'success');
+      // Refresh to get updated status
+      fetchList();
     } catch (e: any) {
       setError(e?.message || "Failed to reject");
       showNotification(e?.message || "Failed to reject leave request", 'error');
@@ -285,6 +403,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
     setActiveItem(item);
     setModalMode(mode);
     setModalReason("");
+    setRejectOption("reject_final"); // Reset to default
     setModalOpen(true);
   };
 
@@ -297,11 +416,27 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
     try {
       const empId = Number(item.employee_id || item.employeeId || item.employee_id_pk || item.emp_id);
       if (!empId || Number.isNaN(empId)) throw new Error("Invalid employee id");
-      const res = await apiClient<any>(`/organization/employees/${empId}`, { method: "GET", withAuth: true });
-      const data = (res?.data ?? res) as Record<string, any>;
-      setViewData(data || {});
+
+      const [empRes, timelineRes] = await Promise.allSettled([
+        apiClient<any>(`/organization/employees/${empId}`, { method: "GET", withAuth: true }),
+        apiClient<any>(`/leaves/requests/${item.id}/timeline`, { method: "GET", withAuth: true })
+      ]);
+
+      const data: Record<string, any> = {};
+
+      if (empRes.status === 'fulfilled' && empRes.value) {
+        Object.assign(data, empRes.value.data ?? empRes.value);
+      }
+
+      if (timelineRes.status === 'fulfilled' && timelineRes.value) {
+        data.timeline = timelineRes.value.timeline || [];
+      } else {
+        data.timeline = [];
+      }
+
+      setViewData(data);
     } catch (e: any) {
-      setViewError(e?.message || "Failed to load employee details");
+      setViewError(e?.message || "Failed to load details");
     } finally {
       setViewLoading(false);
     }
@@ -323,29 +458,77 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
     }
     const reason = modalReason.trim();
     if (!reason) return;
-    await reject(id, reason);
+    await reject(id, reason, rejectOption);
     closeModal();
   };
 
-  // Add Leave functions
+  // Add Leave functions - Optimized for 500+ users
+  const fetchEmployeesForLeave = async () => {
+    try {
+      setEmployeesLoading(true);
+      const params: Record<string, string> = {
+        page: String(employeePage),
+        limit: String(employeePageSize),
+      };
+
+      if (employeeSearch) params.search = employeeSearch;
+      if (employeeDepartmentFilter) params.department = employeeDepartmentFilter;
+
+      const res = await apiClient<any>("/organization/employees", {
+        method: "GET",
+        withAuth: true,
+        params
+      });
+
+      const list = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []);
+      setEmployees(list);
+      setEmployeesTotal(res?.total || list.length);
+    } catch (e) {
+      console.error("Failed to fetch employees", e);
+      setEmployees([]);
+    } finally {
+      setEmployeesLoading(false);
+    }
+  };
+
   const openAddLeaveModal = async () => {
     setAddLeaveOpen(true);
+    setEmployeePage(1);
+    setEmployeeSearch("");
+    setEmployeeDepartmentFilter("");
+
+    // Fetch initial employees
     if (employees.length === 0) {
+      await fetchEmployeesForLeave();
+    }
+
+    // Fetch departments for filter
+    if (departments.length === 0) {
       try {
-        const res = await apiClient<any>("/organization/employees", { method: "GET", withAuth: true });
-        const list = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []);
-        setEmployees(list);
+        const res = await apiClient<any>("/organization/departments", { method: "GET", withAuth: true });
+        const depts = Array.isArray(res?.data) ? res.data.map((d: any) => d.name || d) : [];
+        setDepartments(depts);
       } catch (e) {
-        console.error("Failed to fetch employees", e);
+        console.error("Failed to fetch departments", e);
       }
     }
+
+    // Fetch leave types dynamically
     if (leaveTypes.length === 0) {
       try {
         const res = await apiClient<any>("/leaves/types", { method: "GET", withAuth: true });
-        const types = Array.isArray(res?.types) ? res.types.map((t: any) => t.name || t) : [];
-        setLeaveTypes(types.length > 0 ? types : ["Casual Leave", "Sick Leave", "Earned Leave"]);
+        const types = Array.isArray(res?.types) ? res.types : [];
+        setLeaveTypes(types.length > 0 ? types : [
+          { id: 1, name: "Casual Leave" },
+          { id: 2, name: "Sick Leave" },
+          { id: 3, name: "Earned Leave" }
+        ]);
       } catch (e) {
-        setLeaveTypes(["Casual Leave", "Sick Leave", "Earned Leave"]);
+        setLeaveTypes([
+          { id: 1, name: "Casual Leave" },
+          { id: 2, name: "Sick Leave" },
+          { id: 3, name: "Earned Leave" }
+        ]);
       }
     }
   };
@@ -353,37 +536,72 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
   const closeAddLeaveModal = () => {
     setAddLeaveOpen(false);
     setAddLeaveForm({
-      employee_id: "",
+      employee_ids: [],
       leave_type: "",
       start_date: "",
       end_date: "",
       session: "Full Day",
       reason: "",
     });
+    setSelectedEmployees([]);
+    setLeaveBalances({});
+    setEmployeeSearch("");
+    setEmployeeDepartmentFilter("");
+    setEmployeePage(1);
+  };
+
+
+  // Fetch leave balances for selected employees
+  const fetchLeaveBalances = async (employeeIds: string[], leaveType: string) => {
+    try {
+      const res = await apiClient<any>("/leaves/balance", {
+        method: "POST",
+        body: { employee_ids: employeeIds, leave_type: leaveType },
+        withAuth: true
+      });
+
+      const balances: Record<string, number> = {};
+      res.balances?.forEach((b: any) => {
+        balances[`${b.employee_id}_${b.leave_type}`] = b.balance || 0;
+      });
+      setLeaveBalances(balances);
+    } catch (e) {
+      console.error("Failed to fetch leave balances", e);
+    }
   };
 
   const submitAddLeave = async () => {
     try {
-      if (!addLeaveForm.employee_id || !addLeaveForm.leave_type || !addLeaveForm.start_date || !addLeaveForm.end_date) {
+      if (addLeaveForm.employee_ids.length === 0 || !addLeaveForm.leave_type || !addLeaveForm.start_date || !addLeaveForm.end_date) {
         showNotification("Please fill all required fields", "error");
         return;
       }
 
+      // Note: Balance check is now done in button disabled state, so we can proceed directly
+
       setActionLoading("add_leave");
-      await apiClient("/leaves/apply", {
-        method: "POST",
-        body: {
-          employee_id: Number(addLeaveForm.employee_id),
-          leave_type: addLeaveForm.leave_type,
-          start_date: addLeaveForm.start_date,
-          end_date: addLeaveForm.end_date,
-          session: addLeaveForm.session,
-          reason: addLeaveForm.reason,
-          auto_approve: true,
-        },
-        withAuth: true,
-      });
-      showNotification("Leave added and approved successfully", "success");
+
+      // Submit for each employee
+      const promises = addLeaveForm.employee_ids.map(empId =>
+        apiClient("/leaves/apply", {
+          method: "POST",
+          body: {
+            employee_id: Number(empId),
+            leave_type: addLeaveForm.leave_type,
+            start_date: addLeaveForm.start_date,
+            end_date: addLeaveForm.end_date,
+            session: addLeaveForm.session,
+            reason: addLeaveForm.reason,
+            auto_approve: true,
+            is_comp_off: addLeaveForm.leave_type === 'Comp-off',
+            admin_granted: addLeaveForm.leave_type === 'Comp-off',
+          },
+          withAuth: true,
+        })
+      );
+
+      await Promise.all(promises);
+      showNotification(`Leave added and approved successfully for ${addLeaveForm.employee_ids.length} employee(s)`, "success");
       closeAddLeaveModal();
       fetchList();
     } catch (e: any) {
@@ -393,13 +611,20 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
     }
   };
 
-  const calculateDuration = (start: string, end: string): number => {
+  const calculateDuration = (start: string, end: string, session: string = 'Full Day'): number => {
     if (!start || !end) return 0;
     const s = new Date(start);
     const e = new Date(end);
     if (isNaN(s.getTime()) || isNaN(e.getTime())) return 0;
     const diff = Math.ceil((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    return Math.max(0, diff);
+    const days = Math.max(0, diff);
+
+    // If single day and Morning/Afternoon session, return 0.5
+    if (days === 1 && (session === 'Morning' || session === 'Afternoon')) {
+      return 0.5;
+    }
+
+    return days;
   };
 
   const createNotificationContainer = () => {
@@ -484,6 +709,32 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
     }
   };
 
+  // Timeline Countdown Component
+  const TimelineCountdown = ({ item }: { item: LeaveItem }) => {
+    const countdown = useCountdown(item.level_started_at, item.timeline_hours);
+
+    if (!item.is_timeline_required || !countdown || !item.timeline_hours) return null;
+
+    const isUrgent = countdown.hours === 0 && countdown.minutes < 30;
+    const isExpired = countdown.expired;
+
+    return (
+      <div className={`text-xs mt-1 font-medium ${isExpired ? 'text-red-600' : isUrgent ? 'text-orange-600' : 'text-blue-600'}`}>
+        {isExpired ? (
+          <span className="flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            Time expired
+          </span>
+        ) : (
+          <span className="flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            {countdown.hours}h {countdown.minutes}m {countdown.seconds}s left
+          </span>
+        )}
+      </div>
+    );
+  };
+
   // Action Dropdown Component
   const ActionDropdown = ({ item }: { item: LeaveItem }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -551,7 +802,8 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                   <span>View Details</span>
                 </button>
 
-                {statusLower === "pending" && (!isEmployee || hasPerm("LEAVE_APPROVE")) && (
+                {/* Only show approve/reject if backend says user can approve */}
+                {statusLower === "pending" && item.can_approve === true && (
                   <>
                     <div className="border-t border-gray-100 my-1" />
                     <button
@@ -585,13 +837,13 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
     );
   };
 
-  // Modal Components
-  const ApproveRejectModal = () => {
+  // Modal Components - Memoized to prevent re-creation and focus loss
+  const ApproveRejectModal = React.useMemo(() => {
     if (!modalOpen || !activeItem) return null;
 
     return (
       <div className="fixed inset-0 bg-opacity-20 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-        <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+        <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
           <div className="p-6 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <h3 className="text-xl font-semibold text-gray-900">
@@ -606,8 +858,8 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
             </div>
           </div>
 
-          <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-            <div className="space-y-6">
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="space-y-6 pb-6">
               <div className="bg-gray-50 rounded-lg p-4">
                 <h4 className="text-sm font-medium text-gray-900 mb-2">Leave Request Details</h4>
                 <div className="grid grid-cols-2 gap-4 text-sm">
@@ -637,22 +889,94 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                 </div>
               </div>
 
+              {/* Approval Timeline for workflow-based leaves */}
+              {activeItem?.workflow_id && activeItem?.approval_timeline && (
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="text-sm font-medium text-gray-900 mb-3">Approval Workflow</h4>
+                  <div className="space-y-3">
+                    {activeItem.approval_timeline.map((level: any, index: number) => (
+                      <div key={index} className="flex items-start space-x-3">
+                        <div className="flex-shrink-0 mt-1">
+                          {level.action === 'approved' ? (
+                            <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
+                              <Check className="w-4 h-4 text-green-600" />
+                            </div>
+                          ) : level.action === 'rejected' ? (
+                            <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center">
+                              <X className="w-4 h-4 text-red-600" />
+                            </div>
+                          ) : level.action === 'cancelled' ? (
+                            <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center">
+                              <X className="w-4 h-4 text-gray-600" />
+                            </div>
+                          ) : (
+                            <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
+                              <Clock className="w-4 h-4 text-blue-600" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium text-gray-900">
+                              Level {level.level_number}: {level.approver_names || level.role_name || 'Pending'}
+                            </p>
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${level.action === 'approved' ? 'bg-green-100 text-green-800' :
+                              level.action === 'rejected' ? 'bg-red-100 text-red-800' :
+                                level.action === 'cancelled' ? 'bg-gray-100 text-gray-800' :
+                                  'bg-blue-100 text-blue-800'
+                              }`}>
+                              {level.action === 'pending' ? 'Pending' : level.action.charAt(0).toUpperCase() + level.action.slice(1)}
+                            </span>
+                          </div>
+                          {level.remarks && (
+                            <p className="text-xs text-gray-500 mt-1">Remarks: {level.remarks}</p>
+                          )}
+                          {level.action_taken_at && (
+                            <p className="text-xs text-gray-400 mt-1">
+                              {new Date(level.action_taken_at).toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Attachment Display */}
+              {activeItem?.attachment_url && (
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="text-sm font-medium text-gray-900 mb-2">Attachment</h4>
+                  <a
+                    href={activeItem.attachment_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 hover:underline"
+                  >
+                    <FileText className="w-4 h-4" />
+                    View Attachment
+                  </a>
+                </div>
+              )}
+
               {modalMode === "reject" && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Rejection Reason *</label>
-                  <textarea
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                    rows={4}
-                    value={modalReason}
-                    onChange={(e) => setModalReason(e.target.value)}
-                    placeholder="Please provide a reason for rejecting this leave request..."
-                  />
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Rejection Reason *</label>
+                    <textarea
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      rows={4}
+                      value={modalReason}
+                      onChange={(e) => setModalReason(e.target.value)}
+                      placeholder="Please provide a reason for rejecting this leave request..."
+                    />
+                  </div>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="p-6 border-t border-gray-200 flex justify-end space-x-3">
+          <div className="shrink-0 p-6 border-t border-gray-200 flex justify-end space-x-3">
             <button
               onClick={closeModal}
               className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
@@ -673,7 +997,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
         </div>
       </div>
     );
-  };
+  }, [modalOpen, activeItem, modalMode, modalReason]);
 
   const DetailsViewModal = () => {
     if (!viewOpen || !activeItem) return null;
@@ -754,6 +1078,18 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                           <span className="text-sm text-gray-600">End Date:</span>
                           <p className="font-medium">{formatDateHuman(activeItem.end_date || activeItem.to)}</p>
                         </div>
+                        <div>
+                          <span className="text-sm text-gray-600">Status:</span>
+                          <p className="font-medium">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${activeItem.status?.toLowerCase() === 'approved' ? 'bg-green-100 text-green-800' :
+                              activeItem.status?.toLowerCase() === 'rejected' ? 'bg-red-100 text-red-800' :
+                                activeItem.status?.toLowerCase() === 'cancelled' ? 'bg-gray-100 text-gray-800' :
+                                  'bg-yellow-100 text-yellow-800'
+                              }`}>
+                              {String(activeItem.status || 'Pending')}
+                            </span>
+                          </p>
+                        </div>
                       </div>
 
                       {activeItem.reason && (
@@ -762,6 +1098,147 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                           <p className="text-sm mt-1">{String(activeItem.reason)}</p>
                         </div>
                       )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Attachment Display in Details View */}
+                {activeItem?.attachment_url && (
+                  <div className="mt-6">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-4">Attachment</h4>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <img
+                        src={activeItem.attachment_url}
+                        alt="Leave attachment"
+                        className="max-w-full h-auto rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => window.open(activeItem.attachment_url, '_blank')}
+                        onError={(e) => {
+                          // If image fails to load, show a link instead
+                          e.currentTarget.style.display = 'none';
+                          const link = document.createElement('a');
+                          link.href = activeItem.attachment_url || '';
+                          link.target = '_blank';
+                          link.rel = 'noopener noreferrer';
+                          link.className = 'inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 hover:underline';
+                          link.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>View Attachment';
+                          e.currentTarget.parentElement?.appendChild(link);
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Approval Timeline */}
+                {viewData?.timeline && Array.isArray(viewData.timeline) && viewData.timeline.length > 0 && (
+                  <div className="mt-6">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-4">Approval Timeline</h4>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200 border border-gray-200 rounded-lg">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Level
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Approver(s)
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Status
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Date/Time
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Comments
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {viewData.timeline.map((step: any, idx: number) => {
+                            let statusColor = 'bg-gray-100 text-gray-600';
+                            let rowBg = '';
+                            const stepStatus = (step.status || 'pending').toLowerCase();
+
+                            if (stepStatus === 'approved') {
+                              statusColor = 'bg-green-100 text-green-700';
+                            } else if (stepStatus === 'rejected') {
+                              statusColor = 'bg-red-100 text-red-700';
+                            } else if (stepStatus === 'timeline_expired' || stepStatus === 'auto_escalated') {
+                              statusColor = 'bg-yellow-100 text-yellow-700';
+                            } else if (step.is_current) {
+                              statusColor = 'bg-blue-100 text-blue-700';
+                              rowBg = 'bg-blue-50';
+                            }
+
+                            return (
+                              <tr key={idx} className={rowBg}>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <div className="flex items-center">
+                                    <div className={`w-2 h-2 rounded-full mr-2 ${step.is_current ? 'bg-blue-500' : 'bg-gray-300'}`}></div>
+                                    <div>
+                                      <div className="text-sm font-medium text-gray-900">
+                                        Level {step.level}
+                                      </div>
+                                      <div className="text-xs text-gray-500">
+                                        {step.level_name || '-'}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="text-sm text-gray-900">
+                                    {step.approver_name || 'Pending Assignment'}
+                                  </div>
+                                  {step.approver_type === 'role' && (
+                                    <div className="text-xs text-gray-500 mt-1">
+                                      Role-based approval
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full capitalize ${statusColor}`}>
+                                    {stepStatus.replace(/_/g, ' ')}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                  {step.action_taken_at ? (
+                                    <div>
+                                      <div className="text-sm">
+                                        {new Date(step.action_taken_at).toLocaleDateString()}
+                                      </div>
+                                      <div className="text-xs text-gray-400 ml-1">
+                                        {new Date(step.action_taken_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                      </div>
+                                    </div>
+                                  ) : step.timeline_started_at ? (
+                                    <div>
+                                      <div className="text-xs text-gray-400">
+                                        Started: {new Date(step.timeline_started_at).toLocaleDateString()}
+                                      </div>
+                                      <div className="text-xs text-gray-400 ml-1">
+                                        {new Date(step.timeline_started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                      </div>
+                                      {step.timeline_due_at && step.status === 'pending' && activeItem.status?.toLowerCase() === 'pending' && (
+                                        <div className="mt-1">
+                                          <div className="text-xs text-blue-600 font-medium">
+                                            Due: {new Date(step.timeline_due_at).toLocaleDateString()}
+                                          </div>
+                                          <div className="text-xs text-blue-500 ml-1">
+                                            {new Date(step.timeline_due_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : '-'}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-500">
+                                  {step.comments || '-'}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 )}
@@ -782,10 +1259,10 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
     );
   };
 
-  const AddLeaveModal = () => {
+  const AddLeaveModal = React.useMemo(() => {
     if (!addLeaveOpen) return null;
 
-    const duration = calculateDuration(addLeaveForm.start_date, addLeaveForm.end_date);
+    const duration = calculateDuration(addLeaveForm.start_date, addLeaveForm.end_date, addLeaveForm.session);
 
     return (
       <div className="fixed inset-0 bg-opacity-20 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
@@ -806,20 +1283,119 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Employee <span className="text-red-500">*</span>
+                  Employees <span className="text-red-500">*</span>
                 </label>
+
+                {/* Search Input */}
+                <input
+                  type="text"
+                  value={employeeSearch}
+                  onChange={(e) => {
+                    setEmployeeSearch(e.target.value);
+                    setEmployeePage(1);
+                  }}
+                  placeholder="Search by name, email, or phone..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 mb-2 text-sm"
+                />
+
+                {/* Department Filter */}
                 <select
-                  value={addLeaveForm.employee_id}
-                  onChange={(e) => setAddLeaveForm({ ...addLeaveForm, employee_id: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  value={employeeDepartmentFilter}
+                  onChange={(e) => {
+                    setEmployeeDepartmentFilter(e.target.value);
+                    setEmployeePage(1);
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 mb-2 text-sm"
                 >
-                  <option value="">Select Employee</option>
-                  {employees.map((emp) => (
-                    <option key={emp.id} value={emp.id}>
-                      {emp.name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim()} - {emp.employee_id || emp.id}
-                    </option>
+                  <option value="">All Departments</option>
+                  {departments.map(dept => (
+                    <option key={dept} value={dept}>{dept}</option>
                   ))}
                 </select>
+
+                {/* Employee List with Checkboxes */}
+                <div className="border border-gray-300 rounded-lg max-h-60 overflow-y-auto">
+                  {employeesLoading ? (
+                    <div className="p-4 text-center text-sm text-gray-500">Loading employees...</div>
+                  ) : employees.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-gray-500">No employees found</div>
+                  ) : (
+                    employees.map(emp => (
+                      <label key={emp.id} className="flex items-center p-2 hover:bg-gray-50 cursor-pointer border-b last:border-b-0">
+                        <input
+                          type="checkbox"
+                          checked={addLeaveForm.employee_ids.includes(String(emp.id))}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setAddLeaveForm(prev => ({
+                                ...prev,
+                                employee_ids: [...prev.employee_ids, String(emp.id)]
+                              }));
+                              setSelectedEmployees(prev => [...prev, emp]);
+                            } else {
+                              setAddLeaveForm(prev => ({
+                                ...prev,
+                                employee_ids: prev.employee_ids.filter(id => id !== String(emp.id))
+                              }));
+                              setSelectedEmployees(prev => prev.filter(e => e.id !== emp.id));
+                            }
+                          }}
+                          className="mr-2 rounded"
+                        />
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-gray-900">{emp.name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim()}</div>
+                          <div className="text-xs text-gray-500">{emp.department || 'N/A'} • #{emp.employee_id || emp.id}</div>
+                        </div>
+                      </label>
+                    ))
+                  )}
+                </div>
+
+                {/* Pagination */}
+                <div className="flex items-center justify-between mt-2 text-xs text-gray-600">
+                  <span>
+                    {selectedEmployees.length} selected • Page {employeePage} of {Math.ceil(employeesTotal / employeePageSize) || 1}
+                  </span>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setEmployeePage(p => Math.max(1, p - 1))}
+                      disabled={employeePage === 1}
+                      className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      onClick={() => setEmployeePage(p => p + 1)}
+                      disabled={employeePage >= Math.ceil(employeesTotal / employeePageSize)}
+                      className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+
+                {/* Selected Employees Tags */}
+                {selectedEmployees.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {selectedEmployees.map(emp => (
+                      <span key={emp.id} className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                        {emp.name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim()}
+                        <button
+                          onClick={() => {
+                            setAddLeaveForm(prev => ({
+                              ...prev,
+                              employee_ids: prev.employee_ids.filter(id => id !== String(emp.id))
+                            }));
+                            setSelectedEmployees(prev => prev.filter(e => e.id !== emp.id));
+                          }}
+                          className="ml-1 hover:text-blue-900"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -828,16 +1404,42 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                 </label>
                 <select
                   value={addLeaveForm.leave_type}
-                  onChange={(e) => setAddLeaveForm({ ...addLeaveForm, leave_type: e.target.value })}
+                  onChange={async (e) => {
+                    setAddLeaveForm({ ...addLeaveForm, leave_type: e.target.value });
+
+                    // Fetch balance for selected employees if not comp-off
+                    if (e.target.value && e.target.value !== 'Comp-off' && addLeaveForm.employee_ids.length > 0) {
+                      await fetchLeaveBalances(addLeaveForm.employee_ids, e.target.value);
+                    }
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">Select Leave Type</option>
+                  <option value="Comp-off">Comp-off (No balance required)</option>
                   {leaveTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
+                    <option key={type.id || type.name} value={type.name}>
+                      {type.name}
                     </option>
                   ))}
                 </select>
+
+                {/* Balance Warning */}
+                {addLeaveForm.leave_type && addLeaveForm.leave_type !== 'Comp-off' && selectedEmployees.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {selectedEmployees.map(emp => {
+                      const balance = leaveBalances[`${emp.id}_${addLeaveForm.leave_type}`] || 0;
+                      const duration = calculateDuration(addLeaveForm.start_date, addLeaveForm.end_date, addLeaveForm.session);
+                      const insufficient = balance < duration;
+
+                      return (
+                        <div key={emp.id} className={`text-xs p-2 rounded ${insufficient ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>
+                          <span className="font-medium">{emp.name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim()}:</span> {balance} days available
+                          {insufficient && duration > 0 && ` (Need ${duration} days)`}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -866,26 +1468,26 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                 </div>
               </div>
 
-              {/* Session Selector - Only for single-day leaves */}
-              {duration === 1 && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Session
-                  </label>
-                  <select
-                    value={addLeaveForm.session}
-                    onChange={(e) => setAddLeaveForm({ ...addLeaveForm, session: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="Full Day">Full Day</option>
-                    <option value="Morning">Morning Session (Half Day)</option>
-                    <option value="Afternoon">Afternoon Session (Half Day)</option>
-                  </select>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Select Morning or Afternoon for half-day leave
-                  </p>
-                </div>
-              )}
+              {/* Session Selector - Always visible */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Session
+                </label>
+                <select
+                  value={addLeaveForm.session}
+                  onChange={(e) => setAddLeaveForm({ ...addLeaveForm, session: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="Full Day">Full Day</option>
+                  <option value="Morning">Morning Session (Half Day)</option>
+                  <option value="Afternoon">Afternoon Session (Half Day)</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  {duration === 1
+                    ? "Select Morning or Afternoon for half-day leave"
+                    : "Half-day sessions only apply to single-day leaves"}
+                </p>
+              </div>
 
               {duration > 0 && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
@@ -923,8 +1525,30 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
             </button>
             <button
               onClick={submitAddLeave}
-              disabled={actionLoading === "add_leave"}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center space-x-2"
+              disabled={(() => {
+                // Disable if loading
+                if (actionLoading === "add_leave") return true;
+
+                // Disable if no employees selected
+                if (addLeaveForm.employee_ids.length === 0) return true;
+
+                // Disable if required fields missing
+                if (!addLeaveForm.leave_type || !addLeaveForm.start_date || !addLeaveForm.end_date) return true;
+
+                // For non-comp-off leaves, check balance
+                if (addLeaveForm.leave_type !== 'Comp-off') {
+                  const duration = calculateDuration(addLeaveForm.start_date, addLeaveForm.end_date, addLeaveForm.session);
+                  const hasInsufficientBalance = addLeaveForm.employee_ids.some(empId => {
+                    const balance = leaveBalances[`${empId}_${addLeaveForm.leave_type}`] || 0;
+                    return balance < duration;
+                  });
+
+                  if (hasInsufficientBalance) return true;
+                }
+
+                return false;
+              })()}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
             >
               {actionLoading === "add_leave" ? (
                 <>
@@ -942,7 +1566,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
         </div>
       </div>
     );
-  };
+  }, [addLeaveOpen, addLeaveForm, employees, leaveTypes, actionLoading, employeeSearch, employeeDepartmentFilter, employeePage, selectedEmployees, leaveBalances, employeesLoading, employeesTotal, departments]);
 
   // Loading State
   if (loading && items.length === 0) {
@@ -985,7 +1609,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
             </div>
           </div>
           <div className="divide-y divide-gray-200">
-            {[...Array(5)].map((_, i) => (
+            {[...Array(10)].map((_, i) => (
               <div key={i} className="grid grid-cols-7 gap-4 px-4 py-3 animate-pulse">
                 <div className="space-y-2">
                   <div className="h-4 bg-gray-200 rounded w-32"></div>
@@ -1031,9 +1655,9 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
   return (
     <div className="space-y-4">
       {/* Render modals */}
-      <ApproveRejectModal />
+      {ApproveRejectModal}
       <DetailsViewModal />
-      <AddLeaveModal />
+      {AddLeaveModal}
 
       {/* Header */}
       <div className="bg-white rounded-xl border border-gray-200 p-2">
@@ -1042,6 +1666,28 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
             <h1 className="text-xl font-bold text-gray-900">Leave Requests</h1>
           </div>
           <div className="flex items-center space-x-3">
+            {/* Workflow Settings Button */}
+            {(hasPerm("LEAVE_ADD") || isOrgAdmin) && (
+              <button
+                onClick={() => setWorkflowConfigOpen(true)}
+                className="flex items-center gap-2 px-4 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700"
+                title="Configure Approval Workflows"
+              >
+                <Settings className="w-4 h-4" />
+                <span>Workflows</span>
+              </button>
+            )}
+
+            {/* Refresh Button */}
+            <button
+              onClick={fetchList}
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium text-gray-700"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </button>
+
             {!externalControl && showHQToggle && canHRMode && !isOrgAdmin && (
               <label className="inline-flex items-center gap-2 text-sm text-gray-700 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
                 <input
@@ -1054,6 +1700,19 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                 <span>HR Mode</span>
               </label>
             )}
+
+            {/* Status Filter */}
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+            >
+              <option value="All">All Status</option>
+              <option value="Pending">Pending</option>
+              <option value="Approved">Approved</option>
+              <option value="Rejected">Rejected</option>
+            </select>
+
             {!externalControl && (
               <select
                 className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
@@ -1106,18 +1765,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
         {/* Collapsible Filters */}
         {filtersExpanded && (
           <div className="mt-4 pt-4 border-t border-gray-200">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
-              >
-                <option value="All">All Status</option>
-                <option value="Pending">Pending</option>
-                <option value="Approved">Approved</option>
-                <option value="Rejected">Rejected</option>
-              </select>
-
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-3">
               <input
                 type="date"
                 className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
@@ -1137,8 +1785,8 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
               <div className="flex items-center space-x-2"></div>
             </div>
 
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="md:col-span-4 flex items-center space-x-2">
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="md:col-span-2 flex items-center space-x-2">
                 <button
                   onClick={fetchList}
                   className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm flex-1"
@@ -1246,6 +1894,9 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                   Status
                 </th>
                 <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Current Approver
+                </th>
+                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Reason
                 </th>
                 <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1298,6 +1949,27 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                           {statusLower}
                         </span>
                       </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {item.workflow_id && item.workflow_status === 'in_progress' ? (
+                        <div className="text-sm">
+                          <div className="font-medium text-gray-900">Level {item.current_level || 1}</div>
+                          <div className="text-xs text-gray-500">
+                            {item.current_approver_names || 'Pending assignment'}
+                          </div>
+                          <TimelineCountdown item={item} />
+                        </div>
+                      ) : item.workflow_id && item.workflow_status === 'approved' ? (
+                        <span className="text-xs text-green-600">✓ Approved</span>
+                      ) : item.workflow_id && item.workflow_status === 'rejected' ? (
+                        <span className="text-xs text-red-600">✗ Rejected</span>
+                      ) : item.workflow_id && item.workflow_status === 'cancelled' ? (
+                        <span className="text-xs text-gray-500">Cancelled</span>
+                      ) : statusLower === 'approved' && item.approver_name ? (
+                        <span className="text-xs text-gray-700">{item.approver_name}</span>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       {reason ? (
@@ -1432,6 +2104,27 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
               >
                 <ChevronRight className="w-3 h-3" />
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Workflow Configuration Modal */}
+      {workflowConfigOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setWorkflowConfigOpen(false)} />
+          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-6xl border border-gray-200 my-8">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-900">Leave Approval Workflows</h2>
+              <button
+                onClick={() => setWorkflowConfigOpen(false)}
+                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+            <div className="p-6">
+              <LeaveWorkflowConfig />
             </div>
           </div>
         </div>
