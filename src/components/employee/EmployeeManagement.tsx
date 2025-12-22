@@ -933,6 +933,41 @@ export default function EmployeeManagement() {
     }
   };
 
+  const handleBulkInvite = async () => {
+    try {
+      // Get all invited employees
+      const invitedEmployees = employees.filter(emp => emp.status?.toLowerCase() === 'invited');
+
+      if (invitedEmployees.length === 0) {
+        showNotification("No invited employees found", "error");
+        return;
+      }
+
+      if (!confirm(`Are you sure you want to send invitations to ${invitedEmployees.length} employee(s)?`)) {
+        return;
+      }
+
+      setActionLoading("bulk-invite");
+      const employee_ids = invitedEmployees.map(emp => emp.id);
+
+      const response = await apiClient<{ success: boolean; message: string; results: any }>(
+        '/organization/employees/bulk-resend-invitations',
+        {
+          method: "POST",
+          body: { employee_ids }
+        }
+      );
+
+      showNotification(response.message || "Bulk invitations sent successfully", "success");
+      await fetchEmployees();
+    } catch (e: any) {
+      showNotification(e.message || "Failed to send bulk invitations", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+
   const handleToggleStatus = async (id: number, currentStatus: string) => {
     // If invited, we might be activating them manually or deactivating?
     // "make inactive active" -> toggle Active <-> Inactive.
@@ -1408,8 +1443,20 @@ export default function EmployeeManagement() {
             {(isOrgAdmin || hasPerm("EMP_ADD")) && (
               <>
                 <button
-                  onClick={() => window.location.href = isOrgAdmin ? '/org-admin/employees/import' : '/employee/employees/import'}
+                  onClick={() => {
+                    const link = document.createElement('a');
+                    link.href = '/api/v1/organization/employees/import/template';
+                    link.download = 'employee_import_template.xlsx';
+                    link.click();
+                  }}
                   className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-1 text-sm"
+                >
+                  <Download className="w-4 h-4" />
+                  <span className="hidden sm:inline">Template</span>
+                </button>
+                <button
+                  onClick={() => document.getElementById('import-file-input')?.click()}
+                  className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center space-x-1 text-sm"
                 >
                   <Upload className="w-4 h-4" />
                   <span className="hidden sm:inline">Import</span>
@@ -1421,6 +1468,25 @@ export default function EmployeeManagement() {
                   <Clock className="w-4 h-4" />
                   <span className="hidden sm:inline">Shifts</span>
                 </button>
+
+                {/* Bulk Invite Button - Show only if there are invited employees */}
+                {employees.filter(emp => emp.status?.toLowerCase() === 'invited').length > 0 && (
+                  <button
+                    onClick={handleBulkInvite}
+                    disabled={actionLoading === "bulk-invite"}
+                    className="px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center space-x-1 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {actionLoading === "bulk-invite" ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Mail className="w-4 h-4" />
+                    )}
+                    <span className="hidden sm:inline">
+                      Bulk Invite ({employees.filter(emp => emp.status?.toLowerCase() === 'invited').length})
+                    </span>
+                  </button>
+                )}
+
                 <button
                   onClick={() => {
                     resetForm();
