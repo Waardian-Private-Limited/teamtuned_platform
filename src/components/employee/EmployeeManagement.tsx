@@ -245,12 +245,14 @@ export default function EmployeeManagement() {
   const [filterDeptId, setFilterDeptId] = useState<number | "">("");
   const [filterRoleId, setFilterRoleId] = useState<number | "">("");
   const [filterSiteId, setFilterSiteId] = useState<number | "">("");
+  const [filterGender, setFilterGender] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [filtersExpanded, setFiltersExpanded] = useState<boolean>(false);
 
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [saving, setSaving] = useState<boolean>(false);
   const [totalEntries, setTotalEntries] = useState<number>(0);
+
 
   const totalCount = useCountUp(totalEntries || 0);
   const deptCount = useCountUp(departments.length || 0);
@@ -652,7 +654,9 @@ export default function EmployeeManagement() {
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
       if (typeof filterDeptId === "number") params.set("department_id", String(filterDeptId));
       if (typeof filterRoleId === "number") params.set("role_id", String(filterRoleId));
+      if (filterGender !== "all") params.set("gender", filterGender);
       if (statusFilter !== "all") params.set("status", statusFilter);
+
 
       const data = await apiClient<{ data: Employee[]; total: number; page: number; limit: number; hasNext: boolean }>(`/organization/employees?${params.toString()}`, { method: "GET" });
       // API returns 'data' key for array, but we were looking for 'items'.
@@ -705,7 +709,8 @@ export default function EmployeeManagement() {
   useEffect(() => {
     fetchEmployees();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, filterDeptId, filterRoleId, filterSiteId, page, pageSize, statusFilter]);
+  }, [searchQuery, filterDeptId, filterRoleId, filterSiteId, filterGender, page, pageSize, statusFilter]);
+
 
   useEffect(() => {
     fetchDropdowns();
@@ -1550,6 +1555,18 @@ export default function EmployeeManagement() {
                 <option value="all">All Status</option>
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
+                <option value="invited">Invited</option>
+              </select>
+
+              <select
+                value={filterGender}
+                onChange={(e) => { setFilterGender(e.target.value); setPage(1); }}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+              >
+                <option value="all">All Genders</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
               </select>
             </div>
 
