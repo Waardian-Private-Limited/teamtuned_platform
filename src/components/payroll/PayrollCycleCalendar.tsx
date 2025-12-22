@@ -707,30 +707,17 @@ function CustomCalculatorModal({
     try {
       if (!employeeId) throw new Error("Missing employee id");
 
-      // Use the same cycle dates from payrollData
-      const cycleStart = payrollData?.cycle_start || '';
-      const cycleEnd = payrollData?.cycle_end || '';
+      // Calculate payable days from metrics
+      const payableDays = metrics.full_days + (metrics.half_days * 0.5) + metrics.paid_leave_days + metrics.week_offs + metrics.holidays;
 
-      // Call backend API with custom metrics
-      // We'll create a new endpoint for this
+      // Call backend API with simplified parameters
       const response = await apiClient<any>("/attendance/payroll-calculate-custom", {
         method: "POST",
         withAuth: true,
         body: {
           employee_id: employeeId,
-          cycle_start: cycleStart,
-          cycle_end: cycleEnd,
-          custom_metrics: {
-            total_days: metrics.total_days,
-            full_days: metrics.full_days,
-            half_days: metrics.half_days,
-            absent_days: metrics.absent_days,
-            paid_leave_days: metrics.paid_leave_days,
-            week_offs: metrics.week_offs,
-            holidays: metrics.holidays,
-            comp_off_days: metrics.comp_off_days,
-            late_days: metrics.late_days
-          }
+          total_days: metrics.total_days,
+          payable_days: payableDays
         }
       });
 
@@ -880,14 +867,15 @@ function CustomCalculatorModal({
 
               {calculatedResults && (
                 <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-4 space-y-3 border border-slate-200">
-                  <ResultRow label="Working Days" value={calculatedResults.metrics?.working_days || 0} />
-                  <ResultRow label="Present Days" value={calculatedResults.metrics?.present_days || 0} />
-                  <ResultRow label="Attendance Ratio" value={`${((calculatedResults.metrics?.present_days / calculatedResults.metrics?.total_days) * 100).toFixed(2)}%`} />
+                  <ResultRow label="Total Days" value={calculatedResults.metrics?.total_days || 0} />
+                  <ResultRow label="Payable Days" value={calculatedResults.metrics?.payable_days || 0} />
+                  <ResultRow label="Proration Ratio" value={`${(calculatedResults.metrics?.proration_ratio * 100).toFixed(2)}%`} />
 
                   <div className="border-t border-slate-300 my-2" />
 
-                  <ResultRow label="Gross Salary" value={`₹${calculatedResults.salary?.gross_salary?.toLocaleString() || '0'}`} highlight />
-                  <ResultRow label="Adjusted Gross" value={`₹${calculatedResults.salary?.adjusted_gross?.toLocaleString() || '0'}`} highlight />
+                  <ResultRow label="Gross Salary (Monthly)" value={`₹${calculatedResults.salary?.gross_salary?.toLocaleString() || '0'}`} highlight />
+                  <ResultRow label="Per Day Gross" value={`₹${calculatedResults.salary?.per_day_gross?.toLocaleString() || '0'}`} />
+                  <ResultRow label="Earned Gross" value={`₹${calculatedResults.salary?.earned_gross?.toLocaleString() || '0'}`} highlight />
 
                   <div className="border-t border-slate-300 my-2" />
 
@@ -897,9 +885,9 @@ function CustomCalculatorModal({
                       onClick={() => setCreditsExpanded(!creditsExpanded)}
                       className="w-full flex items-center justify-between p-2 hover:bg-slate-200/50 rounded-lg transition-colors"
                     >
-                      <span className="text-sm font-semibold text-emerald-700">Total Credits</span>
+                      <span className="text-sm font-semibold text-emerald-700">Total Credits (Earned)</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-emerald-700">₹{calculatedResults.salary?.credit_total?.toLocaleString() || '0'}</span>
+                        <span className="text-sm font-bold text-emerald-700">₹{calculatedResults.salary_breakdown?.filter((b: any) => b.type === 'credit').reduce((sum: number, item: any) => sum + (item.earned_amount || 0), 0).toLocaleString() || '0'}</span>
                         {creditsExpanded ? (
                           <ChevronUp className="w-4 h-4 text-slate-600" />
                         ) : (
@@ -912,7 +900,7 @@ function CustomCalculatorModal({
                         {calculatedResults.salary_breakdown?.filter((b: any) => b.type === 'credit').map((item: any, idx: number) => (
                           <div key={idx} className="flex items-center justify-between text-xs py-1">
                             <span className="text-slate-600">{item.name}</span>
-                            <span className="font-medium text-emerald-600">+₹{item.amount.toLocaleString()}</span>
+                            <span className="font-medium text-emerald-600">+₹{item.earned_amount?.toLocaleString() || '0'}</span>
                           </div>
                         ))}
                       </div>
@@ -927,7 +915,7 @@ function CustomCalculatorModal({
                     >
                       <span className="text-sm font-semibold text-rose-700">All Debits</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-rose-700">₹{calculatedResults.salary?.debit_total?.toLocaleString() || '0'}</span>
+                        <span className="text-sm font-bold text-rose-700">₹{calculatedResults.salary?.additional_debits?.toLocaleString() || '0'}</span>
                         {debitsExpanded ? (
                           <ChevronUp className="w-4 h-4 text-slate-600" />
                         ) : (
@@ -953,7 +941,6 @@ function CustomCalculatorModal({
                   <div className="border-t-2 border-slate-400 my-2" />
 
                   <ResultRow label="Net Payment" value={`₹${calculatedResults.salary?.net_payment?.toLocaleString() || '0'}`} color="blue" highlight large />
-                  <ResultRow label="Bank Payment" value={`₹${calculatedResults.salary?.bank_payment?.toLocaleString() || '0'}`} color="blue" highlight />
                 </div>
               )}
             </div>
