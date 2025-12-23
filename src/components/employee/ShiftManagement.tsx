@@ -43,6 +43,22 @@ export default function ShiftManagement() {
     const [bulkShiftEnd, setBulkShiftEnd] = useState('');
     const [bulkWeekOffs, setBulkWeekOffs] = useState<Set<string>>(new Set());
 
+    // Criteria Bulk Edit State
+    const [showCriteriaBulkEdit, setShowCriteriaBulkEdit] = useState(false);
+    const [sites, setSites] = useState<any[]>([]);
+    const [roles, setRoles] = useState<any[]>([]);
+
+    // Criteria Selections
+    const [criteriaSiteId, setCriteriaSiteId] = useState<string>('');
+    const [criteriaRoleId, setCriteriaRoleId] = useState<string>('');
+    const [criteriaDeptId, setCriteriaDeptId] = useState<string>('');
+    const [criteriaPrimaryOnly, setCriteriaPrimaryOnly] = useState<boolean>(true);
+
+    // Criteria Data
+    const [criteriaShiftStart, setCriteriaShiftStart] = useState('');
+    const [criteriaShiftEnd, setCriteriaShiftEnd] = useState('');
+    const [criteriaWeekOffs, setCriteriaWeekOffs] = useState<Set<string>>(new Set());
+
     // Filters
     const [searchTerm, setSearchTerm] = useState('');
     const [departments, setDepartments] = useState<any[]>([]);
@@ -146,6 +162,37 @@ export default function ShiftManagement() {
         }
     };
 
+    const fetchSites = async () => {
+        try {
+            const data = await apiClient<{ sites: any[] }>('/sites', {
+                method: 'GET',
+                withAuth: true
+            });
+            setSites(data.sites || []);
+        } catch (error) {
+            console.error('Failed to fetch sites:', error);
+        }
+    };
+
+    const fetchRoles = async () => {
+        try {
+            const data = await apiClient<any[]>('/organization/roles', {
+                method: 'GET',
+                withAuth: true
+            });
+            setRoles(data || []);
+        } catch (error) {
+            console.error('Failed to fetch roles:', error);
+        }
+    };
+
+    useEffect(() => {
+        if (showCriteriaBulkEdit) {
+            fetchSites();
+            fetchRoles();
+        }
+    }, [showCriteriaBulkEdit]);
+
     const openEditPopup = (emp: Employee) => {
         setEditingEmployee(emp);
         setEditShiftStart(emp.shift_start_time || '');
@@ -180,6 +227,16 @@ export default function ShiftManagement() {
             newWeekOffs.add(day);
         }
         setBulkWeekOffs(newWeekOffs);
+    };
+
+    const toggleCriteriaWeekOff = (day: string) => {
+        const newWeekOffs = new Set(criteriaWeekOffs);
+        if (newWeekOffs.has(day)) {
+            newWeekOffs.delete(day);
+        } else {
+            newWeekOffs.add(day);
+        }
+        setCriteriaWeekOffs(newWeekOffs);
     };
 
     const saveEdit = async () => {
@@ -267,6 +324,62 @@ export default function ShiftManagement() {
         }
     };
 
+    const applyCriteriaBulkUpdate = async () => {
+        if (!criteriaSiteId && !criteriaRoleId && !criteriaDeptId) {
+            showNotification('Please select at least one criteria (Site, Role, or Department)', 'error');
+            return;
+        }
+
+        if (!criteriaShiftStart && !criteriaShiftEnd && criteriaWeekOffs.size === 0) {
+            showNotification('Please set at least one shift/week-off field to update', 'error');
+            return;
+        }
+
+        try {
+            setSaving(true);
+            const payload = {
+                criteria: {
+                    site_id: criteriaSiteId ? Number(criteriaSiteId) : undefined,
+                    role_id: criteriaRoleId ? Number(criteriaRoleId) : undefined,
+                    department_id: criteriaDeptId ? Number(criteriaDeptId) : undefined,
+                    primary_only: !!criteriaPrimaryOnly
+                },
+                data: {
+                    shift_start_time: criteriaShiftStart || undefined,
+                    shift_end_time: criteriaShiftEnd || undefined,
+                    week_off_days: criteriaWeekOffs.size > 0 ? Array.from(criteriaWeekOffs) : undefined
+                }
+            };
+
+            const response = await apiClient<{ success: boolean; updated: number; message: string }>('/organization/employees/shifts/bulk', {
+                method: 'PUT',
+                body: payload,
+                withAuth: true
+            });
+
+            if (response.success) {
+                await fetchEmployees();
+                setShowCriteriaBulkEdit(false);
+                // Reset fields
+                setCriteriaSiteId('');
+                setCriteriaRoleId('');
+                setCriteriaDeptId('');
+                setCriteriaPrimaryOnly(true);
+                setCriteriaShiftStart('');
+                setCriteriaShiftEnd('');
+                setCriteriaWeekOffs(new Set());
+                showNotification(response.message || 'Bulk update successful', 'success');
+            } else {
+                showNotification('Update failed', 'error');
+            }
+        } catch (error) {
+            console.error('Failed to criteria bulk update:', error);
+            showNotification('Failed to update shifts. Check criteria.', 'error');
+        } finally {
+            setSaving(false);
+        }
+    };
+
     const filteredEmployees = employees.filter(emp => {
         if (!searchTerm) return true;
         const search = searchTerm.toLowerCase();
@@ -349,72 +462,86 @@ export default function ShiftManagement() {
                 </div>
 
                 {/* Bulk Actions */}
-                {selectedIds.size > 0 && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
-                        <div className="flex items-center justify-between mb-3">
-                            <p className="text-blue-900 font-medium">
-                                {selectedIds.size} employee{selectedIds.size > 1 ? 's' : ''} selected
-                            </p>
-                            <button
-                                onClick={() => setShowBulkEdit(!showBulkEdit)}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                            >
-                                {showBulkEdit ? 'Cancel Bulk Edit' : 'Bulk Update'}
-                            </button>
-                        </div>
+                <div className="flex flex-col md:flex-row gap-4 mb-6">
+                    {/* Manual Selection Bulk Action */}
+                    {selectedIds.size > 0 && (
+                        <div className="flex-1 bg-blue-50 border border-blue-200 rounded-xl p-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <p className="text-blue-900 font-medium">
+                                    {selectedIds.size} employee{selectedIds.size > 1 ? 's' : ''} selected
+                                </p>
+                                <button
+                                    onClick={() => setShowBulkEdit(!showBulkEdit)}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                >
+                                    {showBulkEdit ? 'Cancel Manual Edit' : 'Bulk Update Selected'}
+                                </button>
+                            </div>
 
-                        {showBulkEdit && (
-                            <div className="space-y-4 mt-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Shift Start</label>
-                                        <input
-                                            type="time"
-                                            value={bulkShiftStart}
-                                            onChange={(e) => setBulkShiftStart(e.target.value)}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        />
+                            {showBulkEdit && (
+                                <div className="space-y-4 mt-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Shift Start</label>
+                                            <input
+                                                type="time"
+                                                value={bulkShiftStart}
+                                                onChange={(e) => setBulkShiftStart(e.target.value)}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Shift End</label>
+                                            <input
+                                                type="time"
+                                                value={bulkShiftEnd}
+                                                onChange={(e) => setBulkShiftEnd(e.target.value)}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                            />
+                                        </div>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Shift End</label>
-                                        <input
-                                            type="time"
-                                            value={bulkShiftEnd}
-                                            onChange={(e) => setBulkShiftEnd(e.target.value)}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Week Off Days</label>
-                                    <div className="flex flex-wrap gap-2">
-                                        {WEEK_DAYS.map(day => (
-                                            <button
-                                                key={day}
-                                                onClick={() => toggleBulkWeekOff(day)}
-                                                className={`px-4 py-2 rounded-lg border-2 transition-colors ${bulkWeekOffs.has(day)
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Week Off Days</label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {WEEK_DAYS.map(day => (
+                                                <button
+                                                    key={day}
+                                                    onClick={() => toggleBulkWeekOff(day)}
+                                                    className={`px-4 py-2 rounded-lg border-2 transition-colors ${bulkWeekOffs.has(day)
                                                         ? 'bg-blue-600 text-white border-blue-600'
                                                         : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'
-                                                    }`}
-                                            >
-                                                {day}
-                                            </button>
-                                        ))}
+                                                        }`}
+                                                >
+                                                    {day}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-end">
+                                        <button
+                                            onClick={bulkUpdate}
+                                            disabled={saving}
+                                            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 transition-colors flex items-center gap-2"
+                                        >
+                                            {saving ? 'Saving...' : <><Save size={18} /> Apply to Selected</>}
+                                        </button>
                                     </div>
                                 </div>
-                                <div className="flex justify-end">
-                                    <button
-                                        onClick={bulkUpdate}
-                                        disabled={saving}
-                                        className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 transition-colors flex items-center gap-2"
-                                    >
-                                        {saving ? 'Saving...' : <><Save size={18} /> Apply to Selected</>}
-                                    </button>
-                                </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
+                    )}
+
+                    {/* Criteria Bulk Action Button */}
+                    <div className="flex-none">
+                        <button
+                            onClick={() => setShowCriteriaBulkEdit(true)}
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm"
+                        >
+                            <Filter size={18} />
+                            Bulk Update by Criteria
+                        </button>
                     </div>
-                )}
+                </div>
 
                 {/* Table */}
                 <div className="bg-white rounded-xl shadow-sm overflow-hidden mb-4">
@@ -553,8 +680,8 @@ export default function ShiftManagement() {
                                                     key={1}
                                                     onClick={() => setCurrentPage(1)}
                                                     className={`px-2 py-1 rounded text-xs transition-colors ${currentPage === 1
-                                                            ? 'bg-blue-600 text-white'
-                                                            : 'border border-gray-300 hover:bg-gray-50'
+                                                        ? 'bg-blue-600 text-white'
+                                                        : 'border border-gray-300 hover:bg-gray-50'
                                                         }`}
                                                 >
                                                     1
@@ -569,8 +696,8 @@ export default function ShiftManagement() {
                                                     key={pageNum}
                                                     onClick={() => setCurrentPage(pageNum)}
                                                     className={`px-2 py-1 rounded text-xs transition-colors ${currentPage === pageNum
-                                                            ? 'bg-blue-600 text-white'
-                                                            : 'border border-gray-300 hover:bg-gray-50'
+                                                        ? 'bg-blue-600 text-white'
+                                                        : 'border border-gray-300 hover:bg-gray-50'
                                                         }`}
                                                 >
                                                     {pageNum}
@@ -585,8 +712,8 @@ export default function ShiftManagement() {
                                                     key={totalPages}
                                                     onClick={() => setCurrentPage(totalPages)}
                                                     className={`px-2 py-1 rounded text-xs transition-colors ${currentPage === totalPages
-                                                            ? 'bg-blue-600 text-white'
-                                                            : 'border border-gray-300 hover:bg-gray-50'
+                                                        ? 'bg-blue-600 text-white'
+                                                        : 'border border-gray-300 hover:bg-gray-50'
                                                         }`}
                                                 >
                                                     {totalPages}
@@ -687,8 +814,8 @@ export default function ShiftManagement() {
                                             key={day}
                                             onClick={() => toggleWeekOff(day)}
                                             className={`px-4 py-3 rounded-lg border-2 transition-all ${editWeekOffs.has(day)
-                                                    ? 'bg-blue-600 text-white border-blue-600 shadow-md'
-                                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:shadow-sm'
+                                                ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                                                : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:shadow-sm'
                                                 }`}
                                         >
                                             <div className="flex flex-col items-center gap-1">
@@ -730,6 +857,156 @@ export default function ShiftManagement() {
                                         Save Changes
                                     </>
                                 )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Criteria Bulk Edit Modal */}
+            {showCriteriaBulkEdit && (
+                <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+                        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
+                            <h3 className="text-lg font-semibold text-gray-900">Bulk Update by Criteria</h3>
+                            <button
+                                onClick={() => setShowCriteriaBulkEdit(false)}
+                                className="p-2 hover:bg-gray-100 rounded-lg"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-6">
+                            {/* Criteria Section */}
+                            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                                <h4 className="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                                    <Filter size={16} /> Select Target Employees
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    {/* Department */}
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">Department</label>
+                                        <select
+                                            value={criteriaDeptId}
+                                            onChange={(e) => setCriteriaDeptId(e.target.value)}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                        >
+                                            <option value="">Any Department</option>
+                                            {departments.map(d => (
+                                                <option key={d.id} value={d.id}>{d.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Role */}
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">Role</label>
+                                        <select
+                                            value={criteriaRoleId}
+                                            onChange={(e) => setCriteriaRoleId(e.target.value)}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                        >
+                                            <option value="">Any Role</option>
+                                            {roles.map(r => (
+                                                <option key={r.id} value={r.id}>{r.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Site */}
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">Site</label>
+                                        <select
+                                            value={criteriaSiteId}
+                                            onChange={(e) => setCriteriaSiteId(e.target.value)}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                        >
+                                            <option value="">Any Site</option>
+                                            {sites.map(s => (
+                                                <option key={s.id} value={s.id}>{s.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                                {criteriaSiteId && (
+                                    <div className="mt-3 flex items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            id="primaryOnly"
+                                            checked={criteriaPrimaryOnly}
+                                            onChange={(e) => setCriteriaPrimaryOnly(e.target.checked)}
+                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                        <label htmlFor="primaryOnly" className="text-xs text-gray-700">
+                                            Update only if this is their <b>Primary</b> site
+                                        </label>
+                                    </div>
+                                )}
+                            </div>
+
+                            <hr className="border-gray-100" />
+
+                            {/* Data Section */}
+                            <div>
+                                <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                    <Edit2 size={16} /> New Shift Details
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Shift Start</label>
+                                        <input
+                                            type="time"
+                                            value={criteriaShiftStart}
+                                            onChange={(e) => setCriteriaShiftStart(e.target.value)}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Shift End</label>
+                                        <input
+                                            type="time"
+                                            value={criteriaShiftEnd}
+                                            onChange={(e) => setCriteriaShiftEnd(e.target.value)}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                        />
+                                    </div>
+                                </div>
+
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Week Off Days</label>
+                                <div className="flex flex-wrap gap-2">
+                                    {WEEK_DAYS.map(day => (
+                                        <button
+                                            key={day}
+                                            onClick={() => toggleCriteriaWeekOff(day)}
+                                            className={`px-4 py-2 rounded-lg border-2 transition-colors ${criteriaWeekOffs.has(day)
+                                                ? 'bg-blue-600 text-white border-blue-600'
+                                                : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'
+                                                }`}
+                                        >
+                                            <div className="flex items-center gap-1">
+                                                {criteriaWeekOffs.has(day) && <CheckCircle size={14} />}
+                                                {day}
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex items-center justify-end gap-3 z-10">
+                            <button
+                                onClick={() => setShowCriteriaBulkEdit(false)}
+                                className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={applyCriteriaBulkUpdate}
+                                disabled={saving}
+                                className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 transition-colors flex items-center gap-2"
+                            >
+                                {saving ? 'Updating...' : <>Update Matching Employees</>}
                             </button>
                         </div>
                     </div>
