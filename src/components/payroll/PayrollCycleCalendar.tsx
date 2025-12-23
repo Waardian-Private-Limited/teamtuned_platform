@@ -26,7 +26,8 @@ import {
   Sun,
   Sunset,
   Coffee,
-  Calculator
+  Calculator,
+  Info
 } from "lucide-react";
 import AttendanceDetailsModal from "../attendance/AttendanceDetailsModal";
 
@@ -732,6 +733,14 @@ function CustomCalculatorModal({
   // State for expandable sections
   const [creditsExpanded, setCreditsExpanded] = React.useState(false);
   const [debitsExpanded, setDebitsExpanded] = React.useState(false);
+  const [expandedDebitIndices, setExpandedDebitIndices] = React.useState<Record<number, boolean>>({});
+
+  const toggleDebitBreakdown = (idx: number) => {
+    setExpandedDebitIndices(prev => ({
+      ...prev,
+      [idx]: !prev[idx]
+    }));
+  };
 
   // Validation: Check if total attendance days exceed total days
   const validation = React.useMemo(() => {
@@ -926,9 +935,36 @@ function CustomCalculatorModal({
                     {debitsExpanded && (
                       <div className="pl-4 space-y-1 border-l-2 border-rose-200">
                         {calculatedResults.salary_breakdown?.filter((b: any) => b.type === 'debit').map((item: any, idx: number) => (
-                          <div key={idx} className="flex items-center justify-between text-xs py-1">
-                            <span className="text-slate-600">{item.name}</span>
-                            <span className="font-medium text-rose-600">-₹{item.amount.toLocaleString()}</span>
+                          <div key={idx} className="py-1">
+                            <div className="flex items-center justify-between text-xs">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-slate-600">{item.name}</span>
+                                {item.breakdown && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleDebitBreakdown(idx);
+                                    }}
+                                    className="text-slate-400 hover:text-blue-500 transition-colors"
+                                  >
+                                    <Info className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                              <span className="font-medium text-rose-600">-₹{item.amount.toLocaleString()}</span>
+                            </div>
+
+                            {/* Breakdown Steps */}
+                            {expandedDebitIndices[idx] && item.breakdown && (
+                              <div className="mt-1 ml-2 pl-2 border-l border-slate-300 space-y-0.5">
+                                {item.breakdown.steps.map((step: any, sIdx: number) => (
+                                  <div key={sIdx} className="text-[10px] text-slate-500 flex justify-between gap-2">
+                                    <span>{step.step}:</span>
+                                    <span className="font-mono">{step.formula}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>

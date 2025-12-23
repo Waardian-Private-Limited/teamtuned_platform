@@ -10,7 +10,7 @@ type Assignment = {
   task_id: number;
   site_id?: number | null;
   user_id?: number | null;
-  occurrence_date: string;
+  occurrence_date?: string;
   status: string;
   submission_id?: number | null;
   submitted_at?: string | null;
@@ -19,6 +19,13 @@ type Assignment = {
   last_name?: string | null;
   designation?: string | null;
   site_name?: string | null;
+  // Employee Data Fields
+  email?: string | null;
+  phone?: string | null;
+  department_name?: string | null;
+  role_name?: string | null;
+  site_ids?: number[];
+  onboarding_token_expires_at?: string | null;
 };
 
 export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: number; onClose: () => void }) {
@@ -122,10 +129,15 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
         setTotal(res.length);
         setHasNext(false);
       } else {
-        const items = Array.isArray((res as any)?.items) ? (res as any).items : [];
+        const responseData = res as any;
+        // Support both 'items' (old) and 'data' (new) formats
+        const items = Array.isArray(responseData?.items)
+          ? responseData.items
+          : (Array.isArray(responseData?.data) ? responseData.data : []);
+
         setAssignments(items);
-        setTotal(Number((res as any)?.total || 0));
-        setHasNext(!!(res as any)?.hasNext);
+        setTotal(Number(responseData?.total || 0));
+        setHasNext(!!responseData?.hasNext);
       }
     } catch (e: any) {
       setError(e?.message || "Failed to load assignments");
@@ -167,7 +179,7 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
     })();
   }, []);
 
-  const formatDate = (s: string) => {
+  const formatDate = (s?: string | null) => {
     if (!s) return '-';
     let dt: Date;
     if (s.includes('T')) {
@@ -232,12 +244,16 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
   });
 
   const getStatusColor = (status: string) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'approved': return 'bg-green-100 text-green-800 border-green-200';
       case 'rejected': return 'bg-red-100 text-red-800 border-red-200';
       case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       case 'submitted': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'in_review': return 'bg-purple-100 text-purple-800 border-purple-200';
+      // Employee Statuses
+      case 'active': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+      case 'invited': return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+      case 'inactive': return 'bg-slate-100 text-slate-800 border-slate-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
@@ -498,7 +514,12 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <MapPin className="w-4 h-4 text-gray-400" />
-                        <span className="text-sm text-gray-700">{assignment.site_name ?? 'No Site'}</span>
+                        <span className="text-sm text-gray-700">
+                          {assignment.site_name
+                            ?? (assignment.site_ids?.length
+                              ? sites.find(s => s.id === assignment.site_ids![0])?.name
+                              : 'No Site')}
+                        </span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
