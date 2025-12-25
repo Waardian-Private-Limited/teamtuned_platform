@@ -130,6 +130,13 @@ export default function OrgSidebar({
     // Track navigation for loading state
     useEffect(() => {
         setIsNavigating(false);
+
+        // Failsafe: if navigation takes too long or hangs, hide loader after 10s
+        const timer = setTimeout(() => {
+            setIsNavigating(false);
+        }, 10000);
+
+        return () => clearTimeout(timer);
     }, [pathname]);
 
     const hasFeature = (code: string) => {
@@ -154,7 +161,11 @@ export default function OrgSidebar({
     }) => (
         <Link
             href={href}
-            onClick={() => setIsNavigating(true)}
+            onClick={() => {
+                if (href !== pathname) {
+                    setIsNavigating(true);
+                }
+            }}
             className={`group flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-all duration-200 ${active
                 ? "bg-black text-white font-medium shadow-md"
                 : "text-black hover:bg-gray-100"

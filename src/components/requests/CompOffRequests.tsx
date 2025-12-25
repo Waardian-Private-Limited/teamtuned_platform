@@ -359,6 +359,91 @@ export default function CompOffRequests() {
         }
     };
 
+    // Modal Component - Memoized to prevent re-creation and focus loss
+    const ApproveRejectModal = React.useMemo(() => {
+        if (!modalOpen || !activeItem) return null;
+
+        return (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full">
+                    <div className="p-6 border-b border-gray-200">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-xl font-semibold text-gray-900">
+                                {modalMode === "approve" ? "Approve Comp-Off" : "Reject Comp-Off"}
+                            </h3>
+                            <button onClick={closeModal} className="p-2 hover:bg-gray-100 rounded-lg">
+                                <X className="w-5 h-5 text-gray-500" />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="p-6">
+                        <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <span className="text-gray-600">Employee:</span>
+                                    <p className="font-medium">{`${activeItem.first_name || ""} ${activeItem.last_name || ""}`.trim()}</p>
+                                </div>
+                                <div>
+                                    <span className="text-gray-600">Date:</span>
+                                    <p className="font-medium">{formatDate(activeItem.compoff_date || "")}</p>
+                                </div>
+                                <div>
+                                    <span className="text-gray-600">Earned Time:</span>
+                                    <p className="font-medium">{formatMinutes(Number(activeItem.total_earned_minutes || 0))}</p>
+                                </div>
+                                <div>
+                                    <span className="text-gray-600">Remarks:</span>
+                                    <p className="font-medium">{activeItem.remarks || "—"}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {modalMode === "reject" && (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Rejection Reason <span className="text-red-500">*</span>
+                                </label>
+                                <textarea
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                    rows={4}
+                                    value={modalReason}
+                                    onChange={(e) => setModalReason(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            if (modalReason.trim() && !actionLoading?.includes(`reject_${activeItem?.id}`)) {
+                                                confirmModal();
+                                            }
+                                        }
+                                    }}
+                                    placeholder="Please provide a reason for rejecting this comp-off..."
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                        <button
+                            onClick={closeModal}
+                            className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={confirmModal}
+                            disabled={modalMode === "reject" && !modalReason.trim()}
+                            className={`px-4 py-2 text-white rounded-lg ${modalMode === "approve" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"
+                                } disabled:opacity-50`}
+                        >
+                            {modalMode === "approve" ? "Approve" : "Reject"}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }, [modalOpen, activeItem, modalMode, modalReason, actionLoading]);
+
     // Action Dropdown Component
     const ActionDropdown = ({ item }: { item: CompOffItem }) => {
         const [isOpen, setIsOpen] = useState(false);
@@ -743,77 +828,7 @@ export default function CompOffRequests() {
             )}
 
             {/* Approve/Reject Modal */}
-            {modalOpen && activeItem && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full">
-                        <div className="p-6 border-b border-gray-200">
-                            <div className="flex items-center justify-between">
-                                <h3 className="text-xl font-semibold text-gray-900">
-                                    {modalMode === "approve" ? "Approve Comp-Off" : "Reject Comp-Off"}
-                                </h3>
-                                <button onClick={closeModal} className="p-2 hover:bg-gray-100 rounded-lg">
-                                    <X className="w-5 h-5 text-gray-500" />
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="p-6">
-                            <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                                <div className="grid grid-cols-2 gap-4 text-sm">
-                                    <div>
-                                        <span className="text-gray-600">Employee:</span>
-                                        <p className="font-medium">{`${activeItem.first_name || ""} ${activeItem.last_name || ""}`.trim()}</p>
-                                    </div>
-                                    <div>
-                                        <span className="text-gray-600">Date:</span>
-                                        <p className="font-medium">{formatDate(activeItem.compoff_date || "")}</p>
-                                    </div>
-                                    <div>
-                                        <span className="text-gray-600">Earned Time:</span>
-                                        <p className="font-medium">{formatMinutes(Number(activeItem.total_earned_minutes || 0))}</p>
-                                    </div>
-                                    <div>
-                                        <span className="text-gray-600">Remarks:</span>
-                                        <p className="font-medium">{activeItem.remarks || "—"}</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {modalMode === "reject" && (
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Rejection Reason <span className="text-red-500">*</span>
-                                    </label>
-                                    <textarea
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                                        rows={4}
-                                        value={modalReason}
-                                        onChange={(e) => setModalReason(e.target.value)}
-                                        placeholder="Please provide a reason for rejecting this comp-off..."
-                                    />
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="p-6 border-t border-gray-200 flex justify-end space-x-3">
-                            <button
-                                onClick={closeModal}
-                                className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={confirmModal}
-                                disabled={modalMode === "reject" && !modalReason.trim()}
-                                className={`px-4 py-2 text-white rounded-lg ${modalMode === "approve" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"
-                                    } disabled:opacity-50`}
-                            >
-                                {modalMode === "approve" ? "Approve" : "Reject"}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {ApproveRejectModal}
 
             {/* Details View Modal */}
             {viewOpen && activeItem && (

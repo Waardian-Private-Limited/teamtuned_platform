@@ -528,8 +528,8 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
     );
   };
 
-  // Modal Components
-  const ApproveRejectModal = () => {
+  // Modal Components - Memoized to prevent re-creation and focus loss
+  const ApproveRejectModal = React.useMemo(() => {
     if (!modalOpen || !activeItem) return null;
 
     return (
@@ -629,6 +629,14 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
                     rows={4}
                     value={modalReason}
                     onChange={(e) => setModalReason(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        if (modalReason.trim() && !actionLoading?.includes(`reject_${activeItem?.id}`)) {
+                          confirmModal();
+                        }
+                      }
+                    }}
                     placeholder="Please provide a reason for rejecting this request..."
                   />
                 </div>
@@ -657,7 +665,7 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
         </div>
       </div>
     );
-  };
+  }, [modalOpen, activeItem, modalMode, markStatus, statusTimeline, modalReason, actionLoading]);
 
   const DetailsViewModal = () => {
     if (!viewOpen || !activeItem) return null;
@@ -899,7 +907,7 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
   return (
     <div className="space-y-4">
       {/* Render modals */}
-      <ApproveRejectModal />
+      {ApproveRejectModal}
       <DetailsViewModal />
 
       {/* Header */}

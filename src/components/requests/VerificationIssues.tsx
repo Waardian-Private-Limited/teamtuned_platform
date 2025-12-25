@@ -3,29 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
-import {
-  Search,
-  Filter,
-  MoreVertical,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  User,
-  Calendar,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  Eye,
-  ThumbsUp,
-  ThumbsDown,
-  MapPin,
-  Image,
-  FileText,
-  RefreshCw,
-  ChevronDown,
-  ChevronUp,
-  Users
-} from "lucide-react";
+import { Search, Filter, MoreVertical, ChevronLeft, ChevronRight, X, RefreshCw, CheckCircle, AlertCircle, Clock, ThumbsUp, ThumbsDown, Calendar, Timer, ChevronDown, ChevronUp, Eye, MapPin, ExternalLink, XCircle, Users, FileText, User, Image } from 'lucide-react';
 import { format, parseISO } from "date-fns";
 
 type IssueItem = Record<string, any>;
@@ -575,8 +553,8 @@ export default function VerificationIssues({
     );
   };
 
-  // Modal Component
-  const ReviewModal = () => {
+  // Modal Component - Memoized to prevent re-creation and focus loss
+  const ReviewModal = React.useMemo(() => {
     if (!modalOpen || !activeItem) return null;
 
     const item = activeItemFull || activeItem;
@@ -751,46 +729,71 @@ export default function VerificationIssues({
 
                     {modalDecision === "reject" && (
                       <div className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Mark As</label>
-                            <select
-                              value={rejectStatus}
-                              onChange={(e) => {
-                                setRejectStatus(e.target.value);
-                                if (e.target.value === "Absent") {
-                                  setRejectTimeline("Full-Day");
-                                }
-                              }}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                            >
-                              <option value="Present">Present</option>
-                              <option value="Absent">Absent</option>
-                            </select>
+                        {/* Status Impact Indicator */}
+                        <div className={`p-4 rounded-lg border-2 transition-all duration-300 ${rejectStatus === "Absent"
+                          ? 'bg-red-50 border-red-200 animate-pulse'
+                          : 'bg-blue-50 border-blue-200'
+                          }`}>
+                          <div className="flex items-center space-x-2">
+                            {rejectStatus === "Absent" ? (
+                              <>
+                                <XCircle className="w-5 h-5 text-red-600" />
+                                <div>
+                                  <p className="text-sm font-semibold text-red-900">Marking as Absent</p>
+                                  <p className="text-xs text-red-700">Attendance status will be changed to Absent</p>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle className="w-5 h-5 text-blue-600" />
+                                <div>
+                                  <p className="text-sm font-semibold text-blue-900">Keeping as Present</p>
+                                  <p className="text-xs text-blue-700">Timeline will be updated to {rejectStatus === "Full-Day" ? "Full-Day" : "Half-Day"}</p>
+                                </div>
+                              </>
+                            )}
                           </div>
+                        </div>
 
-                          {rejectStatus === "Present" && (
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">Timeline</label>
-                              <select
-                                value={rejectTimeline}
-                                onChange={(e) => setRejectTimeline(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                              >
-                                <option value="Full-Day">Full-Day</option>
-                                <option value="Half-Day">Half-Day</option>
-                              </select>
-                            </div>
-                          )}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Mark Attendance As</label>
+                          <select
+                            value={rejectStatus}
+                            onChange={(e) => {
+                              setRejectStatus(e.target.value);
+                              // Update timeline based on selection
+                              if (e.target.value === "Absent") {
+                                setRejectTimeline("Full-Day");
+                              } else {
+                                setRejectTimeline(e.target.value);
+                              }
+                            }}
+                            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-offset-1 transition-all duration-200 ${rejectStatus === "Absent"
+                              ? 'border-red-300 focus:ring-red-500 focus:border-red-500 bg-red-50'
+                              : 'border-blue-300 focus:ring-blue-500 focus:border-blue-500 bg-blue-50'
+                              }`}
+                          >
+                            <option value="Absent">Absent</option>
+                            <option value="Full-Day">Full-Day (Present)</option>
+                            <option value="Half-Day">Half-Day (Present)</option>
+                          </select>
                         </div>
 
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">Rejection Reason</label>
                           <textarea
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                            rows={3}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all duration-200"
+                            rows={4}
                             value={modalReason}
                             onChange={(e) => setModalReason(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                if (modalReason.trim() && !actionLoading?.includes(`review_${activeItem?.id}`)) {
+                                  confirmModal();
+                                }
+                              }
+                            }}
                             placeholder="Please provide a reason for rejecting this issue..."
                           />
                         </div>
@@ -841,7 +844,7 @@ export default function VerificationIssues({
         </div>
       </div>
     );
-  };
+  }, [modalOpen, activeItem, activeItemFull, detailsLoading, modalDecision, approveStatus, approveTimeline, rejectStatus, rejectTimeline, modalReason, actionLoading, isEmployee]);
 
   // Loading State
   if (loading && items.length === 0) {
@@ -934,7 +937,7 @@ export default function VerificationIssues({
   return (
     <div className="space-y-4">
       {/* Render modal */}
-      <ReviewModal />
+      {ReviewModal}
 
       {/* Header */}
       <div className="bg-white rounded-xl border border-gray-200 p-2">

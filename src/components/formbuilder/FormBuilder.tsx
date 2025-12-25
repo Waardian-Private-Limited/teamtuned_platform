@@ -633,8 +633,8 @@ export default function FormBuilder({
 
           <button
             className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-colors ${!canSave
-                ? "bg-indigo-400 cursor-not-allowed opacity-60 text-white"
-                : "bg-indigo-600 hover:bg-indigo-700 text-white"
+              ? "bg-indigo-400 cursor-not-allowed opacity-60 text-white"
+              : "bg-indigo-600 hover:bg-indigo-700 text-white"
               }`}
             onClick={saveSnapshot}
             disabled={!canSave}
@@ -645,8 +645,8 @@ export default function FormBuilder({
 
           <button
             className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-colors ${!canSave
-                ? "bg-green-400 cursor-not-allowed opacity-60 text-white"
-                : "bg-green-600 hover:bg-green-700 text-white"
+              ? "bg-green-400 cursor-not-allowed opacity-60 text-white"
+              : "bg-green-600 hover:bg-green-700 text-white"
               }`}
             onClick={saveServer}
             disabled={!canSave}
@@ -811,8 +811,8 @@ export default function FormBuilder({
                   <label className="block text-sm font-medium text-slate-700 mb-2">Field Key</label>
                   <input
                     className={`w-full border rounded-lg px-4 py-3 text-sm focus:ring-2 focus:border-transparent transition-all ${duplicateKeys.has(selectedField.field_key)
-                        ? "border-red-300 focus:ring-red-500"
-                        : "border-slate-300 focus:ring-blue-500"
+                      ? "border-red-300 focus:ring-red-500"
+                      : "border-slate-300 focus:ring-blue-500"
                       }`}
                     value={selectedField.field_key}
                     onChange={(e) => updateSelected({ field_key: e.target.value })}
@@ -1089,6 +1089,17 @@ export default function FormBuilder({
                       tplId = Number(created?.id);
                       setServerTemplateId(tplId || null);
                     }
+
+                    // Update template name and description
+                    await apiClient(`/templates/${tplId}`, {
+                      method: 'PUT',
+                      withAuth: true,
+                      body: {
+                        name: nameInput.trim() || 'Untitled Template',
+                        description: descInput.trim() || ''
+                      }
+                    });
+
                     const toSave = ensureSystemFields(fields).map((f) => ({
                       field_key: String(f.field_key || ''),
                       label: String(f.label || ''),
@@ -1121,8 +1132,8 @@ export default function FormBuilder({
 
       {toast && (
         <div className={`fixed bottom-6 right-6 z-50 px-6 py-4 rounded-xl shadow-lg border-l-4 ${toast.type === "success"
-            ? "bg-green-50 border-green-500 text-green-800"
-            : "bg-red-50 border-red-500 text-red-800"
+          ? "bg-green-50 border-green-500 text-green-800"
+          : "bg-red-50 border-red-500 text-red-800"
           }`}>
           <div className="flex items-center gap-3">
             {toast.type === "success" ? (
@@ -1176,8 +1187,8 @@ const FieldCard = React.memo(({
   return (
     <div
       className={`group relative p-6 rounded-xl border-2 transition-all duration-200 ${isSelected
-          ? "border-blue-500 bg-blue-50 shadow-lg"
-          : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-md"
+        ? "border-blue-500 bg-blue-50 shadow-lg"
+        : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-md"
         } ${field.system ? "bg-slate-900 text-white border-slate-700" : ""}`}
       onClick={onSelect}
     >
@@ -1185,8 +1196,8 @@ const FieldCard = React.memo(({
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3 flex-1">
           <div className={`p-2 rounded-lg ${field.system
-              ? "bg-slate-800 text-slate-200"
-              : "bg-blue-100 text-blue-600"
+            ? "bg-slate-800 text-slate-200"
+            : "bg-blue-100 text-blue-600"
             }`}>
             {TYPE_ICON[field.field_type]}
           </div>
@@ -1200,6 +1211,12 @@ const FieldCard = React.memo(({
                   value={field.label}
                   onChange={(e) => onUpdate({ label: e.target.value })}
                   onBlur={() => setIsEditingLabel(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setIsEditingLabel(false);
+                      e.stopPropagation();
+                    }
+                  }}
                   onClick={(e) => e.stopPropagation()}
                 />
                 <button
@@ -1212,7 +1229,16 @@ const FieldCard = React.memo(({
               </form>
             ) : (
               <div className="flex items-center gap-2">
-                <span className={`font-semibold truncate ${field.system ? "text-white" : "text-slate-900"}`}>
+                <span
+                  className={`font-semibold truncate cursor-text ${field.system ? "text-white" : "text-slate-900"}`}
+                  onDoubleClick={(e) => {
+                    if (!field.system) {
+                      e.stopPropagation();
+                      setIsEditingLabel(true);
+                    }
+                  }}
+                  title="Double-click to edit"
+                >
                   {field.label}
                 </span>
                 {field.system && <Lock size={14} className="text-slate-400" />}
