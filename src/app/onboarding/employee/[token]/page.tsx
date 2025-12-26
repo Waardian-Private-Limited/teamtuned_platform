@@ -116,7 +116,7 @@ export default function EmployeeOnboardingPage({ params }: { params: Promise<{ t
     leave_balances: form.leave_balances || [],
   }), [form]);
 
-  // Required editable fields (banking excluded)
+  // Required editable fields (only essential information)
   const REQUIRED_FIELDS: Array<keyof EmployeePrefill> = [
     'first_name',
     'last_name',
@@ -124,15 +124,6 @@ export default function EmployeeOnboardingPage({ params }: { params: Promise<{ t
     'phone_number',
     'gender',
     'date_of_birth',
-    'emergency_contact_name',
-    'emergency_contact_relation',
-    'emergency_contact_number',
-    'permanent_address',
-    'permanent_pincode',
-    'current_address',
-    'current_pincode',
-    'pan_number',
-    'aadhaar_number',
   ];
 
   React.useEffect(() => {
@@ -360,15 +351,15 @@ export default function EmployeeOnboardingPage({ params }: { params: Promise<{ t
           {/* Emergency Contact (editable) */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-black mb-1">Emergency Contact Name <span className="text-red-600">*</span></label>
+              <label className="block text-sm font-medium text-black mb-1">Emergency Contact Name</label>
               <input className={`w-full border rounded-lg px-3 py-2 bg-white text-black ${fieldErrors['emergency_contact_name'] ? 'border-red-500' : 'border-gray-300'}`} value={form.emergency_contact_name || ''} onChange={e => update('emergency_contact_name', e.target.value)} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-black mb-1">Emergency Contact Relation <span className="text-red-600">*</span></label>
+              <label className="block text-sm font-medium text-black mb-1">Emergency Contact Relation</label>
               <input className={`w-full border rounded-lg px-3 py-2 bg-white text-black ${fieldErrors['emergency_contact_relation'] ? 'border-red-500' : 'border-gray-300'}`} value={form.emergency_contact_relation || ''} onChange={e => update('emergency_contact_relation', e.target.value)} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-black mb-1">Emergency Contact Number <span className="text-red-600">*</span></label>
+              <label className="block text-sm font-medium text-black mb-1">Emergency Contact Number</label>
               <input type="tel" className={`w-full border rounded-lg px-3 py-2 bg-white text-black ${fieldErrors['emergency_contact_number'] ? 'border-red-500' : 'border-gray-300'}`} value={form.emergency_contact_number || ''} onChange={e => update('emergency_contact_number', e.target.value)} />
             </div>
           </div>
@@ -546,19 +537,19 @@ export default function EmployeeOnboardingPage({ params }: { params: Promise<{ t
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-black mb-1">Permanent Address <span className="text-red-600">*</span></label>
+              <label className="block text-sm font-medium text-black mb-1">Permanent Address</label>
               <input className={`w-full border rounded-lg px-3 py-2 bg-white text-black ${fieldErrors['permanent_address'] ? 'border-red-500' : 'border-gray-300'}`} value={form.permanent_address || ''} onChange={e => update('permanent_address', e.target.value)} disabled={sameAsCurrent} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-black mb-1">Permanent Pincode <span className="text-red-600">*</span></label>
+              <label className="block text-sm font-medium text-black mb-1">Permanent Pincode</label>
               <input className={`w-full border rounded-lg px-3 py-2 bg-white text-black ${fieldErrors['permanent_pincode'] ? 'border-red-500' : 'border-gray-300'}`} value={form.permanent_pincode || ''} onChange={e => update('permanent_pincode', e.target.value)} disabled={sameAsCurrent} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-black mb-1">Current Address <span className="text-red-600">*</span></label>
+              <label className="block text-sm font-medium text-black mb-1">Current Address</label>
               <input className={`w-full border rounded-lg px-3 py-2 bg-white text-black ${fieldErrors['current_address'] ? 'border-red-500' : 'border-gray-300'}`} value={form.current_address || ''} onChange={e => update('current_address', e.target.value)} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-black mb-1">Current Pincode <span className="text-red-600">*</span></label>
+              <label className="block text-sm font-medium text-black mb-1">Current Pincode</label>
               <input className={`w-full border rounded-lg px-3 py-2 bg-white text-black ${fieldErrors['current_pincode'] ? 'border-red-500' : 'border-gray-300'}`} value={form.current_pincode || ''} onChange={e => update('current_pincode', e.target.value)} />
             </div>
           </div>
@@ -570,7 +561,7 @@ export default function EmployeeOnboardingPage({ params }: { params: Promise<{ t
               <input className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-black" value={form.bank_account_no || ''} onChange={e => update('bank_account_no', e.target.value)} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-black mb-1">IFSC Code <span className="text-gray-500"></span></label>    
+              <label className="block text-sm font-medium text-black mb-1">IFSC Code <span className="text-gray-500"></span></label>
               <input className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-black" value={form.ifsc_code || ''} onChange={e => update('ifsc_code', e.target.value)} onBlur={() => fetchIfscDetails(form.ifsc_code || '')} />
               {ifscLoading && <div className="text-xs text-gray-500 mt-1">Fetching IFSC details…</div>}
             </div>
@@ -583,11 +574,11 @@ export default function EmployeeOnboardingPage({ params }: { params: Promise<{ t
               <input className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-black" value={form.bank_branch || ''} onChange={e => update('bank_branch', e.target.value)} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-black mb-1">PAN Number <span className="text-red-600">*</span></label>
+              <label className="block text-sm font-medium text-black mb-1">PAN Number</label>
               <input className={`w-full border rounded-lg px-3 py-2 bg-white text-black ${fieldErrors['pan_number'] ? 'border-red-500' : 'border-gray-300'}`} value={form.pan_number || ''} onChange={e => update('pan_number', e.target.value)} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-black mb-1">Aadhaar Number <span className="text-red-600">*</span></label>
+              <label className="block text-sm font-medium text-black mb-1">Aadhaar Number</label>
               <input className={`w-full border rounded-lg px-3 py-2 bg-white text-black ${fieldErrors['aadhaar_number'] ? 'border-red-500' : 'border-gray-300'}`} value={form.aadhaar_number || ''} onChange={e => update('aadhaar_number', e.target.value)} />
             </div>
           </div>
