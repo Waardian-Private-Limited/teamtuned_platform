@@ -52,8 +52,16 @@ function WorkflowDesigner({ workflow, onChange, workflowType, disabled = false }
         fetchDepartments();
         if (workflow && workflow.levels) {
             setLevels(workflow.levels);
+            // Fetch employee details for all selected employees
+            const allEmployeeIds = workflow.levels
+                .filter(level => level.approver_type === 'employee')
+                .flatMap(level => level.approver_employee_ids || (level.approver_employee_id ? [level.approver_employee_id] : []));
+
+            if (allEmployeeIds.length > 0) {
+                fetchEmployeeDetails(allEmployeeIds);
+            }
         }
-    }, []);
+    }, [workflow]);
 
     const fetchWorkflowOptions = async () => {
         try {
@@ -210,7 +218,7 @@ function WorkflowDesigner({ workflow, onChange, workflowType, disabled = false }
     };
 
     // Fetch employee details by IDs to populate cache
-    const fetchEmployeesByIds = async (ids: number[]) => {
+    const fetchEmployeeDetails = async (ids: number[]) => {
         if (ids.length === 0) return;
 
         try {
