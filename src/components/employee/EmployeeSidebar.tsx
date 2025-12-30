@@ -238,6 +238,7 @@ export default function EmployeeSidebar({
 
   const canViewInsurance = isOrgAdmin || hasAnyPerm(["INS_PROVIDER_VIEW", "INS_POLICY_VIEW", "INS_ENROLL_VIEW", "INS_CLAIM_VIEW"]);
   const canViewSessionRequests = isOrgAdmin || hasAnyPerm(["EMP_SESSION_VIEW", "EMP_SESSION_APPROVE"]);
+  const canViewWorkflows = isOrgAdmin || hasPerm("HR_MODE");
 
   // Task Permissions
   const canViewTaskTemplates = isOrgAdmin || hasAnyPerm(["TASK_TEMPLATES", "TASK_CREATE"]);
@@ -433,6 +434,14 @@ export default function EmployeeSidebar({
                       active={pathname?.startsWith("/employee/holiday-calendar") || false}
                     />
                   )}
+                  {canViewWorkflows && (
+                    <Item
+                      icon={Settings}
+                      label="Approval Workflows"
+                      href="/employee/approval-workflows"
+                      active={pathname?.startsWith("/employee/approval-workflows") || false}
+                    />
+                  )}
                 </div>
               </div>
             )}
@@ -550,6 +559,14 @@ export default function EmployeeSidebar({
                         active={pathname?.startsWith("/employee/emergency-contacts") || false}
                       />
                     </>
+                  )}
+                  {(isOrgAdmin || hasPerm('HR_MODE')) && (
+                    <Item
+                      icon={UserCog}
+                      label="Team Mapper"
+                      href="/employee/assignments"
+                      active={pathname === "/employee/assignments"}
+                    />
                   )}
                   {(isOrgAdmin || hasAnyPerm(['EMP_ADD'])) && (
                     <>

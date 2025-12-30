@@ -223,10 +223,32 @@ export default function VerificationIssues({
 
   const submitReview = async (payload: any) => {
     try {
-      setActionLoading(`review_${activeItem?.id}`);
-      await apiClient<any>("/attendance/verification-issues/review", {
-        method: "POST",
-        body: payload,
+      if (!activeItem?.id) {
+        showNotification('No issue selected', 'error');
+        return;
+      }
+
+      setActionLoading(`review_${activeItem.id}`);
+
+      // Build request body for PATCH endpoint
+      const body: any = {
+        status: payload.decision === 'approve' ? 'approved' : 'rejected',
+        remarks: payload.remarks || ''
+      };
+
+      // For approve, include additional fields if provided
+      if (payload.decision === 'approve') {
+        if (payload.marked_status) body.marked_status = payload.marked_status;
+        if (payload.status_timeline) body.status_timeline = payload.status_timeline;
+      } else {
+        // For reject, include status fields
+        if (payload.marked_status) body.marked_status = payload.marked_status;
+        if (payload.status_timeline) body.status_timeline = payload.status_timeline;
+      }
+
+      await apiClient<any>(`/attendance/verification-issues/${activeItem.id}`, {
+        method: "PATCH",
+        body,
         withAuth: true,
       });
 

@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Building2, ChevronDown, ChevronRight, LogOut, Menu, Settings, BarChart2 } from "lucide-react";
+import { Home, Building2, ChevronDown, ChevronRight, LogOut, Menu, Settings, BarChart2, Smartphone } from "lucide-react";
 
 export default function SuperadminSidebar({
   isCollapsed,
@@ -81,6 +81,7 @@ export default function SuperadminSidebar({
             <div className="mt-2 space-y-1">
               <Item icon={Home} label="Dashboard" href="/superadmin/dashboard" active={pathname === "/superadmin/dashboard"} />
               <Item icon={Building2} label="Organizations Management" href="/superadmin/organizations" active={pathname === "/superadmin/organizations"} />
+              <Item icon={Smartphone} label="App Versions" href="/superadmin/app-versions" active={pathname === "/superadmin/app-versions"} />
               <Item icon={BarChart2} label="Analytics" href="/superadmin/analytics" active={pathname === "/superadmin/analytics"} />
             </div>
           )}

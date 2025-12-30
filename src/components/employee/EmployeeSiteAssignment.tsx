@@ -122,6 +122,7 @@ export default function EmployeeSiteAssignment() {
   const [liveValidationMessage, setLiveValidationMessage] = useState<string>("");
   const [editOtherLocations, setEditOtherLocations] = useState<Set<number>>(new Set());
   const [canCheckinAnySite, setCanCheckinAnySite] = useState(false);
+  const [canMarkAttendanceWithException, setCanMarkAttendanceWithException] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string>("");
   const [activeTab, setActiveTab] = useState<'sites' | 'other_locations'>('sites');
@@ -244,7 +245,11 @@ export default function EmployeeSiteAssignment() {
       setEditEmployeeSalary(Number(detail.salary_amount) || 0);
       setLiveValidationMessage(""); // Reset validation
       setEditOtherLocations(otherLocationIds);
+      setEditOtherLocations(otherLocationIds);
       setCanCheckinAnySite(hasFlexibleAccess);
+
+      const canExceptionValue = (detail as any).can_mark_attendance_with_exception;
+      setCanMarkAttendanceWithException(canExceptionValue === true || canExceptionValue === 1 || canExceptionValue === '1');
     } catch (e: any) {
       setEditError(e?.message || "Failed to load employee");
       setEditAssigned(new Set());
@@ -254,7 +259,9 @@ export default function EmployeeSiteAssignment() {
       setEditEmployeeSalary(0);
       setLiveValidationMessage("");
       setEditOtherLocations(new Set());
+      setEditOtherLocations(new Set());
       setCanCheckinAnySite(false);
+      setCanMarkAttendanceWithException(false);
     } finally {
       setEditLoading(false);
     }
@@ -359,7 +366,10 @@ export default function EmployeeSiteAssignment() {
       // Save can_checkin_any_site flag using dedicated endpoint
       await apiClient(`/organization/employees/${editingId}/flexible-site-access`, {
         method: "PATCH",
-        body: { can_checkin_any_site: canCheckinAnySite },
+        body: {
+          can_checkin_any_site: canCheckinAnySite,
+          can_mark_attendance_with_exception: canMarkAttendanceWithException
+        },
       });
 
       setEditingId(null);
@@ -939,6 +949,30 @@ export default function EmployeeSiteAssignment() {
                               className="sr-only peer"
                             />
                             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Can Mark Attendance With Exception Toggle */}
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mt-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <MapPin className="w-5 h-5 text-amber-600" />
+                              <h4 className="font-semibold text-gray-900">Exception Access</h4>
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              Allow this employee to mark attendance with exception (e.g. outside geofence)
+                            </p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer ml-4">
+                            <input
+                              type="checkbox"
+                              checked={canMarkAttendanceWithException}
+                              onChange={(e) => setCanMarkAttendanceWithException(e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
                           </label>
                         </div>
                       </div>

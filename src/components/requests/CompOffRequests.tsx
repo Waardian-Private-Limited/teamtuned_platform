@@ -219,7 +219,11 @@ export default function CompOffRequests() {
     const approve = async (id: number) => {
         try {
             setActionLoading(`approve_${id}`);
-            await apiClient(`/attendance/comp-off/${id}/approve`, { method: "POST", body: {}, withAuth: true });
+            await apiClient(`/attendance/comp-off/${id}`, {
+                method: "PATCH",
+                body: { status: "approved" },
+                withAuth: true
+            });
             showNotification("Comp-off approved successfully", "success");
             fetchList();
         } catch (e: any) {
@@ -232,7 +236,11 @@ export default function CompOffRequests() {
     const reject = async (id: number, reason: string) => {
         try {
             setActionLoading(`reject_${id}`);
-            await apiClient(`/attendance/comp-off/${id}/reject`, { method: "POST", body: { remarks: reason }, withAuth: true });
+            await apiClient(`/attendance/comp-off/${id}`, {
+                method: "PATCH",
+                body: { status: "rejected", remarks: reason },
+                withAuth: true
+            });
             showNotification("Comp-off rejected successfully", "success");
             fetchList();
         } catch (e: any) {

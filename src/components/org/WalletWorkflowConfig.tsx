@@ -11,6 +11,7 @@ type WorkflowLevel = {
     approver_type: "role" | "employee";
     approver_role_id: number | null;
     approver_employee_id: number | null;
+    approver_employee_ids?: number[] | null;
     type: "MANDATORY" | "CONDITIONAL";
     condition?: string;
     can_finalize_budget?: boolean;
@@ -81,10 +82,18 @@ function WorkflowDesigner({ workflow, onChange, workflowType, disabled = false }
 
     // Get already selected employee IDs (excluding current level being edited)
     const getSelectedEmployeeIds = (excludeIndex?: number) => {
-        return levels
-            .filter((level, index) => index !== excludeIndex && level.approver_type === "employee")
-            .map((level) => level.approver_employee_id)
-            .filter((id): id is number => id !== null);
+        const ids: number[] = [];
+        levels.forEach((level, index) => {
+            if (index !== excludeIndex && level.approver_type === "employee") {
+                if (level.approver_employee_id) ids.push(level.approver_employee_id);
+                if (level.approver_employee_ids) {
+                    level.approver_employee_ids.forEach(id => {
+                        if (!ids.includes(id)) ids.push(id);
+                    });
+                }
+            }
+        });
+        return ids;
     };
 
     const addLevel = () => {
@@ -112,13 +121,18 @@ function WorkflowDesigner({ workflow, onChange, workflowType, disabled = false }
     };
 
     const updateLevel = (index: number, field: string, value: any) => {
+        updateLevelMultiple(index, { [field]: value });
+    };
+
+    const updateLevelMultiple = (index: number, updates: Partial<WorkflowLevel>) => {
         const updatedLevels = [...levels];
-        updatedLevels[index] = { ...updatedLevels[index], [field]: value };
+        updatedLevels[index] = { ...updatedLevels[index], ...updates };
 
         // Clear the other approver field when switching types
-        if (field === "approver_type") {
-            if (value === "role") {
+        if (updates.approver_type) {
+            if (updates.approver_type === "role") {
                 updatedLevels[index].approver_employee_id = null;
+                updatedLevels[index].approver_employee_ids = null;
             } else {
                 updatedLevels[index].approver_role_id = null;
             }
@@ -134,8 +148,22 @@ function WorkflowDesigner({ workflow, onChange, workflowType, disabled = false }
     };
 
     const handleEmployeeSelect = (employeeId: number) => {
+        // This is now for single select fallback or internal use
         if (currentLevelIndex !== null) {
-            updateLevel(currentLevelIndex, "approver_employee_id", employeeId);
+            updateLevelMultiple(currentLevelIndex, {
+                approver_employee_id: employeeId,
+                approver_employee_ids: [employeeId]
+            });
+        }
+    };
+
+    const handleEmployeesSelect = (employeeIds: number[]) => {
+        if (currentLevelIndex !== null) {
+            updateLevelMultiple(currentLevelIndex, {
+                approver_employee_ids: employeeIds,
+                // Backward compatibility: set the first one to approver_employee_id
+                approver_employee_id: employeeIds[0] || null
+            });
         }
     };
 
@@ -143,6 +171,12 @@ function WorkflowDesigner({ workflow, onChange, workflowType, disabled = false }
         if (!employeeId) return "Select employee...";
         const emp = employees.find((e) => e.id === employeeId);
         return emp ? `${emp.first_name} ${emp.last_name}` : "Unknown Employee";
+    };
+
+    const getEmployeeNames = (employeeIds: number[] | null | undefined) => {
+        if (!employeeIds || employeeIds.length === 0) return "Select employees...";
+        if (employeeIds.length === 1) return getEmployeeName(employeeIds[0]);
+        return `${employeeIds.length} employees selected`;
     };
 
     return (
@@ -213,17 +247,29 @@ function WorkflowDesigner({ workflow, onChange, workflowType, disabled = false }
                                     </div>
                                 ) : (
                                     <div>
-                                        <label className="block text-xs font-medium text-gray-700 mb-1">Select Employee</label>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">Select Employee(s)</label>
                                         <button
                                             type="button"
                                             onClick={() => openEmployeeModal(index)}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-left hover:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 flex items-center justify-between"
                                         >
-                                            <span className={level.approver_employee_id ? "text-gray-900" : "text-gray-500"}>
-                                                {getEmployeeName(level.approver_employee_id)}
+                                            <span className={(level.approver_employee_ids?.length || level.approver_employee_id) ? "text-gray-900" : "text-gray-500"}>
+                                                {getEmployeeNames(level.approver_employee_ids || (level.approver_employee_id ? [level.approver_employee_id] : []))}
                                             </span>
                                             <Users className="w-4 h-4 text-gray-400" />
                                         </button>
+                                        {level.approver_employee_ids && level.approver_employee_ids.length > 0 && (
+                                            <div className="mt-2 flex flex-wrap gap-1">
+                                                {level.approver_employee_ids.map(id => {
+                                                    const emp = employees.find(e => e.id === id);
+                                                    return emp ? (
+                                                        <span key={id} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 border border-gray-200">
+                                                            {emp.first_name} {emp.last_name}
+                                                        </span>
+                                                    ) : null;
+                                                })}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
@@ -279,11 +325,14 @@ function WorkflowDesigner({ workflow, onChange, workflowType, disabled = false }
                 isOpen={showEmployeeModal}
                 onClose={() => setShowEmployeeModal(false)}
                 onSelect={handleEmployeeSelect}
+                onSelectMultiple={handleEmployeesSelect}
+                isMultiSelect={true}
                 employees={employees}
                 roles={roles}
                 departments={departments}
-                selectedEmployeeIds={getSelectedEmployeeIds(currentLevelIndex || undefined)}
-                title="Select Approver"
+                selectedEmployeeIds={getSelectedEmployeeIds(currentLevelIndex ?? undefined)}
+                initialSelectedIds={currentLevelIndex !== null ? (levels[currentLevelIndex].approver_employee_ids || (levels[currentLevelIndex].approver_employee_id ? [levels[currentLevelIndex].approver_employee_id] : [])) : []}
+                title="Select Approvers"
             />
         </div>
     );

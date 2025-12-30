@@ -266,6 +266,7 @@ export default function OrgSidebar({
                             <Item icon={UserCheck} label="Employee Attendance" href="/org-admin/attendance/employee" active={pathname === "/org-admin/attendance/employee"} />
                             <Item icon={Settings} label="Attendance Config" href="/org-admin/attendance-config" active={pathname === "/org-admin/attendance-config"} />
                             <Item icon={Settings} label="Attendance Rules" href="/org-admin/attendance-rules" active={pathname === "/org-admin/attendance-rules"} />
+                            <Item icon={ListChecks} label="Approval Workflows" href="/org-admin/approval-workflows" active={pathname === "/org-admin/approval-workflows"} />
                             <Item icon={ClipboardList} label="Leave Requests" href="/org-admin/requests/leaves" active={pathname === "/org-admin/requests/leaves"} />
                             <Item icon={Calendar} label="Comp-Off Requests" href="/org-admin/requests/comp-offs" active={pathname === "/org-admin/requests/comp-offs"} />
                             <Item icon={Clock} label="Regularization" href="/org-admin/requests/regularization" active={pathname === "/org-admin/requests/regularization"} />
@@ -280,6 +281,7 @@ export default function OrgSidebar({
                     {managementOpen && (
                         <div className="space-y-1 ml-2">
                             <Item icon={Users} label="Employees" href="/org-admin/employees" active={pathname === "/org-admin/employees"} />
+                            <Item icon={UserCog} label="Team Mapper" href="/org-admin/assignments" active={pathname === "/org-admin/assignments"} />
                             <Item icon={Phone} label="Emergency Contacts" href="/org-admin/emergency-contacts" active={pathname === "/org-admin/emergency-contacts"} />
                             <Item icon={Upload} label="Import Employees" href="/org-admin/employees/import" active={pathname === "/org-admin/employees/import"} />
                             <Item icon={Clock} label="Shift Management" href="/org-admin/employees/shifts" active={pathname === "/org-admin/employees/shifts"} />

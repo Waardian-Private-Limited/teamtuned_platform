@@ -31,7 +31,7 @@ import {
   ChevronUp,
   Users
 } from "lucide-react";
-import LeaveWorkflowConfig from "../org/LeaveWorkflowConfig";
+
 
 type LeaveItem = Record<string, any>;
 
@@ -158,7 +158,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
 
   // Add Leave modal state
   const [addLeaveOpen, setAddLeaveOpen] = useState<boolean>(false);
-  const [workflowConfigOpen, setWorkflowConfigOpen] = useState<boolean>(false);
+
   const [employees, setEmployees] = useState<Array<Record<string, any>>>([]);
   const [leaveTypes, setLeaveTypes] = useState<Array<Record<string, any>>>([]);
   const [addLeaveForm, setAddLeaveForm] = useState({
@@ -355,19 +355,22 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
   };
 
 
-  const approve = async (id: number) => {
+  const approve = async (id: number, remarks: string = "") => {
     try {
       setActionLoading(`approve_${id}`);
-      // Use workflow-aware endpoint
-      await apiClient(`/leaves/requests/${id}/approve-level`, {
-        method: "POST",
-        body: { remarks: "" }, // Approval typically doesn't need remarks in this UI flow
+      await apiClient(`/leaves/requests/${id}`, {
+        method: "PATCH",
+        body: {
+          status: "approved",
+          remarks
+        },
         withAuth: true
       });
-      setItems((prev) => prev.map((r) => (Number(r.id) === id ? { ...r, status: "Approved", workflow_status: "approved" } : r)));
+
+      // Refetch data to get accurate status
+      await fetchList();
+
       showNotification('Leave request approved successfully', 'success');
-      // Refresh to get updated status/next level details
-      fetchList();
     } catch (e: any) {
       setError(e?.message || "Failed to approve");
       showNotification(e?.message || "Failed to approve leave request", 'error');
@@ -379,18 +382,20 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
   const reject = async (id: number, reason: string, option: "reject_final" | "proceed_next" = "reject_final") => {
     try {
       setActionLoading(`reject_${id}`);
-      // Use workflow-aware endpoint
-      await apiClient(`/leaves/requests/${id}/reject-level`, {
-        method: "POST",
+      await apiClient(`/leaves/requests/${id}`, {
+        method: "PATCH",
         body: {
+          status: "rejected",
+          reject_reason: reason,
           remarks: reason
         },
         withAuth: true
       });
-      setItems((prev) => prev.map((r) => (Number(r.id) === id ? { ...r, status: "Rejected", workflow_status: "rejected", reject_reason: reason } : r)));
+
+      // Refetch data to get accurate status
+      await fetchList();
+
       showNotification('Leave request rejected successfully', 'success');
-      // Refresh to get updated status
-      fetchList();
     } catch (e: any) {
       setError(e?.message || "Failed to reject");
       showNotification(e?.message || "Failed to reject leave request", 'error');
@@ -452,7 +457,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
     if (!activeItem) return;
     const id = Number(activeItem.id);
     if (modalMode === "approve") {
-      await approve(id);
+      await approve(id, modalReason.trim());
       closeModal();
       return;
     }
@@ -711,7 +716,9 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
 
   // Timeline Countdown Component
   const TimelineCountdown = ({ item }: { item: LeaveItem }) => {
-    const countdown = useCountdown(item.level_started_at, item.timeline_hours);
+    // Use timeline_due_at if available, otherwise calculate from level_started_at + timeline_hours
+    const targetDate = item.timeline_due_at || item.level_started_at;
+    const countdown = useCountdown(targetDate, item.timeline_hours);
 
     if (!item.is_timeline_required || !countdown || !item.timeline_hours) return null;
 
@@ -969,6 +976,21 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                       value={modalReason}
                       onChange={(e) => setModalReason(e.target.value)}
                       placeholder="Please provide a reason for rejecting this leave request..."
+                    />
+                  </div>
+                </div>
+              )}
+
+              {modalMode === "approve" && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Remarks (Optional)</label>
+                    <textarea
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      rows={3}
+                      value={modalReason}
+                      onChange={(e) => setModalReason(e.target.value)}
+                      placeholder="Add any comments or notes for this approval (optional)..."
                     />
                   </div>
                 </div>
@@ -1666,17 +1688,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
             <h1 className="text-xl font-bold text-gray-900">Leave Requests</h1>
           </div>
           <div className="flex items-center space-x-3">
-            {/* Workflow Settings Button */}
-            {(hasPerm("LEAVE_ADD") || isOrgAdmin) && (
-              <button
-                onClick={() => setWorkflowConfigOpen(true)}
-                className="flex items-center gap-2 px-4 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700"
-                title="Configure Approval Workflows"
-              >
-                <Settings className="w-4 h-4" />
-                <span>Workflows</span>
-              </button>
-            )}
+
 
             {/* Refresh Button */}
             <button
@@ -1894,9 +1906,6 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                   Status
                 </th>
                 <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Current Approver
-                </th>
-                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Reason
                 </th>
                 <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1965,8 +1974,6 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                         <span className="text-xs text-red-600">✗ Rejected</span>
                       ) : item.workflow_id && item.workflow_status === 'cancelled' ? (
                         <span className="text-xs text-gray-500">Cancelled</span>
-                      ) : statusLower === 'approved' && item.approver_name ? (
-                        <span className="text-xs text-gray-700">{item.approver_name}</span>
                       ) : (
                         <span className="text-xs text-gray-400">—</span>
                       )}
@@ -2109,26 +2116,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
         </div>
       )}
 
-      {/* Workflow Configuration Modal */}
-      {workflowConfigOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setWorkflowConfigOpen(false)} />
-          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-6xl border border-gray-200 my-8">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-900">Leave Approval Workflows</h2>
-              <button
-                onClick={() => setWorkflowConfigOpen(false)}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-600" />
-              </button>
-            </div>
-            <div className="p-6">
-              <LeaveWorkflowConfig />
-            </div>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 }

@@ -56,6 +56,7 @@ export type AttendancePolicy = {
   auto_convert_to_compoff: boolean;
   min_extra_work_for_compoff_minutes: number;
   compoff_requires_approval: boolean;
+  regularization_allowed_days: number;
 
   // Late check-in rules
   allow_full_day_if_late_checkin: boolean;
@@ -98,6 +99,7 @@ const defaultPolicy: AttendancePolicy = {
   auto_convert_to_compoff: true,
   min_extra_work_for_compoff_minutes: 240,
   compoff_requires_approval: true,
+  regularization_allowed_days: 0,
 
   allow_full_day_if_late_checkin: false,
   half_day_threshold_percent: 50,
@@ -347,6 +349,7 @@ export default function AttendanceRulesManager() {
     if (policy.half_day_threshold_percent < 1 || policy.half_day_threshold_percent > 99) errs.half_day_threshold_percent = "Enter a percentage between 1 and 99";
     if (policy.full_day_threshold_percent < 1 || policy.full_day_threshold_percent > 100) errs.full_day_threshold_percent = "Enter a percentage between 1 and 100";
     if (policy.late_threshold_for_halfday_minutes < 0) errs.late_threshold_for_halfday_minutes = "Enter 0 or more";
+    if (policy.regularization_allowed_days < 0 || policy.regularization_allowed_days > 31) errs.regularization_allowed_days = "Enter between 0 and 31";
 
     setFormErrors((prev) => ({ ...prev, ...errs }));
     return Object.keys(errs).length === 0;
@@ -1611,6 +1614,27 @@ export default function AttendanceRulesManager() {
                           <option value="false">No</option>
                         </select>
                         <p className="mt-1 text-xs text-gray-500">If enabled, comp-off issuance needs manager approval.</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Regularization Allowed Days
+                        </label>
+                        <input
+                          type="number"
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.regularization_allowed_days ? 'border-red-500' : 'border-gray-300'
+                            }`}
+                          min={0}
+                          max={31}
+                          value={policy.regularization_allowed_days}
+                          onChange={(e) => setField("regularization_allowed_days", Number(e.target.value))}
+                        />
+                        {formErrors.regularization_allowed_days && (
+                          <p className="mt-1 text-sm text-red-600">{formErrors.regularization_allowed_days}</p>
+                        )}
+                        <p className="mt-1 text-xs text-gray-500">
+                          Number of days back users can regularize (0-31). 0 means no restriction or immediate only.
+                        </p>
                       </div>
                     </div>
                   </>

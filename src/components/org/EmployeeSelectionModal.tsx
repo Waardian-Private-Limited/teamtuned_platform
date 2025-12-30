@@ -32,7 +32,10 @@ type EmployeeSelectionModalProps = {
     roles: Role[];
     departments?: Department[];
     selectedEmployeeIds?: number[]; // Already selected employees in other levels
+    initialSelectedIds?: number[]; // IDs already selected for the CURRENT level
     title?: string;
+    isMultiSelect?: boolean;
+    onSelectMultiple?: (employeeIds: number[]) => void;
 };
 
 export default function EmployeeSelectionModal({
@@ -43,12 +46,16 @@ export default function EmployeeSelectionModal({
     roles,
     departments = [],
     selectedEmployeeIds = [],
+    initialSelectedIds = [],
     title = "Select Employee",
+    isMultiSelect = false,
+    onSelectMultiple,
 }: EmployeeSelectionModalProps) {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);
     const [selectedDepartmentId, setSelectedDepartmentId] = useState<number | null>(null);
     const [showFilters, setShowFilters] = useState(false);
+    const [localSelectedIds, setLocalSelectedIds] = useState<number[]>([]);
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -62,8 +69,16 @@ export default function EmployeeSelectionModal({
             setSelectedDepartmentId(null);
             setShowFilters(false);
             setCurrentPage(1);
+            setLocalSelectedIds(initialSelectedIds);
         }
-    }, [isOpen]);
+    }, [isOpen, initialSelectedIds]);
+
+    // Update local selected IDs when initialSelectedIds changes while open
+    useEffect(() => {
+        if (isOpen && initialSelectedIds.length > 0 && localSelectedIds.length === 0) {
+            setLocalSelectedIds(initialSelectedIds);
+        }
+    }, [isOpen, initialSelectedIds]);
 
     // Reset to page 1 when filters change
     useEffect(() => {
@@ -74,8 +89,9 @@ export default function EmployeeSelectionModal({
 
     // Filter employees
     const filteredEmployees = employees.filter((emp) => {
-        // Exclude already selected employees
-        if (selectedEmployeeIds.includes(emp.id)) {
+        // Exclude employees selected in OTHER levels, 
+        // but ALLOW if they are already selected in the CURRENT level (so user can see/unselect them)
+        if (selectedEmployeeIds.includes(emp.id) && !initialSelectedIds.includes(emp.id)) {
             return false;
         }
 
@@ -104,7 +120,22 @@ export default function EmployeeSelectionModal({
     const paginatedEmployees = filteredEmployees.slice(startIndex, endIndex);
 
     const handleSelect = (employeeId: number) => {
-        onSelect(employeeId);
+        if (isMultiSelect) {
+            setLocalSelectedIds(prev =>
+                prev.includes(employeeId)
+                    ? prev.filter(id => id !== employeeId)
+                    : [...prev, employeeId]
+            );
+        } else {
+            onSelect(employeeId);
+            onClose();
+        }
+    };
+
+    const handleConfirmMultiSelect = () => {
+        if (onSelectMultiple) {
+            onSelectMultiple(localSelectedIds);
+        }
         onClose();
     };
 
@@ -217,11 +248,19 @@ export default function EmployeeSelectionModal({
                                 <button
                                     key={emp.id}
                                     onClick={() => handleSelect(emp.id)}
-                                    className="p-4 border border-gray-200 rounded-lg hover:border-indigo-600 hover:bg-indigo-50 transition-all text-left group"
+                                    className={`p-4 border rounded-lg transition-all text-left group ${isMultiSelect && localSelectedIds.includes(emp.id)
+                                        ? "border-indigo-600 bg-indigo-50"
+                                        : "border-gray-200 hover:border-indigo-600 hover:bg-indigo-50"
+                                        }`}
                                 >
                                     <div className="flex items-start justify-between">
                                         <div className="flex-1">
-                                            <div className="font-semibold text-gray-900 group-hover:text-indigo-900">
+                                            <div className="font-semibold text-gray-900 group-hover:text-indigo-900 flex items-center gap-2">
+                                                {isMultiSelect && (
+                                                    <div className={`w-4 h-4 rounded border flex items-center justify-center ${localSelectedIds.includes(emp.id) ? "bg-indigo-600 border-indigo-600" : "border-gray-300"}`}>
+                                                        {localSelectedIds.includes(emp.id) && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                                                    </div>
+                                                )}
                                                 {emp.first_name} {emp.last_name}
                                             </div>
                                             <div className="text-sm text-gray-600 mt-1">{emp.email}</div>
@@ -238,9 +277,11 @@ export default function EmployeeSelectionModal({
                                                 )}
                                             </div>
                                         </div>
-                                        <div className="text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            →
-                                        </div>
+                                        {!isMultiSelect && (
+                                            <div className="text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                →
+                                            </div>
+                                        )}
                                     </div>
                                 </button>
                             ))}
@@ -285,8 +326,8 @@ export default function EmployeeSelectionModal({
                                                 key={pageNum}
                                                 onClick={() => goToPage(pageNum)}
                                                 className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${currentPage === pageNum
-                                                        ? "bg-indigo-600 text-white"
-                                                        : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-100"
+                                                    ? "bg-indigo-600 text-white"
+                                                    : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-100"
                                                     }`}
                                             >
                                                 {pageNum}
@@ -305,13 +346,23 @@ export default function EmployeeSelectionModal({
                             </div>
                         )}
 
-                        {/* Cancel Button */}
-                        <button
-                            onClick={onClose}
-                            className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
-                        >
-                            Cancel
-                        </button>
+                        {/* Multi-select Confirm Button */}
+                        {isMultiSelect ? (
+                            <button
+                                onClick={handleConfirmMultiSelect}
+                                disabled={localSelectedIds.length === 0}
+                                className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                            >
+                                Confirm Selection ({localSelectedIds.length})
+                            </button>
+                        ) : (
+                            <button
+                                onClick={onClose}
+                                className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+                            >
+                                Cancel
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
