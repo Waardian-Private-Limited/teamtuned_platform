@@ -39,6 +39,7 @@ type EmployeeSelectionModalProps = {
         employees: Employee[];
         pagination: { page: number; limit: number; total: number; totalPages: number };
     }>;
+    onEmployeesLoaded?: (employees: Employee[]) => void; // Callback when employees are loaded
     roles: Role[];
     departments?: Department[];
     selectedEmployeeIds?: number[]; // Already selected employees in other levels
@@ -54,6 +55,7 @@ export default function EmployeeSelectionModal({
     onSelect,
     employees: initialEmployees = [],
     fetchEmployees,
+    onEmployeesLoaded,
     roles,
     departments = [],
     selectedEmployeeIds = [],
@@ -136,6 +138,10 @@ export default function EmployeeSelectionModal({
             setEmployees(data.employees || []);
             setTotalPages(data.pagination?.totalPages || 1);
             setTotalEmployees(data.pagination?.total || 0);
+            // Notify parent component
+            if (onEmployeesLoaded && data.employees) {
+                onEmployeesLoaded(data.employees);
+            }
         } catch (error) {
             console.error("Failed to load employees:", error);
             setEmployees([]);

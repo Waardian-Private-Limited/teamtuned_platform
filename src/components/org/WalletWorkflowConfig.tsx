@@ -41,6 +41,7 @@ type WorkflowDesignerProps = {
 function WorkflowDesigner({ workflow, onChange, workflowType, disabled = false }: WorkflowDesignerProps) {
     const [roles, setRoles] = useState<any[]>([]);
     const [employees, setEmployees] = useState<any[]>([]);
+    const [employeeCache, setEmployeeCache] = useState<Map<number, any>>(new Map()); // Cache for selected employees
     const [departments, setDepartments] = useState<any[]>([]);
     const [levels, setLevels] = useState<WorkflowLevel[]>([]);
     const [showEmployeeModal, setShowEmployeeModal] = useState(false);
@@ -197,16 +198,66 @@ function WorkflowDesigner({ workflow, onChange, workflowType, disabled = false }
         }
     };
 
+    // Update employee cache when employees are fetched
+    const updateEmployeeCache = (newEmployees: any[]) => {
+        setEmployeeCache(prev => {
+            const updated = new Map(prev);
+            newEmployees.forEach(emp => {
+                updated.set(emp.id, emp);
+            });
+            return updated;
+        });
+    };
+
+    // Fetch employee details by IDs to populate cache
+    const fetchEmployeesByIds = async (ids: number[]) => {
+        if (ids.length === 0) return;
+
+        try {
+            // Fetch employees by IDs - we'll use the search endpoint with no filters
+            // This is a workaround since we don't have a dedicated endpoint for fetching by IDs
+            const data = await fetchEmployees({ limit: 100 });
+            if (data?.employees) {
+                updateEmployeeCache(data.employees);
+            }
+        } catch (error) {
+            console.error("Failed to fetch employee details:", error);
+        }
+    };
+
     const getEmployeeName = (employeeId: number | null) => {
         if (!employeeId) return "Select employee...";
+        // Check cache first
+        const cached = employeeCache.get(employeeId);
+        if (cached) return `${cached.first_name} ${cached.last_name}`;
+        // Fallback to current employees list
         const emp = employees.find((e) => e.id === employeeId);
-        return emp ? `${emp.first_name} ${emp.last_name}` : "Unknown Employee";
+        if (emp) {
+            updateEmployeeCache([emp]); // Add to cache
+            return `${emp.first_name} ${emp.last_name}`;
+        }
+        return `Employee #${employeeId}`; // Show ID instead of "Unknown"
     };
 
     const getEmployeeNames = (employeeIds: number[] | null | undefined) => {
         if (!employeeIds || employeeIds.length === 0) return "Select employees...";
         if (employeeIds.length === 1) return getEmployeeName(employeeIds[0]);
-        return `${employeeIds.length} employees selected`;
+
+        // Get names from cache
+        const names = employeeIds.map(id => {
+            const cached = employeeCache.get(id);
+            if (cached) return `${cached.first_name} ${cached.last_name}`;
+            const emp = employees.find(e => e.id === id);
+            if (emp) {
+                updateEmployeeCache([emp]);
+                return `${emp.first_name} ${emp.last_name}`;
+            }
+            return null;
+        }).filter(Boolean);
+
+        if (names.length === 0) return `${employeeIds.length} employees selected`;
+        if (names.length <= 2) return names.join(", ");
+        return `${names[0]}, ${names[1]} +${employeeIds.length - 2} more`;
     };
 
     return (
@@ -289,15 +340,27 @@ function WorkflowDesigner({ workflow, onChange, workflowType, disabled = false }
                                             <Users className="w-4 h-4 text-gray-400" />
                                         </button>
                                         {level.approver_employee_ids && level.approver_employee_ids.length > 0 && (
-                                            <div className="mt-2 flex flex-wrap gap-1">
-                                                {level.approver_employee_ids.map(id => {
-                                                    const emp = employees.find(e => e.id === id);
-                                                    return emp ? (
-                                                        <span key={id} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 border border-gray-200">
-                                                            {emp.first_name} {emp.last_name}
-                                                        </span>
-                                                    ) : null;
-                                                })}
+                                            <div className="mt-2">
+                                                <div className="text-xs font-medium text-gray-700 mb-1">Selected Approvers:</div>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {level.approver_employee_ids.map(id => {
+                                                        const emp = employeeCache.get(id) || employees.find(e => e.id === id);
+                                                        return (
+                                                            <div key={id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                                                <div className="flex flex-col">
+                                                                    <span className="font-semibold">
+                                                                        {emp ? `${emp.first_name} ${emp.last_name}` : `Employee #${id}`}
+                                                                    </span>
+                                                                    {emp?.department_name && (
+                                                                        <span className="text-[10px] text-indigo-600">
+                                                                            {emp.department_name}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -354,8 +417,12 @@ function WorkflowDesigner({ workflow, onChange, workflowType, disabled = false }
             <EmployeeSelectionModal
                 isOpen={showEmployeeModal}
                 onClose={() => setShowEmployeeModal(false)}
-                onSelect={handleEmployeeSelect}
-                onSelectMultiple={handleEmployeesSelect}
+                onSelect={(employeeId) => {
+                    handleEmployeeSelect(employeeId);
+                }}
+                onSelectMultiple={(employeeIds) => {
+                    handleEmployeesSelect(employeeIds);
+                }}
                 isMultiSelect={true}
                 fetchEmployees={fetchEmployees}
                 roles={roles}
@@ -363,6 +430,7 @@ function WorkflowDesigner({ workflow, onChange, workflowType, disabled = false }
                 selectedEmployeeIds={getSelectedEmployeeIds(currentLevelIndex ?? undefined)}
                 initialSelectedIds={currentLevelIndex !== null ? (levels[currentLevelIndex].approver_employee_ids || (levels[currentLevelIndex].approver_employee_id ? [levels[currentLevelIndex].approver_employee_id] : [])) : []}
                 title="Select Approvers"
+                onEmployeesLoaded={(emps) => updateEmployeeCache(emps)} // Update cache when employees are loaded
             />
         </div>
     );
