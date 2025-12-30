@@ -56,15 +56,45 @@ function WorkflowDesigner({ workflow, onChange, workflowType, disabled = false }
 
     const fetchWorkflowOptions = async () => {
         try {
-            const data = await apiClient<{ roles: any[]; employees: any[] }>(
+            const data = await apiClient<{ roles: any[]; departments: any[] }>(
                 "/wallet-workflow/options",
                 { withAuth: true }
             );
             setRoles(data.roles || []);
-            setEmployees(data.employees || []);
+            setDepartments(data.departments || []);
         } catch (error) {
             console.error("Failed to fetch workflow options:", error);
             showError("Failed to load roles and employees");
+        }
+    };
+
+    // Fetch employees with server-side filtering
+    const fetchEmployees = async (params?: {
+        search?: string;
+        role_id?: number;
+        department_id?: number;
+        page?: number;
+        limit?: number;
+    }) => {
+        try {
+            const queryParams = new URLSearchParams();
+            if (params?.search) queryParams.append('search', params.search);
+            if (params?.role_id) queryParams.append('role_id', params.role_id.toString());
+            if (params?.department_id) queryParams.append('department_id', params.department_id.toString());
+            if (params?.page) queryParams.append('page', params.page.toString());
+            if (params?.limit) queryParams.append('limit', params.limit.toString());
+
+            const data = await apiClient<{
+                employees: any[];
+                pagination: { page: number; limit: number; total: number; totalPages: number };
+            }>(
+                `/wallet-workflow/options?${queryParams.toString()}`,
+                { withAuth: true }
+            );
+            return data;
+        } catch (error) {
+            console.error("Failed to fetch employees:", error);
+            throw error;
         }
     };
 
@@ -327,7 +357,7 @@ function WorkflowDesigner({ workflow, onChange, workflowType, disabled = false }
                 onSelect={handleEmployeeSelect}
                 onSelectMultiple={handleEmployeesSelect}
                 isMultiSelect={true}
-                employees={employees}
+                fetchEmployees={fetchEmployees}
                 roles={roles}
                 departments={departments}
                 selectedEmployeeIds={getSelectedEmployeeIds(currentLevelIndex ?? undefined)}

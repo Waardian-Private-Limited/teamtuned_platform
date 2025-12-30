@@ -28,7 +28,17 @@ type EmployeeSelectionModalProps = {
     isOpen: boolean;
     onClose: () => void;
     onSelect: (employeeId: number) => void;
-    employees: Employee[];
+    employees?: Employee[]; // Optional - for backward compatibility
+    fetchEmployees?: (params?: {
+        search?: string;
+        role_id?: number;
+        department_id?: number;
+        page?: number;
+        limit?: number;
+    }) => Promise<{
+        employees: Employee[];
+        pagination: { page: number; limit: number; total: number; totalPages: number };
+    }>;
     roles: Role[];
     departments?: Department[];
     selectedEmployeeIds?: number[]; // Already selected employees in other levels
@@ -42,7 +52,8 @@ export default function EmployeeSelectionModal({
     isOpen,
     onClose,
     onSelect,
-    employees,
+    employees: initialEmployees = [],
+    fetchEmployees,
     roles,
     departments = [],
     selectedEmployeeIds = [],
@@ -56,9 +67,14 @@ export default function EmployeeSelectionModal({
     const [selectedDepartmentId, setSelectedDepartmentId] = useState<number | null>(null);
     const [showFilters, setShowFilters] = useState(false);
     const [localSelectedIds, setLocalSelectedIds] = useState<number[]>([]);
+    const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
+    const [loading, setLoading] = useState(false);
+    const [debouncedSearch, setDebouncedSearch] = useState("");
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalEmployees, setTotalEmployees] = useState(0);
     const itemsPerPage = 20;
 
     // Reset filters and pagination when modal closes
@@ -80,15 +96,58 @@ export default function EmployeeSelectionModal({
         }
     }, [isOpen, initialSelectedIds]);
 
+    // Debounce search query
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchQuery);
+            setCurrentPage(1); // Reset to page 1 when search changes
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
+
     // Reset to page 1 when filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchQuery, selectedRoleId, selectedDepartmentId]);
+    }, [selectedRoleId, selectedDepartmentId]);
+
+    // Fetch employees when filters change
+    useEffect(() => {
+        if (isOpen && fetchEmployees) {
+            loadEmployees();
+        }
+    }, [isOpen, debouncedSearch, selectedRoleId, selectedDepartmentId, currentPage]);
+
+    // Load employees from server
+    const loadEmployees = async () => {
+        if (!fetchEmployees) {
+            setEmployees(initialEmployees);
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const data = await fetchEmployees({
+                search: debouncedSearch || undefined,
+                role_id: selectedRoleId || undefined,
+                department_id: selectedDepartmentId || undefined,
+                page: currentPage,
+                limit: itemsPerPage,
+            });
+            setEmployees(data.employees || []);
+            setTotalPages(data.pagination?.totalPages || 1);
+            setTotalEmployees(data.pagination?.total || 0);
+        } catch (error) {
+            console.error("Failed to load employees:", error);
+            setEmployees([]);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     if (!isOpen) return null;
 
-    // Filter employees
-    const filteredEmployees = employees.filter((emp) => {
+    // Filter employees (only if using client-side mode)
+    const filteredEmployees = fetchEmployees ? employees : employees.filter((emp) => {
         // Exclude employees selected in OTHER levels, 
         // but ALLOW if they are already selected in the CURRENT level (so user can see/unselect them)
         if (selectedEmployeeIds.includes(emp.id) && !initialSelectedIds.includes(emp.id)) {
@@ -113,11 +172,12 @@ export default function EmployeeSelectionModal({
         return matchesSearch && matchesRole && matchesDepartment;
     });
 
-    // Pagination calculations
-    const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
+    // Pagination calculations (only for client-side mode)
+    const clientTotalPages = fetchEmployees ? totalPages : Math.ceil(filteredEmployees.length / itemsPerPage);
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
-    const paginatedEmployees = filteredEmployees.slice(startIndex, endIndex);
+    const paginatedEmployees = fetchEmployees ? filteredEmployees : filteredEmployees.slice(startIndex, endIndex);
+    const displayTotalEmployees = fetchEmployees ? totalEmployees : filteredEmployees.length;
 
     const handleSelect = (employeeId: number) => {
         if (isMultiSelect) {
@@ -140,7 +200,7 @@ export default function EmployeeSelectionModal({
     };
 
     const goToPage = (page: number) => {
-        setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+        setCurrentPage(Math.max(1, Math.min(page, clientTotalPages)));
     };
 
     return (
@@ -234,7 +294,12 @@ export default function EmployeeSelectionModal({
 
                 {/* Employee List */}
                 <div className="flex-1 overflow-y-auto p-6">
-                    {filteredEmployees.length === 0 ? (
+                    {loading ? (
+                        <div className="text-center py-12">
+                            <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto mb-3"></div>
+                            <p className="text-gray-600">Loading employees...</p>
+                        </div>
+                    ) : filteredEmployees.length === 0 ? (
                         <div className="text-center py-12">
                             <p className="text-gray-600">
                                 {selectedEmployeeIds.length > 0 && employees.length === selectedEmployeeIds.length
@@ -294,11 +359,11 @@ export default function EmployeeSelectionModal({
                     <div className="flex items-center justify-between">
                         {/* Results Info */}
                         <span className="text-sm text-gray-600">
-                            Showing {filteredEmployees.length > 0 ? startIndex + 1 : 0}-{Math.min(endIndex, filteredEmployees.length)} of {filteredEmployees.length} employees
+                            Showing {displayTotalEmployees > 0 ? startIndex + 1 : 0}-{Math.min(endIndex, displayTotalEmployees)} of {displayTotalEmployees} employees
                         </span>
 
                         {/* Pagination Controls */}
-                        {totalPages > 1 && (
+                        {clientTotalPages > 1 && (
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => goToPage(currentPage - 1)}
@@ -309,14 +374,14 @@ export default function EmployeeSelectionModal({
                                 </button>
 
                                 <div className="flex items-center gap-1">
-                                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                    {Array.from({ length: Math.min(5, clientTotalPages) }, (_, i) => {
                                         let pageNum;
-                                        if (totalPages <= 5) {
+                                        if (clientTotalPages <= 5) {
                                             pageNum = i + 1;
                                         } else if (currentPage <= 3) {
                                             pageNum = i + 1;
-                                        } else if (currentPage >= totalPages - 2) {
-                                            pageNum = totalPages - 4 + i;
+                                        } else if (currentPage >= clientTotalPages - 2) {
+                                            pageNum = clientTotalPages - 4 + i;
                                         } else {
                                             pageNum = currentPage - 2 + i;
                                         }
@@ -338,7 +403,7 @@ export default function EmployeeSelectionModal({
 
                                 <button
                                     onClick={() => goToPage(currentPage + 1)}
-                                    disabled={currentPage === totalPages}
+                                    disabled={currentPage === clientTotalPages}
                                     className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                 >
                                     <ChevronRight className="w-4 h-4" />
