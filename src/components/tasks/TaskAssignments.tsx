@@ -82,7 +82,7 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
   const [hasNext, setHasNext] = React.useState<boolean>(false);
 
   // Auth
-  const { role: authRole, permissions, loading: authLoading } = useAuth();
+  const { role: authRole, user, employee, permissions, loading: authLoading } = useAuth();
   const isOrgAdmin = (authRole || "").toLowerCase() === "orgadmin";
   const canView = isOrgAdmin || permissions.some(p => ["TASK_VIEW", "TASK_ASSIGN"].includes(p));
   const canCreate = isOrgAdmin || permissions.some(p => ["TASK_CREATE", "TASK_TEMPLATES"].includes(p));
@@ -132,12 +132,19 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
   React.useEffect(() => {
     (async () => {
       try {
-        const res = await apiClient<any>("/sites", { method: "GET", withAuth: true });
-        const list = Array.isArray(res) ? res : (Array.isArray(res?.sites) ? res.sites : []);
-        setSites(list);
+        if (isOrgAdmin) {
+          const res = await apiClient<any>("/sites", { method: "GET", withAuth: true });
+          const list = Array.isArray(res) ? res : (Array.isArray(res?.sites) ? res.sites : []);
+          setSites(list);
+        } else {
+          // Fetch assigned sites from API directly
+          const res = await apiClient<any>("/sites?assigned_only=true", { method: "GET", withAuth: true });
+          const list = Array.isArray(res) ? res : (Array.isArray(res?.sites) ? res.sites : []);
+          setSites(list);
+        }
       } catch { }
     })();
-  }, []);
+  }, [isOrgAdmin, employee]);
 
   const runScheduler = async () => {
     setRunning(true);

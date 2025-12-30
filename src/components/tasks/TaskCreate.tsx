@@ -87,20 +87,26 @@ export default function TaskCreate({ mode = "create", initialTask, initialAssign
         const t = await apiClient<Array<{ id: number; name: string }>>("/templates", { method: "GET", withAuth: true });
         setTemplates(Array.isArray(t) ? t : []);
       } catch { }
+
       try {
-        const s = await apiClient<{ sites: any[] }>("/sites", { method: "GET", withAuth: true });
-        const normalized = (s?.sites || []).map((x: any) => ({ id: Number(x.id), name: String(x.name || x.code || x.id) }));
-        setSites(normalized);
-      } catch (e) {
-        // Fallback for employees without SITE_VIEW: use sites from session
-        try {
-          const authorizedSites = (employee as any)?.sites || [];
-          const normalized = authorizedSites.map((x: any) => ({ id: Number(x.id), name: String(x.name || x.code || x.id) }));
+        // Check if Org Admin
+        const isOrgAdmin = (role || "").toLowerCase() === "orgadmin" || ((user as any)?.roles || []).map((r: any) => String(r).toLowerCase()).includes("orgadmin");
+
+        if (isOrgAdmin) {
+          const s = await apiClient<{ sites: any[] }>("/sites", { method: "GET", withAuth: true });
+          const normalized = (s?.sites || []).map((x: any) => ({ id: Number(x.id), name: String(x.name || x.code || x.id) }));
           setSites(normalized);
-        } catch { }
+        } else {
+          // Fetch assigned sites from API directly
+          const s = await apiClient<{ sites: any[] }>("/sites?assigned_only=true", { method: "GET", withAuth: true });
+          const normalized = (s?.sites || []).map((x: any) => ({ id: Number(x.id), name: String(x.name || x.code || x.id) }));
+          setSites(normalized);
+        }
+      } catch (e) {
+        // Fallback or error handling
       }
     })();
-  }, []);
+  }, [role, user, employee]);
 
 
   // Clear assignees when site changes
