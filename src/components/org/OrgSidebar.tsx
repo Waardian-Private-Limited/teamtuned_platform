@@ -266,6 +266,7 @@ export default function OrgSidebar({
                             <Item icon={UserCheck} label="Employee Attendance" href="/org-admin/attendance/employee" active={pathname === "/org-admin/attendance/employee"} />
                             <Item icon={Settings} label="Attendance Config" href="/org-admin/attendance-config" active={pathname === "/org-admin/attendance-config"} />
                             <Item icon={Settings} label="Attendance Rules" href="/org-admin/attendance-rules" active={pathname === "/org-admin/attendance-rules"} />
+                            <Item icon={Calendar} label="Holiday Calendar" href="/org-admin/holiday-calendar" active={pathname === "/org-admin/holiday-calendar"} />
                             <Item icon={ListChecks} label="Approval Workflows" href="/org-admin/approval-workflows" active={pathname === "/org-admin/approval-workflows"} />
                             <Item icon={ClipboardList} label="Leave Requests" href="/org-admin/requests/leaves" active={pathname === "/org-admin/requests/leaves"} />
                             <Item icon={Calendar} label="Comp-Off Requests" href="/org-admin/requests/comp-offs" active={pathname === "/org-admin/requests/comp-offs"} />
