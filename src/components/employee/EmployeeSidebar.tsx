@@ -603,19 +603,32 @@ export default function EmployeeSidebar({
                   {(isOrgAdmin || hasAnyPerm(['EMP_ADD'])) && (
                     <>
                       <Item
-                        icon={Coins}
-                        label="Salary Components"
-                        href="/employee/salary-components"
-                        active={pathname?.startsWith("/employee/salary-components") || false}
+                        icon={Upload}
+                        label="Import Employees"
+                        href="/employee/employees/import"
+                        active={pathname?.startsWith("/employee/employees/import") || false}
                       />
                       <Item
-                        icon={ListChecks}
-                        label="Debit Rules"
-                        href="/employee/debit-rules"
-                        active={pathname?.startsWith("/employee/debit-rules") || false}
+                        icon={Clock}
+                        label="Shift Management"
+                        href="/employee/employees/shifts"
+                        active={pathname?.startsWith("/employee/employees/shifts") || false}
                       />
                     </>
                   )}
+                  {/* Salary Components & Debit Rules - Accessible to all (as requested) */}
+                  <Item
+                    icon={Coins}
+                    label="Salary Components"
+                    href="/employee/salary-components"
+                    active={pathname?.startsWith("/employee/salary-components") || false}
+                  />
+                  <Item
+                    icon={ListChecks}
+                    label="Debit Rules"
+                    href="/employee/debit-rules"
+                    active={pathname?.startsWith("/employee/debit-rules") || false}
+                  />
                 </div>
               </div>
             )}

@@ -78,6 +78,7 @@ export type Employee = {
   onboarding_token_expires_at?: string | null;
   created_at?: string;
   work_type?: string;
+  face_image_url?: string | null;
 };
 
 const weeklyDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -1274,7 +1275,19 @@ export default function EmployeeManagement() {
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <h4 className="text-sm font-medium text-gray-500">Personal Information</h4>
+                    {viewData.face_image_url && (
+                      <div className="mb-6 flex justify-center md:justify-start">
+                        <div className="relative group">
+                          <img
+                            src={viewData.face_image_url}
+                            alt="Face Registry"
+                            className="w-32 h-32 rounded-xl object-cover border-2 border-white shadow-lg ring-1 ring-gray-100"
+                          />
+                          <div className="absolute inset-0 rounded-xl ring-1 ring-inset ring-black/10"></div>
+                        </div>
+                      </div>
+                    )}
+                    <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-4">Personal Information</h4>
                     <div className="mt-3 space-y-3">
                       <div className="flex items-center space-x-3">
                         <User className="w-4 h-4 text-gray-400" />
@@ -1807,14 +1820,27 @@ export default function EmployeeManagement() {
                 return (
                   <tr key={employee.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {employee.first_name} {employee.last_name}
-                        </div>
-                        <div className="text-sm text-gray-500">{employee.email}</div>
-                        {employee.phone && (
-                          <div className="text-sm text-gray-500">{employee.phone}</div>
+                      <div className="flex items-center gap-3">
+                        {employee.face_image_url ? (
+                          <img
+                            src={employee.face_image_url}
+                            alt=""
+                            className="w-10 h-10 rounded-full object-cover border border-gray-200 flex-shrink-0 bg-gray-50"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-gray-500 text-xs font-bold border border-gray-200 flex-shrink-0">
+                            {(employee.first_name?.[0] || "").toUpperCase()}{(employee.last_name?.[0] || "").toUpperCase()}
+                          </div>
                         )}
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-gray-900 truncate">
+                            {employee.first_name} {employee.last_name}
+                          </div>
+                          <div className="text-xs text-gray-500 truncate">{employee.email}</div>
+                          {employee.phone && (
+                            <div className="text-xs text-gray-400 truncate mt-0.5">{employee.phone}</div>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900">{deptName}</td>

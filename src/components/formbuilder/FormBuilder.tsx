@@ -31,6 +31,7 @@ import {
   XCircle,
   Settings,
   GripVertical,
+  FileText,
 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import type { FormField, FieldType, FieldOption, TemplateSnapshot } from "./types";
@@ -69,6 +70,7 @@ const WIDGET_GROUPS: { title: string; items: { type: FieldType; label: string; i
     items: [
       { type: "image", label: "Image", icon: <ImageIcon size={18} />, description: "Image upload" },
       { type: "file", label: "File", icon: <FileIcon size={18} />, description: "File upload" },
+      { type: "reference", label: "Reference Material", icon: <FileText size={18} />, description: "Static file for users to view" },
       { type: "signature", label: "Signature", icon: <PenTool size={18} />, description: "Digital signature" },
     ],
   },
@@ -97,6 +99,7 @@ const TYPE_ICON: Record<FieldType, React.ReactNode> = {
   datetime: <CalendarClock size={16} />,
   image: <ImageIcon size={16} />,
   file: <FileIcon size={16} />,
+  reference: <FileText size={16} />,
   signature: <PenTool size={16} />,
   gps: <MapPin size={16} />,
   barcode: <ScanLine size={16} />,
@@ -341,6 +344,7 @@ export default function FormBuilder({
   const templateIdNumeric = React.useMemo(() => !!templateId && /^[0-9]+$/.test(String(templateId)), [templateId]);
   const [serverTemplateId, setServerTemplateId] = React.useState<number | null>(templateIdNumeric ? Number(templateId) : null);
   const selectedField = fields.find((f) => f.id === selectedId) || null;
+  const [isDragging, setIsDragging] = React.useState(false);
 
   const duplicateKeys = React.useMemo(() => {
     const counts = new Map<string, number>();
@@ -404,6 +408,7 @@ export default function FormBuilder({
                 case 'barcode': return { scanTypes: ['barcode', 'qr'] };
                 case 'choice':
                 case 'select': return { autoOptionValues: parsedMeta?.autoOptionValues !== false };
+                case 'reference': return { referenceUrl: '' };
                 default: return {};
               }
             })();
@@ -526,6 +531,29 @@ export default function FormBuilder({
     const next = current.filter((_, i) => i !== index);
     updateFieldOptions(ensureUniqueOptionValues(next));
   }, [selectedField, updateFieldOptions]);
+
+  const handleReferenceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!selectedId || !e.target.files?.length) return;
+    const file = e.target.files[0];
+    const formData = new FormData();
+    formData.append("files", file);
+
+    try {
+      setToast({ type: "success", msg: "Uploading reference file..." });
+      const res = await apiClient<{ files: { url: string }[] }>("/files/org-upload/templates", {
+        method: "POST",
+        body: formData,
+        withAuth: true,
+      });
+
+      if (res?.files?.[0]?.url) {
+        updateSelected({ metadata: { ...(selectedField?.metadata || {}), referenceUrl: res.files[0].url } });
+        setToast({ type: "success", msg: "Reference file attached." });
+      }
+    } catch (err) {
+      setToast({ type: "error", msg: "Upload failed. Try again." });
+    }
+  };
 
   const saveSnapshot = () => {
     if (hasDuplicateKeys) {
@@ -992,160 +1020,218 @@ export default function FormBuilder({
               )}
             </div>
           )}
+
+          {selectedField?.field_type === "reference" && (
+            <div className="space-y-4 p-6 border-t border-slate-200">
+              <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Reference Settings</h3>
+              <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="mb-3">
+                  <div className="text-sm font-medium text-slate-700 mb-1">Attached File</div>
+                  {selectedField.metadata?.referenceUrl ? (
+                    <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 px-3 py-2 rounded border border-green-200">
+                      <CheckCircle size={16} />
+                      <span className="truncate flex-1">{selectedField.metadata.referenceUrl.split('/').pop()}</span>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-slate-500 italic">No file attached</div>
+                  )}
+                </div>
+                <div
+                  className={`mt-2 border-2 border-dashed rounded-lg p-6 text-center transition-colors ${isDragging ? "border-blue-500 bg-blue-50" : "border-slate-300 hover:border-slate-400"
+                    }`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragging(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                      handleReferenceUpload({ target: { files: e.dataTransfer.files } } as any);
+                    }
+                  }}
+                >
+                  <Upload size={24} className="mx-auto text-slate-400 mb-2" />
+                  <label className="block cursor-pointer">
+                    <span className="sr-only">Choose file</span>
+                    <input
+                      type="file"
+                      className="hidden"
+                      onChange={handleReferenceUpload}
+                      accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,.csv"
+                    />
+                    <span className="text-sm text-blue-600 hover:text-blue-700 font-medium">Click to upload</span>
+                  </label>
+                  <p className="text-xs text-slate-500 mt-1">or drag and drop</p>
+                  <p className="text-xs text-slate-400 mt-2">PDF, Images, Docs</p>
+                </div>
+              </div>
+            </div>
+          )}
         </aside>
-      </div>
+      </div >
 
       {/* Modals and Toasts */}
-      {showConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                <XCircle size={20} className="text-amber-600" />
+      {
+        showConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                  <XCircle size={20} className="text-amber-600" />
+                </div>
+                <div>
+                  <div className="font-semibold text-slate-900">Unsaved Changes</div>
+                  <div className="text-sm text-slate-600">You have unsaved changes that will be lost</div>
+                </div>
               </div>
-              <div>
-                <div className="font-semibold text-slate-900">Unsaved Changes</div>
-                <div className="text-sm text-slate-600">You have unsaved changes that will be lost</div>
-              </div>
-            </div>
-            <div className="flex gap-3 justify-end">
-              <button
-                className="px-4 py-2.5 text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                onClick={() => setShowConfirm(false)}
-              >
-                Keep Editing
-              </button>
-              <button
-                className="px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                onClick={() => {
-                  setShowConfirm(false);
-                  setDirty(false);
-                  onBack?.();
-                }}
-              >
-                Discard Changes
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showSaveModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
-            <div className="mb-4">
-              <div className="text-lg font-semibold text-slate-900">Save Template to Server</div>
-              <div className="text-sm text-slate-600">Provide name, description, and choose publish</div>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
-                <input
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  value={nameInput}
-                  onChange={(e) => setNameInput(e.target.value)}
-                  placeholder="Template name"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
-                <input
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  value={descInput}
-                  onChange={(e) => setDescInput(e.target.value)}
-                  placeholder="Short description"
-                />
-              </div>
-              <label className="flex items-center gap-2 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={savePublish}
-                  onChange={(e) => setSavePublish(e.target.checked)}
-                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                />
-                Publish this version
-              </label>
-              {saveError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{saveError}</div>
-              )}
-            </div>
-            <div className="mt-5 flex gap-3 justify-end">
-              <button
-                className="px-4 py-2.5 text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                onClick={() => { if (!saveLoading) setShowSaveModal(false); }}
-              >
-                Cancel
-              </button>
-              <button
-                className={`px-4 py-2.5 rounded-lg text-white ${saveLoading ? 'bg-green-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'} transition-colors`}
-                onClick={async () => {
-                  if (saveLoading) return;
-                  try {
-                    setSaveLoading(true);
-                    setSaveError(null);
-                    let tplId = serverTemplateId;
-                    if (!tplId) {
-                      const created = await apiClient<any>(`/templates`, { method: 'POST', withAuth: true, body: { name: nameInput.trim() || 'Untitled Template', description: descInput || '', type: 'task' } });
-                      tplId = Number(created?.id);
-                      setServerTemplateId(tplId || null);
-                    }
-
-                    // Update template name and description
-                    await apiClient(`/templates/${tplId}`, {
-                      method: 'PUT',
-                      withAuth: true,
-                      body: {
-                        name: nameInput.trim() || 'Untitled Template',
-                        description: descInput.trim() || ''
-                      }
-                    });
-
-                    const toSave = ensureSystemFields(fields).map((f) => ({
-                      field_key: String(f.field_key || ''),
-                      label: String(f.label || ''),
-                      field_type: f.field_type,
-                      options: Array.isArray(f.options) ? f.options : undefined,
-                      metadata: f.metadata || {},
-                      is_required: !!(f.metadata && (f.metadata as any).required),
-                      sequence: Number(f.sequence || 0),
-                      parent_section_id: f.parent_section_id || null,
-                    }));
-                    await apiClient<any>(`/templates/${tplId}/versions`, { method: 'POST', withAuth: true, body: { publish: savePublish, fields: toSave } });
+              <div className="flex gap-3 justify-end">
+                <button
+                  className="px-4 py-2.5 text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                  onClick={() => setShowConfirm(false)}
+                >
+                  Keep Editing
+                </button>
+                <button
+                  className="px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  onClick={() => {
+                    setShowConfirm(false);
                     setDirty(false);
-                    setShowSaveModal(false);
-                    setToast({ type: 'success', msg: 'Template saved to server.' });
-                  } catch (err: any) {
-                    const msg = err?.message || 'Save failed';
-                    setSaveError(typeof err?.details === 'string' ? err.details : msg);
-                  } finally {
-                    setSaveLoading(false);
-                  }
-                }}
-                disabled={saveLoading}
-              >
-                {saveLoading ? 'Saving…' : 'Save'}
-              </button>
+                    onBack?.();
+                  }}
+                >
+                  Discard Changes
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
-      {toast && (
-        <div className={`fixed bottom-6 right-6 z-50 px-6 py-4 rounded-xl shadow-lg border-l-4 ${toast.type === "success"
-          ? "bg-green-50 border-green-500 text-green-800"
-          : "bg-red-50 border-red-500 text-red-800"
-          }`}>
-          <div className="flex items-center gap-3">
-            {toast.type === "success" ? (
-              <CheckCircle size={20} className="text-green-500" />
-            ) : (
-              <XCircle size={20} className="text-red-500" />
-            )}
-            <span className="font-medium">{toast.msg}</span>
+      {
+        showSaveModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
+              <div className="mb-4">
+                <div className="text-lg font-semibold text-slate-900">Save Template to Server</div>
+                <div className="text-sm text-slate-600">Provide name, description, and choose publish</div>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+                  <input
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={nameInput}
+                    onChange={(e) => setNameInput(e.target.value)}
+                    placeholder="Template name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                  <input
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={descInput}
+                    onChange={(e) => setDescInput(e.target.value)}
+                    placeholder="Short description"
+                  />
+                </div>
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={savePublish}
+                    onChange={(e) => setSavePublish(e.target.checked)}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  Publish this version
+                </label>
+                {saveError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{saveError}</div>
+                )}
+              </div>
+              <div className="mt-5 flex gap-3 justify-end">
+                <button
+                  className="px-4 py-2.5 text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                  onClick={() => { if (!saveLoading) setShowSaveModal(false); }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className={`px-4 py-2.5 rounded-lg text-white ${saveLoading ? 'bg-green-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'} transition-colors`}
+                  onClick={async () => {
+                    if (saveLoading) return;
+                    try {
+                      setSaveLoading(true);
+                      setSaveError(null);
+                      let tplId = serverTemplateId;
+                      if (!tplId) {
+                        const created = await apiClient<any>(`/templates`, { method: 'POST', withAuth: true, body: { name: nameInput.trim() || 'Untitled Template', description: descInput || '', type: 'task' } });
+                        tplId = Number(created?.id);
+                        setServerTemplateId(tplId || null);
+                      }
+
+                      // Update template name and description
+                      await apiClient(`/templates/${tplId}`, {
+                        method: 'PUT',
+                        withAuth: true,
+                        body: {
+                          name: nameInput.trim() || 'Untitled Template',
+                          description: descInput.trim() || ''
+                        }
+                      });
+
+                      const toSave = ensureSystemFields(fields).map((f) => ({
+                        field_key: String(f.field_key || ''),
+                        label: String(f.label || ''),
+                        field_type: f.field_type,
+                        options: Array.isArray(f.options) ? f.options : undefined,
+                        metadata: f.metadata || {},
+                        is_required: !!(f.metadata && (f.metadata as any).required),
+                        sequence: Number(f.sequence || 0),
+                        parent_section_id: f.parent_section_id || null,
+                      }));
+                      await apiClient<any>(`/templates/${tplId}/versions`, { method: 'POST', withAuth: true, body: { publish: savePublish, fields: toSave } });
+                      setDirty(false);
+                      setShowSaveModal(false);
+                      setToast({ type: 'success', msg: 'Template saved to server.' });
+                    } catch (err: any) {
+                      const msg = err?.message || 'Save failed';
+                      setSaveError(typeof err?.details === 'string' ? err.details : msg);
+                    } finally {
+                      setSaveLoading(false);
+                    }
+                  }}
+                  disabled={saveLoading}
+                >
+                  {saveLoading ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+
+      {
+        toast && (
+          <div className={`fixed bottom-6 right-6 z-50 px-6 py-4 rounded-xl shadow-lg border-l-4 ${toast.type === "success"
+            ? "bg-green-50 border-green-500 text-green-800"
+            : "bg-red-50 border-red-500 text-red-800"
+            }`}>
+            <div className="flex items-center gap-3">
+              {toast.type === "success" ? (
+                <CheckCircle size={20} className="text-green-500" />
+              ) : (
+                <XCircle size={20} className="text-red-500" />
+              )}
+              <span className="font-medium">{toast.msg}</span>
+            </div>
+          </div>
+        )
+      }
+    </div >
   );
 }
 
@@ -1423,6 +1509,16 @@ const FieldPreview = ({ field }: { field: FormField }) => {
         <div className="text-center p-4 border-2 border-dashed border-slate-300 rounded-lg bg-white">
           <FileIcon size={24} className="mx-auto text-slate-400 mb-2" />
           <div className="text-sm text-slate-600">Click to upload file</div>
+        </div>
+      );
+    case "reference":
+      return (
+        <div className="text-center p-4 border border-slate-200 rounded-lg bg-slate-50">
+          <FileText size={24} className="mx-auto text-blue-600 mb-2" />
+          <div className="font-medium text-slate-700">Reference Material</div>
+          <div className="text-sm text-slate-500">
+            {field.metadata?.referenceUrl ? "File attached (Ready)" : "No file attached yet"}
+          </div>
         </div>
       );
     case "gps":

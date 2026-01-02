@@ -1,8 +1,9 @@
+
 "use client";
 
 import React, { useState, useEffect } from "react";
 import { apiClient } from "@/lib/apiClient";
-import { Loader2, AlertCircle, Eye, Download, Filter, X, Calendar, MapPin, User, Search, ChevronDown, ChevronUp, Clock, CheckCircle, FileText, ChevronLeft, ChevronRight, Check, XCircle, RotateCcw } from "lucide-react";
+import { X, Check, Search, Filter, Calendar, MapPin, Download, Printer, Eye, ChevronLeft, ChevronRight, MoreVertical, FileText, Phone, Loader2, AlertCircle, User, ChevronDown, ChevronUp, Clock, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
 
 import { useAuth } from "@/context/AuthContext";
 
@@ -118,7 +119,7 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
         link.href = URL.createObjectURL(blob);
         const ct = res.headers.get('content-type') || '';
         const ext = ct.includes('spreadsheetml') ? 'xlsx' : 'xls';
-        link.download = `task_${taskId}_assignments_${exportFrom}_${exportTo}.${ext}`;
+        link.download = `task_${taskId}_assignments_${exportFrom}_${exportTo}.${ext} `;
         document.body.appendChild(link);
         link.click();
         link.remove();
@@ -1215,6 +1216,116 @@ function SubmissionReadOnly({ data, approvals, expandedGps, setExpandedGps, setS
     );
   };
 
+  const renderFile = (val: any) => {
+    const items = Array.isArray(val) ? val : [val];
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {items.map((item: any, idx: number) => {
+          const s = String(item ?? '');
+          if (!s) return null;
+
+          let label = `File ${idx + 1}`;
+          let isDataUrl = s.startsWith('data:');
+          let isPdf = false;
+          let isImage = false;
+
+          if (isDataUrl) {
+            const mime = s.split(';')[0].split(':')[1] || '';
+            isPdf = mime.includes('pdf');
+            isImage = mime.includes('image');
+            if (isPdf) label += '.pdf';
+            else if (mime.includes('word')) label += '.docx';
+            else if (mime.includes('sheet') || mime.includes('excel')) label += '.xlsx';
+            else if (mime.includes('text')) label += '.txt';
+          } else if (s.startsWith('http')) {
+            const parts = s.split('/');
+            const last = parts[parts.length - 1];
+            if (last) label = decodeURIComponent(last);
+            isPdf = s.toLowerCase().includes('.pdf');
+            isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(s);
+          }
+
+          // If it's an image, render as image instead
+          if (isImage) {
+            return (
+              <div
+                key={idx}
+                onClick={() => setSelectedImage?.(s)}
+                className="relative border border-gray-200 rounded-xl overflow-hidden bg-gray-50 hover:shadow-md transition-all duration-200 cursor-pointer group"
+              >
+                <img
+                  src={s}
+                  className="object-cover h-40 w-full"
+                  alt={label}
+                />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all duration-200 flex items-center justify-center">
+                  <Eye className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1">
+                  <p className="text-xs text-white truncate">{label}</p>
+                </div>
+              </div>
+            );
+          }
+
+          // PDF preview
+          if (isPdf) {
+            return (
+              <div key={idx} className="border border-gray-200 rounded-xl overflow-hidden bg-white hover:shadow-md transition-all">
+                <div className="aspect-[3/4] bg-gray-100 relative">
+                  <iframe
+                    src={s}
+                    className="w-full h-full"
+                    title={label}
+                  />
+                  <div className="absolute top-2 right-2">
+                    <a
+                      href={s}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Eye className="w-3 h-3" />
+                      Open
+                    </a>
+                  </div>
+                </div>
+                <div className="px-3 py-2 bg-gray-50 border-t border-gray-200">
+                  <p className="text-sm text-gray-700 truncate font-medium">{label}</p>
+                </div>
+              </div>
+            );
+          }
+
+          // Other files
+          return (
+            <a
+              key={idx}
+              href={s}
+              download={isDataUrl ? label : undefined}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 px-3 py-2 bg-gray-50 text-gray-700 rounded-lg text-sm border border-gray-200 hover:bg-gray-100 transition-colors"
+            >
+              <FileText className="w-4 h-4 text-gray-500" />
+              <span className="truncate max-w-xs">{label}</span>
+            </a>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderPhone = (val: any) => {
+    return (
+      <a href={`tel:${String(val)}`} className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 hover:underline">
+        <Phone className="w-4 h-4" />
+        <span className="font-medium">{String(val)}</span>
+      </a>
+    );
+  };
+
   return (
     <div className="space-y-4">
       {/* Submission Fields */}
@@ -1223,13 +1334,30 @@ function SubmissionReadOnly({ data, approvals, expandedGps, setExpandedGps, setS
           const key = String(v?.field_key || '');
           const label = String(v?.field_label || key);
           const value = v?.value;
-          const isImage = Array.isArray(value) ? (value[0] && (String(value[0]).startsWith('http') || String(value[0]).startsWith('data:image/'))) : (typeof value === 'string' && (value.startsWith('http') || value.startsWith('data:image/')));
-          const isSignature = key.includes('signature');
-          const isGps = key.includes('gps') || (typeof value === 'string' && value.includes(','));
-          const isDate = key.includes('date') && typeof value === 'string';
-          const isTime = key.includes('time') && typeof value === 'string';
-          const isArray = Array.isArray(value);
-          const isSection = key.startsWith('section_');
+          const strValue = String(value ?? '');
+
+          // Improved type detection
+          const isFile = (v?.field_type === 'file') || (key.includes('file')) ||
+            (Array.isArray(value) && value.some((x: any) => {
+              const str = String(x);
+              return str.startsWith('data:application/') || str.startsWith('data:text/') ||
+                (str.startsWith('http') && /\.(pdf|docx?|xlsx?|txt|csv)$/i.test(str));
+            })) ||
+            (typeof value === 'string' && (value.startsWith('data:application/') || value.startsWith('data:text/') ||
+              (value.startsWith('http') && /\.(pdf|docx?|xlsx?|txt|csv)$/i.test(value))));
+
+          const isImage = (v?.field_type === 'image') ||
+            (Array.isArray(value) && value.length > 0 && String(value[0]).startsWith('data:image/')) ||
+            (typeof value === 'string' && value.startsWith('data:image/')) ||
+            (key.includes('image') && (strValue.startsWith('http') || strValue.startsWith('data:')));
+
+          const isPhone = (v?.field_type === 'phone') || key.includes('phone');
+          const isSignature = key.includes('signature') || (v?.field_type === 'signature');
+          const isGps = key.includes('gps') || (v?.field_type === 'gps') || (typeof value === 'string' && value.includes(',') && !value.startsWith('data:') && !value.startsWith('http'));
+          const isDate = (v?.field_type === 'date') || (key.includes('date') && typeof value === 'string');
+          const isTime = (v?.field_type === 'time') || (key.includes('time') && typeof value === 'string');
+          const isArray = Array.isArray(value) && !isImage && !isFile;
+          const isSection = key.startsWith('section_') || (v?.field_type === 'section');
 
           return (
             <div key={idx} className="border border-gray-200 rounded-xl p-4 bg-white hover:shadow-sm transition-all duration-200">
@@ -1249,12 +1377,14 @@ function SubmissionReadOnly({ data, approvals, expandedGps, setExpandedGps, setS
                     )}
                   </div>
                   <div className="text-gray-700">
-                    {isImage || isSignature ? renderImage(value, isSignature)
-                      : isGps ? renderGps(key, value)
-                        : isDate ? renderDateTime(value, true)
-                          : isTime ? <span className="font-medium">{formatTime12h(String(value))}</span>
-                            : isArray ? renderArray(value)
-                              : <span className="text-gray-900">{String(value ?? '')}</span>}
+                    {isFile ? renderFile(value)
+                      : isImage || isSignature ? renderImage(value, isSignature)
+                        : isPhone ? renderPhone(value)
+                          : isGps ? renderGps(key, value)
+                            : isDate ? renderDateTime(value, true)
+                              : isTime ? <span className="font-medium">{formatTime12h(String(value))}</span>
+                                : isArray ? renderArray(value)
+                                  : <span className="text-gray-900 break-words">{String(value ?? '')}</span>}
                   </div>
                 </>
               )}

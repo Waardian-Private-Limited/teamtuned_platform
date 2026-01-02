@@ -17,7 +17,8 @@ export type FieldType =
   | "barcode"
   | "toggle"
   | "section"
-  | "readonly";
+  | "readonly"
+  | "reference";
 
 export interface FieldOption {
   value: string;
@@ -55,6 +56,8 @@ export interface FieldMeta {
   captureMode?: "live" | "manual";
   // For gps fields: whether to capture current device location or allow any coordinates
   gpsMode?: "current" | "any";
+  // For reference fields
+  referenceUrl?: string; // URL of the uploaded reference file
 }
 
 export interface FormField {

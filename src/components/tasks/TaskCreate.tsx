@@ -1,6 +1,7 @@
 "use client";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { apiClient } from "@/lib/apiClient";
+import { FileText, Loader2, Trash2, Upload } from "lucide-react";
 
 import { useAuth } from "@/context/AuthContext";
 type Weekday = "Sun" | "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat";
@@ -57,6 +58,11 @@ export default function TaskCreate({ mode = "create", initialTask, initialAssign
   const [newApprovalMandatory, setNewApprovalMandatory] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [message, setMessage] = useState<string>("");
+
+  // Reference Material
+  const [referenceUrl, setReferenceUrl] = useState<string>("");
+  const [referenceFileUploading, setReferenceFileUploading] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const weekdaysList: Weekday[] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -327,7 +333,9 @@ export default function TaskCreate({ mode = "create", initialTask, initialAssign
           approver_name: a.approver_name || undefined, // Now we get names from backend
         }))
       );
+
       setIsDataCollection(!!initialTask.is_data_collection);
+      setReferenceUrl(initialTask.reference_url || "");
     }
     // Set data collection mode if initialDataCollection is provided
     if (initialDataCollection && !initialTask) {
@@ -436,6 +444,7 @@ export default function TaskCreate({ mode = "create", initialTask, initialAssign
       approval_chain: requiresApproval ? approvalChain : [],
       status: "active",
       is_data_collection: isDataCollection,
+      reference_url: referenceUrl || null,
     };
 
     try {
@@ -456,6 +465,45 @@ export default function TaskCreate({ mode = "create", initialTask, initialAssign
       setMessage(err?.message || "Unexpected error");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleReferenceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setMessage("File size must be less than 10MB");
+      return;
+    }
+
+    setReferenceFileUploading(true);
+    const formData = new FormData();
+    formData.append("files", file);
+
+    try {
+      // Use 'tasks' context for organization upload
+      const res = await apiClient<{ success: boolean; files: Array<{ url: string }> }>(
+        "/files/org-upload/tasks",
+        {
+          method: "POST",
+          body: formData,
+          withAuth: true,
+        }
+      );
+
+      if (res.success && res.files?.[0]?.url) {
+        setReferenceUrl(res.files[0].url);
+      } else {
+        setMessage("Upload failed");
+      }
+    } catch (err) {
+      console.error(err);
+      setMessage("Error uploading file");
+    } finally {
+      setReferenceFileUploading(false);
+      // clear input
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -490,6 +538,77 @@ export default function TaskCreate({ mode = "create", initialTask, initialAssign
             <p className="text-xs text-blue-700">
               Tasks are not scheduled but are always available for assignees to fill multiple times.
             </p>
+          </div>
+        </div>
+
+        <div className="mb-4">
+          <label className="block text-sm font-medium mb-1">Reference Material (Optional)</label>
+          <div className="border rounded-lg p-4 bg-gray-50 border-dashed border-gray-300">
+            {!referenceUrl ? (
+              <div className="flex flex-col items-center justify-center text-center">
+                {referenceFileUploading ? (
+                  <div className="flex flex-col items-center py-4">
+                    <Loader2 className="h-6 w-6 animate-spin text-blue-500 mb-2" />
+                    <span className="text-sm text-gray-500">Uploading...</span>
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="h-8 w-8 text-gray-400 mb-2" />
+                    <p className="text-sm text-gray-600 mb-2">
+                      Attach a document, image, or spreadsheet for reference
+                    </p>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      className="hidden"
+                      onChange={handleReferenceUpload}
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.jpg,.jpeg,.png"
+                      disabled={!!readOnly}
+                    />
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="text-sm bg-white border border-gray-300 shadow-sm px-4 py-2 rounded-md hover:bg-gray-50 font-medium text-gray-700"
+                      >
+                        Select File
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center justify-between bg-white p-3 rounded border">
+                <div className="flex items-center gap-3 overflow-hidden">
+                  <div className="bg-blue-100 p-2 rounded">
+                    <FileText className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-medium text-gray-900 truncate max-w-[200px] md:max-w-md">
+                      {referenceUrl.split('/').pop()}
+                    </span>
+                    <a
+                      href={referenceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:underline truncate"
+                    >
+                      View Attached File
+                    </a>
+                  </div>
+                </div>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onClick={() => setReferenceUrl("")}
+                    className="text-red-500 hover:text-red-700 p-1"
+                    title="Remove attachment"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -856,133 +975,140 @@ export default function TaskCreate({ mode = "create", initialTask, initialAssign
           )}
         </div>
 
-        {!isDataCollection && recurrence === "monthly" && (
-          <div>
-            <label className="block text-sm font-medium mb-1">Month day(s) (1–31)</label>
-            <input
-              className="w-full border rounded px-3 py-2"
-              value={monthlyDaysInput}
-              onChange={(e) => setMonthlyDaysInput(e.target.value)}
-              placeholder="e.g., 1, 11, 21"
-              disabled={!!readOnly}
-            />
-            <p className="text-xs text-gray-500 mt-1">Valid: {monthlyDays.join(", ") || "None"}</p>
-          </div>
-        )}
-
-        {!isDataCollection && recurrence === "weekly" && (
-          <div>
-            <label className="block text-sm font-medium mb-2">Select weekday(s)</label>
-            <div className="flex flex-wrap gap-2">
-              {weekdaysList.map((wd) => (
-                <button
-                  disabled={!!readOnly}
-                  key={wd}
-                  type="button"
-                  className={`px-3 py-1 rounded border ${weeklyDays.includes(wd) ? "bg-blue-600 text-white" : "bg-white"
-                    }`}
-                  onClick={() => toggleWeekday(wd)}
-                >
-                  {wd}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Custom Dates Picker */}
-        {!isDataCollection && recurrence === 'custom' && (
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-2">Custom Dates (dd-mm format)</label>
-
-            {/* Selected dates as chips */}
-            {customDates.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-3">
-                {customDates.map(date => (
-                  <div key={date} className="flex items-center gap-2 bg-orange-50 text-orange-700 px-3 py-1.5 rounded-full text-sm border border-orange-100">
-                    <span>{date}</span>
-                    {!readOnly && (
-                      <button
-                        type="button"
-                        onClick={() => setCustomDates(prev => prev.filter(d => d !== date))}
-                        className="hover:text-orange-900 font-bold ml-1"
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Input to add new date */}
-            {!readOnly && (
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  className="flex-1 border rounded px-3 py-2"
-                  placeholder="dd-mm (e.g., 15-03 for March 15)"
-                  value={customDateInput}
-                  onChange={(e) => setCustomDateInput(e.target.value)}
-                  pattern="\d{2}-\d{2}"
-                />
-                <button
-                  type="button"
-                  className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700"
-                  onClick={() => {
-                    const match = customDateInput.match(/^(\d{2})-(\d{2})$/);
-                    if (match) {
-                      const day = parseInt(match[1]);
-                      const month = parseInt(match[2]);
-                      if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
-                        if (!customDates.includes(customDateInput)) {
-                          setCustomDates(prev => [...prev, customDateInput]);
-                          setCustomDateInput('');
-                        }
-                      } else {
-                        alert('Invalid date. Day must be 1-31, month must be 1-12.');
-                      }
-                    } else {
-                      alert('Invalid format. Use dd-mm (e.g., 15-03)');
-                    }
-                  }}
-                >
-                  Add Date
-                </button>
-              </div>
-            )}
-            <p className="text-xs text-gray-500 mt-2">
-              Task will recur <strong>yearly</strong> on these dates. Example: "15-03" = March 15th every year.
-            </p>
-          </div>
-        )}
-
-        {!isDataCollection && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {recurrence !== "daily" && (
-              <div>
-                <label className="block text-sm font-medium mb-1">Start Date</label>
-                <input
-                  type="date"
-                  className="w-full border rounded px-3 py-2"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  disabled={!!readOnly}
-                />
-              </div>
-            )}
+        {
+          !isDataCollection && recurrence === "monthly" && (
             <div>
-              <label className="block text-sm font-medium mb-1">Due Time</label>
+              <label className="block text-sm font-medium mb-1">Month day(s) (1–31)</label>
               <input
-                type="time"
                 className="w-full border rounded px-3 py-2"
-                value={dueTime}
-                onChange={(e) => setDueTime(e.target.value)}
+                value={monthlyDaysInput}
+                onChange={(e) => setMonthlyDaysInput(e.target.value)}
+                placeholder="e.g., 1, 11, 21"
                 disabled={!!readOnly}
               />
+              <p className="text-xs text-gray-500 mt-1">Valid: {monthlyDays.join(", ") || "None"}</p>
             </div>
-          </div>
-        )
+          )
+        }
+
+        {
+          !isDataCollection && recurrence === "weekly" && (
+            <div>
+              <label className="block text-sm font-medium mb-2">Select weekday(s)</label>
+              <div className="flex flex-wrap gap-2">
+                {weekdaysList.map((wd) => (
+                  <button
+                    disabled={!!readOnly}
+                    key={wd}
+                    type="button"
+                    className={`px-3 py-1 rounded border ${weeklyDays.includes(wd) ? "bg-blue-600 text-white" : "bg-white"
+                      }`}
+                    onClick={() => toggleWeekday(wd)}
+                  >
+                    {wd}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )
+        }
+
+        {/* Custom Dates Picker */}
+        {
+          !isDataCollection && recurrence === 'custom' && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">Custom Dates (dd-mm format)</label>
+
+              {/* Selected dates as chips */}
+              {customDates.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {customDates.map(date => (
+                    <div key={date} className="flex items-center gap-2 bg-orange-50 text-orange-700 px-3 py-1.5 rounded-full text-sm border border-orange-100">
+                      <span>{date}</span>
+                      {!readOnly && (
+                        <button
+                          type="button"
+                          onClick={() => setCustomDates(prev => prev.filter(d => d !== date))}
+                          className="hover:text-orange-900 font-bold ml-1"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Input to add new date */}
+              {!readOnly && (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    className="flex-1 border rounded px-3 py-2"
+                    placeholder="dd-mm (e.g., 15-03 for March 15)"
+                    value={customDateInput}
+                    onChange={(e) => setCustomDateInput(e.target.value)}
+                    pattern="\d{2}-\d{2}"
+                  />
+                  <button
+                    type="button"
+                    className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700"
+                    onClick={() => {
+                      const match = customDateInput.match(/^(\d{2})-(\d{2})$/);
+                      if (match) {
+                        const day = parseInt(match[1]);
+                        const month = parseInt(match[2]);
+                        if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+                          if (!customDates.includes(customDateInput)) {
+                            setCustomDates(prev => [...prev, customDateInput]);
+                            setCustomDateInput('');
+                          }
+                        } else {
+                          alert('Invalid date. Day must be 1-31, month must be 1-12.');
+                        }
+                      } else {
+                        alert('Invalid format. Use dd-mm (e.g., 15-03)');
+                      }
+                    }}
+                  >
+                    Add Date
+                  </button>
+                </div>
+              )}
+              <p className="text-xs text-gray-500 mt-2">
+                Task will recur <strong>yearly</strong> on these dates. Example: "15-03" = March 15th every year.
+              </p>
+            </div>
+          )
+        }
+
+        {
+          !isDataCollection && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {recurrence !== "daily" && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">Start Date</label>
+                  <input
+                    type="date"
+                    className="w-full border rounded px-3 py-2"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    disabled={!!readOnly}
+                  />
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium mb-1">Due Time</label>
+                <input
+                  type="time"
+                  className="w-full border rounded px-3 py-2"
+                  value={dueTime}
+                  onChange={(e) => setDueTime(e.target.value)}
+                  disabled={!!readOnly}
+                />
+              </div>
+            </div>
+          )
         }
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
