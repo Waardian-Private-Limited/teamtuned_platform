@@ -205,7 +205,7 @@ export default function TaskTemplates({ basePath = "/org-admin" }: { basePath?: 
                   </button>
                 </div>
 
-                {(template.author_name) && (
+                {/* {(template.author_name) && (
                   <div className="mt-4 pt-3 flex items-center justify-between border-t border-slate-50">
                     <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
                       <Clock className="w-3 h-3" />
@@ -227,7 +227,7 @@ export default function TaskTemplates({ basePath = "/org-admin" }: { basePath?: 
                       </div>
                     </div>
                   </div>
-                )}
+                )} */}
               </div>
             ))}
           </div>
