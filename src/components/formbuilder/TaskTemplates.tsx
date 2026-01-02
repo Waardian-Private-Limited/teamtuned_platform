@@ -3,23 +3,28 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/apiClient";
-import { 
-  Plus, 
-  FileEdit, 
-  Trash2, 
-  Loader2, 
+import {
+  Plus,
+  FileEdit,
+  Trash2,
+  Loader2,
   AlertCircle,
   ExternalLink,
-  Layers
+  Layers,
+  User,
+  Clock
 } from "lucide-react";
 
-type ServerTemplate = { 
-  id: number; 
-  name: string; 
-  description?: string | null; 
-  type: string; 
-  version: number; 
-  is_published: number | boolean 
+type ServerTemplate = {
+  id: number;
+  name: string;
+  description?: string | null;
+  type: string;
+  version: number;
+  is_published: number | boolean;
+  author_name?: string;
+  author_designation?: string;
+  created_at?: string;
 };
 
 export default function TaskTemplates({ basePath = "/org-admin" }: { basePath?: string }) {
@@ -155,19 +160,18 @@ export default function TaskTemplates({ basePath = "/org-admin" }: { basePath?: 
         {!loading && items.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {items.map((template) => (
-              <div 
-                key={template.id} 
+              <div
+                key={template.id}
                 className="group bg-white rounded-xl border border-slate-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all duration-200"
               >
                 <div className="flex items-start justify-between mb-3">
                   <h3 className="font-semibold text-slate-900 group-hover:text-indigo-700 transition-colors line-clamp-1">
                     {template.name}
                   </h3>
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                    template.is_published 
-                      ? "bg-green-100 text-green-800" 
-                      : "bg-amber-100 text-amber-800"
-                  }`}>
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${template.is_published
+                    ? "bg-green-100 text-green-800"
+                    : "bg-amber-100 text-amber-800"
+                    }`}>
                     {template.is_published ? "Published" : "Draft"}
                   </span>
                 </div>
@@ -177,6 +181,8 @@ export default function TaskTemplates({ basePath = "/org-admin" }: { basePath?: 
                     {template.description}
                   </p>
                 )}
+
+
 
                 <div className="flex items-center justify-between text-xs text-slate-500 mb-4">
                   <span>v{template.version}</span>
@@ -198,6 +204,30 @@ export default function TaskTemplates({ basePath = "/org-admin" }: { basePath?: 
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
+
+                {(template.author_name) && (
+                  <div className="mt-4 pt-3 flex items-center justify-between border-t border-slate-50">
+                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                      <Clock className="w-3 h-3" />
+                      <span>{new Date(template.created_at || new Date()).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 pl-2 pr-2.5 py-1 bg-slate-50 rounded-full border border-slate-100">
+                      <div className="p-1 bg-indigo-100 rounded-full">
+                        <User className="w-3 h-3 text-indigo-600" />
+                      </div>
+                      <div className="flex items-baseline gap-1 text-[10px] leading-none">
+                        <span className="font-medium text-slate-400">Created by</span>
+                        <span className="font-semibold text-slate-700">{template.author_name}</span>
+                        {template.author_designation && (
+                          <>
+                            <span className="text-slate-300">|</span>
+                            <span className="text-slate-500 font-medium">{template.author_designation}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -223,10 +253,10 @@ export default function TaskTemplates({ basePath = "/org-admin" }: { basePath?: 
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Template Name <span className="text-red-500">*</span>
                 </label>
-                <input 
+                <input
                   className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                   placeholder="Enter template name"
-                  value={name} 
+                  value={name}
                   onChange={(e) => setName(e.target.value)}
                   autoFocus
                 />
@@ -235,24 +265,24 @@ export default function TaskTemplates({ basePath = "/org-admin" }: { basePath?: 
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Description
                 </label>
-                <textarea 
+                <textarea
                   className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors resize-none"
                   placeholder="Describe what this template is for..."
-                  rows={3} 
-                  value={description} 
-                  onChange={(e) => setDescription(e.target.value)} 
+                  rows={3}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
                 />
               </div>
             </div>
 
             <div className="flex items-center justify-end gap-3 mt-8 pt-6 border-t border-slate-200">
-              <button 
+              <button
                 className="px-4 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
                 onClick={() => setShowCreate(false)}
               >
                 Cancel
               </button>
-              <button 
+              <button
                 className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={createTemplate}
                 disabled={!name.trim()}
@@ -275,7 +305,7 @@ export default function TaskTemplates({ basePath = "/org-admin" }: { basePath?: 
               </div>
               <h2 className="text-lg font-semibold text-slate-900">Delete template?</h2>
             </div>
-            
+
             <p className="text-sm text-slate-600 mb-2">
               You are about to delete the template:
             </p>
@@ -287,13 +317,13 @@ export default function TaskTemplates({ basePath = "/org-admin" }: { basePath?: 
             </p>
 
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
-              <button 
+              <button
                 className="px-4 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
                 onClick={() => setShowDelete({ open: false, item: undefined })}
               >
                 Cancel
               </button>
-              <button 
+              <button
                 className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
                 onClick={performDelete}
               >

@@ -14,7 +14,9 @@ import {
   AlertCircle,
   TrendingUp,
   Users,
-  FileText
+  FileText,
+  User,
+  AlertTriangle
 } from "lucide-react";
 import AttendanceDetailsModal from "./AttendanceDetailsModal";
 
@@ -57,7 +59,9 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
       else if (Array.isArray(res)) list = res;
 
       setItems(list);
-      setSummary(res?.summary || null);
+      const sum = res?.summary || {};
+      if (res?.salary_date) sum.salary_date = res.salary_date;
+      setSummary(sum);
 
       // Extract cycle info
       if (res?.cycle_start && res?.cycle_end) {
@@ -404,6 +408,8 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
                               {record.badges.slice(0, 3).map((b: any, i: number) => {
                                 const t = String(b.type || '').toLowerCase();
                                 if (t === 'late' || t === 'late_deduction') return <Clock key={i} className="w-3 h-3 text-orange-500" />;
+                                if (t === 'early_penalty') return <Clock key={i} className="w-3 h-3 text-red-500" />;
+                                if (t === 'overridden') return <User key={i} className="w-3 h-3 text-blue-500" />;
                                 if (t === 'break' || t === 'break_availed') return <Clock key={i} className="w-3 h-3 text-amber-500" />;
                                 if (t === 'outside_work') return <MapPin key={i} className="w-3 h-3 text-cyan-500" />;
                                 if (t === 'overtime') return <TrendingUp key={i} className="w-3 h-3 text-indigo-500" />;
@@ -510,6 +516,9 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
       {selectedRecord && (
         <AttendanceDetailsModal
           record={selectedRecord}
+          salaryDate={summary?.salary_date}
+          isLocked={summary?.salary_date ? new Date() > new Date(summary.salary_date) : false}
+          onUpdate={fetchMonthly}
           onClose={() => setSelectedRecord(null)}
         />
       )}

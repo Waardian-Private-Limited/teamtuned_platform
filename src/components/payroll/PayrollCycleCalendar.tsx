@@ -27,7 +27,9 @@ import {
   Sunset,
   Coffee,
   Calculator,
-  Info
+  Info,
+  User,
+  AlertTriangle
 } from "lucide-react";
 import AttendanceDetailsModal from "../attendance/AttendanceDetailsModal";
 
@@ -448,15 +450,21 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
                               {date.getDate()}
                             </span>
                             {inCycle && record && (
-                              <div className={`mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold leading-none ${config.bg} ${config.color} border ${config.border}`}>
-                                {config.label === 'Present' ? 'P' :
-                                  config.label === 'Absent' ? 'A' :
-                                    config.label === 'Holiday' ? 'H' :
-                                      config.label === 'Week Off' ? 'WO' :
-                                        config.label.includes('Paid Leave') ? 'PL' :
-                                          config.label.includes('Half') ? 'HD' :
-                                            config.label.slice(0, 2).toUpperCase()}
-                              </div>
+                              <>
+                                <div className={`mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold leading-none ${config.bg} ${config.color} border ${config.border}`}>
+                                  {config.label === 'Present' ? 'P' :
+                                    config.label === 'Absent' ? 'A' :
+                                      config.label === 'Holiday' ? 'H' :
+                                        config.label === 'Week Off' ? 'WO' :
+                                          config.label.includes('Paid Leave') ? 'PL' :
+                                            config.label.includes('Half') ? 'HD' :
+                                              config.label.slice(0, 2).toUpperCase()}
+                                </div>
+                                <div className="absolute bottom-0.5 right-0.5 flex gap-0.5 items-center">
+                                  {record.badges && record.badges.some((b: any) => b.type === 'early_penalty') && <Clock className="w-2.5 h-2.5 text-red-500" />}
+                                  {record.badges && record.badges.some((b: any) => b.type === 'overridden') && <User className="w-2.5 h-2.5 text-blue-500" />}
+                                </div>
+                              </>
                             )}
                           </button>
                         );

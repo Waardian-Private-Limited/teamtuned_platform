@@ -164,6 +164,25 @@ export default function EmployeeManagement() {
   const [success, setSuccess] = useState("");
   const [validationMessage, setValidationMessage] = useState("");
 
+  // Modal State
+  const [confirmationModal, setConfirmationModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'danger' | 'warning' | 'info';
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    type: 'info',
+    onConfirm: () => { },
+  });
+
+  const closeConfirmation = () => {
+    setConfirmationModal(prev => ({ ...prev, isOpen: false }));
+  };
+
   // Leave History Modal State
   const [showLeaveHistory, setShowLeaveHistory] = useState(false);
   const [selectedHistoryEmployee, setSelectedHistoryEmployee] = useState<{ id: number, name: string } | null>(null);
@@ -335,23 +354,28 @@ export default function EmployeeManagement() {
       return;
     }
 
-    if (!confirm('Are you sure you want to delete this employee? This action cannot be undone.')) {
-      return;
-    }
+    setConfirmationModal({
+      isOpen: true,
+      title: "Delete Employee",
+      message: "Are you sure you want to delete this employee? This action cannot be undone.",
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          setActionLoading(String(id));
+          await apiClient(`/organization/employees/${id}`, { method: "DELETE" });
+          await fetchEmployees();
 
-    try {
-      setActionLoading(String(id));
-      await apiClient(`/organization/employees/${id}`, { method: "DELETE" });
-      await fetchEmployees();
-
-      // Show success notification
-      showNotification('Employee deleted successfully', 'success');
-    } catch (e: any) {
-      setError(e?.message || "Failed to delete employee");
-      showNotification(e?.message || "Failed to delete employee", 'error');
-    } finally {
-      setActionLoading(null);
-    }
+          // Show success notification
+          showNotification('Employee deleted successfully', 'success');
+        } catch (e: any) {
+          setError(e?.message || "Failed to delete employee");
+          showNotification(e?.message || "Failed to delete employee", 'error');
+        } finally {
+          setActionLoading(null);
+          closeConfirmation();
+        }
+      }
+    });
   };
 
   // Helper functions for modern notifications
@@ -948,27 +972,37 @@ export default function EmployeeManagement() {
         return;
       }
 
-      if (!confirm(`Are you sure you want to send invitations to ${invitedEmployees.length} employee(s)?`)) {
-        return;
-      }
+      setConfirmationModal({
+        isOpen: true,
+        title: "Bulk Send Invitations",
+        message: `Are you sure you want to send invitations to ${invitedEmployees.length} employee(s)?`,
+        type: 'info',
+        onConfirm: async () => {
+          try {
+            setActionLoading("bulk-invite");
+            const employee_ids = invitedEmployees.map(emp => emp.id);
 
-      setActionLoading("bulk-invite");
-      const employee_ids = invitedEmployees.map(emp => emp.id);
+            const response = await apiClient<{ success: boolean; message: string; results: any }>(
+              '/organization/employees/bulk-resend-invitations',
+              {
+                method: "POST",
+                body: { employee_ids }
+              }
+            );
 
-      const response = await apiClient<{ success: boolean; message: string; results: any }>(
-        '/organization/employees/bulk-resend-invitations',
-        {
-          method: "POST",
-          body: { employee_ids }
+            showNotification(response.message || "Bulk invitations sent successfully", "success");
+            await fetchEmployees();
+          } catch (e: any) {
+            showNotification(e.message || "Failed to send bulk invitations", "error");
+          } finally {
+            setActionLoading(null);
+            closeConfirmation();
+          }
         }
-      );
+      });
 
-      showNotification(response.message || "Bulk invitations sent successfully", "success");
-      await fetchEmployees();
     } catch (e: any) {
       showNotification(e.message || "Failed to send bulk invitations", "error");
-    } finally {
-      setActionLoading(null);
     }
   };
 
@@ -980,18 +1014,25 @@ export default function EmployeeManagement() {
     const s = (currentStatus || "").toLowerCase();
     const newStatus = s === "active" ? "Inactive" : "Active";
 
-    if (!confirm(`Are you sure you want to mark this employee as ${newStatus}?`)) return;
-
-    try {
-      setActionLoading(String(id));
-      await apiClient(`/organization/employees/${id}/toggle-status`, { method: "POST", body: { status: newStatus } });
-      showNotification(`Employee marked as ${newStatus}`, "success");
-      await fetchEmployees();
-    } catch (e: any) {
-      showNotification(e.message || "Failed to update status", "error");
-    } finally {
-      setActionLoading(null);
-    }
+    setConfirmationModal({
+      isOpen: true,
+      title: `${newStatus === 'Inactive' ? 'Deactivate' : 'Activate'} Employee`,
+      message: `Are you sure you want to mark this employee as ${newStatus}?`,
+      type: newStatus === 'Inactive' ? 'warning' : 'info',
+      onConfirm: async () => {
+        try {
+          setActionLoading(String(id));
+          await apiClient(`/organization/employees/${id}/toggle-status`, { method: "POST", body: { status: newStatus } });
+          showNotification(`Employee marked as ${newStatus}`, "success");
+          await fetchEmployees();
+        } catch (e: any) {
+          showNotification(e.message || "Failed to update status", "error");
+        } finally {
+          setActionLoading(null);
+          closeConfirmation();
+        }
+      }
+    });
   };
 
   const getStatusColor = (employee: Employee) => {
@@ -1005,7 +1046,8 @@ export default function EmployeeManagement() {
 
     switch (status) {
       case 'active': return 'text-green-700 bg-green-50 border border-green-200';
-      case 'inactive': return 'text-red-700 bg-red-50 border border-red-200';
+      case 'inactive': return 'text-amber-700 bg-amber-50 border border-amber-200';
+      case 'terminated': return 'text-red-700 bg-red-50 border border-red-200';
       default: return 'text-gray-700 bg-gray-50 border border-gray-200';
     }
   };
@@ -1021,7 +1063,8 @@ export default function EmployeeManagement() {
 
     switch (status) {
       case 'active': return <CheckCircle className="w-3 h-3 text-green-500" />;
-      case 'inactive': return <AlertCircle className="w-3 h-3 text-red-500" />;
+      case 'inactive': return <AlertCircle className="w-3 h-3 text-amber-500" />;
+      case 'terminated': return <XCircle className="w-3 h-3 text-red-500" />;
       default: return <Clock className="w-3 h-3 text-gray-500" />;
     }
   };
@@ -1140,7 +1183,18 @@ export default function EmployeeManagement() {
                   </button>
                 )}
 
-                {/* Delete Removed as per request */}
+                {canDelete && (
+                  <button
+                    onClick={() => {
+                      deleteEmployee(employee.id);
+                      setIsOpen(false);
+                    }}
+                    className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete</span>
+                  </button>
+                )}
 
                 {canEdit && (
                   <>
@@ -1160,13 +1214,13 @@ export default function EmployeeManagement() {
                     )}
 
                     {/* Toggle Active/Inactive */}
-                    {employee.status?.toLowerCase() !== 'invited' && (
+                    {employee.status?.toLowerCase() !== 'invited' && employee.status?.toLowerCase() !== 'terminated' && (
                       <button
                         onClick={() => {
                           handleToggleStatus(employee.id, employee.status || 'Active');
                           setIsOpen(false);
                         }}
-                        className={`flex items-center space-x-2 w-full px-4 py-2 text-sm hover:bg-gray-50 ${(employee.status || '').toLowerCase() === 'active' ? 'text-red-700' : 'text-green-700'
+                        className={`flex items-center space-x-2 w-full px-4 py-2 text-sm hover:bg-gray-50 ${(employee.status || '').toLowerCase() === 'active' ? 'text-amber-700' : 'text-green-700'
                           }`}
                       >
                         {(employee.status || '').toLowerCase() === 'active' ? (
@@ -1425,9 +1479,66 @@ export default function EmployeeManagement() {
     );
   }
 
+  // Confirmation Modal
+  const ConfirmationModal = () => {
+    if (!confirmationModal.isOpen) return null;
+
+    const icon = confirmationModal.type === 'danger'
+      ? <AlertCircle className="w-6 h-6 text-red-600" />
+      : confirmationModal.type === 'warning'
+        ? <AlertCircle className="w-6 h-6 text-amber-600" />
+        : <AlertCircle className="w-6 h-6 text-blue-600" />; // Default/Info
+
+    const btnClass = confirmationModal.type === 'danger'
+      ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500'
+      : confirmationModal.type === 'warning'
+        ? 'bg-amber-600 hover:bg-amber-700 focus:ring-amber-500'
+        : 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500';
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overflow-x-hidden bg-black/50 backdrop-blur-sm p-4 md:p-6">
+        <div className="relative w-full max-w-md transform rounded-2xl bg-white p-6 text-left shadow-xl transition-all border border-gray-100">
+          <div className="flex items-center gap-4">
+            <div className={`flex items-center justify-center w-12 h-12 rounded-full ${confirmationModal.type === 'danger' ? 'bg-red-100' : confirmationModal.type === 'warning' ? 'bg-amber-100' : 'bg-blue-100'}`}>
+              {icon}
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-medium leading-6 text-gray-900">
+                {confirmationModal.title}
+              </h3>
+              <div className="mt-2">
+                <p className="text-sm text-gray-500">
+                  {confirmationModal.message}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 flex justify-end gap-3">
+            <button
+              type="button"
+              className="inline-flex justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:ring-offset-2"
+              onClick={closeConfirmation}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className={`inline-flex justify-center rounded-lg border border-transparent px-4 py-2 text-sm font-medium text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ${btnClass}`}
+              onClick={confirmationModal.onConfirm}
+            >
+              {confirmationModal.type === 'danger' ? 'Delete' : 'Confirm'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4">
       {/* Render modals */}
+      <ConfirmationModal />
       <ViewEmployeeModal />
 
       {/* Header */}

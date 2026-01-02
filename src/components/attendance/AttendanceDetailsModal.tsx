@@ -6,16 +6,67 @@ import {
     CheckCircle2,
     AlertCircle,
     XCircle,
-    TrendingUp
+    TrendingUp,
+    Edit,
+    Lock
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { apiClient } from "@/lib/apiClient";
 
 type Props = {
     record: any;
     onClose: () => void;
+    onUpdate?: () => void;
+    isLocked?: boolean;
+    salaryDate?: string | Date;
 };
 
-export default function AttendanceDetailsModal({ record, onClose }: Props) {
+export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLocked, salaryDate }: Props) {
+    const { permissions, role } = useAuth();
+    const [showOverride, setShowOverride] = React.useState(false);
+    const [overrideStatus, setOverrideStatus] = React.useState("Absent");
+    const [overrideReason, setOverrideReason] = React.useState("");
+    const [loading, setLoading] = React.useState(false);
+
+    // Check permissions
+    const isOrgAdmin = (role || "").toLowerCase() === "orgadmin";
+    const hasEditPerm = isOrgAdmin || (permissions || []).includes("ATTEND_EDIT");
+    const hasHrMode = isOrgAdmin || (permissions || []).includes("HR_MODE");
+
+    // Check Salary Date Logic
+    // If salaryDate is provided, check if today is AFTER salary date
+    const salaryDatePassed = salaryDate ? new Date() > new Date(salaryDate) : false;
+    const locked = isLocked || salaryDatePassed || record.is_locked;
+
     if (!record) return null;
+
+    const handleOverride = async () => {
+        if (!overrideReason.trim()) {
+            alert("Please provide a reason.");
+            return;
+        }
+
+        try {
+            setLoading(true);
+            await apiClient('/attendance/override', {
+                method: 'POST',
+                body: {
+                    attendance_id: record.attendance_id || record.id,
+                    employee_id: record.employee_id,
+                    attendance_date: record.attendance_date || record.date,
+                    status: overrideStatus,
+                    reason: overrideReason
+                }
+            });
+            setShowOverride(false);
+            if (onUpdate) onUpdate();
+            onClose();
+        } catch (err: any) {
+            alert(err.message || "Failed to override");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const formatTime = (dateStr?: string) => {
         if (!dateStr) return "—";
@@ -73,9 +124,9 @@ export default function AttendanceDetailsModal({ record, onClose }: Props) {
 
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
-            <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
                 {/* Header */}
-                <div className="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 p-4 flex items-center justify-between">
+                <div className="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 p-4 flex items-center justify-between shrink-0">
                     <div>
                         <h3 className="font-semibold text-slate-900">
                             {formatDate(record.attendance_date || record.date)}
@@ -104,6 +155,11 @@ export default function AttendanceDetailsModal({ record, onClose }: Props) {
                                     Late Deduction
                                 </span>
                             )}
+                            {!!record.is_overridden && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-rose-100 text-rose-700 border border-rose-200">
+                                    Overridden
+                                </span>
+                            )}
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-lg transition-colors">
@@ -111,8 +167,69 @@ export default function AttendanceDetailsModal({ record, onClose }: Props) {
                     </button>
                 </div>
 
-                {/* Content */}
-                <div className="p-5 overflow-y-auto max-h-[calc(90vh-80px)]">
+                {/* Override Form */}
+                {showOverride && (
+                    <div className="bg-amber-50 border-b border-amber-200 p-4 shrink-0 transition-all">
+                        <div className="flex items-start gap-3">
+                            <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
+                            <div className="flex-1 space-y-3">
+                                <div>
+                                    <h4 className="text-sm font-bold text-amber-900">Override Attendance</h4>
+                                    <p className="text-xs text-amber-700 mt-1">
+                                        Manually status update. This action will be logged.
+                                    </p>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-medium text-amber-800 mb-1">Status</label>
+                                        <select
+                                            value={overrideStatus}
+                                            onChange={(e) => setOverrideStatus(e.target.value)}
+                                            className="w-full text-sm rounded-md border-amber-300 focus:border-amber-500 focus:ring-amber-500"
+                                        >
+                                            <option value="Absent">Absent</option>
+                                            {/* HR Mode Options */}
+                                            {hasHrMode && (
+                                                <>
+                                                    <option value="Full-Day">Full Day</option>
+                                                    <option value="Half-Day">Half Day</option>
+                                                </>
+                                            )}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-amber-800 mb-1">Reason (Required)</label>
+                                        <input
+                                            type="text"
+                                            value={overrideReason}
+                                            onChange={(e) => setOverrideReason(e.target.value)}
+                                            placeholder="Why are you changing this?"
+                                            className="w-full text-sm rounded-md border-amber-300 focus:border-amber-500 focus:ring-amber-500"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 pt-1">
+                                    <button
+                                        onClick={handleOverride}
+                                        disabled={loading}
+                                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-md flex items-center gap-1.5 disabled:opacity-50"
+                                    >
+                                        {loading ? "Saving..." : "Confirm Override"}
+                                    </button>
+                                    <button
+                                        onClick={() => setShowOverride(false)}
+                                        className="px-3 py-1.5 bg-white border border-amber-300 text-amber-800 text-xs font-medium rounded-md hover:bg-amber-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Content - Scrollable */}
+                <div className="p-5 overflow-y-auto flex-1">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         {/* Left Column */}
                         <div className="space-y-4">
@@ -121,6 +238,25 @@ export default function AttendanceDetailsModal({ record, onClose }: Props) {
                                 <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
                                     <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Status</div>
                                     <div className="text-sm text-slate-900">{record.status_summary}</div>
+                                </div>
+                            )}
+
+                            {/* Override Info */}
+                            {!!record.is_overridden && (
+                                <div className="bg-rose-50 rounded-lg p-3 border border-rose-200">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <Edit className="w-3.5 h-3.5 text-rose-700" />
+                                        <div className="text-xs font-semibold text-rose-700 uppercase">Manually Overridden</div>
+                                    </div>
+                                    <div className="text-sm text-rose-900 font-medium italic">
+                                        "{record.override_reason}"
+                                    </div>
+                                    {(record.override_by_first || record.overridden_by) && (
+                                        <div className="text-xs text-rose-600 mt-1 font-medium">
+                                            By: {record.override_by_first ? `${record.override_by_first} ${record.override_by_last || ''}`.trim() : `ID: ${record.overridden_by}`}
+                                            {record.override_by_role && <span className="text-rose-500 font-normal"> ({record.override_by_role})</span>}
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -318,6 +454,34 @@ export default function AttendanceDetailsModal({ record, onClose }: Props) {
                                 </div>
                             )}
                     </div>
+                </div>
+
+                {/* Footer with Actions */}
+                <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3 shrink-0 rounded-b-xl">
+                    {hasEditPerm && !showOverride && locked && (
+                        <button
+                            disabled
+                            className="px-4 py-2 text-sm font-medium text-slate-400 bg-slate-100 border border-slate-200 rounded-lg flex items-center gap-2 cursor-not-allowed"
+                        >
+                            <Lock className="w-4 h-4 text-slate-400" />
+                            Locked
+                        </button>
+                    )}
+                    {hasEditPerm && !showOverride && !locked && (
+                        <button
+                            onClick={() => setShowOverride(true)}
+                            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-2 shadow-sm"
+                        >
+                            <Edit className="w-4 h-4 text-slate-500" />
+                            Override Status
+                        </button>
+                    )}
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-sm font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors"
+                    >
+                        Close
+                    </button>
                 </div>
             </div>
         </div>
