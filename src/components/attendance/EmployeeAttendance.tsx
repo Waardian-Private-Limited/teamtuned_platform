@@ -1386,6 +1386,7 @@ function AttendanceExportModal({
 }) {
   const [emailsInput, setEmailsInput] = React.useState<string>("");
   const [local, setLocal] = React.useState({ ...current });
+  const [exportFormat, setExportFormat] = React.useState<'excel' | 'pdf'>('excel');
   const [submitting, setSubmitting] = React.useState<boolean>(false);
 
   const submit = async () => {
@@ -1404,7 +1405,8 @@ function AttendanceExportModal({
         date: local.date,
         status: local.status === 'all' ? '' : local.status,
         department: local.department,
-        export_type: 'day'
+        export_type: 'day',
+        export_format: exportFormat
       };
 
       await apiClient<any>("/attendance/export", { method: "POST", withAuth: true, body: body });
@@ -1431,6 +1433,7 @@ function AttendanceExportModal({
         department: local.department,
         export_type: 'day',
         download_local: true,
+        export_format: exportFormat
       };
 
       const res = await fetch(`${baseUrl}/attendance/export`, {
@@ -1450,7 +1453,7 @@ function AttendanceExportModal({
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Attendance_Report_${local.date}_day.xlsx`;
+      a.download = `Attendance_Report_${local.date}_day.${exportFormat === 'pdf' ? 'pdf' : 'xlsx'}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1529,6 +1532,35 @@ function AttendanceExportModal({
               <option value="">All Departments</option>
               {departments.map((d) => (<option key={d.id} value={d.name}>{d.name}</option>))}
             </select>
+          </div>
+
+          {/* Export Format */}
+          <div className="md:col-span-2">
+            <label className="block text-xs text-gray-500 mb-1">Export Format</label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="export_format"
+                  value="excel"
+                  checked={exportFormat === 'excel'}
+                  onChange={() => setExportFormat('excel')}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span className="text-sm text-gray-700">Excel (.xlsx)</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="export_format"
+                  value="pdf"
+                  checked={exportFormat === 'pdf'}
+                  onChange={() => setExportFormat('pdf')}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span className="text-sm text-gray-700">PDF (.pdf)</span>
+              </label>
+            </div>
           </div>
 
           {/* Emails */}
