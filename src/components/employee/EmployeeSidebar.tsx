@@ -561,12 +561,20 @@ export default function EmployeeSidebar({
                     </>
                   )}
                   {(isOrgAdmin || hasPerm('HR_MODE')) && (
-                    <Item
-                      icon={UserCog}
-                      label="Team Mapper"
-                      href="/employee/assignments"
-                      active={pathname === "/employee/assignments"}
-                    />
+                    <>
+                      <Item
+                        icon={UserCog}
+                        label="Team Mapper"
+                        href="/employee/assignments"
+                        active={pathname === "/employee/assignments"}
+                      />
+                      <Item
+                        icon={Shield}
+                        label="Policy Mapper"
+                        href="/employee/policy-mapper"
+                        active={pathname === "/employee/policy-mapper"}
+                      />
+                    </>
                   )}
                   {(isOrgAdmin || hasAnyPerm(['EMP_ADD'])) && (
                     <>

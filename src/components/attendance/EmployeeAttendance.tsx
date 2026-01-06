@@ -1387,7 +1387,15 @@ function AttendanceExportModal({
   const [emailsInput, setEmailsInput] = React.useState<string>("");
   const [local, setLocal] = React.useState({ ...current });
   const [exportFormat, setExportFormat] = React.useState<'excel' | 'pdf'>('excel');
+  const [exportType, setExportType] = React.useState<'day' | 'month'>('day');
   const [submitting, setSubmitting] = React.useState<boolean>(false);
+
+  // Get current month in YYYY-MM format
+  const getCurrentMonth = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
+  };
+  const [month, setMonth] = React.useState<string>(getCurrentMonth());
 
   const submit = async () => {
     try {
@@ -1402,12 +1410,17 @@ function AttendanceExportModal({
       const body: any = {
         emails,
         site_id: local.siteId,
-        date: local.date,
         status: local.status === 'all' ? '' : local.status,
         department: local.department,
-        export_type: 'day',
+        export_type: exportType,
         export_format: exportFormat
       };
+
+      if (exportType === 'day') {
+        body.date = local.date;
+      } else {
+        body.month = month;
+      }
 
       await apiClient<any>("/attendance/export", { method: "POST", withAuth: true, body: body });
       notify("Export requested. You will receive the email shortly.", "success");
@@ -1428,13 +1441,18 @@ function AttendanceExportModal({
 
       const body: any = {
         site_id: local.siteId,
-        date: local.date,
         status: local.status === 'all' ? '' : local.status,
         department: local.department,
-        export_type: 'day',
+        export_type: exportType,
         download_local: true,
         export_format: exportFormat
       };
+
+      if (exportType === 'day') {
+        body.date = local.date;
+      } else {
+        body.month = month;
+      }
 
       const res = await fetch(`${baseUrl}/attendance/export`, {
         method: 'POST',
@@ -1453,7 +1471,10 @@ function AttendanceExportModal({
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Attendance_Report_${local.date}_day.${exportFormat === 'pdf' ? 'pdf' : 'xlsx'}`;
+      const fileName = exportType === 'day'
+        ? `Attendance_Report_${local.date}_day.${exportFormat === 'pdf' ? 'pdf' : 'xlsx'}`
+        : `Attendance_Report_${month}_month.${exportFormat === 'pdf' ? 'pdf' : 'xlsx'}`;
+      a.download = fileName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1491,16 +1512,55 @@ function AttendanceExportModal({
             </select>
           </div>
 
-          {/* Date */}
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Date</label>
-            <input
-              type="date"
-              value={local.date}
-              onChange={(e) => setLocal({ ...local, date: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-            />
+          {/* Export Type */}
+          <div className="md:col-span-2">
+            <label className="block text-xs text-gray-500 mb-1">Export Type</label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  value="day"
+                  checked={exportType === 'day'}
+                  onChange={() => setExportType('day')}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span className="text-sm text-gray-700">Daily Report</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  value="month"
+                  checked={exportType === 'month'}
+                  onChange={() => setExportType('month')}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span className="text-sm text-gray-700">Monthly Report (All Dates)</span>
+              </label>
+            </div>
           </div>
+
+          {/* Date or Month Picker */}
+          {exportType === 'day' ? (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Date</label>
+              <input
+                type="date"
+                value={local.date}
+                onChange={(e) => setLocal({ ...local, date: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Month</label>
+              <input
+                type="month"
+                value={month}
+                onChange={(e) => setMonth(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+          )}
 
           {/* Status */}
           <div>

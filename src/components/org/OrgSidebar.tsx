@@ -283,6 +283,7 @@ export default function OrgSidebar({
                         <div className="space-y-1 ml-2">
                             <Item icon={Users} label="Employees" href="/org-admin/employees" active={pathname === "/org-admin/employees"} />
                             <Item icon={UserCog} label="Team Mapper" href="/org-admin/assignments" active={pathname === "/org-admin/assignments"} />
+                            <Item icon={Shield} label="Policy Mapper" href="/org-admin/policy-mapper" active={pathname === "/org-admin/policy-mapper"} />
                             <Item icon={Phone} label="Emergency Contacts" href="/org-admin/emergency-contacts" active={pathname === "/org-admin/emergency-contacts"} />
                             <Item icon={Upload} label="Import Employees" href="/org-admin/employees/import" active={pathname === "/org-admin/employees/import"} />
                             <Item icon={Clock} label="Shift Management" href="/org-admin/employees/shifts" active={pathname === "/org-admin/employees/shifts"} />
