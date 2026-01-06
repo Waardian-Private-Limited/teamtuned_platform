@@ -155,6 +155,11 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                     Late Deduction
                                 </span>
                             )}
+                            {!!record.is_early_penalty && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-red-100 text-red-700 border border-red-200">
+                                    Early Penalty
+                                </span>
+                            )}
                             {!!record.is_overridden && (
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-rose-100 text-rose-700 border border-rose-200">
                                     Overridden

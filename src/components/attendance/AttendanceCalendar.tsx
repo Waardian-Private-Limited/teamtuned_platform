@@ -225,6 +225,10 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
   const leaves = stats.Leaves || 0;
   const overtime = stats.Overtime || 0;
   const holiday = stats.Holiday || 0;
+  const lateDeductionCount = stats.LateDeduction ?? stats.LateMarks ?? 0;
+  const earlyPenaltyCount = stats.EarlyPenalty ?? 0;
+  const lateDeductionDates = stats.LateDeductionDates || [];
+  const earlyPenaltyDates = stats.EarlyPenaltyDates || [];
 
   const formatTime = (dateStr?: string) => {
     if (!dateStr) return "—";
@@ -331,6 +335,10 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
             <div className="flex items-center gap-1.5">
               <div className="w-2 h-2 rounded-full bg-orange-500"></div>
               <span>LD - Late Deduction</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-red-500"></div>
+              <span>ED - Early Deduction</span>
             </div>
             <div className="flex items-center gap-1.5">
               <div className="w-2 h-2 rounded-full bg-teal-500"></div>
@@ -503,8 +511,40 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
                   <div className="w-2 h-2 rounded-full bg-orange-500"></div>
                   <span className="text-sm text-slate-700">Late Deduction</span>
                 </div>
-                <span className="font-semibold text-orange-900">{stats.LateDeduction ?? stats.LateMarks ?? 0}</span>
+                <span className="font-semibold text-orange-900">{lateDeductionCount}</span>
               </div>
+              {lateDeductionCount > 0 && lateDeductionDates.length > 0 && (
+                <div className="pl-4 text-xs text-slate-600">
+                  <div className="font-medium mb-1">Dates:</div>
+                  <div className="flex flex-wrap gap-1">
+                    {lateDeductionDates.map((date: string, idx: number) => (
+                      <span key={idx} className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">
+                        {new Date(date).getDate()}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-red-50/50 border border-red-200/50">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                  <span className="text-sm text-slate-700">Early Penalty</span>
+                </div>
+                <span className="font-semibold text-red-900">{earlyPenaltyCount}</span>
+              </div>
+              {earlyPenaltyCount > 0 && earlyPenaltyDates.length > 0 && (
+                <div className="pl-4 text-xs text-slate-600">
+                  <div className="font-medium mb-1">Dates:</div>
+                  <div className="flex flex-wrap gap-1">
+                    {earlyPenaltyDates.map((date: string, idx: number) => (
+                      <span key={idx} className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded">
+                        {new Date(date).getDate()}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
 
