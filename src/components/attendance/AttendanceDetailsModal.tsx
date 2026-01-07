@@ -57,6 +57,9 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
         console.log('🔍 Override Debug:');
         console.log('Payload:', payload);
         console.log('Record:', record);
+        console.log('Record Keys:', Object.keys(record));
+        console.log('Record.employee_id:', record.employee_id);
+        console.log('Record.id:', record.id);
 
         try {
             setLoading(true);

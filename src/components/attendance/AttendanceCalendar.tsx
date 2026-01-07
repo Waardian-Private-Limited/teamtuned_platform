@@ -555,7 +555,10 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
       {/* Detail Modal */}
       {selectedRecord && (
         <AttendanceDetailsModal
-          record={selectedRecord}
+          record={{
+            ...selectedRecord,
+            employee_id: employeeId, // Add employee_id from props
+          }}
           salaryDate={summary?.salary_date}
           isLocked={summary?.salary_date ? new Date() > new Date(summary.salary_date) : false}
           onUpdate={fetchMonthly}

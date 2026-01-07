@@ -1288,8 +1288,7 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
             record={{
               ...selectedEmployeeForDetails,
               ...(selectedEmployeeForDetails.attendance || {}),
-              // Map IDs
-              employee_id: selectedEmployeeForDetails.employee_id,
+              // Map IDs - set AFTER spreads to prevent overwriting
               attendance_id: selectedEmployeeForDetails.attendance?.id,
               // Map images from backend format (url) to modal format
               punch_in_image: selectedEmployeeForDetails.attendance?.punch_in_image_url || selectedEmployeeForDetails.attendance?.punch_in_image,
@@ -1302,7 +1301,9 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
                       selectedEmployeeForDetails.current_status === 'holiday' ? 'Holiday' :
                         selectedEmployeeForDetails.current_status),
               attendance_date: date || selectedEmployeeForDetails.attendance_date, // Ensure date from filter is used
-              sessions: selectedEmployeeForDetails.attendance?.sessions || selectedEmployeeForDetails.sessions || []
+              sessions: selectedEmployeeForDetails.attendance?.sessions || selectedEmployeeForDetails.sessions || [],
+              // CRITICAL: Set employee_id LAST to ensure it's not overwritten by spreads
+              employee_id: selectedEmployeeForDetails.employee_id,
             }}
             onClose={() => setSelectedEmployeeForDetails(null)}
           />
