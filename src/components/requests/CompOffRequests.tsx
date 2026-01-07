@@ -523,6 +523,34 @@ export default function CompOffRequests() {
                                         </button>
                                     </>
                                 )}
+
+                                {/* Override for OrgAdmin and HR_MODE users on approved/rejected requests */}
+                                {statusLower !== "pending" && (isOrgAdmin || canHRMode) && (
+                                    <>
+                                        <div className="border-t border-gray-100 my-1" />
+                                        <button
+                                            onClick={() => {
+                                                openModal(item, "approve");
+                                                setIsOpen(false);
+                                            }}
+                                            className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-emerald-700 hover:bg-emerald-50"
+                                        >
+                                            <ThumbsUp className="w-4 h-4" />
+                                            <span>Override - Approve</span>
+                                        </button>
+
+                                        <button
+                                            onClick={() => {
+                                                openModal(item, "reject");
+                                                setIsOpen(false);
+                                            }}
+                                            className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-rose-700 hover:bg-rose-50"
+                                        >
+                                            <ThumbsDown className="w-4 h-4" />
+                                            <span>Override - Reject</span>
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </>
