@@ -46,23 +46,30 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
             return;
         }
 
+        const payload = {
+            attendance_id: record.attendance_id || record.id,
+            employee_id: record.employee_id,
+            attendance_date: record.attendance_date || record.date,
+            status: overrideStatus,
+            reason: overrideReason
+        };
+
+        console.log('🔍 Override Debug:');
+        console.log('Payload:', payload);
+        console.log('Record:', record);
+
         try {
             setLoading(true);
             await apiClient('/attendance/override', {
                 method: 'POST',
-                body: {
-                    attendance_id: record.attendance_id || record.id,
-                    employee_id: record.employee_id,
-                    attendance_date: record.attendance_date || record.date,
-                    status: overrideStatus,
-                    reason: overrideReason
-                },
+                body: payload,
                 withAuth: true
             });
             setShowOverride(false);
             if (onUpdate) onUpdate();
             onClose();
         } catch (err: any) {
+            console.error('Override Error:', err);
             alert(err.message || "Failed to override");
         } finally {
             setLoading(false);
