@@ -1289,7 +1289,7 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
               ...selectedEmployeeForDetails,
               ...(selectedEmployeeForDetails.attendance || {}),
               // Map IDs
-              employee_id: selectedEmployeeForDetails.id || selectedEmployeeForDetails.employee_id,
+              employee_id: selectedEmployeeForDetails.employee_id,
               attendance_id: selectedEmployeeForDetails.attendance?.id,
               // Map images from backend format (url) to modal format
               punch_in_image: selectedEmployeeForDetails.attendance?.punch_in_image_url || selectedEmployeeForDetails.attendance?.punch_in_image,
