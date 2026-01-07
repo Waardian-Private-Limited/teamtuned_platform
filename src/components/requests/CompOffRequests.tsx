@@ -250,6 +250,16 @@ export default function CompOffRequests() {
         }
     };
 
+    const formatTime = (dateStr?: string) => {
+        if (!dateStr) return "—";
+        try {
+            const date = new Date(dateStr);
+            return date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        } catch {
+            return "—";
+        }
+    };
+
     const openModal = (item: CompOffItem, mode: "approve" | "reject") => {
         setActiveItem(item);
         setModalMode(mode);
@@ -874,13 +884,55 @@ export default function CompOffRequests() {
                                         <span className="text-sm text-gray-600">Status:</span>
                                         <p className="font-medium">{activeItem.status || "—"}</p>
                                     </div>
-                                    {activeItem.approver_first_name && (
-                                        <div>
-                                            <span className="text-sm text-gray-600">Approved By:</span>
-                                            <p className="font-medium">{`${activeItem.approver_first_name} ${activeItem.approver_last_name || ""}`.trim()}</p>
-                                        </div>
-                                    )}
                                 </div>
+
+                                {/* Approval Timeline */}
+                                {(activeItem.approver_first_name || activeItem.approved_at) && (
+                                    <div className="bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200 rounded-lg p-4 mt-4">
+                                        <div className="text-xs font-semibold text-slate-700 uppercase mb-3 flex items-center gap-1.5">
+                                            <Clock className="w-3.5 h-3.5" />
+                                            Approval Timeline
+                                        </div>
+                                        <div className="space-y-2.5">
+                                            {activeItem.approver_first_name && (
+                                                <div className="flex items-start gap-2">
+                                                    <div className="text-xs text-slate-500 min-w-[100px]">Approved By:</div>
+                                                    <div className="text-sm font-medium text-slate-900">
+                                                        {`${activeItem.approver_first_name} ${activeItem.approver_last_name || ""}`.trim()}
+                                                        {activeItem.approver_role && (
+                                                            <span className="ml-2 text-xs text-slate-500 font-normal">({activeItem.approver_role})</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {activeItem.approved_at && (
+                                                <div className="flex items-start gap-2">
+                                                    <div className="text-xs text-slate-500 min-w-[100px]">Approved At:</div>
+                                                    <div className="text-sm text-slate-700">
+                                                        {formatDate(activeItem.approved_at)} at {formatTime(activeItem.approved_at)}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {activeItem.status && (
+                                                <div className="flex items-start gap-2">
+                                                    <div className="text-xs text-slate-500 min-w-[100px]">Status:</div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        {activeItem.status === 'Approved' && <CheckCircle className="w-4 h-4 text-emerald-600" />}
+                                                        {activeItem.status === 'Rejected' && <X className="w-4 h-4 text-rose-600" />}
+                                                        {activeItem.status === 'Pending' && <AlertCircle className="w-4 h-4 text-amber-600" />}
+                                                        <span className={`text-sm font-semibold ${activeItem.status === 'Approved' ? 'text-emerald-700' :
+                                                            activeItem.status === 'Rejected' ? 'text-rose-700' :
+                                                                'text-amber-700'
+                                                            }`}>
+                                                            {activeItem.status}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
                                 {activeItem.remarks && (
                                     <div>
                                         <span className="text-sm text-gray-600">Remarks:</span>
