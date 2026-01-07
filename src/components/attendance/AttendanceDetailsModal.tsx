@@ -27,6 +27,9 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
     const [overrideStatus, setOverrideStatus] = React.useState("Absent");
     const [overrideReason, setOverrideReason] = React.useState("");
     const [loading, setLoading] = React.useState(false);
+    const [showRegularizeAction, setShowRegularizeAction] = React.useState(false);
+    const [regularizeAction, setRegularizeAction] = React.useState<'approve' | 'reject'>('approve');
+    const [regularizeReason, setRegularizeReason] = React.useState("");
 
     // Check permissions
     const isOrgAdmin = (role || "").toLowerCase() === "orgadmin";
@@ -74,6 +77,38 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
         } catch (err: any) {
             console.error('Override Error:', err);
             alert(err.message || "Failed to override");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleRegularizeAction = async () => {
+        if (regularizeAction === 'reject' && !regularizeReason.trim()) {
+            alert("Please provide a reason for rejection.");
+            return;
+        }
+
+        try {
+            setLoading(true);
+            const endpoint = regularizeAction === 'approve'
+                ? '/attendance/regularize/approve'
+                : '/attendance/regularize/reject';
+
+            await apiClient(endpoint, {
+                method: 'POST',
+                body: {
+                    id: record.regularize_request_id,
+                    remarks: regularizeReason || undefined
+                },
+                withAuth: true
+            });
+
+            setShowRegularizeAction(false);
+            if (onUpdate) onUpdate();
+            onClose();
+        } catch (err: any) {
+            console.error('Regularize Action Error:', err);
+            alert(err.message || "Failed to process request");
         } finally {
             setLoading(false);
         }
@@ -182,6 +217,57 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                         <X className="w-5 h-5 text-slate-600" />
                     </button>
                 </div>
+
+                {/* Regularization Action Modal */}
+                {showRegularizeAction && (
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-10 rounded-xl">
+                        <div className="bg-white rounded-lg p-5 max-w-md w-full mx-4 shadow-xl border border-slate-200">
+                            <h4 className="text-base font-semibold text-slate-900 mb-3">
+                                {regularizeAction === 'approve' ? 'Approve' : 'Reject'} Regularization Request
+                            </h4>
+                            <div className="space-y-3">
+                                <p className="text-sm text-slate-600">
+                                    {regularizeAction === 'approve'
+                                        ? 'Are you sure you want to approve this regularization request?'
+                                        : 'Please provide a reason for rejecting this regularization request.'}
+                                </p>
+                                {regularizeAction === 'reject' && (
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-700 mb-1">Reason (Required)</label>
+                                        <textarea
+                                            value={regularizeReason}
+                                            onChange={(e) => setRegularizeReason(e.target.value)}
+                                            placeholder="Why are you rejecting this request?"
+                                            rows={3}
+                                            className="w-full text-sm rounded-md border-slate-300 focus:border-blue-500 focus:ring-blue-500"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-2 pt-4">
+                                <button
+                                    onClick={handleRegularizeAction}
+                                    disabled={loading}
+                                    className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center gap-1.5 disabled:opacity-50 ${regularizeAction === 'approve'
+                                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                            : 'bg-rose-600 hover:bg-rose-700 text-white'
+                                        }`}
+                                >
+                                    {loading ? "Processing..." : regularizeAction === 'approve' ? 'Approve' : 'Reject'}
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setShowRegularizeAction(false);
+                                        setRegularizeReason("");
+                                    }}
+                                    className="px-4 py-2 bg-white border border-slate-300 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-50"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Override Form */}
                 {showOverride && (
@@ -372,6 +458,53 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                 </div>
                             )}
 
+                            {/* Approval Timeline */}
+                            {(record.approved_by_name || record.approved_at) && (
+                                <div className="bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200 rounded-lg p-3">
+                                    <div className="text-xs font-semibold text-slate-700 uppercase mb-2 flex items-center gap-1.5">
+                                        <Clock className="w-3.5 h-3.5" />
+                                        Approval Timeline
+                                    </div>
+                                    <div className="space-y-2">
+                                        {record.approved_by_name && (
+                                            <div className="flex items-start gap-2">
+                                                <div className="text-xs text-slate-500 min-w-[80px]">Approved By:</div>
+                                                <div className="text-sm font-medium text-slate-900">
+                                                    {record.approved_by_name}
+                                                    {record.approved_by_role && (
+                                                        <span className="ml-2 text-xs text-slate-500 font-normal">({record.approved_by_role})</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {record.approved_at && (
+                                            <div className="flex items-start gap-2">
+                                                <div className="text-xs text-slate-500 min-w-[80px]">Approved At:</div>
+                                                <div className="text-sm text-slate-700">
+                                                    {formatDate(record.approved_at)} at {formatTime(record.approved_at)}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {record.regularization_status && (
+                                            <div className="flex items-start gap-2">
+                                                <div className="text-xs text-slate-500 min-w-[80px]">Status:</div>
+                                                <div className="flex items-center gap-1.5">
+                                                    {record.regularization_status === 'Approved' && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+                                                    {record.regularization_status === 'Rejected' && <XCircle className="w-4 h-4 text-rose-600" />}
+                                                    {record.regularization_status === 'Pending' && <AlertCircle className="w-4 h-4 text-amber-600" />}
+                                                    <span className={`text-sm font-semibold ${record.regularization_status === 'Approved' ? 'text-emerald-700' :
+                                                        record.regularization_status === 'Rejected' ? 'text-rose-700' :
+                                                            'text-amber-700'
+                                                        }`}>
+                                                        {record.regularization_status}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Timeline (Breaks & Outside Work) */}
                             {record.sessions && record.sessions.length > 0 && (
                                 <div className="space-y-3 pt-2 border-t border-slate-100">
@@ -491,6 +624,31 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                             <Edit className="w-4 h-4 text-slate-500" />
                             Override Status
                         </button>
+                    )}
+                    {/* Regularization Approve/Reject Buttons */}
+                    {(isOrgAdmin || hasHrMode) && record.is_regularized && record.regularization_status === 'Pending' && !showRegularizeAction && (
+                        <>
+                            <button
+                                onClick={() => {
+                                    setRegularizeAction('approve');
+                                    setShowRegularizeAction(true);
+                                }}
+                                className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-sm"
+                            >
+                                <CheckCircle2 className="w-4 h-4" />
+                                Approve Regularization
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setRegularizeAction('reject');
+                                    setShowRegularizeAction(true);
+                                }}
+                                className="px-4 py-2 text-sm font-medium text-white bg-rose-600 rounded-lg hover:bg-rose-700 transition-colors flex items-center gap-2 shadow-sm"
+                            >
+                                <XCircle className="w-4 h-4" />
+                                Reject Regularization
+                            </button>
+                        </>
                     )}
                     <button
                         onClick={onClose}
