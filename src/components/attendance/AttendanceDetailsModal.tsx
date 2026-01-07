@@ -56,7 +56,8 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                     attendance_date: record.attendance_date || record.date,
                     status: overrideStatus,
                     reason: overrideReason
-                }
+                },
+                withAuth: true
             });
             setShowOverride(false);
             if (onUpdate) onUpdate();
