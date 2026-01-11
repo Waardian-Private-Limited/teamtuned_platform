@@ -460,7 +460,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
               <div className="min-w-[1900px] h-full flex flex-col">
                 {/* Fixed Header */}
                 <div className="bg-white border-b border-slate-200 flex-shrink-0 z-10">
-                  <div className="grid grid-cols-[80px_200px_150px_120px_80px_80px_80px_80px_80px_80px_80px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-3">
+                  <div className="grid grid-cols-[80px_200px_150px_120px_80px_80px_80px_80px_80px_80px_80px_100px_80px_100px_100px_100px_100px_80px] gap-2 px-4 py-3">
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">Image</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">Name</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">ID</div>
@@ -473,6 +473,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Holidays</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Full Days</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Half Days</div>
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Night OT</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Gross Salary</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Net Salary</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Deductions</div>
@@ -486,11 +487,12 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                   {loading ? (
                     // Ghost Loader
                     Array.from({ length: 5 }).map((_, i) => (
-                      <div key={i} className="min-w-[1900px] grid grid-cols-[80px_200px_150px_120px_80px_80px_80px_80px_80px_80px_80px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-4 animate-pulse">
+                      <div key={i} className="min-w-[1900px] grid grid-cols-[80px_200px_150px_120px_80px_80px_80px_80px_80px_80px_80px_100px_80px_100px_100px_100px_100px_80px] gap-2 px-4 py-4 animate-pulse">
                         <div className="w-9 h-9 bg-slate-100 rounded-lg"></div>
                         <div className="h-4 bg-slate-100 rounded w-32"></div>
                         <div className="h-4 bg-slate-100 rounded w-20"></div>
                         <div className="h-4 bg-slate-100 rounded w-24"></div>
+                        <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
                         <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
                         <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
                         <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
@@ -525,7 +527,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                       const salary = employee.salary || {};
 
                       return (
-                        <div key={employee.id} className="min-w-[1900px] grid grid-cols-[80px_200px_150px_120px_80px_80px_80px_80px_80px_80px_80px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-3 hover:bg-slate-50 transition-colors items-center group border-l-2 border-transparent hover:border-blue-500">
+                        <div key={employee.id} className="min-w-[1900px] grid grid-cols-[80px_200px_150px_120px_80px_80px_80px_80px_80px_80px_80px_100px_80px_100px_100px_100px_100px_80px] gap-2 px-4 py-3 hover:bg-slate-50 transition-colors items-center group border-l-2 border-transparent hover:border-blue-500">
                           {/* Image */}
                           <div className="flex-shrink-0">
                             {employee.profile_image_url ? (
@@ -578,6 +580,9 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
 
                           {/* Half Days */}
                           <div className="text-sm text-amber-600 font-medium text-right">{metrics.half_days || 0}</div>
+
+                          {/* Night OT */}
+                          <div className="text-sm text-purple-600 font-medium text-right">{metrics.night_ot_days || 0}</div>
 
                           {/* Gross Salary */}
                           <div className="text-sm text-slate-900 font-medium text-right">₹{Number(salary.gross_salary || 0).toLocaleString()}</div>

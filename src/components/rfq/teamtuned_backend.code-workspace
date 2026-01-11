@@ -8,6 +8,9 @@
 		},
 		{
 			"path": "../../../../teamtuned"
+		},
+		{
+			"path": "../../../../teamtuned-website"
 		}
 	],
 	"settings": {}

@@ -637,6 +637,14 @@ export default function EmployeeSidebar({
                     href="/employee/debit-rules"
                     active={pathname?.startsWith("/employee/debit-rules") || false}
                   />
+                  {(isOrgAdmin || hasPerm('EMP_ADD')) && (
+                    <Item
+                      icon={Upload}
+                      label="Salary Import"
+                      href="/employee/salary-import"
+                      active={pathname?.startsWith("/employee/salary-import") || false}
+                    />
+                  )}
                 </div>
               </div>
             )}

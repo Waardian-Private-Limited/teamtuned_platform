@@ -295,6 +295,7 @@ export default function OrgSidebar({
                             <Item icon={DollarSign} label="Budget Requests" href="/org-admin/site-budget-requests" active={pathname === "/org-admin/site-budget-requests"} />
                             <Item icon={Coins} label="Salary Components" href="/org-admin/salary-components" active={pathname === "/org-admin/salary-components"} />
                             <Item icon={ListChecks} label="Debit Rules" href="/org-admin/debit-rules" active={pathname === "/org-admin/debit-rules"} />
+                            <Item icon={Upload} label="Salary Import" href="/org-admin/salary-import" active={pathname === "/org-admin/salary-import"} />
                         </div>
                     )}
 

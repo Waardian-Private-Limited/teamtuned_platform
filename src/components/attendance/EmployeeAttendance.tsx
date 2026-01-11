@@ -39,7 +39,8 @@ import {
   LogOut,
   ArrowLeft,
   Layers,
-  Download
+  Download,
+  Coffee
 } from "lucide-react";
 
 type EmployeeItem = Record<string, any>;
@@ -464,6 +465,20 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
         border: "border-cyan-200",
       };
     }
+    if (formattedStatus.includes("night ot pending")) {
+      return {
+        text: "text-orange-700",
+        bg: "bg-orange-50",
+        border: "border-orange-200",
+      };
+    }
+    if (formattedStatus.includes("night ot approved")) {
+      return {
+        text: "text-emerald-700",
+        bg: "bg-emerald-50",
+        border: "border-emerald-200",
+      };
+    }
 
     return {
       text: "text-slate-700",
@@ -483,6 +498,8 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
     if (formattedStatus.includes("half day")) return <Clock className="w-3 h-3" />;
     if (formattedStatus.includes("late")) return <Clock className="w-3 h-3" />;
     if (formattedStatus.includes("early")) return <Clock className="w-3 h-3" />;
+    if (formattedStatus.includes("break")) return <Coffee className="w-3 h-3" />;
+    if (formattedStatus.includes("night ot")) return <Clock className="w-3 h-3" />;
     if (formattedStatus.includes("holiday")) return <Gift className="w-3 h-3" />;
     if (formattedStatus.includes("on leave")) return <Leaf className="w-3 h-3" />;
     if (formattedStatus.includes("wfh")) return <Home className="w-3 h-3" />;
@@ -987,6 +1004,14 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
 
                     if (attStatus === 'completed') {
                       status = 'Completed';
+                    } else if (attendance.was_night_ot) {
+                      if (attendance.night_ot_status === 'Pending') {
+                        status = 'Night OT Pending';
+                      } else if (attendance.night_ot_status === 'Approved') {
+                        status = 'Night OT Approved';
+                      } else {
+                        status = formatStatus(currentStatus);
+                      }
                     } else if (sessionType === 'break') {
                       status = 'On Break';
                     } else if (sessionType === 'outside_work') {
@@ -1141,6 +1166,17 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
                             </span>
                           );
                         })}
+
+                        {/* Night OT Badge */}
+                        {employee.attendance?.was_night_ot && (
+                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium border ${employee.attendance?.night_ot_status === 'Pending' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                            employee.attendance?.night_ot_status === 'Rejected' ? 'bg-red-50 text-red-700 border-red-200' :
+                              'bg-purple-50 text-purple-700 border-purple-200'
+                            }`}>
+                            <Clock className="w-3 h-3" />
+                            {employee.attendance?.night_ot_duration_minutes ? `Night OT: ${Math.floor(employee.attendance.night_ot_duration_minutes / 60)}h ${employee.attendance.night_ot_duration_minutes % 60}m` : 'Night OT: Active'}
+                          </span>
+                        )}
                       </div>
 
                       {/* Site */}

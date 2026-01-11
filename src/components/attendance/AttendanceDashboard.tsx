@@ -29,7 +29,8 @@ import {
     Activity,
     CalendarOff,
     LogOut,
-    Coffee
+    Coffee,
+    Moon
 } from "lucide-react";
 import { format } from "date-fns";
 import { createPortal } from "react-dom";
@@ -62,6 +63,7 @@ interface AttendanceStats {
     late: number;
     early_exit: number;
     overtime: number;
+    night_ot: number;
     outside_work: number;
     on_break: number;
     working_employees: number;
@@ -299,6 +301,14 @@ export default function AttendanceDashboard() {
             value: stats?.absent || 0,
             icon: UserX,
             color: 'from-red-500 to-red-600',
+            trend: null
+        },
+        {
+            title: 'Night OT',
+            statKey: 'night_ot',
+            value: stats?.night_ot || 0,
+            icon: Moon,
+            color: 'from-violet-500 to-violet-600',
             trend: null
         },
         {

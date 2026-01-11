@@ -169,6 +169,25 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
       };
     }
 
+    // Night OT Visual Indicators
+    if (record?.was_night_ot) {
+      if (record?.night_ot_status === 'Pending') {
+        return {
+          color: "bg-orange-100 border-orange-300 text-orange-900",
+          dotColor: "bg-orange-600",
+          label: "OT",
+          type: "pending_ot"
+        };
+      } else if (record?.night_ot_status === 'Approved') {
+        return {
+          color: "bg-emerald-100 border-emerald-300 text-emerald-900",
+          dotColor: "bg-emerald-600",
+          label: "OT",
+          type: "approved_ot"
+        };
+      }
+    }
+
     // Only if status = "Completed" and status_timeline is Full-Day or Half-Day
     if (record?.status === "Completed") {
       if (record?.status_timeline === "Full-Day") {

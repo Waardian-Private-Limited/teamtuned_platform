@@ -62,11 +62,49 @@ function useCountUp(target: number, duration = 800) {
 }
 
 // Countdown hook for timeline
-function useCountdown(targetDate: string | null, timelineHours: number | null) {
+function useCountdown(levelStartedAt: string | null, timelineHours: number | null, timelineDueAt?: string | null) {
   const [timeLeft, setTimeLeft] = useState<{ hours: number, minutes: number, seconds: number, expired: boolean } | null>(null);
 
   useEffect(() => {
-    if (!targetDate || !timelineHours || timelineHours <= 0) {
+    // If we have a direct due date, use it
+    if (timelineDueAt) {
+      const calculateTimeLeft = () => {
+        try {
+          const dateStr = timelineDueAt.includes('Z') ? timelineDueAt : timelineDueAt + 'Z';
+          const deadline = new Date(dateStr).getTime();
+
+          if (isNaN(deadline)) {
+            return { hours: 0, minutes: 0, seconds: 0, expired: true };
+          }
+
+          const now = Date.now();
+          const diff = deadline - now;
+
+          if (diff <= 0) {
+            return { hours: 0, minutes: 0, seconds: 0, expired: true };
+          }
+
+          const hours = Math.floor(diff / (1000 * 60 * 60));
+          const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+          const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+          return { hours, minutes, seconds, expired: false };
+        } catch (error) {
+          console.error('Error calculating countdown:', error);
+          return { hours: 0, minutes: 0, seconds: 0, expired: true };
+        }
+      };
+
+      setTimeLeft(calculateTimeLeft());
+      const interval = setInterval(() => {
+        setTimeLeft(calculateTimeLeft());
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+
+    // Fallback: calculate from level_started_at + timeline_hours
+    if (!levelStartedAt || !timelineHours || timelineHours <= 0) {
       setTimeLeft(null);
       return;
     }
@@ -74,7 +112,7 @@ function useCountdown(targetDate: string | null, timelineHours: number | null) {
     const calculateTimeLeft = () => {
       try {
         // Parse the UTC timestamp and keep it in UTC
-        const dateStr = targetDate.includes('Z') ? targetDate : targetDate + 'Z';
+        const dateStr = levelStartedAt.includes('Z') ? levelStartedAt : levelStartedAt + 'Z';
         const start = new Date(dateStr).getTime();
 
         // Validate the parsed date
@@ -108,7 +146,7 @@ function useCountdown(targetDate: string | null, timelineHours: number | null) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [targetDate, timelineHours]);
+  }, [levelStartedAt, timelineHours, timelineDueAt]);
 
   return timeLeft;
 }
@@ -456,15 +494,23 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
   const confirmModal = async () => {
     if (!activeItem) return;
     const id = Number(activeItem.id);
-    if (modalMode === "approve") {
-      await approve(id, modalReason.trim());
+
+    try {
+      if (modalMode === "approve") {
+        setActionLoading(`approve_${id}`);
+        await approve(id, modalReason.trim());
+      } else {
+        const reason = modalReason.trim();
+        if (!reason) return;
+        setActionLoading(`reject_${id}`);
+        await reject(id, reason, rejectOption);
+      }
       closeModal();
-      return;
+    } catch (error) {
+      console.error('Action failed:', error);
+    } finally {
+      setActionLoading(null);
     }
-    const reason = modalReason.trim();
-    if (!reason) return;
-    await reject(id, reason, rejectOption);
-    closeModal();
   };
 
   // Add Leave functions - Optimized for 500+ users
@@ -717,8 +763,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
   // Timeline Countdown Component
   const TimelineCountdown = ({ item }: { item: LeaveItem }) => {
     // Use timeline_due_at if available, otherwise calculate from level_started_at + timeline_hours
-    const targetDate = item.timeline_due_at || item.level_started_at;
-    const countdown = useCountdown(targetDate, item.timeline_hours);
+    const countdown = useCountdown(item.level_started_at, item.timeline_hours, item.timeline_due_at);
 
     if (!item.is_timeline_required || !countdown || !item.timeline_hours) return null;
 
@@ -726,16 +771,18 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
     const isExpired = countdown.expired;
 
     return (
-      <div className={`text-xs mt-1 font-medium ${isExpired ? 'text-red-600' : isUrgent ? 'text-orange-600' : 'text-blue-600'}`}>
+      <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md font-semibold text-sm ${isExpired
+        ? 'bg-red-100 text-red-700 border border-red-300'
+        : isUrgent
+          ? 'bg-orange-100 text-orange-700 border border-orange-300'
+          : 'bg-blue-100 text-blue-700 border border-blue-300'
+        }`}>
+        <Clock className="w-4 h-4 flex-shrink-0" />
         {isExpired ? (
-          <span className="flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            Time expired
-          </span>
+          <span>⚠️ Expired</span>
         ) : (
-          <span className="flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            {countdown.hours}h {countdown.minutes}m {countdown.seconds}s left
+          <span className="font-mono">
+            {countdown.hours.toString().padStart(2, '0')}:{countdown.minutes.toString().padStart(2, '0')}:{countdown.seconds.toString().padStart(2, '0')}
           </span>
         )}
       </div>
@@ -1001,19 +1048,27 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
           <div className="shrink-0 p-6 border-t border-gray-200 flex justify-end space-x-3">
             <button
               onClick={closeModal}
-              className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              disabled={actionLoading === `approve_${activeItem?.id}` || actionLoading === `reject_${activeItem?.id}`}
+              className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button
               onClick={confirmModal}
-              disabled={modalMode === "reject" && !modalReason.trim()}
-              className={`px-4 py-2 text-white rounded-lg transition-colors ${modalMode === "approve"
-                ? 'bg-green-600 hover:bg-green-700 disabled:opacity-50'
-                : 'bg-red-600 hover:bg-red-700 disabled:opacity-50'
+              disabled={(modalMode === "reject" && !modalReason.trim()) || actionLoading === `approve_${activeItem?.id}` || actionLoading === `reject_${activeItem?.id}`}
+              className={`px-4 py-2 text-white rounded-lg transition-colors flex items-center gap-2 ${modalMode === "approve"
+                ? 'bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed'
+                : 'bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed'
                 }`}
             >
-              {modalMode === "approve" ? "Approve Leave" : "Reject Leave"}
+              {(actionLoading === `approve_${activeItem?.id}` && modalMode === "approve") || (actionLoading === `reject_${activeItem?.id}` && modalMode === "reject") ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>{modalMode === "approve" ? "Approving..." : "Rejecting..."}</span>
+                </>
+              ) : (
+                <span>{modalMode === "approve" ? "Approve Leave" : "Reject Leave"}</span>
+              )}
             </button>
           </div>
         </div>
@@ -1115,9 +1170,60 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                       </div>
 
                       {activeItem.reason && (
-                        <div>
+                        <div className="mt-3">
                           <span className="text-sm text-gray-600">Reason:</span>
                           <p className="text-sm mt-1">{String(activeItem.reason)}</p>
+                        </div>
+                      )}
+
+                      {/* Workflow/Timeline Section */}
+                      {activeItem.workflow_id && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <span className="text-sm font-medium text-gray-700 mb-2 block">Workflow Status:</span>
+                          {activeItem.workflow_status === 'in_progress' ? (
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                              <div className="flex items-start justify-between mb-2">
+                                <div className="flex-1">
+                                  <div className="font-semibold text-blue-900 mb-1">
+                                    Current Level: {activeItem.current_level || 1}
+                                  </div>
+                                  <div className="text-sm text-blue-700 mb-2">
+                                    Approvers: {activeItem.current_approver_names || 'Pending assignment'}
+                                  </div>
+                                  {activeItem.is_timeline_required && activeItem.timeline_due_at && (
+                                    <div className="text-xs text-blue-600 bg-blue-100 rounded px-2 py-1 inline-block">
+                                      ⏰ Due: {new Date(activeItem.timeline_due_at).toLocaleDateString()} at {new Date(activeItem.timeline_due_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              {activeItem.is_timeline_required && (
+                                <div className="mt-2">
+                                  <TimelineCountdown item={activeItem} />
+                                </div>
+                              )}
+                            </div>
+                          ) : activeItem.workflow_status === 'approved' ? (
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                              <span className="text-sm text-green-700 font-medium">✓ Workflow Completed - All levels approved</span>
+                            </div>
+                          ) : activeItem.workflow_status === 'rejected' ? (
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                              <span className="text-sm text-red-700 font-medium">✗ Workflow Rejected</span>
+                            </div>
+                          ) : activeItem.workflow_status === 'cancelled' ? (
+                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                              <span className="text-sm text-gray-700 font-medium">Workflow Cancelled</span>
+                            </div>
+                          ) : activeItem.workflow_status === 'expired' ? (
+                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                              <span className="text-sm text-orange-700 font-medium">⏱ Timeline Expired</span>
+                            </div>
+                          ) : (
+                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                              <span className="text-sm text-gray-600">Status: {activeItem.workflow_status || 'Pending'}</span>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1154,113 +1260,114 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                 {viewData?.timeline && Array.isArray(viewData.timeline) && viewData.timeline.length > 0 && (
                   <div className="mt-6">
                     <h4 className="text-lg font-semibold text-gray-900 mb-4">Approval Timeline</h4>
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200 border border-gray-200 rounded-lg">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Level
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Approver(s)
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Status
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Date/Time
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Comments
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {viewData.timeline.map((step: any, idx: number) => {
-                            let statusColor = 'bg-gray-100 text-gray-600';
-                            let rowBg = '';
-                            const stepStatus = (step.status || 'pending').toLowerCase();
+                    <div className="space-y-3">
+                      {viewData.timeline.map((step: any, idx: number) => {
+                        const stepStatus = (step.status || 'pending').toLowerCase();
+                        const isApproved = stepStatus === 'approved';
+                        const isRejected = stepStatus === 'rejected';
+                        const isExpired = stepStatus === 'timeline_expired' || stepStatus === 'auto_escalated';
+                        const isPending = stepStatus === 'pending';
+                        const isCurrent = step.is_current;
 
-                            if (stepStatus === 'approved') {
-                              statusColor = 'bg-green-100 text-green-700';
-                            } else if (stepStatus === 'rejected') {
-                              statusColor = 'bg-red-100 text-red-700';
-                            } else if (stepStatus === 'timeline_expired' || stepStatus === 'auto_escalated') {
-                              statusColor = 'bg-yellow-100 text-yellow-700';
-                            } else if (step.is_current) {
-                              statusColor = 'bg-blue-100 text-blue-700';
-                              rowBg = 'bg-blue-50';
-                            }
+                        // Determine card styling based on status
+                        let cardBg = 'bg-white';
+                        let borderColor = 'border-gray-200';
+                        let statusBadge = 'bg-gray-100 text-gray-700';
+                        let statusIcon = '⏳';
 
-                            return (
-                              <tr key={idx} className={rowBg}>
-                                <td className="px-4 py-3 whitespace-nowrap">
-                                  <div className="flex items-center">
-                                    <div className={`w-2 h-2 rounded-full mr-2 ${step.is_current ? 'bg-blue-500' : 'bg-gray-300'}`}></div>
-                                    <div>
-                                      <div className="text-sm font-medium text-gray-900">
-                                        Level {step.level}
-                                      </div>
-                                      <div className="text-xs text-gray-500">
-                                        {step.level_name || '-'}
-                                      </div>
-                                    </div>
+                        if (isApproved) {
+                          cardBg = 'bg-green-50';
+                          borderColor = 'border-green-200';
+                          statusBadge = 'bg-green-100 text-green-700';
+                          statusIcon = '✓';
+                        } else if (isRejected) {
+                          cardBg = 'bg-red-50';
+                          borderColor = 'border-red-200';
+                          statusBadge = 'bg-red-100 text-red-700';
+                          statusIcon = '✗';
+                        } else if (isExpired) {
+                          cardBg = 'bg-orange-50';
+                          borderColor = 'border-orange-200';
+                          statusBadge = 'bg-orange-100 text-orange-700';
+                          statusIcon = '⏱';
+                        } else if (isCurrent) {
+                          cardBg = 'bg-blue-50';
+                          borderColor = 'border-blue-300';
+                          statusBadge = 'bg-blue-100 text-blue-700';
+                          statusIcon = '🔵';
+                        }
+
+                        return (
+                          <div key={idx} className={`${cardBg} border ${borderColor} rounded-lg p-4`}>
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-3 h-3 rounded-full ${isCurrent ? 'bg-blue-500 animate-pulse' : isApproved ? 'bg-green-500' : isRejected ? 'bg-red-500' : 'bg-gray-300'}`}></div>
+                                <div>
+                                  <div className="font-semibold text-gray-900">
+                                    Level {step.level} {step.level_name ? `- ${step.level_name}` : ''}
                                   </div>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <div className="text-sm text-gray-900">
-                                    {step.approver_name || 'Pending Assignment'}
-                                  </div>
-                                  {step.approver_type === 'role' && (
-                                    <div className="text-xs text-gray-500 mt-1">
-                                      Role-based approval
-                                    </div>
+                                  {step.is_final && (
+                                    <span className="text-xs text-purple-600 font-medium">Final Level</span>
                                   )}
-                                </td>
-                                <td className="px-4 py-3 whitespace-nowrap">
-                                  <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full capitalize ${statusColor}`}>
-                                    {stepStatus.replace(/_/g, ' ')}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                                  {step.action_taken_at ? (
-                                    <div>
-                                      <div className="text-sm">
-                                        {new Date(step.action_taken_at).toLocaleDateString()}
-                                      </div>
-                                      <div className="text-xs text-gray-400 ml-1">
-                                        {new Date(step.action_taken_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                      </div>
+                                </div>
+                              </div>
+                              <span className={`px-3 py-1 inline-flex items-center gap-1 text-xs font-semibold rounded-full ${statusBadge}`}>
+                                <span>{statusIcon}</span>
+                                <span className="capitalize">{stepStatus.replace(/_/g, ' ')}</span>
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                              <div>
+                                <div className="text-xs text-gray-500 mb-1">Approver(s)</div>
+                                <div className="text-sm font-medium text-gray-900">
+                                  {step.approver_name || 'Pending Assignment'}
+                                </div>
+                                {step.approver_type === 'role' && (
+                                  <div className="text-xs text-gray-500 mt-0.5">
+                                    Role-based approval
+                                  </div>
+                                )}
+                              </div>
+
+                              <div>
+                                <div className="text-xs text-gray-500 mb-1">
+                                  {step.action_taken_at ? 'Action Taken' : step.timeline_started_at ? 'Started' : 'Status'}
+                                </div>
+                                {step.action_taken_at ? (
+                                  <div className="text-sm text-gray-900">
+                                    {new Date(step.action_taken_at).toLocaleDateString()} at {new Date(step.action_taken_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </div>
+                                ) : step.timeline_started_at ? (
+                                  <div>
+                                    <div className="text-sm text-gray-900">
+                                      {new Date(step.timeline_started_at).toLocaleDateString()} at {new Date(step.timeline_started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </div>
-                                  ) : step.timeline_started_at ? (
-                                    <div>
-                                      <div className="text-xs text-gray-400">
-                                        Started: {new Date(step.timeline_started_at).toLocaleDateString()}
-                                      </div>
-                                      <div className="text-xs text-gray-400 ml-1">
-                                        {new Date(step.timeline_started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                      </div>
-                                      {step.timeline_due_at && step.status === 'pending' && activeItem.status?.toLowerCase() === 'pending' && (
-                                        <div className="mt-1">
-                                          <div className="text-xs text-blue-600 font-medium">
-                                            Due: {new Date(step.timeline_due_at).toLocaleDateString()}
-                                          </div>
-                                          <div className="text-xs text-blue-500 ml-1">
-                                            {new Date(step.timeline_due_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                          </div>
+                                    {step.timeline_due_at && isPending && (
+                                      <div className="mt-1 bg-blue-100 border border-blue-300 rounded px-2 py-1 inline-block">
+                                        <div className="text-xs text-blue-700 font-semibold">
+                                          ⏰ Due: {new Date(step.timeline_due_at).toLocaleDateString()} at {new Date(step.timeline_due_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         </div>
-                                      )}
-                                    </div>
-                                  ) : '-'}
-                                </td>
-                                <td className="px-4 py-3 text-sm text-gray-500">
-                                  {step.comments || '-'}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="text-sm text-gray-500">Not started</div>
+                                )}
+                              </div>
+                            </div>
+
+                            {step.comments && (
+                              <div className="mt-3 pt-3 border-t border-gray-200">
+                                <div className="text-xs text-gray-500 mb-1">Remarks</div>
+                                <div className="text-sm text-gray-700 bg-white bg-opacity-50 rounded p-2">
+                                  {step.comments}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -1906,7 +2013,13 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                   Status
                 </th>
                 <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Workflow/Timeline
+                </th>
+                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Reason
+                </th>
+                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Applied
                 </th>
                 <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
@@ -1961,26 +2074,39 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                     </td>
                     <td className="px-4 py-3">
                       {item.workflow_id && item.workflow_status === 'in_progress' ? (
-                        <div className="text-sm">
-                          <div className="font-medium text-gray-900">Level {item.current_level || 1}</div>
-                          <div className="text-xs text-gray-500">
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
+                          <div className="font-medium text-sm text-blue-900 mb-1">Level {item.current_level || 1}</div>
+                          <div className="text-xs text-blue-700 mb-1">
                             {item.current_approver_names || 'Pending assignment'}
                           </div>
                           <TimelineCountdown item={item} />
                         </div>
                       ) : item.workflow_id && item.workflow_status === 'approved' ? (
-                        <span className="text-xs text-green-600">✓ Approved</span>
+                        <span className="text-xs text-green-600 font-medium">✓ Workflow Approved</span>
                       ) : item.workflow_id && item.workflow_status === 'rejected' ? (
-                        <span className="text-xs text-red-600">✗ Rejected</span>
+                        <span className="text-xs text-red-600 font-medium">✗ Workflow Rejected</span>
                       ) : item.workflow_id && item.workflow_status === 'cancelled' ? (
-                        <span className="text-xs text-gray-500">Cancelled</span>
+                        <span className="text-xs text-gray-500 font-medium">Workflow Cancelled</span>
+                      ) : item.workflow_id && item.workflow_status === 'expired' ? (
+                        <span className="text-xs text-orange-600 font-medium">⏱ Timeline Expired</span>
+                      ) : item.workflow_id ? (
+                        <span className="text-xs text-gray-500">Workflow: {item.workflow_status || 'pending'}</span>
                       ) : (
-                        <span className="text-xs text-gray-400">—</span>
+                        <span className="text-xs text-gray-400">No workflow</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
                       {reason ? (
                         <span className="text-xs text-gray-700 line-clamp-2">{reason}</span>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {item.created_at ? (
+                        <div className="text-xs text-gray-700">
+                          {String(item.created_at).replace('T', ' ').replace('.000Z', '')}
+                        </div>
                       ) : (
                         <span className="text-xs text-gray-400">—</span>
                       )}

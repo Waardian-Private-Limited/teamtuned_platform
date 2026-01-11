@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -465,11 +465,37 @@ export default function CompOffRequests() {
     // Action Dropdown Component
     const ActionDropdown = ({ item }: { item: CompOffItem }) => {
         const [isOpen, setIsOpen] = useState(false);
+        const [placeUp, setPlaceUp] = useState(false);
+        const dropdownRef = useRef<HTMLDivElement>(null);
+        const triggerRef = useRef<HTMLButtonElement>(null);
         const statusLower = String(item.status || "Pending").toLowerCase();
 
+        useEffect(() => {
+            const handleClickOutside = (event: MouseEvent) => {
+                if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                    setIsOpen(false);
+                }
+            };
+
+            document.addEventListener('mousedown', handleClickOutside);
+            return () => {
+                document.removeEventListener('mousedown', handleClickOutside);
+            };
+        }, []);
+
+        useEffect(() => {
+            if (isOpen) {
+                const rect = triggerRef.current?.getBoundingClientRect();
+                const spaceBelow = typeof window !== 'undefined' ? (window.innerHeight - (rect?.bottom || 0)) : 0;
+                const approxMenuHeight = 200;
+                setPlaceUp(spaceBelow < approxMenuHeight + 16);
+            }
+        }, [isOpen]);
+
         return (
-            <div className="relative">
+            <div className="relative" ref={dropdownRef}>
                 <button
+                    ref={triggerRef}
                     onClick={() => setIsOpen((o) => !o)}
                     className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200"
                     disabled={actionLoading?.includes(`approve_${item.id}`) || actionLoading?.includes(`reject_${item.id}`)}
@@ -484,7 +510,14 @@ export default function CompOffRequests() {
                 {isOpen && (
                     <>
                         <div className="fixed inset-0 z-[100]" onClick={() => setIsOpen(false)} />
-                        <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-[101]">
+                        <div
+                            className={`fixed ${placeUp ? 'bottom-auto' : 'top-auto'} w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-[101]`}
+                            style={{
+                                left: triggerRef.current ? `${triggerRef.current.getBoundingClientRect().right - 192}px` : '0',
+                                top: placeUp ? 'auto' : triggerRef.current ? `${triggerRef.current.getBoundingClientRect().bottom + 4}px` : '0',
+                                bottom: placeUp && triggerRef.current ? `${window.innerHeight - triggerRef.current.getBoundingClientRect().top + 4}px` : 'auto'
+                            }}
+                        >
                             <div className="py-1">
                                 <button
                                     onClick={() => {
@@ -525,7 +558,12 @@ export default function CompOffRequests() {
                                 )}
 
                                 {/* Override for OrgAdmin and HR_MODE users on approved/rejected requests */}
-                                {statusLower !== "pending" && (isOrgAdmin || canHRMode) && (
+                                {/* Override for OrgAdmin and HR_MODE users */}
+                                {/* Show if: 
+                                    1. Status is NOT pending (already finalized)
+                                    2. OR Status IS pending BUT user cannot approve normally (e.g. not current approver in workflow)
+                                */}
+                                {(isOrgAdmin || canHRMode) && (statusLower !== "pending" || !canApprove) && (
                                     <>
                                         <div className="border-t border-gray-100 my-1" />
                                         <button

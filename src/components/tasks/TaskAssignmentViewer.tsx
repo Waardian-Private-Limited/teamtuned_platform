@@ -59,6 +59,7 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
   const [viewerData, setViewerData] = React.useState<any>(null);
   const [viewerApprovals, setViewerApprovals] = React.useState<any[]>([]);
   const [expandedGps, setExpandedGps] = React.useState<Set<string>>(new Set());
+  const [viewerFields, setViewerFields] = React.useState<any[]>([]);
   const [approving, setApproving] = React.useState(false);
   const [rejecting, setRejecting] = React.useState(false);
   const [canApprove, setCanApprove] = React.useState(false); // Permission flag from backend
@@ -248,6 +249,7 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
       const canApproveFlag = res?.canApprove === true; // Get from backend
       setViewerData(data);
       setViewerApprovals(approvals);
+      setViewerFields(res?.fields || []);
       setCanApprove(canApproveFlag); // Set permission flag
     } catch (e: any) {
       setViewerError(e?.message || 'Failed to load submission');
@@ -263,6 +265,7 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
     setViewerData(null);
     setViewerApprovals([]);
     setExpandedGps(new Set());
+    setViewerFields([]);
     setCanApprove(false); // Reset permission flag
   };
 
@@ -862,6 +865,7 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
                   expandedGps={expandedGps}
                   setExpandedGps={setExpandedGps}
                   setSelectedImage={setSelectedImage}
+                  viewerFields={viewerFields}
                 />
               ) : (
                 !viewerLoading && (
@@ -1069,12 +1073,13 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
   );
 }
 
-function SubmissionReadOnly({ data, approvals, expandedGps, setExpandedGps, setSelectedImage }: {
+function SubmissionReadOnly({ data, approvals, expandedGps, setExpandedGps, setSelectedImage, viewerFields }: {
   data: any;
   approvals: any[];
   expandedGps: Set<string>;
   setExpandedGps: (s: Set<string>) => void;
   setSelectedImage?: (url: string) => void;
+  viewerFields?: any[];
 }) {
   const isDataUrl = (s: string) => s?.startsWith('data:image/');
 
@@ -1103,7 +1108,44 @@ function SubmissionReadOnly({ data, approvals, expandedGps, setExpandedGps, setS
     }
   };
 
-  const values: any[] = Array.isArray(data?.values) ? data.values : [];
+  let rawValues: any[] = Array.isArray(data?.values) ? data.values : [];
+  const values: any[] = [];
+  const unpackedKeys = new Set<string>();
+  // Unpack nested
+  rawValues.forEach(v => {
+    const val = v?.value;
+    const key = String(v?.field_key || '');
+
+    // Check if it is a container
+    const isContainer = Array.isArray(val) && val.length > 0 && typeof val[0] === 'object';
+
+    if (isContainer) {
+      // It is a container. Ensure type is set so it acts as a Header.
+      values.push({ ...v, field_type: v.field_type || 'container' });
+
+      const first = val[0];
+      // Map for finding labels
+      const labelMap = new Map((viewerFields || []).map((f: any) => [String(f.field_key), String(f.label)]));
+
+      Object.entries(first).forEach(([k, subVal]) => {
+        unpackedKeys.add(k);
+        values.push({
+          field_key: k,
+          field_label: labelMap.get(k) || k,
+          value: subVal,
+          field_type: 'text',
+          parent_field_key: key
+        });
+      });
+    } else {
+      // Normal field. Check for duplicate/placeholder.
+      if (unpackedKeys.has(key) && (val === '-' || val === '' || val === null)) {
+        // Skip duplicate placeholder
+        return;
+      }
+      values.push(v);
+    }
+  });
   const systemFields = values.filter(v => String(v?.field_key || '').startsWith('system_'));
   const regularFields = values.filter(v => {
     const key = String(v?.field_key || '');
@@ -1329,68 +1371,135 @@ function SubmissionReadOnly({ data, approvals, expandedGps, setExpandedGps, setS
   return (
     <div className="space-y-4">
       {/* Submission Fields */}
-      <div className="grid grid-cols-1 gap-4">
-        {combined.map((v, idx) => {
-          const key = String(v?.field_key || '');
-          const label = String(v?.field_label || key);
-          const value = v?.value;
-          const strValue = String(value ?? '');
+      {/* Submission Fields with Grouping */}
+      <div className="space-y-6">
+        {(() => {
+          // Group fields by section/container
+          // Grouping Logic
+          const groups: { title?: string; type?: string; containerKey?: string; fields: any[] }[] = [];
+          let currentGroup: { title?: string; type?: string; containerKey?: string; fields: any[] } = { fields: [] };
+          let forceNewGroup = false;
 
-          // Improved type detection
-          const isFile = (v?.field_type === 'file') || (key.includes('file')) ||
-            (Array.isArray(value) && value.some((x: any) => {
-              const str = String(x);
-              return str.startsWith('data:application/') || str.startsWith('data:text/') ||
-                (str.startsWith('http') && /\.(pdf|docx?|xlsx?|txt|csv)$/i.test(str));
-            })) ||
-            (typeof value === 'string' && (value.startsWith('data:application/') || value.startsWith('data:text/') ||
-              (value.startsWith('http') && /\.(pdf|docx?|xlsx?|txt|csv)$/i.test(value))));
+          combined.forEach((v) => {
+            const key = String(v?.field_key || '');
+            const type = v?.field_type;
+            const label = String(v?.field_label || key);
+            const parentKey = v?.parent_field_key;
 
-          const isImage = (v?.field_type === 'image') ||
-            (Array.isArray(value) && value.length > 0 && String(value[0]).startsWith('data:image/')) ||
-            (typeof value === 'string' && value.startsWith('data:image/')) ||
-            (key.includes('image') && (strValue.startsWith('http') || strValue.startsWith('data:')));
+            // Check if this field marks the start of a section
+            const isSectionStart = key.startsWith('section_') || key.startsWith('container_') || type === 'section' || type === 'container';
 
-          const isPhone = (v?.field_type === 'phone') || key.includes('phone');
-          const isSignature = key.includes('signature') || (v?.field_type === 'signature');
-          const isGps = key.includes('gps') || (v?.field_type === 'gps') || (typeof value === 'string' && value.includes(',') && !value.startsWith('data:') && !value.startsWith('http'));
-          const isDate = (v?.field_type === 'date') || (key.includes('date') && typeof value === 'string');
-          const isTime = (v?.field_type === 'time') || (key.includes('time') && typeof value === 'string');
-          const isArray = Array.isArray(value) && !isImage && !isFile;
-          const isSection = key.startsWith('section_') || (v?.field_type === 'section');
+            // Check if we need to break out of a container group
+            // If we are in a container group, and the current field is NOT a child of that container, force break.
+            if (currentGroup.type === 'container' && (!parentKey || parentKey !== currentGroup.containerKey)) {
+              forceNewGroup = true;
+            }
 
-          return (
-            <div key={idx} className="border border-gray-200 rounded-xl p-4 bg-white hover:shadow-sm transition-all duration-200">
-              {isSection ? (
-                <>
-                  <div className="text-sm font-semibold text-blue-600 tracking-wide uppercase">{label}</div>
-                  <div className="mt-3 border-t border-blue-100" />
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="text-base font-semibold text-gray-900">{label}</div>
-                    {String(v?.field_key || '').startsWith('system_') && (
-                      <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-yellow-50 text-yellow-700 border border-yellow-200">
-                        SYSTEM
-                      </span>
-                    )}
+            if (isSectionStart || forceNewGroup) {
+              // Push current group if it has fields
+              if (currentGroup.fields.length > 0) {
+                groups.push(currentGroup);
+              }
+              // Start new group
+              currentGroup = {
+                title: isSectionStart ? label : undefined,
+                type: isSectionStart ? type : undefined,
+                containerKey: (isSectionStart && (type === 'container' || key.startsWith('container_'))) ? key : undefined,
+                fields: []
+              };
+              forceNewGroup = false;
+            }
+
+            // Add field to current group
+            currentGroup.fields.push(v);
+
+            // If this was a container header, force next iteration to check grouping (handled by logic above, but ensure container itself is added)
+            // Wait, if current is container, we just started a group. Next field will define if it stays or breaks.
+            // If next field is child -> Stays.
+            // If next field is not child -> Breaks (via forceNewGroup check).
+          });
+
+          // Push final group
+          if (currentGroup.fields.length > 0 || currentGroup.title) {
+            groups.push(currentGroup);
+          }
+
+          return groups.map((group, gIdx) => {
+            // Updated Styling: Gray/Neutral theme (Black not Blue)
+            const isTitled = !!group.title;
+            const containerClasses = `rounded-xl ${isTitled ? 'border border-gray-200 bg-white overflow-hidden mb-6' : 'mb-6'}`;
+            const gridClasses = `grid grid-cols-1 gap-4 ${isTitled ? 'p-4' : ''}`;
+
+            return (
+              <div key={gIdx} className={containerClasses}>
+                {group.title && (
+                  <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center gap-3">
+                    <div className="w-1 h-5 bg-gray-600 rounded-full shadow-sm" />
+                    <div className="text-sm font-bold text-gray-800 tracking-wide uppercase">{group.title}</div>
                   </div>
-                  <div className="text-gray-700">
-                    {isFile ? renderFile(value)
-                      : isImage || isSignature ? renderImage(value, isSignature)
-                        : isPhone ? renderPhone(value)
-                          : isGps ? renderGps(key, value)
-                            : isDate ? renderDateTime(value, true)
-                              : isTime ? <span className="font-medium">{formatTime12h(String(value))}</span>
-                                : isArray ? renderArray(value)
-                                  : <span className="text-gray-900 break-words">{String(value ?? '')}</span>}
-                  </div>
-                </>
-              )}
-            </div>
-          );
-        })}
+                )}
+
+                <div className={gridClasses}>
+                  {group.fields.map((v, idx) => {
+                    const key = String(v?.field_key || '');
+
+                    // Hide container header from body list (it is shown as title)
+                    if (v.field_type === 'container' || key.startsWith('container_')) return null;
+
+                    const label = String(v?.label || v?.field_label || key);
+                    const value = v?.value;
+                    const strValue = String(value ?? '');
+
+                    // Improved type detection
+                    const isFile = (v?.field_type === 'file') || (key.includes('file')) ||
+                      (Array.isArray(value) && value.some((x: any) => {
+                        const str = String(x);
+                        return str.startsWith('data:application/') || str.startsWith('data:text/') ||
+                          (str.startsWith('http') && /\.(pdf|docx?|xlsx?|txt|csv)$/i.test(str));
+                      })) ||
+                      (typeof value === 'string' && (value.startsWith('data:application/') || value.startsWith('data:text/') ||
+                        (value.startsWith('http') && /\.(pdf|docx?|xlsx?|txt|csv)$/i.test(value))));
+
+                    const isImage = (v?.field_type === 'image') ||
+                      (Array.isArray(value) && value.length > 0 && String(value[0]).startsWith('data:image/')) ||
+                      (typeof value === 'string' && value.startsWith('data:image/')) ||
+                      (key.includes('image') && (strValue.startsWith('http') || strValue.startsWith('data:')));
+
+                    const isPhone = (v?.field_type === 'phone') || key.includes('phone');
+                    const isSignature = key.includes('signature') || (v?.field_type === 'signature');
+                    const isGps = key.includes('gps') || (v?.field_type === 'gps') || (typeof value === 'string' && value.includes(',') && !value.startsWith('data:') && !value.startsWith('http'));
+                    const isDate = (v?.field_type === 'date') || (key.includes('date') && typeof value === 'string');
+                    const isTime = (v?.field_type === 'time') || (key.includes('time') && typeof value === 'string');
+                    const isArray = Array.isArray(value) && !isImage && !isFile;
+
+                    return (
+                      <div key={idx} className="border border-gray-200 rounded-xl p-4 bg-white hover:shadow-sm transition-all duration-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="text-base font-semibold text-gray-900">{label}</div>
+                          {String(v?.field_key || '').startsWith('system_') && (
+                            <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-yellow-50 text-yellow-700 border border-yellow-200">
+                              SYSTEM
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-gray-700">
+                          {isFile ? renderFile(value)
+                            : isImage || isSignature ? renderImage(value, isSignature)
+                              : isPhone ? renderPhone(value)
+                                : isGps ? renderGps(key, value)
+                                  : isDate ? renderDateTime(value, true)
+                                    : isTime ? <span className="font-medium">{formatTime12h(String(value))}</span>
+                                      : isArray ? renderArray(value)
+                                        : <span className="text-gray-900 break-words">{String(value || '-') || '-'}</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          });
+        })()}
       </div>
 
       {/* Approval History */}
