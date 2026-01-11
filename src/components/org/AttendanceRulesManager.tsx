@@ -80,8 +80,7 @@ export type AttendancePolicy = {
   night_shift_min_percentage?: number;
   night_shift_full_credit_percentage?: number;
   night_ot_compoff_conversion?: boolean;
-  night_shift_full_credit_percentage?: number;
-  night_ot_compoff_conversion?: boolean;
+
 
   // Display settings
   show_grace_minutes?: boolean;
@@ -134,8 +133,7 @@ const defaultPolicy: AttendancePolicy = {
   night_shift_min_percentage: 50,
   night_shift_full_credit_percentage: 75,
   night_ot_compoff_conversion: false,
-  night_shift_full_credit_percentage: 75,
-  night_ot_compoff_conversion: false,
+
 
   show_grace_minutes: true,
   show_late_min: true,
@@ -1757,7 +1755,7 @@ export default function AttendanceRulesManager() {
                           </label>
                           <select
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            value={(policy.show_grace_minutes !== false && policy.show_grace_minutes !== 0) ? "true" : "false"}
+                            value={policy.show_grace_minutes !== false ? "true" : "false"}
                             onChange={(e) => setField("show_grace_minutes", e.target.value === "true")}
                           >
                             <option value="true">Show</option>
@@ -1772,7 +1770,7 @@ export default function AttendanceRulesManager() {
                           </label>
                           <select
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            value={(policy.show_late_min !== false && policy.show_late_min !== 0) ? "true" : "false"}
+                            value={policy.show_late_min !== false ? "true" : "false"}
                             onChange={(e) => setField("show_late_min", e.target.value === "true")}
                           >
                             <option value="true">Show</option>
@@ -1787,7 +1785,7 @@ export default function AttendanceRulesManager() {
                           </label>
                           <select
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            value={(policy.show_ot_minutes !== false && policy.show_ot_minutes !== 0) ? "true" : "false"}
+                            value={policy.show_ot_minutes !== false ? "true" : "false"}
                             onChange={(e) => setField("show_ot_minutes", e.target.value === "true")}
                           >
                             <option value="true">Show</option>
