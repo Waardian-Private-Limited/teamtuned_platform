@@ -271,6 +271,7 @@ export default function OrgSidebar({
                             <Item icon={ClipboardList} label="Leave Requests" href="/org-admin/requests/leaves" active={pathname === "/org-admin/requests/leaves"} />
                             <Item icon={Calendar} label="Comp-Off Requests" href="/org-admin/requests/comp-offs" active={pathname === "/org-admin/requests/comp-offs"} />
                             <Item icon={Clock} label="Regularization" href="/org-admin/requests/regularization" active={pathname === "/org-admin/requests/regularization"} />
+                            <Item icon={Clock} label="Night OT Requests" href="/org-admin/requests/night-ot" active={pathname === "/org-admin/requests/night-ot"} />
                             <Item icon={AlertCircle} label="Verification Issues" href="/org-admin/requests/verification" active={pathname === "/org-admin/requests/verification"} />
                             <Item icon={ListChecks} label="Session Requests" href="/org-admin/requests/sessions" active={pathname === "/org-admin/requests/sessions"} />
                             <Item icon={ListChecks} label="Payroll" href="/org-admin/payroll" active={pathname === "/org-admin/payroll"} />

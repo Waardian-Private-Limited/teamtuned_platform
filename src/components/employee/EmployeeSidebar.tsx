@@ -238,6 +238,7 @@ export default function EmployeeSidebar({
 
   const canViewInsurance = isOrgAdmin || hasAnyPerm(["INS_PROVIDER_VIEW", "INS_POLICY_VIEW", "INS_ENROLL_VIEW", "INS_CLAIM_VIEW"]);
   const canViewSessionRequests = isOrgAdmin || hasAnyPerm(["EMP_SESSION_VIEW", "EMP_SESSION_APPROVE"]);
+  const canViewNightOTRequests = isOrgAdmin || hasAnyPerm(["ATTEND_VIEW", "ATTVERIFY_APPROVE"]);
   const canViewWorkflows = isOrgAdmin || hasPerm("HR_MODE");
 
   // Task Permissions
@@ -277,6 +278,7 @@ export default function EmployeeSidebar({
     canViewVerificationIssues,
     canViewEmployeeAttendance,
     canViewSessionRequests,
+    canViewNightOTRequests,
   ].some(Boolean);
 
   const showOther = [
@@ -499,6 +501,14 @@ export default function EmployeeSidebar({
                       label="Verification Issues"
                       href="/employee/verification-issues"
                       active={pathname?.startsWith("/employee/verification-issues") || false}
+                    />
+                  )}
+                  {canViewNightOTRequests && (
+                    <Item
+                      icon={Clock}
+                      label="Night OT Requests"
+                      href="/employee/night-ot-requests"
+                      active={pathname?.startsWith("/employee/night-ot-requests") || false}
                     />
                   )}
                   {canViewLeaveRequests && (

@@ -8,7 +8,8 @@ import {
     XCircle,
     TrendingUp,
     Edit,
-    Lock
+    Lock,
+    Trash2
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/apiClient";
@@ -249,8 +250,8 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                     onClick={handleRegularizeAction}
                                     disabled={loading}
                                     className={`px-4 py-2 text-sm font-semibold rounded-md flex items-center gap-1.5 disabled:opacity-50 ${regularizeAction === 'approve'
-                                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                                            : 'bg-rose-600 hover:bg-rose-700 text-white'
+                                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                        : 'bg-rose-600 hover:bg-rose-700 text-white'
                                         }`}
                                 >
                                     {loading ? "Processing..." : regularizeAction === 'approve' ? 'Approve' : 'Reject'}
@@ -650,6 +651,35 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                             </button>
                         </>
                     )}
+                    {/* Delete Action (Org Admin) */}
+                    {isOrgAdmin && !locked && (
+                        <button
+                            onClick={async () => {
+                                if (confirm("Are you sure you want to DELETE this attendance record? This action cannot be undone.")) {
+                                    try {
+                                        setLoading(true);
+                                        await apiClient(`/attendance/${record.attendance_id || record.id}`, {
+                                            method: 'DELETE',
+                                            withAuth: true
+                                        });
+                                        alert("Record deleted successfully");
+                                        onClose();
+                                        if (onUpdate) onUpdate();
+                                    } catch (e: any) {
+                                        alert("Failed to delete: " + e.message);
+                                    } finally {
+                                        setLoading(false);
+                                    }
+                                }
+                            }}
+                            disabled={loading || showOverride}
+                            className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 shadow-sm"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                            Delete
+                        </button>
+                    )}
+
                     <button
                         onClick={onClose}
                         className="px-4 py-2 text-sm font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors"
