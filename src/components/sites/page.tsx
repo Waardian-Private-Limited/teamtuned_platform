@@ -20,6 +20,8 @@ type Site = {
     country?: string;
     status?: "active" | "inactive" | string;
     is_head_office?: boolean;
+    latitude?: string | number | null;
+    longitude?: string | number | null;
     has_expiry: boolean;
     expiry_date?: string | null;
     has_budget: boolean;
@@ -178,6 +180,31 @@ const SiteFormFields = React.memo(({
                     onChange={(e) => onChange("country", e.target.value)}
                     placeholder="e.g., India"
                 />
+            </div>
+
+            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Latitude</label>
+                    <input
+                        type="number"
+                        step="any"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        value={form.latitude as string || ""}
+                        onChange={(e) => onChange("latitude", e.target.value)}
+                        placeholder="e.g., 19.0760"
+                    />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Longitude</label>
+                    <input
+                        type="number"
+                        step="any"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        value={form.longitude as string || ""}
+                        onChange={(e) => onChange("longitude", e.target.value)}
+                        placeholder="e.g., 72.8777"
+                    />
+                </div>
             </div>
 
             <div className="flex items-center space-x-2">
@@ -371,6 +398,8 @@ export default function OrgAdminSitesPage() {
         state: "",
         country: "",
         is_head_office: false,
+        latitude: "",
+        longitude: "",
         has_expiry: false,
         expiry_date: "",
         has_budget: false,
@@ -425,7 +454,7 @@ export default function OrgAdminSitesPage() {
         setForm((prev) => ({ ...prev, [key]: value }));
     }, []);
 
-    // // const { role, permissions, organization } = useAuth();
+    // // const {role, permissions, organization} = useAuth();
 
 
 
@@ -484,6 +513,8 @@ export default function OrgAdminSitesPage() {
                 country: s.country,
                 status: s.status ?? "active",
                 is_head_office: s.is_head_office,
+                latitude: s.latitude,
+                longitude: s.longitude,
                 has_expiry: s.has_expiry,
                 expiry_date: s.expiry_date ? s.expiry_date.toString().substring(0, 10) : "",
                 has_budget: s.has_budget,
@@ -570,6 +601,8 @@ export default function OrgAdminSitesPage() {
                 state: (form.state || "").trim() || null,
                 country: (form.country || "").trim() || null,
                 is_head_office: Boolean(form.is_head_office),
+                latitude: form.latitude || null,
+                longitude: form.longitude || null,
                 has_expiry: Boolean(form.has_expiry),
                 expiry_date: form.has_expiry ? (form.expiry_date || null) : null,
                 has_budget: Boolean(form.has_budget),
@@ -588,6 +621,8 @@ export default function OrgAdminSitesPage() {
                 state: "",
                 country: "",
                 is_head_office: false,
+                latitude: "",
+                longitude: "",
                 has_expiry: false,
                 expiry_date: "",
                 has_budget: false,
@@ -620,6 +655,8 @@ export default function OrgAdminSitesPage() {
             state: "",
             country: "",
             is_head_office: false,
+            latitude: "",
+            longitude: "",
             has_expiry: false,
             expiry_date: "",
             has_budget: false,
@@ -657,6 +694,8 @@ export default function OrgAdminSitesPage() {
             state: site.state || "",
             country: site.country || "",
             is_head_office: Boolean(site.is_head_office),
+            latitude: site.latitude ? String(site.latitude) : "",
+            longitude: site.longitude ? String(site.longitude) : "",
             has_expiry: Boolean(site.has_expiry),
             expiry_date: site.expiry_date ? String(site.expiry_date).split('T')[0] : "",
             has_budget: Boolean(site.has_budget),
@@ -707,6 +746,8 @@ export default function OrgAdminSitesPage() {
                 country: data.site.country,
                 status: data.site.status ?? next,
                 is_head_office: data.site.is_head_office,
+                latitude: data.site.latitude,
+                longitude: data.site.longitude,
                 has_expiry: data.site.has_expiry,
                 expiry_date: data.site.expiry_date,
                 has_budget: data.site.has_budget,
@@ -737,6 +778,8 @@ export default function OrgAdminSitesPage() {
                 state: (form.state || "").trim() || null,
                 country: (form.country || "").trim() || null,
                 is_head_office: Boolean(form.is_head_office),
+                latitude: form.latitude || null,
+                longitude: form.longitude || null,
                 has_expiry: Boolean(form.has_expiry),
                 expiry_date: form.has_expiry ? (form.expiry_date || null) : null,
                 has_budget: Boolean(form.has_budget),
@@ -756,6 +799,8 @@ export default function OrgAdminSitesPage() {
                 country: data.site.country,
                 status: data.site.status ?? selectedSite.status,
                 is_head_office: data.site.is_head_office,
+                latitude: data.site.latitude,
+                longitude: data.site.longitude,
                 has_expiry: data.site.has_expiry,
                 expiry_date: data.site.expiry_date,
                 has_budget: data.site.has_budget,
@@ -1108,6 +1153,19 @@ export default function OrgAdminSitesPage() {
                                             <p className="mt-1">{selectedSite.country || '-'}</p>
                                         </div>
                                     </div>
+
+                                    {(selectedSite.latitude || selectedSite.longitude) && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div>
+                                                <h4 className="text-sm font-medium text-gray-500">Latitude</h4>
+                                                <p className="mt-1">{selectedSite.latitude || '-'}</p>
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-medium text-gray-500">Longitude</h4>
+                                                <p className="mt-1">{selectedSite.longitude || '-'}</p>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div>
