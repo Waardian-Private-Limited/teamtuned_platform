@@ -213,6 +213,12 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                 </span>
                             )}
                         </div>
+                        {/* Status Summary in Header */}
+                        {record.status_summary && (
+                            <div className="text-xs text-slate-500 mt-1 font-medium">
+                                {record.status_summary}
+                            </div>
+                        )}
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-lg transition-colors">
                         <X className="w-5 h-5 text-slate-600" />
