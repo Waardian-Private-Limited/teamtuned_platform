@@ -303,6 +303,9 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
   const formatStatus = (status: string): string => {
     const s = (status || "").toLowerCase().trim();
 
+    if (s.includes("week off (ot)") || s.includes("week_off (ot)")) return "Week Off (OT)";
+    if (s.includes("holiday (ot)")) return "Holiday (OT)";
+
     if (s.includes("checked-out") || s.includes("completed") || s.includes("finished")) {
       return "Completed";
     }
