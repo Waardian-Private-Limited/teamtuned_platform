@@ -13,6 +13,7 @@ import {
     Building2,
     Building,
     MapPin,
+    Thermometer,
     Calendar,
     UserCog,
     Wallet,
@@ -47,6 +48,9 @@ import {
     CreditCard,
     PieChart,
     Phone,
+    HardHat,
+    Layers,
+    Activity,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
@@ -88,6 +92,7 @@ export default function OrgSidebar({
     const [dashboardOpen, setDashboardOpen] = React.useState(false);
     const [managementOpen, setManagementOpen] = React.useState(false);
     const [attendanceOpen, setAttendanceOpen] = React.useState(true);
+    const [laborOpen, setLaborOpen] = React.useState(false);
     const [isNavigating, setIsNavigating] = React.useState(false);
 
     // Auto-collapse on hover state
@@ -117,6 +122,7 @@ export default function OrgSidebar({
                 setInventoryOpen(true);
                 setTaskOpen(true);
                 setDashboardOpen(true);
+                setLaborOpen(true);
             }, 500);
         }
 
@@ -379,6 +385,26 @@ export default function OrgSidebar({
                         )}
                     </>
 
+                    {/* Labor Management Section */}
+                    <>
+                        <CategoryButton label="Labor Management" isOpen={laborOpen} onClick={() => setLaborOpen(!laborOpen)} />
+                        {laborOpen && (
+                            <div className="space-y-1 ml-2">
+                                <Item icon={LayoutDashboard} label="Attendance Dashboard" href="/org-admin/labor-attendance/dashboard" active={pathname === "/org-admin/labor-attendance/dashboard"} />
+                                <Item icon={BarChart3} label="Contractor Dashboard" href="/org-admin/labor-attendance/contractor-dashboard" active={pathname === "/org-admin/labor-attendance/contractor-dashboard"} />
+                                <Item icon={ClipboardList} label="Attendance Logs" href="/org-admin/labor-attendance/logs" active={pathname === "/org-admin/labor-attendance/logs"} />
+                                <Item icon={LayoutGrid} label="Categories" href="/org-admin/labor/categories" active={pathname === "/org-admin/labor/categories"} />
+                                <Item icon={Layers} label="Subcategories" href="/org-admin/labor/subcategories" active={pathname === "/org-admin/labor/subcategories"} />
+                                <Item icon={Briefcase} label="Contractors" href="/org-admin/labor/contractors" active={pathname === "/org-admin/labor/contractors"} />
+                                <Item icon={HardHat} label="Laborers" href="/org-admin/labor/laborers" active={pathname === "/org-admin/labor/laborers"} />
+                                <Item icon={DollarSign} label="Rate Cards" href="/org-admin/labor/rate-cards" active={pathname === "/org-admin/labor/rate-cards"} />
+                                <Item icon={Shield} label="Site Logins" href="/org-admin/site-logins" active={pathname === "/org-admin/site-logins"} />
+                                <Item icon={Settings} label="Settings" href="/org-admin/labor/settings" active={pathname === "/org-admin/labor/settings"} />
+                                <Item icon={Activity} label="Device Health" href="/org-admin/labor-attendance/temperature-dashboard" active={pathname === "/org-admin/labor-attendance/temperature-dashboard"} />
+                                <Item icon={Thermometer} label="Device Logs" href="/org-admin/labor-attendance/device-logs" active={pathname === "/org-admin/labor-attendance/device-logs"} />
+                            </div>
+                        )}
+                    </>
 
                     {/* Settings */}
                     <CategoryButton label="Settings" isOpen={false} onClick={() => { }} />
