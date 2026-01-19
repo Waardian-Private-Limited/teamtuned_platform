@@ -40,6 +40,8 @@ import {
   Cog,
   Upload,
   Phone,
+  HardHat,
+  Layers,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
@@ -77,6 +79,7 @@ export default function EmployeeSidebar({
   const [managementOpen, setManagementOpen] = React.useState(false);
   const [attendanceOpen, setAttendanceOpen] = React.useState(true);
   const [otherOpen, setOtherOpen] = React.useState(false);
+  const [laborOpen, setLaborOpen] = React.useState(false);
   const [isNavigating, setIsNavigating] = React.useState(false);
 
   // Auto-collapse on hover state
@@ -104,6 +107,7 @@ export default function EmployeeSidebar({
         setOtherOpen(true);
         setInventoryOpen(true);
         setTaskOpen(true);
+        setLaborOpen(true);
       }, 500);
     }
 
@@ -254,6 +258,13 @@ export default function EmployeeSidebar({
   const canViewSalAdvPolicy = isOrgAdmin || hasAnyPerm(["SALADV_POLICY"]);
   const canViewSalAdvAccounts = isOrgAdmin || hasAnyPerm(["SALADV_PAY"]);
 
+  // Labor Management Permissions
+  const canViewLaborCategories = isOrgAdmin || hasAnyPerm(["LABOR_CAT_VIEW", "LABOR_CAT_ADD", "LABOR_CAT_EDIT"]);
+  const canViewLaborContractors = isOrgAdmin || hasAnyPerm(["LABOR_CONTRACTOR_VIEW", "LABOR_CONTRACTOR_ADD", "LABOR_CONTRACTOR_EDIT"]);
+  const canViewLaborers = isOrgAdmin || hasAnyPerm(["LABORER_VIEW", "LABORER_ADD", "LABORER_EDIT"]);
+  const canViewLaborRates = isOrgAdmin || hasAnyPerm(["LABOR_RATE_VIEW", "LABOR_RATE_ADD", "LABOR_RATE_EDIT"]);
+  const canViewLaborSettings = isOrgAdmin || hasAnyPerm(["LABOR_SETTINGS_VIEW", "LABOR_SETTINGS_EDIT"]);
+  const canViewLaborAttendance = isOrgAdmin || hasAnyPerm(["LABOR_ATTEND_VIEW", "LABOR_ATTENDANCE_ADD", "LABOR_ATTENDANCE_EDIT"]);
 
   const showOrgMain = [
     canViewOrgProfile,
@@ -303,6 +314,14 @@ export default function EmployeeSidebar({
     canViewSalAdvAccounts
   ].some(Boolean);
   const showPayroll = isOrgAdmin || hasAnyPerm(["PAYROLL_VIEW", "HR_MODE"]);
+
+  const showLaborManagement = [
+    canViewLaborCategories,
+    canViewLaborContractors,
+    canViewLaborers,
+    canViewLaborRates,
+    canViewLaborSettings
+  ].some(Boolean);
 
   return (
     <aside
@@ -634,13 +653,21 @@ export default function EmployeeSidebar({
                       />
                     </>
                   )}
-                  {/* Salary Components & Debit Rules - Accessible to all (as requested) */}
                   <Item
                     icon={Coins}
                     label="Salary Components"
                     href="/employee/salary-components"
                     active={pathname?.startsWith("/employee/salary-components") || false}
                   />
+                  {canViewLaborSettings && (
+                    <Item
+                      icon={Shield}
+                      label="Site Logins"
+                      href="/employee/site-logins"
+                      active={pathname?.startsWith("/employee/site-logins") || false}
+                    />
+                  )}
+
                   <Item
                     icon={ListChecks}
                     label="Debit Rules"
@@ -1003,6 +1030,93 @@ export default function EmployeeSidebar({
                     href="/employee/dashboard-builder"
                     active={pathname?.startsWith("/employee/dashboard-builder") || false}
                   /> */}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Labor Management Section */}
+        {showCoreHR && showLaborManagement && (
+          <div className="mt-2">
+            {!isCollapsed && (
+              <CategoryButton
+                label="Labor Management"
+                isOpen={laborOpen}
+                onClick={() => setLaborOpen(!laborOpen)}
+              />
+            )}
+            {laborOpen && (
+              <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                  <Item
+                    icon={LayoutDashboard}
+                    label="Attendance Dashboard"
+                    href="/employee/labor-attendance/dashboard"
+                    active={pathname === "/employee/labor-attendance/dashboard"}
+                  />
+                  <Item
+                    icon={ClipboardList}
+                    label="Attendance Logs"
+                    href="/employee/labor-attendance/logs"
+                    active={pathname === "/employee/labor-attendance/logs"}
+                  />
+                  {canViewLaborAttendance && (
+                    <Item
+                      icon={BarChart3}
+                      label="Contractor Dashboard"
+                      href="/employee/labor-attendance/contractor-dashboard"
+                      active={pathname?.startsWith("/employee/labor-attendance/contractor-dashboard") || false}
+                    />
+                  )}
+                  {canViewLaborCategories && (
+                    <Item
+                      icon={LayoutGrid}
+                      label="Categories"
+                      href="/employee/labor/categories"
+                      active={pathname?.startsWith("/employee/labor/categories") || false}
+                    />
+                  )}
+                  {canViewLaborCategories && (
+                    <Item
+                      icon={Layers}
+                      label="Subcategories"
+                      href="/employee/labor/subcategories"
+                      active={pathname?.startsWith("/employee/labor/subcategories") || false}
+                    />
+                  )}
+                  {canViewLaborContractors && (
+                    <Item
+                      icon={Briefcase}
+                      label="Contractors"
+                      href="/employee/labor/contractors"
+                      active={pathname?.startsWith("/employee/labor/contractors") || false}
+                    />
+                  )}
+                  {canViewLaborers && (
+                    <Item
+                      icon={HardHat}
+                      label="Laborers"
+                      href="/employee/labor/laborers"
+                      active={pathname?.startsWith("/employee/labor/laborers") || false}
+                    />
+                  )}
+                  {canViewLaborRates && (
+                    <Item
+                      icon={DollarSign}
+                      label="Rate Cards"
+                      href="/employee/labor/rate-cards"
+                      active={pathname?.startsWith("/employee/labor/rate-cards") || false}
+                    />
+                  )}
+                  {canViewLaborSettings && (
+                    <Item
+                      icon={Settings}
+                      label="Settings"
+                      href="/employee/labor/settings"
+                      active={pathname?.startsWith("/employee/labor/settings") || false}
+                    />
+                  )}
                 </div>
               </div>
             )}
