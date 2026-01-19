@@ -46,7 +46,7 @@ export default function LaborersManager() {
     const [allSites, setAllSites] = React.useState<any[]>([]);
 
     // Check if user has HR access
-    const hasHrAccess = (role === "Admin" || role === "Super Admin" || (permissions || []).includes("HR_MODE"));
+    const hasHrAccess = (role === "OrgAdmin" || role === "superAdmin" || (permissions || []).includes("HR_MODE"));
 
     // Modals
     const [showCreateModal, setShowCreateModal] = React.useState(false);
