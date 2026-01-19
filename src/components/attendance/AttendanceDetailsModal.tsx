@@ -657,6 +657,61 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                             </button>
                         </>
                     )}
+                    {/* Admin Silent Status Update */}
+                    {isOrgAdmin && !locked && (record.attendance_id || record.id) && (
+                        <div className="flex items-center gap-2 mr-auto">
+                            <span className="text-xs font-semibold text-slate-500 uppercase">Admin:</span>
+                            <button
+                                onClick={async () => {
+                                    if (confirm("Set status_timeline to Full-Day?")) {
+                                        try {
+                                            setLoading(true);
+                                            await apiClient(`/attendance/${record.attendance_id || record.id}/status`, {
+                                                method: 'POST',
+                                                body: { status_timeline: 'Full-Day' },
+                                                withAuth: true
+                                            });
+                                            if (onUpdate) onUpdate();
+                                            onClose();
+                                        } catch (e: any) {
+                                            alert("Failed: " + e.message);
+                                        } finally {
+                                            setLoading(false);
+                                        }
+                                    }
+                                }}
+                                disabled={loading}
+                                className="px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded hover:bg-emerald-100 transition-colors"
+                            >
+                                Set Full-Day
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    if (confirm("Set status_timeline to Half-Day?")) {
+                                        try {
+                                            setLoading(true);
+                                            await apiClient(`/attendance/${record.attendance_id || record.id}/status`, {
+                                                method: 'POST',
+                                                body: { status_timeline: 'Half-Day' },
+                                                withAuth: true
+                                            });
+                                            if (onUpdate) onUpdate();
+                                            onClose();
+                                        } catch (e: any) {
+                                            alert("Failed: " + e.message);
+                                        } finally {
+                                            setLoading(false);
+                                        }
+                                    }
+                                }}
+                                disabled={loading}
+                                className="px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded hover:bg-amber-100 transition-colors"
+                            >
+                                Set Half-Day
+                            </button>
+                        </div>
+                    )}
+
                     {/* Delete Action (Org Admin) */}
                     {isOrgAdmin && !locked && (
                         <button
