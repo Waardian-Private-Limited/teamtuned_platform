@@ -20,6 +20,9 @@ import {
     Image,
     FileText,
     User,
+    AlertTriangle,
+    ChevronLeft,
+    ChevronRight,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
@@ -40,6 +43,11 @@ export default function LaborersManager() {
     const [contractorFilter, setContractorFilter] = React.useState("");
     const [siteFilter, setSiteFilter] = React.useState("");
 
+    // Pagination
+    const [page, setPage] = React.useState(1);
+    const [pageSize, setPageSize] = React.useState(20);
+    const [totalEntries, setTotalEntries] = React.useState(0);
+
     // HR/HQ Mode for Site Filtering
     const [hqMode, setHqMode] = React.useState(false);
     const [inchargeSites, setInchargeSites] = React.useState<any[]>([]);
@@ -52,6 +60,7 @@ export default function LaborersManager() {
     const [showCreateModal, setShowCreateModal] = React.useState(false);
     const [showEditModal, setShowEditModal] = React.useState(false);
     const [showViewModal, setShowViewModal] = React.useState(false);
+    const [showDeleteModal, setShowDeleteModal] = React.useState(false);
     const [selectedLaborer, setSelectedLaborer] = React.useState<any>(null);
 
     // Form
@@ -87,11 +96,15 @@ export default function LaborersManager() {
             if (contractorFilter) params.contractor_id = contractorFilter;
             if (siteFilter) params.site_id = siteFilter;
 
-            const data = await apiClient<{ success: boolean; laborers: any[] }>(
+            params.page = page;
+            params.limit = pageSize;
+
+            const data = await apiClient<{ success: boolean; laborers: any[]; pagination: any }>(
                 "/labor/laborers",
                 { method: "GET", params }
             );
             setLaborers(data.laborers || []);
+            setTotalEntries(data.pagination?.total || 0);
         } catch (e: any) {
             setError(e?.message || "Failed to load laborers");
         } finally {
@@ -235,6 +248,11 @@ export default function LaborersManager() {
             fetchLaborers();
         }, 500);
         return () => clearTimeout(timeout);
+    }, [searchTerm, categoryFilter, contractorFilter, siteFilter, page, pageSize]);
+
+    // Reset page when filters change
+    React.useEffect(() => {
+        setPage(1);
     }, [searchTerm, categoryFilter, contractorFilter, siteFilter]);
 
     const handleCreate = async () => {
@@ -351,14 +369,28 @@ export default function LaborersManager() {
         }
     };
 
-    const handleDelete = async (id: number) => {
-        if (!confirm("Are you sure you want to delete this laborer?")) return;
+    const handleDelete = (laborer: any) => {
+        setSelectedLaborer(laborer);
+        setShowDeleteModal(true);
+    };
 
+    const confirmDelete = async () => {
+        if (!selectedLaborer) return;
+
+        // setSaving(true); // Re-use saving state or create deleting state? Re-use for simplicity
+        // Actually, deleting state is better UI. I'll use simple variable or re-use saving.
+        // Let's create local deleting state for button if needed, or just setSaving.
+        setSaving(true);
         try {
-            await apiClient(`/labor/laborers/${id}`, { method: "DELETE" });
+            await apiClient(`/labor/laborers/${selectedLaborer.id}`, { method: "DELETE" });
             fetchLaborers();
+            setShowDeleteModal(false);
+            setSelectedLaborer(null);
         } catch (e: any) {
             setError(e?.message || "Failed to delete laborer");
+            setShowDeleteModal(false); // Close on error? Or keep open? Close is standard, error shown in main UI.
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -631,7 +663,7 @@ export default function LaborersManager() {
                                                 )}
                                                 {(role !== "Employee" || hasPerm("LABORER_DELETE")) && (
                                                     <button
-                                                        onClick={() => handleDelete(laborer.id)}
+                                                        onClick={() => handleDelete(laborer)}
                                                         className="p-1.5 rounded-lg hover:bg-red-50 transition-colors"
                                                         title="Delete"
                                                     >
@@ -645,6 +677,57 @@ export default function LaborersManager() {
                             )}
                         </tbody>
                     </table>
+                </div>
+
+                {/* Pagination Footer */}
+                <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 rounded-b-xl">
+                    <div className="flex flex-1 justify-between sm:hidden">
+                        <button
+                            onClick={() => setPage(Math.max(1, page - 1))}
+                            disabled={page === 1}
+                            className={`relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 ${page === 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                            Previous
+                        </button>
+                        <button
+                            onClick={() => setPage(page + 1)}
+                            disabled={page * pageSize >= totalEntries}
+                            className={`relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 ${page * pageSize >= totalEntries ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                            Next
+                        </button>
+                    </div>
+                    <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                        <div>
+                            <p className="text-sm text-gray-700">
+                                Showing <span className="font-medium">{Math.min(totalEntries, (page - 1) * pageSize + 1)}</span> to <span className="font-medium">{Math.min(totalEntries, page * pageSize)}</span> of <span className="font-medium">{totalEntries}</span> results
+                            </p>
+                        </div>
+                        <div>
+                            <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                                <button
+                                    onClick={() => setPage(Math.max(1, page - 1))}
+                                    disabled={page === 1}
+                                    className={`relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 ${page === 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                >
+                                    <span className="sr-only">Previous</span>
+                                    <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+                                </button>
+                                {/* Simple Page Indicator */}
+                                <span className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 focus:outline-offset-0">
+                                    Page {page}
+                                </span>
+                                <button
+                                    onClick={() => setPage(page + 1)}
+                                    disabled={page * pageSize >= totalEntries}
+                                    className={`relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 ${page * pageSize >= totalEntries ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                >
+                                    <span className="sr-only">Next</span>
+                                    <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                                </button>
+                            </nav>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1194,6 +1277,53 @@ export default function LaborersManager() {
                     </div>
                 )
             }
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteModal && selectedLaborer && (
+                <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                    <div className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden">
+                        <div className="p-6">
+                            <div className="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full mb-4">
+                                <AlertTriangle className="w-6 h-6 text-red-600" />
+                            </div>
+                            <h3 className="text-xl font-bold text-center text-gray-900 mb-2">Delete Laborer?</h3>
+                            <p className="text-center text-gray-600 mb-6">
+                                Are you sure you want to delete <strong>{selectedLaborer.name}</strong>?
+                                <br />
+                                <span className="text-sm text-red-500 mt-2 block">
+                                    This action cannot be undone and will permanently remove their profile and face registration data.
+                                </span>
+                            </p>
+                            <div className="flex space-x-3">
+                                <button
+                                    onClick={() => {
+                                        setShowDeleteModal(false);
+                                        setSelectedLaborer(null);
+                                    }}
+                                    className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                                    disabled={saving}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={confirmDelete}
+                                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex justify-center items-center"
+                                    disabled={saving}
+                                >
+                                    {saving ? (
+                                        <>
+                                            <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+                                            Deleting...
+                                        </>
+                                    ) : (
+                                        "Delete"
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 }

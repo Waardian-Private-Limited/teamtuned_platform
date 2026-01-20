@@ -20,6 +20,8 @@ import {
     Sun,
     Moon,
     Clock,
+    ChevronLeft,
+    ChevronRight,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
@@ -35,11 +37,15 @@ interface SubcategoryRate {
 export default function LaborContractorsManager() {
     const { role, permissions } = useAuth();
     const [contractors, setContractors] = React.useState<any[]>([]);
+    const [sites, setSites] = React.useState<any[]>([]);
     const [categories, setCategories] = React.useState<any[]>([]);
     const [allSubcategories, setAllSubcategories] = React.useState<any[]>([]);
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState("");
     const [searchTerm, setSearchTerm] = React.useState("");
+    const [page, setPage] = React.useState(1);
+    const [totalPages, setTotalPages] = React.useState(1);
+    const [siteFilter, setSiteFilter] = React.useState("");
 
     // Modals
     const [showCreateModal, setShowCreateModal] = React.useState(false);
@@ -50,6 +56,7 @@ export default function LaborContractorsManager() {
     // Form
     const [form, setForm] = React.useState({
         name: "",
+        site_id: "",
         contact_person: "",
         phone: "",
         email: "",
@@ -84,18 +91,47 @@ export default function LaborContractorsManager() {
         setLoading(true);
         setError("");
         try {
-            const params: any = {};
+            const params: any = {
+                page,
+                limit: 20,
+            };
             if (searchTerm.trim()) params.search = searchTerm.trim();
+            if (siteFilter) params.site_id = siteFilter;
 
-            const data = await apiClient<{ success: boolean; contractors: any[] }>(
+            const data = await apiClient<{ success: boolean; contractors: any[]; pagination: any }>(
                 "/labor/contractors",
                 { method: "GET", params }
             );
             setContractors(data.contractors || []);
+            setTotalPages(data.pagination?.totalPages || 1);
         } catch (e: any) {
             setError(e?.message || "Failed to load contractors");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchSites = async () => {
+        try {
+            const isLaborAdmin = hasPerm("LABOR_ADMIN") || role === "OrgAdmin" || hasPerm("MULTISITE_MANAGER");
+            const params: any = {};
+            if (!isLaborAdmin) {
+                params.assigned_only = true;
+            }
+
+            const data = await apiClient<{ success: boolean; sites: any[] }>(
+                "/sites",
+                { method: "GET", params }
+            );
+            const loadedSites = data.sites || [];
+            setSites(loadedSites);
+
+            // If not admin and has sites, default to first site
+            if (!isLaborAdmin && loadedSites.length > 0 && !siteFilter) {
+                setSiteFilter(String(loadedSites[0].id));
+            }
+        } catch (e) {
+            console.error("Failed to load sites:", e);
         }
     };
 
@@ -129,6 +165,11 @@ export default function LaborContractorsManager() {
 
     React.useEffect(() => {
         fetchContractors();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [page, siteFilter]); // Refetch on page/filter change
+
+    React.useEffect(() => {
+        fetchSites();
         fetchCategories();
     }, []);
 
@@ -276,6 +317,7 @@ export default function LaborContractorsManager() {
         try {
             const payload: any = {
                 name: form.name.trim(),
+                site_id: form.site_id ? Number(form.site_id) : null,
                 contact_person: form.contact_person.trim() || null,
                 phone: form.phone.trim() || null,
                 email: form.email.trim() || null,
@@ -347,6 +389,7 @@ export default function LaborContractorsManager() {
     const resetForm = () => {
         setForm({
             name: "",
+            site_id: "",
             contact_person: "",
             phone: "",
             email: "",
@@ -553,6 +596,7 @@ export default function LaborContractorsManager() {
             setSelectedContractor(contractor);
             setForm({
                 name: contractor.name,
+                site_id: contractor.site_id ? String(contractor.site_id) : "",
                 contact_person: contractor.contact_person || "",
                 phone: contractor.phone || "",
                 email: contractor.email || "",
@@ -621,11 +665,8 @@ export default function LaborContractorsManager() {
         }
     };
 
-    const filteredContractors = contractors.filter((c) =>
-        c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (c.contact_person || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (c.phone || "").includes(searchTerm)
-    );
+    // Server-side filtering is used now, so display contractors directly
+    const displayedContractors = contractors; // Rename for clarity or just use contractors
 
     if (loading && contractors.length === 0) {
         return (
@@ -670,17 +711,49 @@ export default function LaborContractorsManager() {
                 </div>
             )}
 
-            {/* Search */}
+            {/* Search and Filter */}
             <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                    <input
-                        type="text"
-                        placeholder="Search contractors by name, contact person, or phone..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
+                <div className="flex flex-col md:flex-row gap-4">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                        <input
+                            type="text"
+                            placeholder="Search contractors..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && fetchContractors()}
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                    </div>
+
+                    {/* Site Filter */}
+                    <div className="w-full md:w-64">
+                        <div className="relative">
+                            <Briefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                            <select
+                                value={siteFilter}
+                                onChange={(e) => {
+                                    setSiteFilter(e.target.value);
+                                    setPage(1); // Reset to page 1 on filter change
+                                }}
+                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
+                            >
+                                {(role === 'OrgAdmin' || hasPerm('LABOR_ADMIN') || hasPerm('MULTISITE_MANAGER')) && (
+                                    <option value="">All Sites</option>
+                                )}
+                                {sites.map((site) => (
+                                    <option key={site.id} value={site.id}>
+                                        {site.name}
+                                    </option>
+                                ))}
+                            </select>
+                            <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -708,7 +781,7 @@ export default function LaborContractorsManager() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                            {filteredContractors.length === 0 ? (
+                            {displayedContractors.length === 0 ? (
                                 <tr>
                                     <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                                         <Briefcase className="w-12 h-12 mx-auto mb-2 text-gray-400" />
@@ -716,13 +789,18 @@ export default function LaborContractorsManager() {
                                     </td>
                                 </tr>
                             ) : (
-                                filteredContractors.map((contractor) => (
+                                displayedContractors.map((contractor) => (
                                     <tr key={contractor.id} className="hover:bg-gray-50">
                                         <td className="px-6 py-4">
                                             <div>
                                                 <div className="font-medium text-gray-900">{contractor.name}</div>
+                                                {contractor.site_name && (
+                                                    <div className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full inline-block mt-1">
+                                                        📍 {contractor.site_name}
+                                                    </div>
+                                                )}
                                                 {contractor.contact_person && (
-                                                    <div className="text-sm text-gray-500">{contractor.contact_person}</div>
+                                                    <div className="text-sm text-gray-500 mt-0.5">{contractor.contact_person}</div>
                                                 )}
                                             </div>
                                         </td>
@@ -787,7 +865,32 @@ export default function LaborContractorsManager() {
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination Controls */}
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+                    <div className="text-sm text-gray-500">
+                        Page <span className="font-medium">{page}</span> of <span className="font-medium">{totalPages}</span>
+                    </div>
+                    <div className="flex space-x-2">
+                        <button
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            disabled={page === 1}
+                            className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                            disabled={page === totalPages}
+                            className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <ChevronRight className="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
             </div>
+            {/* Debug Info (Temporary) */}
+            {/* <div className="text-xs text-gray-400">Sites loaded: {sites.length} | Role: {role}</div> */}
 
             {/* Create Modal */}
             {showCreateModal && (
@@ -819,11 +922,31 @@ export default function LaborContractorsManager() {
                                         type="text"
                                         value={form.name}
                                         onChange={(e) => setForm({ ...form, name: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                        placeholder="e.g., ABC Construction"
-                                        autoFocus
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        placeholder="Enter contractor name"
                                     />
                                 </div>
+
+                                {(role === 'OrgAdmin' || hasPerm('LABOR_ADMIN') || hasPerm('MULTISITE_MANAGER')) && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Assigned Site
+                                        </label>
+                                        <select
+                                            value={form.site_id}
+                                            onChange={(e) => setForm({ ...form, site_id: e.target.value })}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        >
+                                            <option value="">Select Site (Optional)</option>
+                                            {sites.map((site) => (
+                                                <option key={site.id} value={site.id}>
+                                                    {site.name} {site.code ? `(${site.code})` : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <p className="text-xs text-gray-500 mt-1">Leave empty if contractor operates across multiple sites or if not applicable.</p>
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         Contact Person

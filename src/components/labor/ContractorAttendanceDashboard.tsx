@@ -50,20 +50,27 @@ export default function ContractorAttendanceDashboard() {
                 setInchargeSites(list);
 
                 // Default Site Selection
-                if (list.length > 0 && selectedSiteId == null && !canHRMode) {
+                const canViewAll = canHRMode || hasPerm("MULTISITE_MANAGER") || hasPerm("OrgAdmin");
+                if (list.length > 0 && selectedSiteId == null && !canViewAll) {
                     const sid = list[0]?.id;
                     setSelectedSiteId(typeof sid === "number" ? sid : parseInt(String(sid)) || null);
                 }
 
-                // HR Mode Sites
-                if (canHRMode) {
+                // HR/Admin Mode Sites
+                if (canViewAll) {
                     const res2 = await apiClient<{ sites?: any[], data?: any[] }>("/sites", { method: "GET", withAuth: true, params: { incharge_only: "0" } });
                     const list2 = Array.isArray(res2?.sites) ? res2!.sites! : (Array.isArray(res2?.data) ? res2!.data! : []);
                     setAllSites(list2);
+
+                    // Force Select if null
+                    if (list2.length > 0 && selectedSiteId == null) {
+                        const sid = list2[0]?.id;
+                        setSelectedSiteId(typeof sid === "number" ? sid : parseInt(String(sid)) || null);
+                    }
                 }
             } catch (e) { }
         })();
-    }, [canHRMode]);
+    }, [canHRMode, permissions]);
 
     // 2. Fetch Stats
     const fetchStats = useCallback(async () => {
@@ -166,8 +173,7 @@ export default function ContractorAttendanceDashboard() {
                             onChange={(e) => setSelectedSiteId(e.target.value ? Number(e.target.value) : null)}
                             className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm"
                         >
-                            <option value="">All Sites</option>
-                            {(canHRMode ? allSites : inchargeSites).map((site) => (
+                            {(canHRMode || hasPerm("MULTISITE_MANAGER") || hasPerm("OrgAdmin") ? allSites : inchargeSites).map((site) => (
                                 <option key={site.id} value={site.id}>{site.name}</option>
                             ))}
                         </select>

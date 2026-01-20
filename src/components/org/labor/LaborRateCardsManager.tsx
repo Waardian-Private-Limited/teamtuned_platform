@@ -14,7 +14,6 @@ import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
 import TeamTunedLoader from "@/components/common/TeamTunedLoader";
 import { Category, Subcategory, StandardRate, DailyRateCard, RateRow } from "@/types/labor";
-import GlobalStandardRateCard from "./GlobalStandardRateCard";
 import ContractorStandardRateCard from "./ContractorStandardRateCard";
 import { showSuccess, showError } from "@/lib/toast";
 
@@ -59,6 +58,11 @@ export default function LaborRateCardsManager() {
         } else if (activeTab === "daily") {
             setDailyRateRows([]);
         }
+
+        // Also refresh contractors list based on site if site is selected
+        if (selectedSite) {
+            fetchContractorsBySite();
+        }
     }, [activeTab, selectedDate, selectedSite]); // Removed selectedContractor dependency
 
     const fetchInitialData = async () => {
@@ -82,6 +86,29 @@ export default function LaborRateCardsManager() {
             setLoading(false);
         }
     };
+
+    // Fetch contractors filtered by site
+    const fetchContractorsBySite = async () => {
+        if (!selectedSite) return;
+        try {
+            // Re-fetch contractors with site filter
+            const params = { site_id: selectedSite, limit: 100 }; // Ensure we get enough
+            const data = await apiClient<{ contractors: any[] }>("/labor/contractors", { method: "GET", params });
+            if (data.contractors) setContractors(data.contractors);
+        } catch (e) {
+            console.error("Failed to fetch site contractors", e);
+        }
+    };
+
+    // Auto-select first site if available and none selected (for non-admins handling)
+    useEffect(() => {
+        if (sites.length > 0 && !selectedSite) {
+            // Logic to auto-select relies on useAuth role presumably, but simply defaulting helps
+            // Use same logic as ContractorsManager if possible, or just wait for user
+            // Let's just default to first site if only 1 exists or if we want to be helpful
+            // setSites(sites); 
+        }
+    }, [sites]);
 
     // loadContractorCategories removed as it's not needed for the main view anymore (fetched by backend daily-view)
 
@@ -251,9 +278,24 @@ export default function LaborRateCardsManager() {
                     </div>
                 </div>
 
+                {/* Global Controls & Save Button */}
                 <div className="flex items-center justify-between">
-                    {activeTab === "daily" ? (
-                        <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex flex-wrap items-center gap-4">
+                        <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg px-3 py-2 shadow-sm min-w-[200px]">
+                            <MapPin size={16} className="text-gray-500" />
+                            <select
+                                value={selectedSite}
+                                onChange={(e) => setSelectedSite(e.target.value)}
+                                className="border-none outline-none text-sm font-medium text-gray-900 focus:ring-0 w-full bg-transparent"
+                            >
+                                <option value="">Select Site...</option>
+                                {sites.map(s => (
+                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {activeTab === "daily" && (
                             <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg px-3 py-2 shadow-sm">
                                 <CalendarIcon size={16} className="text-gray-500" />
                                 <input
@@ -263,32 +305,16 @@ export default function LaborRateCardsManager() {
                                     className="border-none outline-none text-sm font-medium text-gray-900 focus:ring-0"
                                 />
                             </div>
+                        )}
 
-
-
-                            <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg px-3 py-2 shadow-sm min-w-[200px]">
-                                <MapPin size={16} className="text-gray-500" />
-                                <select
-                                    value={selectedSite}
-                                    onChange={(e) => setSelectedSite(e.target.value)}
-                                    className="border-none outline-none text-sm font-medium text-gray-900 focus:ring-0 w-full bg-transparent"
-                                >
-                                    <option value="">Select Site...</option>
-                                    {sites.map(s => (
-                                        <option key={s.id} value={s.id}>{s.name}</option>
-                                    ))}
-                                </select>
+                        {activeTab === "standard" && (
+                            <div className="text-sm text-gray-500 italic hidden md:block">
+                                Standard rates for selected site.
                             </div>
-                        </div>
-                    ) : (
-                        <div className="text-sm text-gray-500 italic">
-                            Configure standard rates per contractor or global defaults.
-                        </div>
-                    )}
+                        )}
+                    </div>
 
                     <div className="flex items-center gap-3">
-
-
                         {activeTab === "daily" && selectedSite && (
                             <button
                                 onClick={handleSaveDailyBulk}
@@ -416,37 +442,36 @@ export default function LaborRateCardsManager() {
                             </div>
                         )
                     ) : (
-                        <div className="max-w-5xl mx-auto">
-                            {/* Global Standard Rates */}
-                            <GlobalStandardRateCard
-                                categories={categories}
-                                subcategories={subcategories}
-                            />
+                        !selectedSite ? (
+                            <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+                                <Filter size={48} className="mb-4 text-gray-300" />
+                                <p>Please select a Site to view standard rates.</p>
+                            </div>
+                        ) : (
+                            <div className="max-w-5xl mx-auto">
+                                <h2 className="text-lg font-semibold text-gray-900 mb-4 px-1">Contractor Standard Rates</h2>
 
-                            <div className="my-6 border-t border-gray-200" />
+                                {/* Contractor Rate Cards */}
+                                {contractors.map(contractor => (
+                                    <ContractorStandardRateCard
+                                        key={contractor.id}
+                                        contractor={contractor}
+                                        subcategories={subcategories}
+                                    />
+                                ))}
 
-                            <h2 className="text-lg font-semibold text-gray-900 mb-4 px-1">Contractor Standard Rates</h2>
-
-                            {/* Contractor Rate Cards */}
-                            {contractors.map(contractor => (
-                                <ContractorStandardRateCard
-                                    key={contractor.id}
-                                    contractor={contractor}
-                                    subcategories={subcategories}
-                                />
-                            ))}
-
-                            {contractors.length === 0 && (
-                                <div className="text-center py-8 text-gray-500">
-                                    No contractors found.
-                                </div>
-                            )}
-                        </div>
+                                {contractors.length === 0 && (
+                                    <div className="text-center py-8 text-gray-500">
+                                        No contractors found for this site.
+                                    </div>
+                                )}
+                            </div>
+                        )
                     )
                 )}
             </div>
 
 
-        </div>
+        </div >
     );
 }
