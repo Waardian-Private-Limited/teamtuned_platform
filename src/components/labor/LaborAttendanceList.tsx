@@ -858,24 +858,7 @@ export default function LaborAttendanceList() {
                 </div>
             )}
 
-            {/* Export Modal */}
-            {showExportModal && (
-                <LaborExportModal
-                    current={{
-                        siteId: selectedSiteId,
-                        contractorId: selectedContractorId,
-                        categoryId: selectedCategoryId,
-                        subcategoryId: selectedSubcategoryId,
-                        date: date,
-                        status: statusFilter,
-                        search: searchQuery
-                    }}
-                    onClose={() => setShowExportModal(false)}
-                    siteOptions={allSites}
-                    contractors={contractors}
-                    categories={categories}
-                />
-            )}
+
         </div>
     );
 }
