@@ -68,6 +68,8 @@ export default function LaborAttendanceList() {
     const [sessions, setSessions] = useState<any[]>([]);
     const [loadingSessions, setLoadingSessions] = useState(false);
     const [showExportModal, setShowExportModal] = useState(false);
+    const [showImageModal, setShowImageModal] = useState(false);
+    const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
     // Fetch List
     const fetchList = useCallback(async () => {
@@ -772,7 +774,14 @@ export default function LaborAttendanceList() {
                                                                 {new Date(session.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                             </div>
                                                             {session.startImage && (
-                                                                <img src={session.startImage} className="w-full h-24 object-cover rounded-lg border border-gray-100" />
+                                                                <img
+                                                                    src={session.startImage}
+                                                                    className="w-full h-24 object-contain rounded-lg border border-gray-100 cursor-pointer hover:opacity-90 transition-opacity"
+                                                                    onClick={() => {
+                                                                        setSelectedImage(session.startImage!);
+                                                                        setShowImageModal(true);
+                                                                    }}
+                                                                />
                                                             )}
                                                         </div>
                                                         {/* OUT */}
@@ -784,7 +793,14 @@ export default function LaborAttendanceList() {
                                                                 {session.end ? new Date(session.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Active'}
                                                             </div>
                                                             {session.endImage ? (
-                                                                <img src={session.endImage} className="w-full h-24 object-cover rounded-lg border border-gray-100" />
+                                                                <img
+                                                                    src={session.endImage}
+                                                                    className="w-full h-24 object-contain rounded-lg border border-gray-100 cursor-pointer hover:opacity-90 transition-opacity"
+                                                                    onClick={() => {
+                                                                        setSelectedImage(session.endImage!);
+                                                                        setShowImageModal(true);
+                                                                    }}
+                                                                />
                                                             ) : (
                                                                 <div className="w-full h-24 bg-gray-50 rounded-lg border border-gray-100 flex items-center justify-center text-xs text-gray-400 italic">
                                                                     Working...
@@ -819,6 +835,45 @@ export default function LaborAttendanceList() {
                     contractors={contractors}
                     categories={categories}
                     onClose={() => setShowExportModal(false)}
+                />
+            )}
+
+            {/* Image Modal */}
+            {showImageModal && selectedImage && (
+                <div className="fixed inset-0 bg-black bg-opacity-90 z-[9999] flex items-center justify-center p-4" onClick={() => setShowImageModal(false)}>
+                    <div className="relative max-w-4xl w-full h-full flex items-center justify-center">
+                        <button
+                            onClick={() => setShowImageModal(false)}
+                            className="absolute top-4 right-4 text-white bg-black bg-opacity-50 rounded-full p-2 hover:bg-opacity-70 transition-all"
+                        >
+                            <X size={24} />
+                        </button>
+                        <img
+                            src={selectedImage}
+                            alt="Attendance Detail"
+                            className="max-w-full max-h-full object-contain rounded-lg"
+                            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking the image itself
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* Export Modal */}
+            {showExportModal && (
+                <LaborExportModal
+                    current={{
+                        siteId: selectedSiteId,
+                        contractorId: selectedContractorId,
+                        categoryId: selectedCategoryId,
+                        subcategoryId: selectedSubcategoryId,
+                        date: date,
+                        status: statusFilter,
+                        search: searchQuery
+                    }}
+                    onClose={() => setShowExportModal(false)}
+                    siteOptions={allSites}
+                    contractors={contractors}
+                    categories={categories}
                 />
             )}
         </div>
