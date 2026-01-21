@@ -207,7 +207,12 @@ export default function LaborAttendanceList() {
 
     const formatTime = (ts: string) => {
         if (!ts) return "-";
-        return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return new Date(ts).toLocaleTimeString('en-IN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+            timeZone: 'Asia/Kolkata'
+        });
     };
 
     const openSessionsModal = async (laborer: any) => {
@@ -771,7 +776,7 @@ export default function LaborAttendanceList() {
                                                                 <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div> IN
                                                             </div>
                                                             <div className="text-sm font-semibold mb-2">
-                                                                {new Date(session.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                {new Date(session.start).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}
                                                             </div>
                                                             {session.startImage && (
                                                                 <img
@@ -790,7 +795,7 @@ export default function LaborAttendanceList() {
                                                                 <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div> OUT
                                                             </div>
                                                             <div className="text-sm font-semibold mb-2">
-                                                                {session.end ? new Date(session.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Active'}
+                                                                {session.end ? new Date(session.end).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' }) : 'Active'}
                                                             </div>
                                                             {session.endImage ? (
                                                                 <img
