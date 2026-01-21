@@ -831,7 +831,7 @@ export default function LaborAttendanceList() {
                         status: statusFilter,
                         search: searchQuery
                     }}
-                    siteOptions={canHRMode && hqMode ? allSites : inchargeSites}
+                    siteOptions={canHRMode ? allSites : inchargeSites}
                     contractors={contractors}
                     categories={categories}
                     onClose={() => setShowExportModal(false)}
