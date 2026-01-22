@@ -30,6 +30,7 @@ interface LaborDashboardStats {
     present: number;
     absent: number;
     working_employees: number; // active
+    pending_employees: number;
     overtime: number;
     trends: { present: number };
 }
@@ -316,6 +317,7 @@ export default function LaborAttendanceDashboard() {
                         <StatCard title="Total Laborers" value={stats.total} icon={Users} color="from-blue-500 to-blue-600" />
                         <StatCard title="Present Today" value={stats.present} icon={UserCheck} color="from-emerald-500 to-emerald-600" />
                         <StatCard title="Currently Active" value={stats.working_employees} icon={Clock} color="from-teal-500 to-teal-600" />
+                        <StatCard title="Pending Out" value={stats.pending_employees} icon={Clock} color="from-orange-500 to-orange-600" />
                         <StatCard title="Absent" value={stats.absent} icon={UserX} color="from-red-500 to-red-600" />
                         <StatCard title="Overtime (>8h)" value={stats.overtime} icon={AlertTriangle} color="from-amber-500 to-amber-600" />
                     </div>

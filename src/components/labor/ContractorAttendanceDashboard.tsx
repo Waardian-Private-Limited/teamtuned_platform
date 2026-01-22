@@ -9,6 +9,7 @@ import {
     RefreshCw,
     Briefcase,
     Building2,
+    Clock,
 } from "lucide-react";
 import { format } from "date-fns";
 import TeamTunedLoader from "@/components/common/TeamTunedLoader";
@@ -19,6 +20,7 @@ interface ContractorStats {
     total_laborers: number;
     present_count: number;
     active_count: number;
+    pending_count: number;
     absent_count: number;
     overtime_count: number;
 }
@@ -126,21 +128,29 @@ export default function ContractorAttendanceDashboard() {
                 </div>
 
                 {/* Grid Stats */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-2">
                     <div className="p-2 bg-gray-50 rounded-lg">
                         <div className="flex items-center gap-1.5 mb-0.5">
                             <Users size={14} className="text-gray-400" />
-                            <span className="text-xs text-gray-500">Total</span>
+                            <span className="text-[10px] text-gray-500 uppercase font-bold">Total</span>
                         </div>
-                        <p className="text-lg font-bold text-gray-900">{item.total_laborers}</p>
+                        <p className="text-base font-bold text-gray-900">{item.total_laborers}</p>
                     </div>
 
                     <div className="p-2 bg-green-50 rounded-lg border border-green-100">
                         <div className="flex items-center gap-1.5 mb-0.5">
                             <UserCheck size={14} className="text-green-600" />
-                            <span className="text-xs text-green-700 font-medium">Present</span>
+                            <span className="text-[10px] text-green-700 uppercase font-bold">Present</span>
                         </div>
-                        <p className="text-lg font-bold text-green-700">{item.present_count}</p>
+                        <p className="text-base font-bold text-green-700">{item.present_count}</p>
+                    </div>
+
+                    <div className="p-2 bg-orange-50 rounded-lg border border-orange-100">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                            <Clock size={14} className="text-orange-600" />
+                            <span className="text-[10px] text-orange-700 uppercase font-bold">Pending</span>
+                        </div>
+                        <p className="text-base font-bold text-orange-700">{item.pending_count}</p>
                     </div>
                 </div>
             </div>
@@ -205,9 +215,15 @@ export default function ContractorAttendanceDashboard() {
                             </div>
                             <div className="w-px h-8 bg-gray-200"></div>
                             <div className="flex flex-col">
-                                <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Total Present</span>
                                 <span className="text-2xl font-bold text-green-600">
                                     {stats.reduce((acc, curr) => acc + Number(curr.present_count || 0), 0)}
+                                </span>
+                            </div>
+                            <div className="w-px h-8 bg-gray-200"></div>
+                            <div className="flex flex-col">
+                                <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Total Pending</span>
+                                <span className="text-2xl font-bold text-orange-600">
+                                    {stats.reduce((acc, curr) => acc + Number(curr.pending_count || 0), 0)}
                                 </span>
                             </div>
                         </div>
