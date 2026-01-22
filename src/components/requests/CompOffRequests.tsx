@@ -83,6 +83,7 @@ export default function CompOffRequests() {
     // Details view modal state
     const [viewOpen, setViewOpen] = useState<boolean>(false);
     const [viewData, setViewData] = useState<Record<string, any> | null>(null);
+    const [timeline, setTimeline] = useState<Array<Record<string, any>>>([]);
 
     // Stats animation
     const pendingCount = useCountUp(stats?.pending || 0);
@@ -287,9 +288,26 @@ export default function CompOffRequests() {
         closeModal();
     };
 
-    const openDetailsView = (item: CompOffItem) => {
+    const fetchTimeline = async (compoffId: number) => {
+        try {
+            const res = await apiClient<{ timeline?: any[] }>(`/attendance/comp-off/${compoffId}/timeline`, {
+                method: 'GET',
+                withAuth: true
+            });
+            return res?.timeline || [];
+        } catch {
+            return [];
+        }
+    };
+
+    const openDetailsView = async (item: CompOffItem) => {
         setActiveItem(item);
         setViewData(item);
+
+        // Fetch timeline
+        const timelineData = await fetchTimeline(Number(item.id));
+        setTimeline(timelineData);
+
         setViewOpen(true);
     };
 
@@ -952,49 +970,53 @@ export default function CompOffRequests() {
                                     </div>
                                 </div>
 
-                                {/* Approval Timeline */}
-                                {(activeItem.approver_first_name || activeItem.approved_at) && (
-                                    <div className="bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200 rounded-lg p-4 mt-4">
-                                        <div className="text-xs font-semibold text-slate-700 uppercase mb-3 flex items-center gap-1.5">
+                                {/* Workflow Timeline */}
+                                {timeline.length > 0 && (
+                                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 mt-4">
+                                        <div className="text-xs font-semibold text-blue-700 uppercase mb-3 flex items-center gap-1.5">
                                             <Clock className="w-3.5 h-3.5" />
-                                            Approval Timeline
+                                            Approval Workflow Timeline
                                         </div>
-                                        <div className="space-y-2.5">
-                                            {activeItem.approver_first_name && (
-                                                <div className="flex items-start gap-2">
-                                                    <div className="text-xs text-slate-500 min-w-[100px]">Approved By:</div>
-                                                    <div className="text-sm font-medium text-slate-900">
-                                                        {`${activeItem.approver_first_name} ${activeItem.approver_last_name || ""}`.trim()}
-                                                        {activeItem.approver_role && (
-                                                            <span className="ml-2 text-xs text-slate-500 font-normal">({activeItem.approver_role})</span>
+                                        <div className="space-y-3">
+                                            {timeline.map((entry, idx) => (
+                                                <div key={idx} className="flex items-start space-x-3">
+                                                    <div className={`mt-1 w-2 h-2 rounded-full ${entry.action === 'approved' ? 'bg-green-500' :
+                                                            entry.action === 'rejected' ? 'bg-red-500' :
+                                                                entry.action === 'pending' ? 'bg-orange-500' :
+                                                                    entry.action === 'auto_escalated' ? 'bg-blue-400' :
+                                                                        'bg-gray-400'
+                                                        }`} />
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-sm font-medium text-gray-900">
+                                                                Level {entry.level_number}
+                                                            </span>
+                                                            <span className="text-xs text-gray-500">
+                                                                {entry.action_taken_at ? formatDate(entry.action_taken_at) : 'Pending'}
+                                                            </span>
+                                                        </div>
+                                                        {entry.approver_name && (
+                                                            <p className="text-xs text-gray-600 mt-0.5">
+                                                                {entry.action === 'approved' ? '✓ Approved' :
+                                                                    entry.action === 'rejected' ? '✗ Rejected' :
+                                                                        entry.action === 'auto_escalated' ? '⏭ Auto-escalated' :
+                                                                            '⏳ Pending'} by {entry.approver_name}
+                                                                {entry.employee_code && ` (${entry.employee_code})`}
+                                                            </p>
+                                                        )}
+                                                        {entry.remarks && (
+                                                            <p className="text-xs text-gray-500 mt-1 italic bg-white/50 px-2 py-1 rounded">
+                                                                "{entry.remarks}"
+                                                            </p>
+                                                        )}
+                                                        {entry.is_current_level === 1 && entry.action === 'pending' && (
+                                                            <span className="inline-block mt-1 text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+                                                                Current Level
+                                                            </span>
                                                         )}
                                                     </div>
                                                 </div>
-                                            )}
-                                            {activeItem.approved_at && (
-                                                <div className="flex items-start gap-2">
-                                                    <div className="text-xs text-slate-500 min-w-[100px]">Approved At:</div>
-                                                    <div className="text-sm text-slate-700">
-                                                        {formatDate(activeItem.approved_at)} at {formatTime(activeItem.approved_at)}
-                                                    </div>
-                                                </div>
-                                            )}
-                                            {activeItem.status && (
-                                                <div className="flex items-start gap-2">
-                                                    <div className="text-xs text-slate-500 min-w-[100px]">Status:</div>
-                                                    <div className="flex items-center gap-1.5">
-                                                        {activeItem.status === 'Approved' && <CheckCircle className="w-4 h-4 text-emerald-600" />}
-                                                        {activeItem.status === 'Rejected' && <X className="w-4 h-4 text-rose-600" />}
-                                                        {activeItem.status === 'Pending' && <AlertCircle className="w-4 h-4 text-amber-600" />}
-                                                        <span className={`text-sm font-semibold ${activeItem.status === 'Approved' ? 'text-emerald-700' :
-                                                            activeItem.status === 'Rejected' ? 'text-rose-700' :
-                                                                'text-amber-700'
-                                                            }`}>
-                                                            {activeItem.status}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            )}
+                                            ))}
                                         </div>
                                     </div>
                                 )}
