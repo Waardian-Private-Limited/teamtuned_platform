@@ -50,6 +50,8 @@ type ExpenseRow = {
   physical_copy_collected_by_name?: string;
   vendor_name?: string;
   seller_name?: string;
+  can_approve_level?: number;
+  current_approval_level?: number;
 };
 
 type Summary = {
@@ -141,6 +143,7 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
   // Missing state variables restoration
   const [searchTerm, setSearchTerm] = React.useState<string>("");
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
+  const [myLevel, setMyLevel] = React.useState<boolean>(false);
   const [paymentMode, setPaymentMode] = React.useState<string>("");
   const [invoiceDateFrom, setInvoiceDateFrom] = React.useState<string>("");
   const [invoiceDateTo, setInvoiceDateTo] = React.useState<string>("");
@@ -164,6 +167,7 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
   const detailModal = React.useMemo(() => ({ open: detailModalOpen, id: detail?.id }), [detailModalOpen, detail]);
 
   const [confirmModal, setConfirmModal] = React.useState<{ open: boolean; type: 'submitted' | 'not_applicable'; expenseId: number } | null>(null);
+  const [approvalOverrideModal, setApprovalOverrideModal] = React.useState<{ open: boolean; expenseId: number } | null>(null);
   const [actionLoading, setActionLoading] = React.useState<string | null>(null);
 
   const [showFilters, setShowFilters] = React.useState<boolean>(false);
@@ -272,12 +276,25 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
       if (selectedWalletId != null) listParams.wallet_id = String(selectedWalletId);
       if (searchTerm) listParams.q = searchTerm;
       if (paymentMode) listParams.payment_mode = paymentMode;
-      if (statusFilter) listParams.status = statusFilter;
+      if (statusFilter && statusFilter !== "") {
+        const s = statusFilter.toLowerCase();
+        if (s === 'pending') {
+          listParams.status = 'submitted,partially_approved,pending';
+        } else if (s === 'approved') {
+          listParams.status = 'APPROVED';
+        } else if (s === 'rejected') {
+          listParams.status = 'REJECTED';
+        } else {
+          listParams.status = statusFilter;
+        }
+      }
       if (dateFrom) listParams.date_from = dateFrom;
       if (dateTo) listParams.date_to = dateTo;
       if (invoiceDateFrom) listParams.invoice_date_from = invoiceDateFrom;
       if (invoiceDateTo) listParams.invoice_date_to = invoiceDateTo;
+      if (invoiceDateTo) listParams.invoice_date_to = invoiceDateTo;
       if (selectedCategoryId != null) listParams.category_id = String(selectedCategoryId);
+      if (myLevel) listParams.my_level = "true";
 
       const list = await apiClient<any>("/expenses/list", { method: "GET", params: listParams, withAuth: true });
       const rws: ExpenseRow[] = (list?.expenses || []).map((e: any) => ({
@@ -292,6 +309,8 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
         physical_copy_status: e.physical_copy_status || 'pending',
         physical_copy_collected_by_name: e.physical_copy_collected_by_name || undefined,
         vendor_name: e.vendor_name || undefined,
+        can_approve_level: e.can_approve_level != null ? Number(e.can_approve_level) : undefined,
+        current_approval_level: e.current_approval_level != null ? Number(e.current_approval_level) : undefined,
       }));
       setRows(rws);
       setTotal(Number(list?.total || rws.length));
@@ -299,7 +318,7 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
       console.error("Failed to load expenses:", error);
       setError("Failed to load expenses");
     }
-  }, [isOrgAdmin, isWalletAdmin, selectedSiteId, selectedWalletId, page, limit, searchTerm, paymentMode, statusFilter, dateFrom, dateTo, invoiceDateFrom, invoiceDateTo, selectedCategoryId]);
+  }, [isOrgAdmin, isWalletAdmin, selectedSiteId, selectedWalletId, page, limit, searchTerm, paymentMode, statusFilter, dateFrom, dateTo, invoiceDateFrom, invoiceDateTo, selectedCategoryId, myLevel]);
 
   const loadData = React.useCallback(async () => {
     try {
@@ -335,7 +354,7 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
 
   React.useEffect(() => {
     loadData();
-  }, [selectedSiteId, page, limit, searchTerm, paymentMode, statusFilter, dateFrom, dateTo, invoiceDateFrom, invoiceDateTo, selectedCategoryId, loadData]);
+  }, [selectedSiteId, page, limit, searchTerm, paymentMode, statusFilter, dateFrom, dateTo, invoiceDateFrom, invoiceDateTo, selectedCategoryId, myLevel, loadData]);
 
   const openDetail = async (id: number) => {
     try {
@@ -429,6 +448,55 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
       showNotification(`Failed to export expenses to ${format.toUpperCase()}. Please try again.`, 'error');
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleApprove = async (expenseId: number, forceProceed = false) => {
+    const row = rows.find(r => r.id === expenseId);
+    if (!forceProceed && row && row.can_approve_level != null && row.current_approval_level != null) {
+      if (row.can_approve_level > row.current_approval_level) {
+        setApprovalOverrideModal({ open: true, expenseId });
+        return;
+      }
+    }
+
+    try {
+      setActionLoading(String(expenseId));
+      await apiClient(`/expenses/${expenseId}/approve`, {
+        method: "POST",
+        body: { force_proceed: forceProceed },
+        withAuth: true
+      });
+      showNotification('Expense approved successfully', 'success');
+      setApprovalOverrideModal(null);
+      await loadData();
+    } catch (e: any) {
+      if (e?.response?.status === 409 && e?.response?.data?.error_code === 'LOWER_LEVEL_PENDING') {
+        setApprovalOverrideModal({ open: true, expenseId });
+      } else {
+        console.error('Failed to approve expense:', e);
+        showNotification(e?.message || 'Failed to approve expense', 'error');
+      }
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleReject = async (expenseId: number) => {
+    if (!confirm('Are you sure you want to reject this expense?')) return;
+    try {
+      setActionLoading(String(expenseId));
+      await apiClient(`/expenses/${expenseId}/reject`, {
+        method: "POST",
+        withAuth: true
+      });
+      showNotification('Expense rejected successfully', 'success');
+      await loadData();
+    } catch (e: any) {
+      console.error('Failed to reject expense:', e);
+      showNotification(e?.message || 'Failed to reject expense', 'error');
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -578,6 +646,33 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
                   className="fixed w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
                 >
                   <div className="py-1">
+                    {(myLevel || (expense.can_approve_level != null)) && (
+                      <>
+                        <button
+                          onClick={() => {
+                            handleApprove(expense.id);
+                            setIsOpen(false);
+                            setMenuPos(null);
+                          }}
+                          className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-green-700 hover:bg-green-50"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          <span>Approve</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            handleReject(expense.id);
+                            setIsOpen(false);
+                            setMenuPos(null);
+                          }}
+                          className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50"
+                        >
+                          <X className="w-4 h-4" />
+                          <span>Reject</span>
+                        </button>
+                        <div className="border-t border-gray-100 my-1" />
+                      </>
+                    )}
                     <button
                       onClick={() => {
                         openDetail(expense.id);
@@ -704,119 +799,139 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
         </div>
       </div>
 
+      {/* My Level Toggle Bar */}
+      <div className="px-4 py-2 bg-white border-b border-gray-200 flex items-center gap-2">
+        <button
+          onClick={() => setMyLevel(!myLevel)}
+          className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-full transition-colors ${myLevel
+            ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-500 ring-offset-1'
+            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+        >
+          <CheckCircle2 className={`w-4 h-4 ${myLevel ? 'fill-blue-500 text-white' : 'text-gray-500'}`} />
+          My Level ({myLevel ? 'On' : 'Off'})
+        </button>
+        <span className="text-xs text-gray-500">
+          {myLevel ? "Showing only expenses pending your approval." : "Filter to see only expenses requiring your approval."}
+        </span>
+      </div>
+
       {/* Balance Summary Bar */}
-      {balanceSummary && showBalanceSummary && (
-        <div className="px-4 py-2 bg-blue-50 border-b border-blue-100 relative">
-          <button
-            onClick={() => setShowBalanceSummary(false)}
-            className="absolute top-1 right-1 p-1 hover:bg-blue-100 rounded-full text-blue-400 hover:text-blue-600 transition-colors z-10"
-          >
-            <X className="w-3 h-3" />
-          </button>
+      {
+        balanceSummary && showBalanceSummary && (
+          <div className="px-4 py-2 bg-blue-50 border-b border-blue-100 relative">
+            <button
+              onClick={() => setShowBalanceSummary(false)}
+              className="absolute top-1 right-1 p-1 hover:bg-blue-100 rounded-full text-blue-400 hover:text-blue-600 transition-colors z-10"
+            >
+              <X className="w-3 h-3" />
+            </button>
 
-          {balanceSummary.breakdown && balanceSummary.breakdown.length > 0 ? (
-            <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-blue-200 scrollbar-track-transparent">
-              {/* Aggregate Card */}
-              <div className="flex-shrink-0 bg-white p-2 rounded border border-blue-100 shadow-sm min-w-[160px]">
-                <div className="text-[10px] font-bold text-blue-600 uppercase mb-1">Total (All Sites)</div>
-                <div className="space-y-0.5 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Opening:</span>
-                    <span className="font-bold text-gray-900">{formatCurrency(balanceSummary.opening)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Closing:</span>
-                    <span className="font-bold text-gray-900">{formatCurrency(balanceSummary.closing)}</span>
-                  </div>
-                  <div className="flex justify-between pt-1 border-t border-gray-100">
-                    <span className="text-gray-500">Net:</span>
-                    <span className={`font-bold ${balanceSummary.net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {balanceSummary.net >= 0 ? '+' : ''}{formatCurrency(balanceSummary.net)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Individual Site Cards */}
-              {balanceSummary.breakdown.map((site: any) => (
-                <div key={site.site_id} className="flex-shrink-0 bg-white p-2 rounded border border-gray-200 shadow-sm min-w-[160px]">
-                  <div className="text-[10px] font-bold text-gray-700 uppercase mb-1 truncate" title={site.site_name}>{site.site_name}</div>
+            {balanceSummary.breakdown && balanceSummary.breakdown.length > 0 ? (
+              <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-blue-200 scrollbar-track-transparent">
+                {/* Aggregate Card */}
+                <div className="flex-shrink-0 bg-white p-2 rounded border border-blue-100 shadow-sm min-w-[160px]">
+                  <div className="text-[10px] font-bold text-blue-600 uppercase mb-1">Total (All Sites)</div>
                   <div className="space-y-0.5 text-xs">
                     <div className="flex justify-between">
                       <span className="text-gray-500">Opening:</span>
-                      <span className="font-medium text-gray-900">{formatCurrency(site.opening)}</span>
+                      <span className="font-bold text-gray-900">{formatCurrency(balanceSummary.opening)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Closing:</span>
-                      <span className="font-medium text-gray-900">{formatCurrency(site.closing)}</span>
+                      <span className="font-bold text-gray-900">{formatCurrency(balanceSummary.closing)}</span>
                     </div>
                     <div className="flex justify-between pt-1 border-t border-gray-100">
                       <span className="text-gray-500">Net:</span>
-                      <span className={`font-medium ${site.net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {site.net >= 0 ? '+' : ''}{formatCurrency(site.net)}
+                      <span className={`font-bold ${balanceSummary.net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {balanceSummary.net >= 0 ? '+' : ''}{formatCurrency(balanceSummary.net)}
                       </span>
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex items-center gap-6 text-xs">
-              <div className="flex items-center gap-1.5">
-                <span className="text-blue-600 font-medium">Opening:</span>
-                <span className="font-bold text-gray-900">{formatCurrency(balanceSummary.opening)}</span>
+
+                {/* Individual Site Cards */}
+                {balanceSummary.breakdown.map((site: any) => (
+                  <div key={site.site_id} className="flex-shrink-0 bg-white p-2 rounded border border-gray-200 shadow-sm min-w-[160px]">
+                    <div className="text-[10px] font-bold text-gray-700 uppercase mb-1 truncate" title={site.site_name}>{site.site_name}</div>
+                    <div className="space-y-0.5 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Opening:</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(site.opening)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Closing:</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(site.closing)}</span>
+                      </div>
+                      <div className="flex justify-between pt-1 border-t border-gray-100">
+                        <span className="text-gray-500">Net:</span>
+                        <span className={`font-medium ${site.net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {site.net >= 0 ? '+' : ''}{formatCurrency(site.net)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-blue-600 font-medium">Closing:</span>
-                <span className="font-bold text-gray-900">{formatCurrency(balanceSummary.closing)}</span>
+            ) : (
+              <div className="flex items-center gap-6 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-blue-600 font-medium">Opening:</span>
+                  <span className="font-bold text-gray-900">{formatCurrency(balanceSummary.opening)}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-blue-600 font-medium">Closing:</span>
+                  <span className="font-bold text-gray-900">{formatCurrency(balanceSummary.closing)}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-blue-600 font-medium">Net:</span>
+                  <span className={`font-bold ${balanceSummary.net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {balanceSummary.net >= 0 ? '+' : ''}{formatCurrency(balanceSummary.net)}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-blue-600 font-medium">Net:</span>
-                <span className={`font-bold ${balanceSummary.net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {balanceSummary.net >= 0 ? '+' : ''}{formatCurrency(balanceSummary.net)}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )
+      }
 
       {/* Filters */}
-      {showFilters && (
-        <div className="px-4 py-3 bg-white border-b border-gray-200 space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search expenses..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-              />
-            </div>
+      {
+        showFilters && (
+          <div className="px-4 py-3 bg-white border-b border-gray-200 space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search expenses..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                />
+              </div>
 
-            {/* Site Filter */}
-            {siteOptions.length > 0 && (
-              <select
-                value={selectedSiteId || ""}
-                onChange={(e) => {
-                  setSelectedSiteId(e.target.value ? Number(e.target.value) : null);
-                  setSelectedWalletId(null);
-                }}
-                className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
-              >
-                <option value="">All Sites</option>
-                {siteOptions.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            )}
+              {/* Site Filter */}
+              {siteOptions.length > 0 && (
+                <select
+                  value={selectedSiteId || ""}
+                  onChange={(e) => {
+                    setSelectedSiteId(e.target.value ? Number(e.target.value) : null);
+                    setSelectedWalletId(null);
+                  }}
+                  className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
+                >
+                  <option value="">All Sites</option>
+                  {siteOptions.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              )}
 
-            {/* Wallet Filter */}
-            {/* Only show if site is selected or if we have wallets loaded globally (which we don't currently fetch all global wallets, but let's assume we fetch based on site) */}
-            {/* Actually, we need to fetch wallets for the selected site to populate this.
+              {/* Wallet Filter */}
+              {/* Only show if site is selected or if we have wallets loaded globally (which we don't currently fetch all global wallets, but let's assume we fetch based on site) */}
+              {/* Actually, we need to fetch wallets for the selected site to populate this.
                  For now, let's assume we can filter by wallet if we had the list.
                  Since the user didn't explicitly ask for wallet filter logic to be fixed (just the balance summary),
                  I'll leave the dropdown if it was there, or add it if needed.
@@ -827,102 +942,103 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
                  I'll stick to the existing filters for now.
              */}
 
-            {/* Status Filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
-            >
-              <option value="">All Statuses</option>
-              <option value="APPROVED">Approved</option>
-              <option value="PENDING">Pending</option>
-              <option value="REJECTED">Rejected</option>
-            </select>
+              {/* Status Filter */}
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
+              >
+                <option value="">All Statuses</option>
+                <option value="Approved">Approved</option>
+                <option value="Pending">Pending</option>
+                <option value="Rejected">Rejected</option>
+              </select>
 
-            {/* Payment Mode */}
-            <select
-              value={paymentMode}
-              onChange={(e) => setPaymentMode(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
-            >
-              <option value="">All Payment Modes</option>
-              <option value="Cash">Cash</option>
-              <option value="Bank">Bank Transfer</option>
-              <option value="UPI">UPI</option>
-              <option value="Card">Card</option>
-            </select>
-          </div>
+              {/* Payment Mode */}
+              <select
+                value={paymentMode}
+                onChange={(e) => setPaymentMode(e.target.value)}
+                className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
+              >
+                <option value="">All Payment Modes</option>
+                <option value="Cash">Cash</option>
+                <option value="Bank">Bank Transfer</option>
+                <option value="UPI">UPI</option>
+                <option value="Card">Card</option>
+              </select>
+            </div>
 
-          {/* Date Filters */}
-          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Expense From</label>
+            {/* Date Filters */}
+            <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Expense From</label>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Expense To</label>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+              <div className="w-px h-4 bg-gray-200 mx-1 hidden md:block"></div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-gray-700">Invoice Date:</span>
                 <input
                   type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  value={invoiceDateFrom}
+                  onChange={(e) => setInvoiceDateFrom(e.target.value)}
+                  className="px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:border-blue-500"
                 />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Expense To</label>
+                <span className="text-gray-400">-</span>
                 <input
                   type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  value={invoiceDateTo}
+                  onChange={(e) => setInvoiceDateTo(e.target.value)}
+                  className="px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:border-blue-500"
                 />
               </div>
-            </div>
-            <div className="w-px h-4 bg-gray-200 mx-1 hidden md:block"></div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-gray-700">Invoice Date:</span>
-              <input
-                type="date"
-                value={invoiceDateFrom}
-                onChange={(e) => setInvoiceDateFrom(e.target.value)}
-                className="px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:border-blue-500"
-              />
-              <span className="text-gray-400">-</span>
-              <input
-                type="date"
-                value={invoiceDateTo}
-                onChange={(e) => setInvoiceDateTo(e.target.value)}
-                className="px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:border-blue-500"
-              />
-            </div>
-
-            <div className="ml-auto flex items-center gap-2">
-              <button
-                onClick={() => {
-                  setSearchTerm("");
-                  setPaymentMode("");
-                  setStatusFilter("");
-                  setDateFrom("");
-                  setDateTo("");
-                  setInvoiceDateFrom("");
-                  setInvoiceDateTo("");
-                  setSelectedCategoryId(null);
-                  setSelectedWalletId(null);
-                  setPage(1);
-                }}
-                className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
-              >
-                Reset Filters
-              </button>
-              <button
-                onClick={() => setShowExportModal(true)}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-md hover:bg-gray-50 transition-colors"
-              >
-                <Download className="w-4 h-4" />
-                Export
-              </button>
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setSearchTerm("");
+                    setPaymentMode("");
+                    setStatusFilter("");
+                    setDateFrom("");
+                    setDateTo("");
+                    setInvoiceDateFrom("");
+                    setInvoiceDateTo("");
+                    setSelectedCategoryId(null);
+                    setSelectedWalletId(null);
+                    setPage(1);
+                  }}
+                  className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                >
+                  Reset Filters
+                </button>
+                <button
+                  onClick={() => setShowExportModal(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-md hover:bg-gray-50 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  Export
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Content */}
       <div className="flex-1 overflow-hidden flex flex-col relative">
@@ -1086,109 +1202,161 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
       </div>
 
       {/* Modals */}
-      {showModal && (
-        <AddExpenseModal
-          siteId={selectedSiteId ?? null}
-          onClose={() => setShowModal(false)}
-          onSubmitted={() => {
-            setShowModal(false);
-            setPage(1);
-            loadSummary();
-            loadExpenses();
-          }}
-        />
-      )}
+      {
+        showModal && (
+          <AddExpenseModal
+            siteId={selectedSiteId ?? null}
+            onClose={() => setShowModal(false)}
+            onSubmitted={() => {
+              setShowModal(false);
+              setPage(1);
+              loadSummary();
+              loadExpenses();
+            }}
+          />
+        )
+      }
 
-      {detailModalOpen && (
-        <ExpenseDetailModal
-          loading={detailLoading}
-          error={detailError}
-          detail={detail}
-          onClose={() => setDetailModalOpen(false)}
-          onUpdatePhysicalCopyStatus={handleUpdatePhysicalCopyStatus}
-          canUpdatePhysicalCopy={(isOrgAdmin || isWalletAdmin)}
-        />
-      )}
+      {
+        detailModalOpen && (
+          <ExpenseDetailModal
+            loading={detailLoading}
+            error={detailError}
+            detail={detail}
+            onClose={() => setDetailModalOpen(false)}
+            onUpdatePhysicalCopyStatus={handleUpdatePhysicalCopyStatus}
+            canUpdatePhysicalCopy={(isOrgAdmin || isWalletAdmin)}
+          />
+        )
+      }
 
-      {showExportModal && (
-        <ExportModal
-          current={{
-            siteId: selectedSiteId,
-            categoryId: selectedCategoryId,
-            paymentMode,
-            status: statusFilter,
-            dateFrom,
-            dateTo,
-            invoiceDateFrom,
-            invoiceDateTo,
-          }}
-          searchTerm={searchTerm}
-          notify={showNotification}
-          categories={categories}
-          siteOptions={siteOptions}
-          onClose={() => setShowExportModal(false)}
-        />
-      )}
+      {
+        showExportModal && (
+          <ExportModal
+            current={{
+              siteId: selectedSiteId,
+              categoryId: selectedCategoryId,
+              paymentMode,
+              status: statusFilter,
+              dateFrom,
+              dateTo,
+              invoiceDateFrom,
+              invoiceDateTo,
+            }}
+            searchTerm={searchTerm}
+            notify={showNotification}
+            categories={categories}
+            siteOptions={siteOptions}
+            onClose={() => setShowExportModal(false)}
+          />
+        )
+      }
 
-      {rowExportOpen && (
-        <RowExportModal
-          expenseId={rowExportExpenseId}
-          emails={rowExportEmails}
-          notify={showNotification}
-          onChangeEmails={setRowExportEmails}
-          onClose={() => { setRowExportOpen(false); setRowExportEmails(''); setRowExportExpenseId(null); }}
-        />
-      )}
+      {
+        rowExportOpen && (
+          <RowExportModal
+            expenseId={rowExportExpenseId}
+            emails={rowExportEmails}
+            notify={showNotification}
+            onChangeEmails={setRowExportEmails}
+            onClose={() => { setRowExportOpen(false); setRowExportEmails(''); setRowExportExpenseId(null); }}
+          />
+        )
+      }
 
       {/* Confirmation Modal */}
-      {confirmModal && confirmModal.open && (
-        <div className="fixed inset-0 backdrop-blur-sm bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden transform transition-all scale-100">
-            <div className="p-6">
-              <div className="flex items-center gap-4 mb-4">
-                <div className={`p-3 rounded-full ${confirmModal.type === 'submitted' ? 'bg-green-100' : 'bg-gray-100'}`}>
-                  {confirmModal.type === 'submitted' ? (
-                    <CheckCircle className={`w-6 h-6 ${confirmModal.type === 'submitted' ? 'text-green-600' : 'text-gray-600'}`} />
-                  ) : (
-                    <AlertCircle className="w-6 h-6 text-gray-600" />
-                  )}
+      {
+        confirmModal && confirmModal.open && (
+          <div className="fixed inset-0 backdrop-blur-sm bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden transform transition-all scale-100">
+              <div className="p-6">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className={`p-3 rounded-full ${confirmModal.type === 'submitted' ? 'bg-green-100' : 'bg-gray-100'}`}>
+                    {confirmModal.type === 'submitted' ? (
+                      <CheckCircle className={`w-6 h-6 ${confirmModal.type === 'submitted' ? 'text-green-600' : 'text-gray-600'}`} />
+                    ) : (
+                      <AlertCircle className="w-6 h-6 text-gray-600" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {confirmModal.type === 'submitted' ? 'Confirm Collection' : 'Mark as N/A'}
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      {confirmModal.type === 'submitted'
+                        ? 'Are you sure you want to mark this physical copy as collected? This will record your name and the current time.'
+                        : 'Are you sure you want to mark this physical copy as Not Applicable?'}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    {confirmModal.type === 'submitted' ? 'Confirm Collection' : 'Mark as N/A'}
-                  </h3>
-                  <p className="text-sm text-gray-500">
-                    {confirmModal.type === 'submitted'
-                      ? 'Are you sure you want to mark this physical copy as collected? This will record your name and the current time.'
-                      : 'Are you sure you want to mark this physical copy as Not Applicable?'}
-                  </p>
-                </div>
-              </div>
 
-              <div className="flex items-center justify-end gap-3 mt-6">
-                <button
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  onClick={() => setConfirmModal(null)}
-                  disabled={actionLoading === String(confirmModal.expenseId)}
-                >
-                  Cancel
-                </button>
-                <button
-                  className={`px-4 py-2 text-sm font-medium text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 ${confirmModal.type === 'submitted'
-                    ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
-                    : 'bg-gray-600 hover:bg-gray-700 focus:ring-gray-500'
-                    }`}
-                  onClick={executePhysicalCopyUpdate}
-                  disabled={actionLoading === String(confirmModal.expenseId)}
-                >
-                  {actionLoading === String(confirmModal.expenseId) ? 'Updating...' : 'Confirm'}
-                </button>
+                <div className="flex items-center justify-end gap-3 mt-6">
+                  <button
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    onClick={() => setConfirmModal(null)}
+                    disabled={actionLoading === String(confirmModal.expenseId)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className={`px-4 py-2 text-sm font-medium text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 ${confirmModal.type === 'submitted'
+                      ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
+                      : 'bg-gray-600 hover:bg-gray-700 focus:ring-gray-500'
+                      }`}
+                    onClick={executePhysicalCopyUpdate}
+                    disabled={actionLoading === String(confirmModal.expenseId)}
+                  >
+                    {actionLoading === String(confirmModal.expenseId) ? 'Updating...' : 'Confirm'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+
+      {/* Approval Override Modal */}
+      {
+        approvalOverrideModal && approvalOverrideModal.open && (
+          <div className="fixed inset-0 backdrop-blur-sm bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden transform transition-all scale-100">
+              <div className="p-6">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="p-3 rounded-full bg-yellow-100">
+                    <AlertCircle className="w-6 h-6 text-yellow-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Skip Lower Approvals?
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-2">
+                      Lower level approvals are still pending for this expense. As a final approver, you can choose to skip them and approve immediately.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 mt-6">
+                  <button
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                    onClick={() => setApprovalOverrideModal(null)}
+                    disabled={actionLoading === String(approvalOverrideModal.expenseId)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    onClick={() => handleApprove(approvalOverrideModal.expenseId, true)}
+                    disabled={actionLoading === String(approvalOverrideModal.expenseId)}
+                  >
+                    {actionLoading === String(approvalOverrideModal.expenseId) ? 'Processing...' : 'Proceed & Skip'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      }
+    </div >
   );
 }
 

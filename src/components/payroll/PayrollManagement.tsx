@@ -425,6 +425,10 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                 <option value="10">10</option>
                 <option value="20">20</option>
                 <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+                <option value="500">500</option>
+                <option value="9999">All</option>
               </select>
             </div>
             <div className="lg:col-span-1">
@@ -478,7 +482,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Net Salary</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Deductions</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Net Payment</div>
-                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Actions</div>
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right sticky right-0 bg-white shadow-[-10px_0_15px_-10px_rgba(0,0,0,0.05)] z-20 px-2 py-3 -my-3 flex items-center justify-end">Actions</div>
                   </div>
                 </div>
 
@@ -597,7 +601,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                           <div className="text-sm text-emerald-700 font-bold text-right">₹{Number(salary.net_payment || 0).toLocaleString()}</div>
 
                           {/* Actions */}
-                          <div className="text-right">
+                          <div className="text-right sticky right-0 bg-white group-hover:bg-slate-50 shadow-[-10px_0_15px_-10px_rgba(0,0,0,0.05)] z-10 px-2 py-3 -my-3 flex items-center justify-end">
                             <button
                               onClick={(e) => {
                                 const rect = e.currentTarget.getBoundingClientRect();

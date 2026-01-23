@@ -442,14 +442,23 @@ export default function LaborAttendanceList() {
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     {emp.status ? (
-                                                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${emp.status === 'Present' ? 'bg-blue-50 text-blue-700 border border-blue-100' :
-                                                                emp.status === 'Pending' ? 'bg-orange-50 text-orange-700 border border-orange-100' :
-                                                                    'bg-green-50 text-green-700 border border-green-100'
-                                                            }`}>
-                                                            {emp.status === 'Present' ? 'Working Now' :
-                                                                emp.status === 'Pending' ? 'Pending Out' :
-                                                                    'Completed'}
-                                                        </span>
+                                                        (() => {
+                                                            const isCompleted = emp.status === 'Present' && emp.last_out_time;
+                                                            const displayLabel = isCompleted ? 'Completed' : (emp.status === 'Present' ? 'Working Now' : (emp.status === 'Pending' ? 'Pending Out' : emp.status));
+                                                            const colorClass = isCompleted
+                                                                ? 'bg-green-50 text-green-700 border border-green-100'
+                                                                : (emp.status === 'Present'
+                                                                    ? 'bg-blue-50 text-blue-700 border border-blue-100'
+                                                                    : (emp.status === 'Pending'
+                                                                        ? 'bg-orange-50 text-orange-700 border border-orange-100'
+                                                                        : 'bg-gray-100 text-gray-700'));
+
+                                                            return (
+                                                                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${colorClass}`}>
+                                                                    {displayLabel}
+                                                                </span>
+                                                            );
+                                                        })()
                                                     ) : (
                                                         <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">Absent</span>
                                                     )}

@@ -29,8 +29,12 @@ import {
   Calculator,
   Info,
   User,
-  AlertTriangle
+  AlertTriangle,
+  MoreVertical,
+  Download,
+  Lock
 } from "lucide-react";
+import { createPortal } from "react-dom";
 import AttendanceDetailsModal from "../attendance/AttendanceDetailsModal";
 
 import { useAuth } from "@/context/AuthContext";
@@ -68,6 +72,15 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
   const [overrideSaving, setOverrideSaving] = React.useState<boolean>(false);
   const [overrideError, setOverrideError] = React.useState<string | null>(null);
   const [overrideOpen, setOverrideOpen] = React.useState<boolean>(false);
+
+  const [actionMenuOpen, setActionMenuOpen] = React.useState<boolean>(false);
+  const [actionMenuPos, setActionMenuPos] = React.useState<{ x: number; y: number } | null>(null);
+  const actionButtonRef = React.useRef<HTMLButtonElement>(null);
+
+  const closeActionMenu = () => {
+    setActionMenuOpen(false);
+    setActionMenuPos(null);
+  };
 
   const [policyData, setPolicyData] = React.useState<any>(null);
 
@@ -347,7 +360,7 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
     <div className="min-h-screen bg-white p-2 sm:p-4">
       <div className="max-w-7xl mx-auto space-y-4">
         {/* Header Section */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-4 sticky top-0 z-30 shadow-sm">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             {/* Title & Navigation */}
             <div className="flex items-center gap-4">
@@ -392,6 +405,33 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
                 >
                   <Calculator className="w-4 h-4" />
                 </button>
+              </div>
+
+              <div className="relative flex items-center gap-2">
+                <button
+                  onClick={() => setActionMenuOpen(!actionMenuOpen)}
+                  className={`p-1.5 border rounded-lg transition-all ${actionMenuOpen ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200'}`}
+                >
+                  <MoreVertical className="w-4 h-4" />
+                </button>
+
+                {actionMenuOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-200 p-1 text-sm animate-in fade-in zoom-in duration-100 origin-top-right z-50">
+                    <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 text-slate-700 flex items-center gap-2 transition-colors">
+                      <Download className="w-4 h-4 text-slate-500" />
+                      <span>Download Payslip</span>
+                    </button>
+                    <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 text-slate-700 flex items-center gap-2 transition-colors">
+                      <FileText className="w-4 h-4 text-slate-500" />
+                      <span>View Breakdown</span>
+                    </button>
+                    <div className="my-1 border-t border-slate-100" />
+                    <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-rose-50 text-rose-600 flex items-center gap-2 transition-colors">
+                      <Lock className="w-4 h-4" />
+                      <span>Lock Cycle</span>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>

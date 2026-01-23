@@ -21,6 +21,7 @@ import {
     ChevronDown,
     ChevronUp,
     Eye,
+    MapPin,
 } from "lucide-react";
 
 type CompOffItem = Record<string, any>;
@@ -84,6 +85,7 @@ export default function CompOffRequests() {
     const [viewOpen, setViewOpen] = useState<boolean>(false);
     const [viewData, setViewData] = useState<Record<string, any> | null>(null);
     const [timeline, setTimeline] = useState<Array<Record<string, any>>>([]);
+    const [attendanceRecord, setAttendanceRecord] = useState<any>(null);
 
     // Stats animation
     const pendingCount = useCountUp(stats?.pending || 0);
@@ -307,6 +309,24 @@ export default function CompOffRequests() {
         // Fetch timeline
         const timelineData = await fetchTimeline(Number(item.id));
         setTimeline(timelineData);
+
+        // Fetch attendance record for earned day
+        setAttendanceRecord(null);
+        if (item.compoff_date && item.employee_id) {
+            try {
+                // Format date to YYYY-MM-DD
+                const dateParam = new Date(item.compoff_date).toISOString().split('T')[0];
+                const res = await apiClient<{ success: boolean; record: any }>(
+                    `/attendance/record-by-date?employee_id=${item.employee_id}&date=${dateParam}`,
+                    { method: 'GET', withAuth: true }
+                );
+                if (res?.success && res.record) {
+                    setAttendanceRecord(res.record);
+                }
+            } catch (err) {
+                console.error("Failed to fetch attendance details", err);
+            }
+        }
 
         setViewOpen(true);
     };
@@ -970,6 +990,73 @@ export default function CompOffRequests() {
                                     </div>
                                 </div>
 
+                                {/* Attendance Details Section */}
+                                {attendanceRecord && (
+                                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mt-4">
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div className="text-xs font-semibold text-slate-700 uppercase flex items-center gap-1.5">
+                                                <Timer className="w-3.5 h-3.5" />
+                                                Attendance on {activeItem?.compoff_date ? new Date(activeItem.compoff_date).toLocaleDateString() : 'Earned Day'}
+                                            </div>
+                                            {attendanceRecord.primary_site_name && (
+                                                <div className="text-xs text-slate-500 flex items-center gap-1">
+                                                    <MapPin className="w-3 h-3" />
+                                                    Primary: <span className="font-medium text-slate-700">{attendanceRecord.primary_site_name}</span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="bg-white p-3 rounded border border-slate-200">
+                                                <div className="flex justify-between items-start mb-1">
+                                                    <div className="text-xs text-slate-500">Check In</div>
+                                                    {attendanceRecord.check_in_site_name && (
+                                                        <div className="text-[10px] text-slate-400 truncate max-w-[80px]" title={attendanceRecord.check_in_site_name}>
+                                                            {attendanceRecord.check_in_site_name}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="font-semibold text-slate-900">
+                                                    {attendanceRecord.punch_in_time ? new Date(attendanceRecord.punch_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                                                </div>
+                                            </div>
+                                            <div className="bg-white p-3 rounded border border-slate-200">
+                                                <div className="flex justify-between items-start mb-1">
+                                                    <div className="text-xs text-slate-500">Check Out</div>
+                                                    {attendanceRecord.check_out_site_name && (
+                                                        <div className="text-[10px] text-slate-400 truncate max-w-[80px]" title={attendanceRecord.check_out_site_name}>
+                                                            {attendanceRecord.check_out_site_name}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="font-semibold text-slate-900">
+                                                    {attendanceRecord.punch_out_time ? new Date(attendanceRecord.punch_out_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2 mt-3">
+                                            <div className="bg-emerald-50 p-2 rounded text-center border border-emerald-100">
+                                                <div className="text-xs text-emerald-600">Work</div>
+                                                <div className="font-bold text-emerald-800">
+                                                    {Math.floor((attendanceRecord.total_work_minutes || 0) / 60)}h {(attendanceRecord.total_work_minutes || 0) % 60}m
+                                                </div>
+                                            </div>
+                                            <div className="bg-amber-50 p-2 rounded text-center border border-amber-100">
+                                                <div className="text-xs text-amber-600">Late</div>
+                                                <div className="font-bold text-amber-800">
+                                                    {attendanceRecord.late_minutes || 0}m
+                                                </div>
+                                            </div>
+                                            <div className="bg-indigo-50 p-2 rounded text-center border border-indigo-100">
+                                                <div className="text-xs text-indigo-600">Extra</div>
+                                                <div className="font-bold text-indigo-800">
+                                                    {attendanceRecord.extra_work_minutes || 0}m
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* Workflow Timeline */}
                                 {timeline.length > 0 && (
                                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 mt-4">
@@ -981,10 +1068,10 @@ export default function CompOffRequests() {
                                             {timeline.map((entry, idx) => (
                                                 <div key={idx} className="flex items-start space-x-3">
                                                     <div className={`mt-1 w-2 h-2 rounded-full ${entry.action === 'approved' ? 'bg-green-500' :
-                                                            entry.action === 'rejected' ? 'bg-red-500' :
-                                                                entry.action === 'pending' ? 'bg-orange-500' :
-                                                                    entry.action === 'auto_escalated' ? 'bg-blue-400' :
-                                                                        'bg-gray-400'
+                                                        entry.action === 'rejected' ? 'bg-red-500' :
+                                                            entry.action === 'pending' ? 'bg-orange-500' :
+                                                                entry.action === 'auto_escalated' ? 'bg-blue-400' :
+                                                                    'bg-gray-400'
                                                         }`} />
                                                     <div className="flex-1">
                                                         <div className="flex items-center justify-between">
