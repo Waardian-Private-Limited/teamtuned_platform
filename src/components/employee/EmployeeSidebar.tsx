@@ -42,6 +42,7 @@ import {
   Phone,
   HardHat,
   Layers,
+  Link2,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
@@ -405,6 +406,22 @@ export default function EmployeeSidebar({
                       label="Sites"
                       href="/employee/sites"
                       active={pathname === "/employee/sites"}
+                    />
+                  )}
+                  {canViewSites && (
+                    <Item
+                      icon={Building2}
+                      label="Sub Organizations"
+                      href="/employee/sub-organizations"
+                      active={pathname === "/employee/sub-organizations"}
+                    />
+                  )}
+                  {canViewSites && (
+                    <Item
+                      icon={Link2}
+                      label="Site-Sub-Org Mapper"
+                      href="/employee/site-sub-org-mapper"
+                      active={pathname === "/employee/site-sub-org-mapper"}
                     />
                   )}
                   {(hasPerm("SITE_BUDGET_VIEW") || hasPerm("SITE_BUDGET_REQUEST") || hasPerm("SITE_BUDGET_APPROVE")) && (

@@ -51,6 +51,7 @@ import {
     HardHat,
     Layers,
     Activity,
+    Link2,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
@@ -297,6 +298,8 @@ export default function OrgSidebar({
                             <Item icon={UserCog} label="Roles" href="/org-admin/roles" active={pathname === "/org-admin/roles"} />
                             <Item icon={Building} label="Departments" href="/org-admin/departments" active={pathname === "/org-admin/departments"} />
                             <Item icon={MapPin} label="Sites" href="/org-admin/sites" active={pathname === "/org-admin/sites"} />
+                            <Item icon={Building2} label="Sub Organizations" href="/org-admin/sub-organizations" active={pathname === "/org-admin/sub-organizations"} />
+                            <Item icon={Link2} label="Site-Sub-Org Mapper" href="/org-admin/site-sub-org-mapper" active={pathname === "/org-admin/site-sub-org-mapper"} />
                             <Item icon={MapPin} label="Employee Sites" href="/org-admin/employee-sites" active={pathname === "/org-admin/employee-sites"} />
                             <Item icon={MapPin} label="Other Locations" href="/org-admin/other-locations" active={pathname === "/org-admin/other-locations"} />
                             <Item icon={DollarSign} label="Budget Requests" href="/org-admin/site-budget-requests" active={pathname === "/org-admin/site-budget-requests"} />
