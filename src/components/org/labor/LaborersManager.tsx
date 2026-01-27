@@ -264,34 +264,35 @@ export default function LaborersManager() {
         setSaving(true);
         setError("");
         try {
-            const payload: any = {
-                contractor_id: parseInt(form.contractor_id),
-                category_id: parseInt(form.category_id),
-                site_id: parseInt(form.site_id),
-                name: form.name.trim(),
-                phone: form.phone.trim() || null,
-                email: form.email.trim() || null,
-                address: form.address.trim() || null,
-                id_proof_type: form.id_proof_type.trim() || null,
-                id_proof_number: form.id_proof_number.trim() || null,
-            };
+            const formData = new FormData();
 
-            if (form.subcategory_id) payload.subcategory_id = parseInt(form.subcategory_id);
+            // Add all form fields
+            formData.append("contractor_id", form.contractor_id);
+            formData.append("category_id", form.category_id);
+            formData.append("site_id", form.site_id);
+            formData.append("name", form.name.trim());
+            if (form.phone.trim()) formData.append("phone", form.phone.trim());
+            if (form.email.trim()) formData.append("email", form.email.trim());
+            if (form.address.trim()) formData.append("address", form.address.trim());
+            if (form.id_proof_type.trim()) formData.append("id_proof_type", form.id_proof_type.trim());
+            if (form.id_proof_number.trim()) formData.append("id_proof_number", form.id_proof_number.trim());
+            if (form.subcategory_id) formData.append("subcategory_id", form.subcategory_id);
+
+            // Add face image if present
+            if (faceImage) {
+                formData.append("face_image", faceImage);
+            }
+
+            // Add attachment if present
+            if (attachmentFile) {
+                formData.append("id_proof_images", attachmentFile);
+            }
 
             await apiClient("/labor/laborers", {
                 method: "POST",
-                body: payload,
+                body: formData,
+                headers: {}, // Let browser set Content-Type with boundary
             });
-
-            // TODO: Upload attachment if provided
-            // if (attachmentFile) {
-            //     const formData = new FormData();
-            //     formData.append('file', attachmentFile);
-            //     await apiClient(`/labor/laborers/${laborerId}/id-proof`, {
-            //         method: "POST",
-            //         body: formData,
-            //     });
-            // }
 
             setShowCreateModal(false);
             setForm({
@@ -346,6 +347,41 @@ export default function LaborersManager() {
                 method: "PUT",
                 body: payload,
             });
+
+            // Upload face image if provided
+            if (faceImage) {
+                const faceFormData = new FormData();
+                faceFormData.append("face_image", faceImage);
+
+                try {
+                    await apiClient(`/labor/laborers/${selectedLaborer.id}/face-image`, {
+                        method: "POST",
+                        body: faceFormData,
+                        headers: {}, // Let browser set Content-Type with boundary
+                    });
+                } catch (faceError: any) {
+                    setError(faceError?.message || "Failed to upload face image");
+                    setSaving(false);
+                    return;
+                }
+            }
+
+            // Upload attachment if provided
+            if (attachmentFile) {
+                const attachFormData = new FormData();
+                attachFormData.append("id_proof", attachmentFile);
+
+                try {
+                    await apiClient(`/labor/laborers/${selectedLaborer.id}/id-proof`, {
+                        method: "POST",
+                        body: attachFormData,
+                        headers: {},
+                    });
+                } catch (attachError: any) {
+                    console.error("Failed to upload attachment:", attachError);
+                }
+            }
+
             setShowEditModal(false);
             setSelectedLaborer(null);
             setForm({
@@ -361,6 +397,10 @@ export default function LaborersManager() {
                 id_proof_type: "",
                 id_proof_number: "",
             });
+            setAttachmentFile(null);
+            setAttachmentPreview(null);
+            setFaceImage(null);
+            setFacePreview(null);
             fetchLaborers();
         } catch (e: any) {
             setError(e?.message || "Failed to update laborer");
@@ -782,7 +822,7 @@ export default function LaborersManager() {
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                         >
                                             <option value="">Select Site</option>
-                                            {sites.map((s) => (
+                                            {(hasHrAccess ? (allSites.length > 0 ? allSites : sites) : sites).map((s) => (
                                                 <option key={s.id} value={s.id}>{s.name}</option>
                                             ))}
                                         </select>

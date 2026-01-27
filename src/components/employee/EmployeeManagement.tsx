@@ -213,6 +213,10 @@ export default function EmployeeManagement() {
   const [departmentId, setDepartmentId] = useState<number | "">("");
   const [roleId, setRoleId] = useState<number | "">("");
   const [reportingManagerId, setReportingManagerId] = useState<number | "">("");
+  const [managerSearchQuery, setManagerSearchQuery] = useState<string>("");
+  const [showManagerDropdown, setShowManagerDropdown] = useState<boolean>(false);
+  const [managersList, setManagersList] = useState<Employee[]>([]);
+  const [managersLoading, setManagersLoading] = useState<boolean>(false);
   const [designation, setDesignation] = useState<string>("");
   const [workType, setWorkType] = useState<string>(""); // Full-time / Contract / Daily Wage / Intern
   const [startDate, setStartDate] = useState<string>("");
@@ -553,6 +557,8 @@ export default function EmployeeManagement() {
     setDepartmentId("");
     setRoleId("");
     setReportingManagerId("");
+    setManagerSearchQuery("");
+    setManagersList([]);
     setDesignation("");
     setWorkType("");
     setStartDate("");
@@ -2086,24 +2092,140 @@ export default function EmployeeManagement() {
                     <label className="block text-xs text-gray-600 mb-1">Designation</label>
                     <input value={designation} onChange={(e) => setDesignation(e.target.value)} className="w-full border rounded px-2 py-2" />
                   </div>
-                  <div>
+                  <div className="relative">
                     <label className="block text-xs text-gray-600 mb-1">Reporting Manager (optional)</label>
-                    <select
-                      value={reportingManagerId}
-                      onChange={(e) => setReportingManagerId(e.target.value ? Number(e.target.value) : "")}
-                      className="w-full border rounded px-2 py-2"
-                    >
-                      <option value="">None</option>
-                      {employees.map((emp) => {
-                        const deptName = departments.find((d) => d.id === emp.department_id)?.name || null;
-                        const roleName = roles.find((r) => r.id === emp.role_id)?.name || null;
-                        const name = `${emp.first_name} ${emp.last_name}`.trim();
-                        const label = [name, deptName, roleName, emp.designation || null].filter(Boolean).join(" | ");
-                        return (
-                          <option key={emp.id} value={emp.id}>{label}</option>
-                        );
-                      })}
-                    </select>
+                    <div className="relative">
+                      <div
+                        onClick={() => setShowManagerDropdown(!showManagerDropdown)}
+                        className="w-full border rounded px-2 py-2 cursor-pointer bg-white flex items-center justify-between hover:border-gray-400 transition-colors"
+                      >
+                        <span className={reportingManagerId ? "text-gray-900" : "text-gray-400"}>
+                          {reportingManagerId
+                            ? (() => {
+                              const manager = [...employees, ...managersList].find((e) => e.id === reportingManagerId);
+                              if (!manager) return "None";
+                              const deptName = departments.find((d) => d.id === manager.department_id)?.name || null;
+                              const roleName = roles.find((r) => r.id === manager.role_id)?.name || null;
+                              const name = `${manager.first_name} ${manager.last_name}`.trim();
+                              return [name, deptName, roleName, manager.designation || null].filter(Boolean).join(" | ");
+                            })()
+                            : "Select Manager"}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          {reportingManagerId && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setReportingManagerId("");
+                                setManagerSearchQuery("");
+                                setManagersList([]);
+                              }}
+                              className="p-1 hover:bg-gray-100 rounded transition-colors"
+                            >
+                              <X className="w-3 h-3 text-gray-500" />
+                            </button>
+                          )}
+                          <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${showManagerDropdown ? "rotate-180" : ""}`} />
+                        </div>
+                      </div>
+                      {showManagerDropdown && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-10"
+                            onClick={() => {
+                              setShowManagerDropdown(false);
+                              setManagerSearchQuery("");
+                              setManagersList([]);
+                            }}
+                          />
+                          <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg overflow-hidden">
+                            <div className="p-2 border-b border-gray-200">
+                              <div className="relative">
+                                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <input
+                                  type="text"
+                                  placeholder="Search by name (min 2 chars)..."
+                                  value={managerSearchQuery}
+                                  onChange={async (e) => {
+                                    const query = e.target.value;
+                                    setManagerSearchQuery(query);
+
+                                    // Only search when 2+ characters typed
+                                    if (query.trim().length >= 2) {
+                                      setManagersLoading(true);
+                                      try {
+                                        const data = await apiClient<{ data: Employee[] }>(
+                                          `/organization/employees?format=paginated&search=${encodeURIComponent(query.trim())}&limit=10`,
+                                          { method: 'GET', withAuth: true }
+                                        );
+                                        const items = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
+                                        setManagersList(items);
+                                      } catch (e) {
+                                        console.error('Failed to search managers:', e);
+                                        setManagersList([]);
+                                      } finally {
+                                        setManagersLoading(false);
+                                      }
+                                    } else {
+                                      // Clear results when less than 2 characters
+                                      setManagersList([]);
+                                    }
+                                  }}
+                                  className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              </div>
+                            </div>
+                            <div className="overflow-y-auto max-h-48">
+                              {managersLoading ? (
+                                <div className="px-3 py-6 text-center text-sm text-gray-500">
+                                  <RefreshCw className="w-4 h-4 animate-spin mx-auto mb-2" />
+                                  Searching...
+                                </div>
+                              ) : managerSearchQuery.trim().length < 2 ? (
+                                <div className="px-3 py-6 text-center text-sm text-gray-500">
+                                  Type at least 2 characters to search
+                                </div>
+                              ) : managersList.length === 0 ? (
+                                <div className="px-3 py-6 text-center text-sm text-gray-500">
+                                  No managers found
+                                </div>
+                              ) : (
+                                managersList.map((emp) => {
+                                  const deptName = departments.find((d) => d.id === emp.department_id)?.name || null;
+                                  const roleName = roles.find((r) => r.id === emp.role_id)?.name || null;
+                                  const name = `${emp.first_name} ${emp.last_name}`.trim();
+                                  const isSelected = reportingManagerId === emp.id;
+
+                                  return (
+                                    <button
+                                      key={emp.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setReportingManagerId(emp.id);
+                                        setShowManagerDropdown(false);
+                                        setManagerSearchQuery("");
+                                        setManagersList([]);
+                                      }}
+                                      className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors border-b last:border-b-0 ${isSelected ? "bg-blue-50 text-blue-700" : "text-gray-700"
+                                        }`}
+                                    >
+                                      <div className="font-medium">{name}</div>
+                                      {(deptName || roleName || emp.designation) && (
+                                        <div className="text-xs text-gray-500 mt-0.5">
+                                          {[deptName, roleName, emp.designation].filter(Boolean).join(" | ")}
+                                        </div>
+                                      )}
+                                    </button>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs text-gray-600 mb-1">Work Type *</label>
