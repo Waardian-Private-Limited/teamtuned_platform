@@ -83,6 +83,10 @@ export default function LaborersManager() {
     const [facePreview, setFacePreview] = React.useState<string | null>(null);
     const [saving, setSaving] = React.useState(false);
 
+    // Duplicate Face Handling
+    const [duplicateData, setDuplicateData] = React.useState<any>(null);
+    const [showDuplicateModal, setShowDuplicateModal] = React.useState(false);
+
     const hasPerm = (code: string) =>
         (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
 
@@ -255,7 +259,7 @@ export default function LaborersManager() {
         setPage(1);
     }, [searchTerm, categoryFilter, contractorFilter, siteFilter]);
 
-    const handleCreate = async () => {
+    const handleCreate = async (isOverride: boolean = false) => {
         if (!form.name.trim() || !form.contractor_id || !form.category_id) {
             setError("Name, contractor, and category are required");
             return;
@@ -288,11 +292,19 @@ export default function LaborersManager() {
                 formData.append("id_proof_images", attachmentFile);
             }
 
+            if (isOverride) {
+                formData.append("override", "true");
+            }
+
             await apiClient("/labor/laborers", {
                 method: "POST",
                 body: formData,
                 headers: {}, // Let browser set Content-Type with boundary
             });
+
+            // If we are here, success! Close everything.
+            setShowDuplicateModal(false);
+            setDuplicateData(null);
 
             setShowCreateModal(false);
             setForm({
@@ -314,6 +326,13 @@ export default function LaborersManager() {
             setFacePreview(null);
             fetchLaborers();
         } catch (e: any) {
+            // Check for duplicate face override
+            if (e?.status === 409 && e?.data?.can_override) {
+                setDuplicateData(e.data);
+                setShowDuplicateModal(true);
+                // Don't show generic error toast if we are showing the modal
+                return;
+            }
             setError(e?.message || "Failed to register laborer");
         } finally {
             setSaving(false);
@@ -1143,7 +1162,7 @@ export default function LaborersManager() {
                                     Cancel
                                 </button>
                                 <button
-                                    onClick={showCreateModal ? handleCreate : handleEdit}
+                                    onClick={showCreateModal ? () => handleCreate(false) : handleEdit}
                                     disabled={!form.name.trim() || !form.contractor_id || !form.category_id || saving}
                                     className={`px-4 py-2 rounded-lg transition-colors ${form.name.trim() && form.contractor_id && form.category_id && !saving
                                         ? "bg-blue-600 text-white hover:bg-blue-700"
@@ -1364,6 +1383,60 @@ export default function LaborersManager() {
                     </div>
                 </div>
             )}
-        </div >
+
+            {/* Duplicate Resolution Modal */}
+            {showDuplicateModal && duplicateData && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+                        <div className="p-6">
+                            <div className="flex items-center space-x-3 text-amber-600 mb-4">
+                                <AlertTriangle className="w-8 h-8" />
+                                <h3 className="text-lg font-bold">Face Already Registered</h3>
+                            </div>
+
+                            <p className="text-gray-600 mb-4">
+                                This face is already registered to:
+                            </p>
+
+                            <div className="bg-amber-50 border border-amber-100 rounded-lg p-4 mb-6">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <p className="font-semibold text-gray-900">{duplicateData.duplicate?.laborer_name || "Unknown"}</p>
+                                        <p className="text-sm text-gray-500">ID: #{duplicateData.duplicate?.laborer_id}</p>
+                                        <p className="text-sm text-gray-500 mt-1">Similarity: {duplicateData.duplicate?.similarity?.toFixed(1)}%</p>
+                                    </div>
+                                    <div className="bg-white p-1 rounded border border-gray-200">
+                                        <User className="w-8 h-8 text-gray-400" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <p className="text-sm text-gray-600 mb-6">
+                                Do you want to remove the face from the old laborer and assign it to this new one? <br />
+                                <span className="font-semibold text-red-600">The old laborer will remain active but without a face image.</span>
+                            </p>
+
+                            <div className="flex space-x-3">
+                                <button
+                                    onClick={() => {
+                                        setShowDuplicateModal(false);
+                                        setDuplicateData(null);
+                                    }}
+                                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => handleCreate(true)}
+                                    className="flex-1 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-medium"
+                                >
+                                    Confirm Reassign
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 }

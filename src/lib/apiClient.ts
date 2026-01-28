@@ -72,13 +72,17 @@ export async function apiClient<T = any>(
       window.location.href = '/login';
     }
     let errorMsg = 'Request failed';
+    let errData = null;
     try {
-      const errData = await res.json();
+      errData = await res.json();
       errorMsg = errData.message || JSON.stringify(errData);
     } catch {
       errorMsg = await res.text();
     }
-    throw new Error(errorMsg || `Request failed with status ${res.status}`);
+    const error: any = new Error(errorMsg || `Request failed with status ${res.status}`);
+    error.status = res.status;
+    error.data = errData;
+    throw error;
   }
 
   try {
