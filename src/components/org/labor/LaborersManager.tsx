@@ -77,10 +77,12 @@ export default function LaborersManager() {
         id_proof_type: "",
         id_proof_number: "",
     });
-    const [attachmentFile, setAttachmentFile] = React.useState<File | null>(null);
-    const [attachmentPreview, setAttachmentPreview] = React.useState<string | null>(null);
     const [faceImage, setFaceImage] = React.useState<File | null>(null);
     const [facePreview, setFacePreview] = React.useState<string | null>(null);
+    const [idProofFile, setIdProofFile] = React.useState<File | null>(null);
+    const [idProofPreview, setIdProofPreview] = React.useState<string | null>(null);
+    const [attachmentFile, setAttachmentFile] = React.useState<File | null>(null);
+    const [attachmentPreview, setAttachmentPreview] = React.useState<string | null>(null);
     const [saving, setSaving] = React.useState(false);
 
     // Duplicate Face Handling
@@ -287,9 +289,14 @@ export default function LaborersManager() {
                 formData.append("face_image", faceImage);
             }
 
-            // Add attachment if present
+            // Add ID Proof image if present
+            if (idProofFile) {
+                formData.append("id_proof_images", idProofFile);
+            }
+
+            // Add Attachment if present
             if (attachmentFile) {
-                formData.append("id_proof_images", attachmentFile);
+                formData.append("attachments", attachmentFile);
             }
 
             if (isOverride) {
@@ -320,10 +327,12 @@ export default function LaborersManager() {
                 id_proof_type: "",
                 id_proof_number: "",
             });
-            setAttachmentFile(null);
-            setAttachmentPreview(null);
             setFaceImage(null);
             setFacePreview(null);
+            setIdProofFile(null);
+            setIdProofPreview(null);
+            setAttachmentFile(null);
+            setAttachmentPreview(null);
             fetchLaborers();
         } catch (e: any) {
             // Check for duplicate face override
@@ -416,10 +425,12 @@ export default function LaborersManager() {
                 id_proof_type: "",
                 id_proof_number: "",
             });
-            setAttachmentFile(null);
-            setAttachmentPreview(null);
             setFaceImage(null);
             setFacePreview(null);
+            setIdProofFile(null);
+            setIdProofPreview(null);
+            setAttachmentFile(null);
+            setAttachmentPreview(null);
             fetchLaborers();
         } catch (e: any) {
             setError(e?.message || "Failed to update laborer");
@@ -804,10 +815,12 @@ export default function LaborersManager() {
                                         onClick={() => {
                                             setShowCreateModal(false);
                                             setShowEditModal(false);
-                                            setAttachmentFile(null);
-                                            setAttachmentPreview(null);
                                             setFaceImage(null);
                                             setFacePreview(null);
+                                            setIdProofFile(null);
+                                            setIdProofPreview(null);
+                                            setAttachmentFile(null);
+                                            setAttachmentPreview(null);
                                         }}
                                         className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                                     >
@@ -1069,10 +1082,74 @@ export default function LaborersManager() {
                                     </div>
                                 </div>
 
-                                {/* Photo/Document Attachment */}
+
+                                {/* ID Proof Image */}
                                 <div className="border-t border-gray-200 pt-4">
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Photo / Document (Optional)
+                                        ID Proof Image (Optional)
+                                    </label>
+                                    <div className="space-y-3">
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) {
+                                                    setIdProofFile(file);
+                                                    const reader = new FileReader();
+                                                    reader.onloadend = () => {
+                                                        setIdProofPreview(reader.result as string);
+                                                    };
+                                                    reader.readAsDataURL(file);
+                                                }
+                                            }}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        />
+                                        <p className="text-xs text-gray-500">
+                                            Upload ID card photo (Aadhaar, PAN, etc.)
+                                        </p>
+
+                                        {idProofFile && (
+                                            <div className="p-3 bg-gray-50 rounded-lg">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center space-x-2">
+                                                        <Image className="w-5 h-5 text-purple-600" />
+                                                        <div>
+                                                            <p className="text-sm font-medium text-gray-900">{idProofFile.name}</p>
+                                                            <p className="text-xs text-gray-500">
+                                                                {(idProofFile.size / 1024).toFixed(1)} KB
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setIdProofFile(null);
+                                                            setIdProofPreview(null);
+                                                        }}
+                                                        className="text-red-600 hover:text-red-700"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                                {idProofPreview && (
+                                                    <div className="mt-3">
+                                                        <img
+                                                            src={idProofPreview}
+                                                            alt="ID Proof Preview"
+                                                            className="max-w-full h-32 object-contain rounded border border-gray-200"
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Attachments */}
+                                <div className="border-t border-gray-200 pt-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Other Attachments (Optional)
                                     </label>
                                     <div className="space-y-3">
                                         <input
@@ -1097,7 +1174,7 @@ export default function LaborersManager() {
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                         />
                                         <p className="text-xs text-gray-500">
-                                            Upload photo or document (ID proof, certificate, etc.)
+                                            Upload certificates, forms, etc.
                                         </p>
 
                                         {attachmentFile && (
@@ -1152,10 +1229,12 @@ export default function LaborersManager() {
                                     onClick={() => {
                                         setShowCreateModal(false);
                                         setShowEditModal(false);
-                                        setAttachmentFile(null);
-                                        setAttachmentPreview(null);
                                         setFaceImage(null);
                                         setFacePreview(null);
+                                        setIdProofFile(null);
+                                        setIdProofPreview(null);
+                                        setAttachmentFile(null);
+                                        setAttachmentPreview(null);
                                     }}
                                     className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                                 >
