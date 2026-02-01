@@ -359,6 +359,46 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
     return dateStr >= cycleStartKey && dateStr <= cycleEndKey;
   };
 
+  const handleDownloadSlip = async () => {
+    try {
+      const empId = employeeId || employee?.id;
+      if (!empId) return;
+
+      // Construct URL
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+      const url = `${baseUrl}/attendance/salary-slip/download/${empId}?cycleStart=${cycleStartKey}&cycleEnd=${cycleEndKey}`;
+
+      const token = localStorage.getItem('token');
+
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'Download failed');
+      }
+
+      const blob = await res.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      const fname = `Salary_Slip_${cycleStartKey}.pdf`;
+      a.download = fname;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(downloadUrl);
+      a.remove();
+
+    } catch (e: any) {
+      console.error(e);
+      alert(e.message || 'Failed to download payslip');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white p-2 sm:p-4">
       <div className="max-w-7xl mx-auto space-y-4">
@@ -429,7 +469,10 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
 
                 {actionMenuOpen && (
                   <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-200 p-1 text-sm animate-in fade-in zoom-in duration-100 origin-top-right z-50">
-                    <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 text-slate-700 flex items-center gap-2 transition-colors">
+                    <button
+                      onClick={handleDownloadSlip}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 text-slate-700 flex items-center gap-2 transition-colors"
+                    >
                       <Download className="w-4 h-4 text-slate-500" />
                       <span>Download Payslip</span>
                     </button>
