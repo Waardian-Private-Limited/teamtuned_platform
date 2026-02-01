@@ -364,25 +364,16 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
       const empId = employeeId || employee?.id;
       if (!empId) return;
 
-      // Construct URL
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-      const url = `${baseUrl}/attendance/salary-slip/download/${empId}?cycleStart=${cycleStartKey}&cycleEnd=${cycleEndKey}`;
-
-      const token = localStorage.getItem('token');
-
-      const res = await fetch(url, {
+      const blob = await apiClient<Blob>(`/attendance/salary-slip/download/${empId}`, {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        params: {
+          cycleStart: cycleStartKey,
+          cycleEnd: cycleEndKey
+        },
+        responseType: 'blob',
+        withAuth: true
       });
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || 'Download failed');
-      }
-
-      const blob = await res.blob();
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;
