@@ -650,7 +650,7 @@ export default function ApprovalWorkflowConfig() {
                                                                         const checked = e.target.checked;
                                                                         updateLevel(index, {
                                                                             close_on_same_day: checked,
-                                                                            is_timeline_required: checked ? true : level.is_timeline_required
+                                                                            is_timeline_required: checked // Sync timeline requirement with same-day toggle
                                                                         });
                                                                     }}
                                                                     className="rounded w-3 h-3 text-indigo-600 focus:ring-0"
