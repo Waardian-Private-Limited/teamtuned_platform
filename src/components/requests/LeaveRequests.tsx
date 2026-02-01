@@ -856,8 +856,8 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                   <span>View Details</span>
                 </button>
 
-                {/* Only show approve/reject if backend says user can approve */}
-                {statusLower === "pending" && item.can_approve === true && (
+                {/* Only show approve/reject if backend says user can approve OR if OrgAdmin wants to override a Rejection */}
+                {((statusLower === "pending" && item.can_approve === true) || (isOrgAdmin && statusLower === "rejected")) && (
                   <>
                     <div className="border-t border-gray-100 my-1" />
                     <button
