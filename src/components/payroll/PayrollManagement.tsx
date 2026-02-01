@@ -461,27 +461,29 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
           <div className="flex-1 overflow-hidden bg-white border border-slate-200 rounded-lg">
             {/* Horizontal scroll container for both header and body with modern scrollbar */}
             <div className="h-full overflow-x-auto [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-400">
-              <div className="min-w-[1900px] h-full flex flex-col">
+              <div className="min-w-[2100px] h-full flex flex-col">
                 {/* Fixed Header */}
                 <div className="bg-white border-b border-slate-200 flex-shrink-0 z-10">
-                  <div className="grid grid-cols-[80px_200px_150px_120px_80px_80px_80px_80px_80px_80px_80px_100px_80px_100px_100px_100px_100px_80px] gap-2 px-4 py-3">
+                  <div className="grid grid-cols-[80px_200px_120px_80px_100px_100px_110px_80px_80px_80px_80px_100px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-3">
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">Image</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">Name</div>
-                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">ID</div>
+
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">Site</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Total Days</div>
-                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Present</div>
-                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Absent</div>
-                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Paid Leaves</div>
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Present Days</div>
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Absent Days</div>
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Paid Leave</div>
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Adj PL</div>
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Adj CO</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Week Off</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Holidays</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Full Days</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Half Days</div>
-                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Night OT</div>
+
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Gross Salary</div>
-                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Net Salary</div>
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Earned Gross</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Deductions</div>
-                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Net Payment</div>
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Net Pay</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right sticky right-0 bg-white shadow-[-10px_0_15px_-10px_rgba(0,0,0,0.05)] z-20 px-2 py-3 -my-3 flex items-center justify-end">Actions</div>
                   </div>
                 </div>
@@ -491,10 +493,10 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                   {loading ? (
                     // Ghost Loader
                     Array.from({ length: 5 }).map((_, i) => (
-                      <div key={i} className="min-w-[1900px] grid grid-cols-[80px_200px_150px_120px_80px_80px_80px_80px_80px_80px_80px_100px_80px_100px_100px_100px_100px_80px] gap-2 px-4 py-4 animate-pulse">
+                      <div key={i} className="min-w-[2100px] grid grid-cols-[80px_200px_120px_80px_100px_100px_110px_80px_80px_80px_80px_100px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-4 animate-pulse">
                         <div className="w-9 h-9 bg-slate-100 rounded-lg"></div>
                         <div className="h-4 bg-slate-100 rounded w-32"></div>
-                        <div className="h-4 bg-slate-100 rounded w-20"></div>
+
                         <div className="h-4 bg-slate-100 rounded w-24"></div>
                         <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
                         <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
@@ -504,6 +506,9 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                         <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
                         <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
                         <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
+                        <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
+                        <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
+
                         <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
                         <div className="h-4 bg-slate-100 rounded w-20 ml-auto"></div>
                         <div className="h-4 bg-slate-100 rounded w-20 ml-auto"></div>
@@ -531,7 +536,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                       const salary = employee.salary || {};
 
                       return (
-                        <div key={employee.id} className="min-w-[1900px] grid grid-cols-[80px_200px_150px_120px_80px_80px_80px_80px_80px_80px_80px_100px_80px_100px_100px_100px_100px_80px] gap-2 px-4 py-3 hover:bg-slate-50 transition-colors items-center group border-l-2 border-transparent hover:border-blue-500">
+                        <div key={employee.id} className="min-w-[2100px] grid grid-cols-[80px_200px_120px_80px_100px_100px_110px_80px_80px_80px_80px_100px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-3 hover:bg-slate-50 transition-colors items-center group border-l-2 border-transparent hover:border-blue-500">
                           {/* Image */}
                           <div className="flex-shrink-0">
                             {employee.profile_image_url ? (
@@ -555,8 +560,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                             <div className="text-xs text-slate-500 truncate">{employee.department_name || "-"}</div>
                           </div>
 
-                          {/* ID */}
-                          <div className="text-sm text-slate-600 truncate">#{employee.id}</div>
+
 
                           {/* Site */}
                           <div className="text-sm text-slate-600 truncate">{employee.primary_site_name || "Unassigned"}</div>
@@ -565,13 +569,19 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                           <div className="text-sm text-slate-900 font-medium text-right">{metrics.total_days || 0}</div>
 
                           {/* Present */}
-                          <div className="text-sm text-emerald-600 font-medium text-right">{metrics.full_days || 0}</div>
+                          <div className="text-sm text-emerald-600 font-medium text-right">{((metrics.full_days || 0) + ((metrics.half_days || 0) * 0.5)).toFixed(1)}</div>
 
                           {/* Absent */}
                           <div className="text-sm text-rose-600 font-medium text-right">{metrics.absent_days || 0}</div>
 
                           {/* Paid Leaves */}
                           <div className="text-sm text-teal-600 font-medium text-right">{Number(metrics.total_paid_leave_days || 0).toFixed(1)}</div>
+
+                          {/* Adj PL */}
+                          <div className="text-sm text-blue-600 font-medium text-right">{Number(metrics.adjusted_paid_leaves || 0).toFixed(1)}</div>
+
+                          {/* Adj CO */}
+                          <div className="text-sm text-blue-600 font-medium text-right">{Number(metrics.adjusted_comp_offs || 0).toFixed(1)}</div>
 
                           {/* Week Off */}
                           <div className="text-sm text-slate-600 font-medium text-right">{metrics.total_week_offs || 0}</div>
@@ -585,8 +595,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                           {/* Half Days */}
                           <div className="text-sm text-amber-600 font-medium text-right">{metrics.half_days || 0}</div>
 
-                          {/* Night OT */}
-                          <div className="text-sm text-purple-600 font-medium text-right">{metrics.night_ot_days || 0}</div>
+
 
                           {/* Gross Salary */}
                           <div className="text-sm text-slate-900 font-medium text-right">₹{Number(salary.gross_salary || 0).toLocaleString()}</div>
@@ -622,6 +631,58 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                         </div>
                       );
                     })
+
+                  )}
+
+                  {/* Total Row */}
+                  {items.length > 0 && (
+                    <div className="min-w-[2100px] grid grid-cols-[80px_200px_120px_80px_100px_100px_110px_80px_80px_80px_80px_100px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-3 bg-slate-100 border-t-2 border-slate-200 items-center font-bold text-slate-900 sticky bottom-0 z-10 shadow-inner">
+                      <div></div>
+                      <div>Total Employees: {items.length}</div>
+                      <div></div>
+                      <div>Total</div>
+
+                      {/* Total Days */}
+                      <div className="text-right">{items.reduce((sum, item) => sum + (Number(item?.metrics?.total_days) || 0), 0)}</div>
+
+                      {/* Present */}
+                      <div className="text-right">{items.reduce((sum, item) => sum + ((Number(item?.metrics?.full_days) || 0) + ((Number(item?.metrics?.half_days) || 0) * 0.5)), 0).toFixed(1)}</div>
+
+                      {/* Absent */}
+                      <div className="text-right">{items.reduce((sum, item) => sum + (Number(item?.metrics?.absent_days) || 0), 0)}</div>
+
+                      {/* Paid Leaves */}
+                      <div className="text-right">{items.reduce((sum, item) => sum + (Number(item?.metrics?.total_paid_leave_days) || 0), 0).toFixed(1)}</div>
+
+                      {/* Adj PL */}
+                      <div className="text-right">{items.reduce((sum, item) => sum + (Number(item?.metrics?.adjusted_paid_leaves) || 0), 0).toFixed(1)}</div>
+
+                      {/* Adj CO */}
+                      <div className="text-right">{items.reduce((sum, item) => sum + (Number(item?.metrics?.adjusted_comp_offs) || 0), 0).toFixed(1)}</div>
+
+                      {/* Week Off */}
+                      <div className="text-right">{items.reduce((sum, item) => sum + (Number(item?.metrics?.total_week_offs) || 0), 0)}</div>
+
+                      {/* Holidays */}
+                      <div className="text-right">{items.reduce((sum, item) => sum + (Number(item?.metrics?.total_holidays) || 0), 0)}</div>
+
+                      {/* Full Days */}
+                      <div className="text-right">{items.reduce((sum, item) => sum + (Number(item?.metrics?.full_days) || 0), 0)}</div>
+
+                      {/* Half Days */}
+                      <div className="text-right">{items.reduce((sum, item) => sum + (Number(item?.metrics?.half_days) || 0), 0)}</div>
+
+                      {/* Gross Salary */}
+                      <div className="text-right">₹{items.reduce((sum, item) => sum + (Number(item?.salary?.gross_salary) || 0), 0).toLocaleString()}</div>
+
+                      {/* Net Salary */}
+                      <div className="text-right">₹{items.reduce((sum, item) => sum + (Number(item?.salary?.adjusted_gross) || 0), 0).toLocaleString()}</div>
+
+                      {/* Deductions */}
+                      <div className="text-right">₹{items.reduce((sum, item) => sum + (Number(item?.salary?.total_deductions) || 0), 0).toLocaleString()}</div>
+
+                      <div></div>
+                    </div>
                   )}
                 </div>
               </div>

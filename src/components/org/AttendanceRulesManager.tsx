@@ -86,6 +86,7 @@ export type AttendancePolicy = {
   show_grace_minutes?: boolean;
   show_late_min?: boolean;
   show_ot_minutes?: boolean;
+  adjust_leave_compoff?: boolean;
 };
 
 const defaultPolicy: AttendancePolicy = {
@@ -138,6 +139,7 @@ const defaultPolicy: AttendancePolicy = {
   show_grace_minutes: true,
   show_late_min: true,
   show_ot_minutes: true,
+  adjust_leave_compoff: true,
 };
 
 export default function AttendanceRulesManager() {
@@ -1656,6 +1658,25 @@ export default function AttendanceRulesManager() {
                         )}
                         <p className="mt-1 text-xs text-gray-500">
                           Number of days back users can regularize (0-31). 0 means no restriction or immediate only.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Auto-adjust Leaves & Comp Offs
+                        </label>
+                        <select
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          value={policy.adjust_leave_compoff !== false ? "true" : "false"}
+                          onChange={(e) => setField("adjust_leave_compoff", e.target.value === "true")}
+                        >
+                          <option value="true">Yes</option>
+                          <option value="false">No</option>
+                        </select>
+                        <p className="mt-1 text-xs text-gray-500">
+                          If enabled, system will automatically deduct Paid Leaves and Comp Offs for absent days during payroll.
                         </p>
                       </div>
                     </div>
