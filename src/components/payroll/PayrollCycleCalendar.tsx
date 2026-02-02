@@ -32,9 +32,11 @@ import {
   AlertTriangle,
   MoreVertical,
   Download,
-  Lock
+  Lock,
+  Plus,
+  Trash2
 } from "lucide-react";
-import { createPortal } from "react-dom";
+import SalarySlipEditorModal from "./SalarySlipEditorModal";
 import AttendanceDetailsModal from "../attendance/AttendanceDetailsModal";
 
 import { useAuth } from "@/context/AuthContext";
@@ -274,6 +276,46 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
     });
   };
 
+  const [showSlipEditor, setShowSlipEditor] = React.useState(false);
+  const [editorData, setEditorData] = React.useState<any>(null);
+  const [isFetchingForEditor, setIsFetchingForEditor] = React.useState(false);
+
+  const handleDownloadSlip = async () => {
+    const empId = employeeId || employee?.id;
+    if (!empId) return;
+
+    // Fetch data for editor
+    try {
+      console.log("Fetching payroll data for editor...", { empId, cycleStartKey, cycleEndKey });
+      setIsFetchingForEditor(true);
+
+      const response = await apiClient<any>('/attendance/payroll-cycle', {
+        method: 'GET',
+        withAuth: true,
+        params: {
+          employee_id: String(empId),
+          cycle_start: cycleStartKey,
+          cycle_end: cycleEndKey
+        }
+      });
+
+      console.log("Payroll data response:", response);
+
+      if (response) {
+        setEditorData(response);
+        setShowSlipEditor(true);
+        console.log("Opening editor modal...");
+      } else {
+        alert("Received empty data from server");
+      }
+    } catch (err: any) {
+      console.error("Error fetching payroll for editor", err);
+      alert(err?.message || "Could not load payroll data for editing.");
+    } finally {
+      setIsFetchingForEditor(false);
+    }
+  };
+
   const getStatusConfig = (record?: AttendanceRecord | null, dateStr?: string) => {
     const statusRaw = String(record?.status || "").trim();
 
@@ -359,36 +401,7 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
     return dateStr >= cycleStartKey && dateStr <= cycleEndKey;
   };
 
-  const handleDownloadSlip = async () => {
-    try {
-      const empId = employeeId || employee?.id;
-      if (!empId) return;
 
-      const blob = await apiClient<Blob>(`/attendance/salary-slip/download/${empId}`, {
-        method: 'GET',
-        params: {
-          cycleStart: cycleStartKey,
-          cycleEnd: cycleEndKey
-        },
-        responseType: 'blob',
-        withAuth: true
-      });
-
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      const fname = `Salary_Slip_${cycleStartKey}.pdf`;
-      a.download = fname;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(downloadUrl);
-      a.remove();
-
-    } catch (e: any) {
-      console.error(e);
-      alert(e.message || 'Failed to download payslip');
-    }
-  };
 
   return (
     <div className="min-h-screen bg-white p-2 sm:p-4">
@@ -788,6 +801,23 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
           />
         )
       }
+
+      {/* Debug: Check if modal renders */}
+      {showSlipEditor && (
+        console.log("Trying to render SalarySlipEditorModal", { showSlipEditor, hasData: !!editorData }),
+        null
+      )}
+
+      {showSlipEditor && editorData && (
+        <SalarySlipEditorModal
+          isOpen={showSlipEditor}
+          onClose={() => setShowSlipEditor(false)}
+          initialData={editorData}
+          employeeId={employeeId || employee?.id || 0}
+          cycleStart={cycleStartKey}
+          cycleEnd={cycleEndKey}
+        />
+      )}
     </div >
   );
 }
