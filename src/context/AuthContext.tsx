@@ -118,6 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch (error) {
             console.error("Logout error:", error);
         } finally {
+            localStorage.removeItem('token'); // Critical: clear persistent token
             clearAuthState();
             router.push("/login");
         }
