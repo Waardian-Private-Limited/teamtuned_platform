@@ -198,6 +198,10 @@ export default function EmployeeManagement() {
   const [showAdd, setShowAdd] = useState<boolean>(false);
   const [step, setStep] = useState<number>(1);
   const [editingEmployeeId, setEditingEmployeeId] = useState<number | null>(null);
+
+  // Export State
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportStatus, setExportStatus] = useState<'active' | 'terminated' | 'all'>('active');
   const [showView, setShowView] = useState<boolean>(false);
   const [viewLoading, setViewLoading] = useState<boolean>(false);
   const [viewData, setViewData] = useState<any>(null);
@@ -704,15 +708,11 @@ export default function EmployeeManagement() {
     }
   };
 
-  // Fetch dropdowns on load
-  useEffect(() => {
-    fetchDropdowns().catch(() => { });
-  }, []);
+  // Fetch dropdowns on load is handled below
 
   // Initial load and reactive fetches
-  useEffect(() => {
-    fetchEmployees();
-  }, [page, pageSize, searchQuery, filterDeptId, filterRoleId, filterSiteId, statusFilter]);
+  // Combined into one useEffect below matching dependencies
+
 
   const fetchDropdowns = async () => {
     try {
@@ -1554,10 +1554,122 @@ export default function EmployeeManagement() {
     );
   };
 
+  const confirmExport = async () => {
+    try {
+      setActionLoading("export");
+      const blob = await apiClient<Blob>("/organization/employees/export", {
+        method: "POST",
+        body: { status: exportStatus },
+        responseType: "blob",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Employees_${exportStatus}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      showNotification("Employees exported successfully", "success");
+      setShowExportModal(false);
+    } catch (e: any) {
+      showNotification(e.message || "Failed to export employees", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const ExportModal = () => {
+    if (!showExportModal) return null;
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overflow-x-hidden bg-black/50 backdrop-blur-sm p-4 md:p-6">
+        <div className="relative w-full max-w-sm transform rounded-2xl bg-white p-6 text-left shadow-xl transition-all border border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium leading-6 text-gray-900">Export Employees</h3>
+            <button onClick={() => setShowExportModal(false)} className="text-gray-400 hover:text-gray-500">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="space-y-3 mb-6">
+            <p className="text-sm text-gray-500 mb-2">Select which employees to export:</p>
+
+            <label className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+              <input
+                type="radio"
+                name="exportStatus"
+                value="active"
+                checked={exportStatus === 'active'}
+                onChange={() => setExportStatus('active')}
+                className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+              />
+              <div>
+                <span className="block text-sm font-medium text-gray-900">Active Only</span>
+                <span className="block text-xs text-gray-500">Includes Active and Invited employees</span>
+              </div>
+            </label>
+
+            <label className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+              <input
+                type="radio"
+                name="exportStatus"
+                value="terminated"
+                checked={exportStatus === 'terminated'}
+                onChange={() => setExportStatus('terminated')}
+                className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+              />
+              <div>
+                <span className="block text-sm font-medium text-gray-900">Terminated Only</span>
+                <span className="block text-xs text-gray-500">Only terminated employees</span>
+              </div>
+            </label>
+
+            <label className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+              <input
+                type="radio"
+                name="exportStatus"
+                value="all"
+                checked={exportStatus === 'all'}
+                onChange={() => setExportStatus('all')}
+                className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+              />
+              <div>
+                <span className="block text-sm font-medium text-gray-900">All Employees</span>
+                <span className="block text-xs text-gray-500">Active, Invited, and Terminated</span>
+              </div>
+            </label>
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              className="inline-flex justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:ring-offset-2"
+              onClick={() => setShowExportModal(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="inline-flex justify-center rounded-lg border border-transparent bg-teal-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+              onClick={confirmExport}
+              disabled={actionLoading === "export"}
+            >
+              {actionLoading === "export" ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Download className="w-4 h-4 mr-2" />}
+              Download
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4">
       {/* Render modals */}
       <ConfirmationModal />
+      <ExportModal />
       <ViewEmployeeModal />
 
       {/* Header */}
@@ -1595,6 +1707,14 @@ export default function EmployeeManagement() {
                 >
                   <Upload className="w-4 h-4" />
                   <span className="hidden sm:inline">Import</span>
+                </button>
+                <button
+                  onClick={() => setShowExportModal(true)}
+                  disabled={actionLoading === "export"}
+                  className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center space-x-1 text-sm disabled:opacity-50"
+                >
+                  {actionLoading === "export" ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  <span className="hidden sm:inline">Export</span>
                 </button>
                 <button
                   onClick={() => window.location.href = isOrgAdmin ? '/org-admin/employees/shifts' : '/employee/employees/shifts'}
