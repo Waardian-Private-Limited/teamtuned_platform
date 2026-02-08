@@ -327,6 +327,11 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
       return { color: "text-teal-600", bg: "bg-teal-50", border: "border-teal-200", label: half ? "Paid Leave (Half)" : "Paid Leave", icon: FileText };
     }
 
+    // Unpaid Leave check (if status is leave/unpaid but not is_paid_leave)
+    if (record?.status === 'Leave' || record?.is_leave || statusRaw === 'Leave') {
+      return { color: "text-orange-600", bg: "bg-orange-50", border: "border-orange-200", label: "Unpaid Leave", icon: FileText };
+    }
+
     if (!record) {
       if (dateStr && isHoliday(dateStr)) return { color: "text-violet-600", bg: "bg-violet-50", border: "border-violet-200", label: "Holiday", icon: CalendarIcon };
       if (dateStr && isPaidLeave(dateStr)) return { color: "text-teal-600", bg: "bg-teal-50", border: "border-teal-200", label: "Paid Leave", icon: FileText };
@@ -573,8 +578,9 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
                                       config.label === 'Holiday' ? 'H' :
                                         config.label === 'Week Off' ? 'WO' :
                                           config.label.includes('Paid Leave') ? 'PL' :
-                                            config.label.includes('Half') ? 'HD' :
-                                              config.label.slice(0, 2).toUpperCase()}
+                                            config.label.includes('Unpaid Leave') ? 'LWP' :
+                                              config.label.includes('Half') ? 'HD' :
+                                                config.label.slice(0, 2).toUpperCase()}
                                 </div>
                                 <div className="absolute bottom-0.5 right-0.5 flex gap-0.5 items-center">
                                   {record.badges && record.badges.some((b: any) => b.type === 'early_penalty') && <Clock className="w-2.5 h-2.5 text-red-500" />}

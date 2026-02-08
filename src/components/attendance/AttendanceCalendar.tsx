@@ -208,12 +208,22 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
     }
 
     // Paid Leave
-    if (record?.status === 'Leave' || record?.is_leave || record?.is_paid_leave) {
+    if (record?.is_paid_leave) {
       return {
         color: "bg-teal-100 border-teal-300 text-teal-900",
         dotColor: "bg-teal-600",
         label: "PL",
         type: "paidleave"
+      };
+    }
+
+    // Unpaid Leave (Leave but not paid)
+    if (record?.status === 'Leave' || record?.is_leave) {
+      return {
+        color: "bg-orange-100 border-orange-300 text-orange-900",
+        dotColor: "bg-orange-600",
+        label: "LWP",
+        type: "unpaidleave"
       };
     }
 
