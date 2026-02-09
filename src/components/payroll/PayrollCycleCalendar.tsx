@@ -276,6 +276,15 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
     });
   };
 
+  const isUnpaidLeave = (dateStr: string) => {
+    const leaves = payrollData?.unpaid_leaves || [];
+    return leaves.some((l: any) => {
+      const start = String(l.start_date || '').slice(0, 10);
+      const end = String(l.end_date || '').slice(0, 10);
+      return dateStr >= start && dateStr <= end;
+    });
+  };
+
   const [showSlipEditor, setShowSlipEditor] = React.useState(false);
   const [editorData, setEditorData] = React.useState<any>(null);
   const [isFetchingForEditor, setIsFetchingForEditor] = React.useState(false);
@@ -322,18 +331,36 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
     if (record?.is_holiday) return { color: "text-violet-600", bg: "bg-violet-50", border: "border-violet-200", label: "Holiday", icon: CalendarIcon };
     if (record?.is_weekly_off) return { color: "text-slate-600", bg: "bg-slate-100", border: "border-slate-200", label: "Week Off", icon: CalendarIcon };
 
+    // Unpaid Leave check (if status is leave/unpaid but not is_paid_leave OR explicitly Unpaid Type)
+    const leaveType = (record?.leave_type || '').toLowerCase();
+    const isUnpaidType = leaveType.includes('unpaid') || leaveType.includes('lwp') || leaveType.includes('loss of pay');
+
+    if (isUnpaidType || (record?.status === 'Leave' || record?.is_leave || statusRaw === 'Leave')) {
+      // Use record's own check if contradictory? 
+      // If isUnpaidType is true, we force Unpaid. 
+      // If just generic 'Leave' status, we might need to be careful if it IS paid leave but no type string. 
+      // But usually is_paid_leave would handle it. Here we want to catch "Leave" that fell through.
+      // Wait, if is_paid_leave is TRUE, we want PL. UNLESS leaveType is Unpaid.
+
+      if (isUnpaidType) {
+        return { color: "text-orange-600", bg: "bg-orange-50", border: "border-orange-200", label: "Unpaid Leave", icon: FileText };
+      }
+
+      // Generic Leave... check paid flag
+      if (!record?.is_paid_leave && (record?.status === 'Leave' || record?.is_leave)) {
+        return { color: "text-orange-600", bg: "bg-orange-50", border: "border-orange-200", label: "Unpaid Leave", icon: FileText };
+      }
+    }
+
     if (record?.is_paid_leave) {
       const half = Number(record?.leave_partial || 0) === 0.5;
       return { color: "text-teal-600", bg: "bg-teal-50", border: "border-teal-200", label: half ? "Paid Leave (Half)" : "Paid Leave", icon: FileText };
     }
 
-    // Unpaid Leave check (if status is leave/unpaid but not is_paid_leave)
-    if (record?.status === 'Leave' || record?.is_leave || statusRaw === 'Leave') {
-      return { color: "text-orange-600", bg: "bg-orange-50", border: "border-orange-200", label: "Unpaid Leave", icon: FileText };
-    }
-
     if (!record) {
       if (dateStr && isHoliday(dateStr)) return { color: "text-violet-600", bg: "bg-violet-50", border: "border-violet-200", label: "Holiday", icon: CalendarIcon };
+      // Priority: Unpaid > Paid (in case of overlap or data issue)
+      if (dateStr && isUnpaidLeave(dateStr)) return { color: "text-orange-600", bg: "bg-orange-50", border: "border-orange-200", label: "Unpaid Leave", icon: FileText };
       if (dateStr && isPaidLeave(dateStr)) return { color: "text-teal-600", bg: "bg-teal-50", border: "border-teal-200", label: "Paid Leave", icon: FileText };
       return { color: "text-slate-400", bg: "bg-slate-50", border: "border-slate-200", label: "—", icon: null };
     }

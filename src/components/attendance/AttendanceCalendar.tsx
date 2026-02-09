@@ -207,6 +207,20 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
       }
     }
 
+    // Unpaid Leave (Leave but not paid) - CHECK FIRST (Hierarchy: Unpaid > Paid)
+    // Fix: Backend might send is_paid_leave=true for Unpaid Leave, so we verify leave_type string
+    const leaveType = (record?.leave_type || '').toLowerCase();
+    const isUnpaidType = leaveType.includes('unpaid') || leaveType.includes('lwp') || leaveType.includes('loss of pay');
+
+    if (isUnpaidType || ((record?.status === 'Leave' || record?.is_leave) && !record?.is_paid_leave)) {
+      return {
+        color: "bg-orange-100 border-orange-300 text-orange-900",
+        dotColor: "bg-orange-600",
+        label: "LWP",
+        type: "unpaidleave"
+      };
+    }
+
     // Paid Leave
     if (record?.is_paid_leave) {
       return {
@@ -214,16 +228,6 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
         dotColor: "bg-teal-600",
         label: "PL",
         type: "paidleave"
-      };
-    }
-
-    // Unpaid Leave (Leave but not paid)
-    if (record?.status === 'Leave' || record?.is_leave) {
-      return {
-        color: "bg-orange-100 border-orange-300 text-orange-900",
-        dotColor: "bg-orange-600",
-        label: "LWP",
-        type: "unpaidleave"
       };
     }
 
