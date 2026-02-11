@@ -101,7 +101,8 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
     paid_leave_days: 0,
     week_offs: 0,
     holidays: 0,
-    comp_off_days: 0
+    comp_off_days: 0,
+    sandwich_loss_days: 0
   });
 
   const computeCycle = React.useCallback((ref: Date, startDay: number, endDay: number) => {
@@ -248,7 +249,8 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
         paid_leave_days: payrollData.metrics.total_paid_leave_days || 0,
         week_offs: payrollData.metrics.total_week_offs || 0,
         holidays: payrollData.metrics.total_holidays || 0,
-        comp_off_days: payrollData.metrics.comp_off_days || 0
+        comp_off_days: payrollData.metrics.comp_off_days || 0,
+        sandwich_loss_days: payrollData.metrics.sandwich_loss_days || 0
       });
     }
   }, [payrollData]);
@@ -327,6 +329,12 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
 
   const getStatusConfig = (record?: AttendanceRecord | null, dateStr?: string) => {
     const statusRaw = String(record?.status || "").trim();
+
+    // Check Sandwich LOP first (Overwrites Week Off visual)
+    const sandwichDates = payrollData?.sandwich_dates || [];
+    if (dateStr && sandwichDates.includes(dateStr)) {
+      return { color: "text-rose-600", bg: "bg-rose-50", border: "border-rose-200", label: "LOP (Sandwich)", icon: AlertTriangle };
+    }
 
     if (record?.is_holiday) return { color: "text-violet-600", bg: "bg-violet-50", border: "border-violet-200", label: "Holiday", icon: CalendarIcon };
     if (record?.is_weekly_off) return { color: "text-slate-600", bg: "bg-slate-100", border: "border-slate-200", label: "Week Off", icon: CalendarIcon };
@@ -544,6 +552,7 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
               <MetricCard label="Half Day" value={metrics.half_days || 0} color="amber" icon={Clock} />
               <MetricCard label="Week Off" value={metrics.total_week_offs || 0} color="slate" icon={CalendarIcon} />
               <MetricCard label="Holidays" value={metrics.total_holidays || 0} color="violet" icon={CalendarIcon} />
+              <MetricCard label="Sandwich LOP" value={metrics.sandwich_loss_days || 0} color="rose" icon={AlertTriangle} />
             </div>
           )}
         </div>
@@ -744,6 +753,10 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
                     <div className="flex items-center justify-between py-1">
                       <span className="text-slate-600">Late Deduction Days</span>
                       <span className="font-medium text-orange-700">{metrics.late_days?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Sandwich LOP Days</span>
+                      <span className="font-medium text-rose-700">{metrics.sandwich_loss_days?.toLocaleString() || 0}</span>
                     </div>
                     <div className="flex items-center justify-between py-1">
                       <span className="text-slate-600">Comp Off</span>
