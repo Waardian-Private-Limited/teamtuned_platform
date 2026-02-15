@@ -4,7 +4,7 @@ import React from "react";
 import { createPortal } from "react-dom";
 import { apiClient } from "@/lib/apiClient";
 import PayrollCycleCalendar from "@/components/payroll/PayrollCycleCalendar";
-import { Search, Filter, Users, Phone, Building, Clock, MapPin, MoreVertical, ChevronLeft, ChevronRight, Calendar, User, Shield, Eye, RefreshCw, X, CheckCircle, AlertCircle, LogOut, Layers, ChevronDown, Download, FileText, CreditCard, Loader2, Lock, Unlock } from "lucide-react";
+import { Search, Filter, Users, Phone, Building, Clock, MapPin, MoreVertical, ChevronLeft, ChevronRight, Calendar, User, Shield, Eye, RefreshCw, X, CheckCircle, AlertCircle, LogOut, Layers, ChevronDown, Download, FileText, CreditCard, Loader2, Lock, Unlock, FileUp, Upload } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { useAuth } from "@/context/AuthContext";
@@ -54,6 +54,11 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
   const [exportMethod, setExportMethod] = React.useState<'download' | 'email'>('download');
   const [exportEmail, setExportEmail] = React.useState('');
   const [isExporting, setIsExporting] = React.useState(false);
+
+  // Update (Override)
+  const [showUpdateModal, setShowUpdateModal] = React.useState(false);
+  const [isUpdating, setIsUpdating] = React.useState(false);
+  const [updateFile, setUpdateFile] = React.useState<File | null>(null);
 
   // Cycle Navigation (EXACTLY like PayrollCycleCalendar)
   const [now, setNow] = React.useState<Date>(new Date());
@@ -394,6 +399,93 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
     setSelectedIds(next);
   };
 
+  const handleDownloadTemplate = async () => {
+    try {
+      const year = cycleEndKey.slice(0, 4);
+      const month = cycleEndKey.slice(5, 7);
+      const token = localStorage.getItem('accessToken') || localStorage.getItem('token'); // Try common keys or check auth context
+
+      // Construct URL manually to avoid apiClient interception issues with Blobs
+      const queryParams = new URLSearchParams({
+        month,
+        year,
+        site_id: String(selectedSiteId || ''),
+        cycle_start: cycleStartKey,
+        cycle_end: cycleEndKey
+      });
+
+      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3006/api/v1';
+      console.log("Downloading template from:", `${baseUrl}/attendance/payroll-edit-template`);
+
+      const response = await fetch(`${baseUrl}/attendance/payroll-edit-template?${queryParams}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error("Download response error:", response.status, errText);
+        throw new Error(`Download failed: ${response.status} ${errText}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Payroll_Edit_Template_${year}_${month}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success("Template downloaded");
+    } catch (err: any) {
+      console.error("Download template error:", err);
+      toast.error("Failed to download template");
+    }
+  };
+
+  const handleUpdatePayroll = async () => {
+    if (!updateFile) {
+      toast.error("Please select a file first");
+      return;
+    }
+
+    try {
+      setIsUpdating(true);
+      const year = cycleEndKey.slice(0, 4);
+      const month = cycleEndKey.slice(5, 7);
+
+      const formData = new FormData();
+      formData.append('file', updateFile);
+      formData.append('month', month);
+      formData.append('year', year);
+      formData.append('cycle_start', cycleStartKey);
+      formData.append('cycle_end', cycleEndKey);
+
+      // We need to send FormData. apiClient might default to JSON.
+      // We usually pass `body: formData` and let browser set Content-Type (multipart).
+      // But we need to ensure apiClient doesn't force Content-Type: application/json.
+
+      // Let's try passing body directly.
+      const response = await apiClient<any>('/attendance/payroll-update', {
+        method: 'POST',
+        body: formData,
+        withAuth: true,
+        // headers: {} // Let browser set boundary
+      });
+
+      toast.success(`Updated ${response.processed} records`);
+      setShowUpdateModal(false);
+      setUpdateFile(null);
+      fetchList();
+    } catch (err: any) {
+      console.error("Update error:", err);
+      toast.error(err.message || "Failed to update payroll");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   React.useEffect(() => { fetchList(); }, [fetchList]);
 
   if (activeView !== "list" && activeEmployee) {
@@ -504,7 +596,16 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                 </select>
               </div>
             )}
-            <div className="lg:col-span-1"></div>
+            <div className="lg:col-span-1">
+              <label className="block text-xs font-medium text-slate-500 mb-1">&nbsp;</label>
+              <button
+                onClick={() => setShowExportModal(true)}
+                className="w-full px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Export
+              </button>
+            </div>
             {selectedIds.size > 0 ? (
               <div className="lg:col-span-3 flex items-center gap-2">
                 <button
@@ -552,13 +653,14 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                 <div className="lg:col-span-1">
                   <label className="block text-xs font-medium text-slate-500 mb-1">&nbsp;</label>
                   <button
-                    onClick={() => setShowExportModal(true)}
-                    className="w-full px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
+                    onClick={() => setShowUpdateModal(true)}
+                    className="w-full px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    Export
+                    <FileUp className="w-3.5 h-3.5" />
+                    Update
                   </button>
                 </div>
+
               </>
             )}
           </div>
@@ -867,245 +969,331 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
         </div>
       </div>
 
-      {menuOpen && menuPos && menuEmployee && createPortal(
-        <div className="fixed inset-0 z-50" onClick={closeMenu}>
-          <div className="absolute w-48 border border-slate-200 rounded-xl bg-white shadow-xl shadow-slate-200/50 text-sm overflow-hidden animate-in fade-in zoom-in duration-100" style={{ left: `${menuPos.x}px`, top: `${menuPos.y}px` }} onClick={(e) => e.stopPropagation()}>
-            <button className="w-full text-left px-4 py-2.5 hover:bg-blue-50 text-slate-700 hover:text-blue-700 transition-colors flex items-center gap-2.5" onClick={() => { setActiveEmployee(menuEmployee); setActiveView("payroll"); closeMenu(); }}>
-              <Calendar className="w-4 h-4" />
-              <span className="font-medium">View Payroll</span>
-            </button>
-            {menuEmployee.is_locked === 1 ? (
-              <button className="w-full text-left px-4 py-2.5 hover:bg-blue-50 text-slate-700 hover:text-blue-700 transition-colors flex items-center gap-2.5" onClick={() => { handleLockUnlock([menuEmployee.id], 'unlock'); closeMenu(); }}>
-                <Unlock className="w-4 h-4" />
-                <span className="font-medium">Unlock Payroll</span>
+      {
+        menuOpen && menuPos && menuEmployee && createPortal(
+          <div className="fixed inset-0 z-50" onClick={closeMenu}>
+            <div className="absolute w-48 border border-slate-200 rounded-xl bg-white shadow-xl shadow-slate-200/50 text-sm overflow-hidden animate-in fade-in zoom-in duration-100" style={{ left: `${menuPos.x}px`, top: `${menuPos.y}px` }} onClick={(e) => e.stopPropagation()}>
+              <button className="w-full text-left px-4 py-2.5 hover:bg-blue-50 text-slate-700 hover:text-blue-700 transition-colors flex items-center gap-2.5" onClick={() => { setActiveEmployee(menuEmployee); setActiveView("payroll"); closeMenu(); }}>
+                <Calendar className="w-4 h-4" />
+                <span className="font-medium">View Payroll</span>
               </button>
-            ) : (
-              <button className="w-full text-left px-4 py-2.5 hover:bg-blue-50 text-slate-700 hover:text-blue-700 transition-colors flex items-center gap-2.5" onClick={() => { handleLockUnlock([menuEmployee.id], 'lock'); closeMenu(); }}>
-                <Lock className="w-4 h-4" />
-                <span className="font-medium">Lock Payroll</span>
-              </button>
-            )}
-            <div className="border-t border-slate-100">
-              <button className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-slate-600 transition-colors flex items-center gap-2.5" onClick={closeMenu}>
-                <X className="w-4 h-4" />
-                <span className="font-medium">Close</span>
-              </button>
+              {menuEmployee.is_locked === 1 ? (
+                <button className="w-full text-left px-4 py-2.5 hover:bg-blue-50 text-slate-700 hover:text-blue-700 transition-colors flex items-center gap-2.5" onClick={() => { handleLockUnlock([menuEmployee.id], 'unlock'); closeMenu(); }}>
+                  <Unlock className="w-4 h-4" />
+                  <span className="font-medium">Unlock Payroll</span>
+                </button>
+              ) : (
+                <button className="w-full text-left px-4 py-2.5 hover:bg-blue-50 text-slate-700 hover:text-blue-700 transition-colors flex items-center gap-2.5" onClick={() => { handleLockUnlock([menuEmployee.id], 'lock'); closeMenu(); }}>
+                  <Lock className="w-4 h-4" />
+                  <span className="font-medium">Lock Payroll</span>
+                </button>
+              )}
+              <div className="border-t border-slate-100">
+                <button className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-slate-600 transition-colors flex items-center gap-2.5" onClick={closeMenu}>
+                  <X className="w-4 h-4" />
+                  <span className="font-medium">Close</span>
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )
+      }
+      {/* Lock Confirmation Modal */}
+      {
+        showLockConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden scale-100 animate-in zoom-in-95 duration-200">
+              <div className="p-6 text-center">
+                <div className="w-12 h-12 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Lock className="w-6 h-6 text-rose-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">Lock All Payroll?</h3>
+                <p className="text-sm text-slate-500 mb-6">
+                  Are you sure you want to lock payroll for <span className="font-medium text-slate-900">ALL active employees</span> for this period? <br />This action cannot be easily undone.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowLockConfirm(false)}
+                    className="flex-1 px-4 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={executeLockAll}
+                    className="flex-1 px-4 py-2 bg-rose-600 text-white font-medium rounded-lg hover:bg-rose-700 transition-colors shadow-sm"
+                  >
+                    Yes, Lock All
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>,
-        document.body
-      )}
-      {/* Lock Confirmation Modal */}
-      {showLockConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden scale-100 animate-in zoom-in-95 duration-200">
-            <div className="p-6 text-center">
-              <div className="w-12 h-12 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Lock className="w-6 h-6 text-rose-600" />
+        )
+      }
+
+      {/* Export Modal */}
+      {
+        showExportModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <h3 className="text-lg font-semibold text-slate-900">Export Payroll</h3>
+                <button onClick={() => setShowExportModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">Lock All Payroll?</h3>
-              <p className="text-sm text-slate-500 mb-6">
-                Are you sure you want to lock payroll for <span className="font-medium text-slate-900">ALL active employees</span> for this period? <br />This action cannot be easily undone.
-              </p>
-              <div className="flex gap-3">
+
+              <div className="p-6 space-y-5">
+                {/* Cycle Info */}
+                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 flex items-center gap-3">
+                  <Calendar className="w-5 h-5 text-blue-600" />
+                  <div>
+                    <div className="text-xs text-blue-600 font-medium uppercase tracking-wide">Selected Cycle</div>
+                    <div className="text-sm font-semibold text-blue-900">
+                      {formatDate(cycleStartKey)} - {formatDate(cycleEndKey)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Export Type */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Export Type</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setExportType('payroll')}
+                      className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-all ${exportType === 'payroll'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                    >
+                      <FileText className="w-4 h-4" />
+                      Payroll Sheet
+                    </button>
+                    <button
+                      onClick={() => setExportType('bank')}
+                      className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-all ${exportType === 'bank'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                    >
+                      <CreditCard className="w-4 h-4" />
+                      Bank Sheet
+                    </button>
+                  </div>
+                </div>
+
+                {/* Site Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Select Site</label>
+                  <select
+                    value={exportSite}
+                    onChange={(e) => setExportSite(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                  >
+                    <option value="all">All Sites (Grouped)</option>
+                    {(canHRMode ? allSites : inchargeSites).map((s) => (
+                      <option key={s.id} value={String(s.id)}>{s.name}</option>
+                    ))}
+                  </select>
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    {exportSite === 'all'
+                      ? "Will generate a single sheet with all sites grouped and totaled."
+                      : "Will generate a sheet for the selected site only."}
+                  </p>
+                </div>
+
+                {/* Delivery Method */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Delivery Method</label>
+                  <div className="flex gap-4 mb-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="exportMethod"
+                        checked={exportMethod === 'download'}
+                        onChange={() => setExportMethod('download')}
+                        className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-slate-700">Download Locally</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="exportMethod"
+                        checked={exportMethod === 'email'}
+                        onChange={() => setExportMethod('email')}
+                        className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-slate-700">Send via Email</span>
+                    </label>
+                  </div>
+
+                  {exportMethod === 'email' && (
+                    <div className="animate-in slide-in-from-top-2 duration-200">
+                      <input
+                        type="email"
+                        value={exportEmail}
+                        onChange={(e) => setExportEmail(e.target.value)}
+                        placeholder="Enter email addresses (comma separated)"
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
                 <button
-                  onClick={() => setShowLockConfirm(false)}
-                  className="flex-1 px-4 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-50 transition-colors"
+                  onClick={() => setShowExportModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={executeLockAll}
-                  className="flex-1 px-4 py-2 bg-rose-600 text-white font-medium rounded-lg hover:bg-rose-700 transition-colors shadow-sm"
+                  disabled={isExporting || (exportMethod === 'email' && !exportEmail)}
+                  onClick={async () => {
+                    try {
+                      setIsExporting(true);
+                      const payload = {
+                        cycle_start: cycleStartKey,
+                        cycle_end: cycleEndKey,
+                        type: exportType,
+                        site_id: exportSite === 'all' ? null : parseInt(exportSite),
+                        method: exportMethod,
+                        email: exportEmail,
+                        month: endKey.split('-')[1],
+                        year: endKey.split('-')[0]
+                      };
+
+                      if (exportMethod === 'download') {
+                        const response = await apiClient<Blob>('/attendance/export-payroll', {
+                          method: 'POST',
+                          body: payload,
+                          responseType: 'blob'
+                        });
+
+                        const url = window.URL.createObjectURL(response);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.setAttribute('download', `${exportType === 'payroll' ? 'Payroll_Sheet' : 'Bank_Sheet'}_${formatDate(cycleEndKey)}.xlsx`);
+                        document.body.appendChild(link);
+                        link.click();
+                        link.remove();
+                      } else {
+                        await apiClient('/attendance/export-payroll', {
+                          method: 'POST',
+                          body: payload
+                        });
+                        toast.success('Email sent successfully!');
+                      }
+                      setShowExportModal(false);
+                    } catch (err) {
+                      console.error('Export failed:', err);
+                      toast.error('Export failed. Please try again.');
+                    } finally {
+                      setIsExporting(false);
+                    }
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  Yes, Lock All
+                  {isExporting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      Export Now
+                    </>
+                  )}
                 </button>
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Export Modal */}
-      {showExportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <h3 className="text-lg font-semibold text-slate-900">Export Payroll</h3>
-              <button onClick={() => setShowExportModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-5">
-              {/* Cycle Info */}
-              <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 flex items-center gap-3">
-                <Calendar className="w-5 h-5 text-blue-600" />
+        )
+      }
+      {/* Update Modal */}
+      {
+        showUpdateModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                 <div>
-                  <div className="text-xs text-blue-600 font-medium uppercase tracking-wide">Selected Cycle</div>
-                  <div className="text-sm font-semibold text-blue-900">
-                    {formatDate(cycleStartKey)} - {formatDate(cycleEndKey)}
-                  </div>
+                  <h3 className="font-semibold text-slate-900">Update Payroll Data</h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Cycle: <span className="font-medium text-slate-700">{formatDate(cycleStartKey)} - {formatDate(cycleEndKey)}</span>
+                  </p>
                 </div>
-              </div>
-
-              {/* Export Type */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Export Type</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => setExportType('payroll')}
-                    className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-all ${exportType === 'payroll'
-                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                      }`}
-                  >
-                    <FileText className="w-4 h-4" />
-                    Payroll Sheet
-                  </button>
-                  <button
-                    onClick={() => setExportType('bank')}
-                    className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-all ${exportType === 'bank'
-                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                      }`}
-                  >
-                    <CreditCard className="w-4 h-4" />
-                    Bank Sheet
-                  </button>
-                </div>
-              </div>
-
-              {/* Site Selection */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Select Site</label>
-                <select
-                  value={exportSite}
-                  onChange={(e) => setExportSite(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                <button
+                  onClick={() => { setShowUpdateModal(false); setUpdateFile(null); }}
+                  className="p-1 rounded-lg hover:bg-slate-200/50 text-slate-500 transition-colors"
                 >
-                  <option value="all">All Sites (Grouped)</option>
-                  {(canHRMode ? allSites : inchargeSites).map((s) => (
-                    <option key={s.id} value={String(s.id)}>{s.name}</option>
-                  ))}
-                </select>
-                <p className="mt-1.5 text-xs text-slate-500">
-                  {exportSite === 'all'
-                    ? "Will generate a single sheet with all sites grouped and totaled."
-                    : "Will generate a sheet for the selected site only."}
-                </p>
+                  <X className="w-5 h-5" />
+                </button>
               </div>
 
-              {/* Delivery Method */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Delivery Method</label>
-                <div className="flex gap-4 mb-3">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="exportMethod"
-                      checked={exportMethod === 'download'}
-                      onChange={() => setExportMethod('download')}
-                      className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-slate-700">Download Locally</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="exportMethod"
-                      checked={exportMethod === 'email'}
-                      onChange={() => setExportMethod('email')}
-                      className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-slate-700">Send via Email</span>
-                  </label>
-                </div>
-
-                {exportMethod === 'email' && (
-                  <div className="animate-in slide-in-from-top-2 duration-200">
-                    <input
-                      type="email"
-                      value={exportEmail}
-                      onChange={(e) => setExportEmail(e.target.value)}
-                      placeholder="Enter email addresses (comma separated)"
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                    />
+              <div className="p-6 space-y-6">
+                <div className="space-y-4">
+                  <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg space-y-3">
+                    <div className="flex items-center gap-2 font-medium text-blue-900">
+                      <div className="w-6 h-6 rounded-full bg-blue-200 flex items-center justify-center text-xs">1</div>
+                      Download Template
+                    </div>
+                    <p className="text-sm text-blue-700 ml-8">
+                      Download the current payroll data to an Excel file.
+                    </p>
+                    <button
+                      onClick={handleDownloadTemplate}
+                      className="ml-8 px-3 py-1.5 bg-white border border-blue-200 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors flex items-center gap-2"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Download Excel
+                    </button>
                   </div>
-                )}
+
+                  <div className="p-4 bg-slate-50 border border-slate-100 rounded-lg space-y-3">
+                    <div className="flex items-center gap-2 font-medium text-slate-900">
+                      <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs">2</div>
+                      Upload & Update
+                    </div>
+                    <p className="text-sm text-slate-600 ml-8">
+                      Update "New Payable Days" in the Excel and upload here.
+                    </p>
+                    <div className="ml-8">
+                      <input
+                        type="file"
+                        accept=".xlsx, .xls"
+                        onChange={(e) => setUpdateFile(e.target.files?.[0] || null)}
+                        className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-              <button
-                onClick={() => setShowExportModal(false)}
-                className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                disabled={isExporting || (exportMethod === 'email' && !exportEmail)}
-                onClick={async () => {
-                  try {
-                    setIsExporting(true);
-                    const payload = {
-                      cycle_start: cycleStartKey,
-                      cycle_end: cycleEndKey,
-                      type: exportType,
-                      site_id: exportSite === 'all' ? null : parseInt(exportSite),
-                      method: exportMethod,
-                      email: exportEmail,
-                      month: endKey.split('-')[1],
-                      year: endKey.split('-')[0]
-                    };
-
-                    if (exportMethod === 'download') {
-                      const response = await apiClient<Blob>('/attendance/export-payroll', {
-                        method: 'POST',
-                        body: payload,
-                        responseType: 'blob'
-                      });
-
-                      const url = window.URL.createObjectURL(response);
-                      const link = document.createElement('a');
-                      link.href = url;
-                      link.setAttribute('download', `${exportType === 'payroll' ? 'Payroll_Sheet' : 'Bank_Sheet'}_${formatDate(cycleEndKey)}.xlsx`);
-                      document.body.appendChild(link);
-                      link.click();
-                      link.remove();
-                    } else {
-                      await apiClient('/attendance/export-payroll', {
-                        method: 'POST',
-                        body: payload
-                      });
-                      toast.success('Email sent successfully!');
-                    }
-                    setShowExportModal(false);
-                  } catch (err) {
-                    console.error('Export failed:', err);
-                    toast.error('Export failed. Please try again.');
-                  } finally {
-                    setIsExporting(false);
-                  }
-                }}
-                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {isExporting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Exporting...
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4" />
-                    Export Now
-                  </>
-                )}
-              </button>
+              <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
+                <button
+                  onClick={() => { setShowUpdateModal(false); setUpdateFile(null); }}
+                  className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors"
+                  disabled={isUpdating}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpdatePayroll}
+                  disabled={isUpdating || !updateFile}
+                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                >
+                  {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  Update Payroll
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }
