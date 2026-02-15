@@ -937,6 +937,22 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
           {totalItems > 0 && (
             <div className="flex-shrink-0 px-4 pb-4 pt-2 border-t border-slate-100 bg-white">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-500">Rows per page:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
                 <div className="text-xs text-slate-500">
                   Showing <span className="font-medium text-slate-900">{(page - 1) * pageSize + 1}-{Math.min(page * pageSize, totalItems)}</span> of <span className="font-medium text-slate-900">{totalItems}</span>
                 </div>

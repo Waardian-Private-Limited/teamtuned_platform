@@ -92,7 +92,7 @@ const SalarySlipGenerator = () => {
 
         fetchEmployees();
         setSelectedIds([]);
-    }, [pagination.page, siteId, month, year, slipStatus, employeeStatus, hqMode]);
+    }, [pagination.page, pagination.limit, siteId, month, year, slipStatus, employeeStatus, hqMode]);
 
     const fetchEmployees = async () => {
         try {
@@ -547,9 +547,21 @@ const SalarySlipGenerator = () => {
 
                 {/* Pagination */}
                 <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
-                    <p className="text-sm text-gray-500">
-                        Showing <span className="font-medium text-gray-900">{(pagination.page - 1) * pagination.limit + 1}</span> to <span className="font-medium text-gray-900">{Math.min(pagination.page * pagination.limit, pagination.totalItems)}</span> of <span className="font-medium text-gray-900">{pagination.totalItems}</span> employees
-                    </p>
+                    <div className="flex items-center gap-4">
+                        <p className="text-sm text-gray-500">
+                            Showing <span className="font-medium text-gray-900">{(pagination.page - 1) * pagination.limit + 1}</span> to <span className="font-medium text-gray-900">{Math.min(pagination.page * pagination.limit, pagination.totalItems)}</span> of <span className="font-medium text-gray-900">{pagination.totalItems}</span> employees
+                        </p>
+                        <select
+                            value={pagination.limit}
+                            onChange={(e) => setPagination({ ...pagination, limit: Number(e.target.value), page: 1 })}
+                            className="text-sm border-gray-200 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                        >
+                            <option value="10">10 per page</option>
+                            <option value="20">20 per page</option>
+                            <option value="50">50 per page</option>
+                            <option value="100">100 per page</option>
+                        </select>
+                    </div>
                     <div className="flex items-center gap-2">
                         <button
                             onClick={() => setPagination({ ...pagination, page: pagination.page - 1 })}
