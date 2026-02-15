@@ -282,6 +282,7 @@ export default function OrgSidebar({
                             <Item icon={AlertCircle} label="Verification Issues" href="/org-admin/requests/verification" active={pathname === "/org-admin/requests/verification"} />
                             <Item icon={ListChecks} label="Session Requests" href="/org-admin/requests/sessions" active={pathname === "/org-admin/requests/sessions"} />
                             <Item icon={ListChecks} label="Payroll" href="/org-admin/payroll" active={pathname === "/org-admin/payroll"} />
+                            <Item icon={FileText} label="Salary Slips" href="/org-admin/salary-slips" active={pathname === "/org-admin/salary-slips"} />
                         </div>
                     )}
 

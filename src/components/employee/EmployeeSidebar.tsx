@@ -571,6 +571,14 @@ export default function EmployeeSidebar({
                       active={pathname?.startsWith("/employee/payroll") || false}
                     />
                   )}
+                  {showPayroll && (
+                    <Item
+                      icon={FileText}
+                      label="Salary Slips"
+                      href="/employee/salary-slips"
+                      active={pathname?.startsWith("/employee/salary-slips") || false}
+                    />
+                  )}
                 </div>
               </div>
             )}

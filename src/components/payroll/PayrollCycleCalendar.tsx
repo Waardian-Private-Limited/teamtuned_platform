@@ -33,6 +33,7 @@ import {
   MoreVertical,
   Download,
   Lock,
+  Unlock,
   Plus,
   Trash2
 } from "lucide-react";
@@ -327,6 +328,28 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
     }
   };
 
+  const [isLocking, setIsLocking] = React.useState(false);
+  const handleLockUnlock = async (id: number, action: 'lock' | 'unlock') => {
+    try {
+      setIsLocking(true);
+      const payload = {
+        employee_ids: [id],
+        month: endKey.split('-')[1],
+        year: endKey.split('-')[0]
+      };
+      const endpoint = action === 'lock' ? "/attendance/payroll-lock" : "/attendance/payroll-unlock";
+      await apiClient(endpoint, { method: "POST", body: payload, withAuth: true });
+      // Use window.alert or toast if available. PayrollCycleCalendar doesn't seem to have toast imported.
+      // Wait, let me check imports.
+      alert(`Payroll ${action === 'lock' ? 'locked' : 'unlocked'} successfully`);
+      fetchData();
+    } catch (err: any) {
+      alert(err.message || `Failed to ${action} payroll`);
+    } finally {
+      setIsLocking(false);
+    }
+  };
+
   const getStatusConfig = (record?: AttendanceRecord | null, dateStr?: string) => {
     const statusRaw = String(record?.status || "").trim();
 
@@ -452,7 +475,15 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
             {/* Title & Navigation */}
             <div className="flex items-center gap-4">
               <div>
-                <h1 className="text-lg font-bold text-slate-900">Payroll Cycle</h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-lg font-bold text-slate-900">Payroll Cycle</h1>
+                  {payrollData?.is_locked === 1 && (
+                    <div className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-200 rounded text-blue-600">
+                      <Lock className="w-3 h-3" />
+                      <span className="text-[10px] font-bold uppercase">Locked</span>
+                    </div>
+                  )}
+                </div>
                 <p className="text-xs text-slate-500">Attendance & Salary</p>
               </div>
 
@@ -514,21 +545,43 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
                 {actionMenuOpen && (
                   <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-200 p-1 text-sm animate-in fade-in zoom-in duration-100 origin-top-right z-50">
                     <button
-                      onClick={handleDownloadSlip}
+                      onClick={() => {
+                        if (payrollData?.s3_url) {
+                          window.open(payrollData.s3_url, '_blank');
+                        } else {
+                          handleDownloadSlip();
+                        }
+                        closeActionMenu();
+                      }}
                       className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 text-slate-700 flex items-center gap-2 transition-colors"
                     >
                       <Download className="w-4 h-4 text-slate-500" />
-                      <span>Download Payslip</span>
+                      <span>{payrollData?.s3_url ? 'View Payslip' : 'Download Payslip'}</span>
                     </button>
                     <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 text-slate-700 flex items-center gap-2 transition-colors">
                       <FileText className="w-4 h-4 text-slate-500" />
                       <span>View Breakdown</span>
                     </button>
                     <div className="my-1 border-t border-slate-100" />
-                    <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-rose-50 text-rose-600 flex items-center gap-2 transition-colors">
-                      <Lock className="w-4 h-4" />
-                      <span>Lock Cycle</span>
-                    </button>
+                    {payrollData?.is_locked === 1 ? (
+                      <button
+                        disabled={isLocking}
+                        onClick={() => { handleLockUnlock(employeeId || employee?.id || 0, 'unlock'); closeActionMenu(); }}
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-blue-50 text-blue-600 flex items-center gap-2 transition-colors"
+                      >
+                        <Unlock className="w-4 h-4" />
+                        <span>Unlock Cycle</span>
+                      </button>
+                    ) : (
+                      <button
+                        disabled={isLocking}
+                        onClick={() => { handleLockUnlock(employeeId || employee?.id || 0, 'lock'); closeActionMenu(); }}
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-rose-50 text-rose-600 flex items-center gap-2 transition-colors"
+                      >
+                        <Lock className="w-4 h-4" />
+                        <span>Lock Cycle</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
