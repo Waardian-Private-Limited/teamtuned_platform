@@ -66,6 +66,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
   const [selectedIds, setSelectedIds] = React.useState<Set<number>>(new Set());
   const [isLocking, setIsLocking] = React.useState(false);
   const [showLockConfirm, setShowLockConfirm] = React.useState(false);
+  const [includeInactive, setIncludeInactive] = React.useState(false);
 
   const computeCycle = React.useCallback((ref: Date, startDay: number, endDay: number) => {
     let cycleYear = ref.getFullYear();
@@ -349,7 +350,8 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
       const payload = {
         lock_all: true,
         month: endKey.split('-')[1],
-        year: endKey.split('-')[0]
+        year: endKey.split('-')[0],
+        include_inactive: includeInactive
       };
       await apiClient("/attendance/payroll-lock", { method: "POST", body: payload, withAuth: true });
       toast.success("Payroll locked for all active employees");
@@ -1025,9 +1027,22 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                   <Lock className="w-6 h-6 text-rose-600" />
                 </div>
                 <h3 className="text-lg font-semibold text-slate-900 mb-2">Lock All Payroll?</h3>
-                <p className="text-sm text-slate-500 mb-6">
-                  Are you sure you want to lock payroll for <span className="font-medium text-slate-900">ALL active employees</span> for this period? <br />This action cannot be easily undone.
+                <p className="text-sm text-slate-500 mb-4">
+                  Are you sure you want to lock payroll for <span className="font-medium text-slate-900">ALL {includeInactive ? '' : 'active'} employees</span> for this period? <br />This action cannot be easily undone.
                 </p>
+
+                <div className="flex items-center justify-center gap-2 mb-6">
+                  <input
+                    type="checkbox"
+                    id="includeInactive"
+                    checked={includeInactive}
+                    onChange={(e) => setIncludeInactive(e.target.checked)}
+                    className="rounded border-gray-300 text-rose-600 focus:ring-rose-500"
+                  />
+                  <label htmlFor="includeInactive" className="text-sm text-slate-600">
+                    Include Inactive Employees
+                  </label>
+                </div>
                 <div className="flex gap-3">
                   <button
                     onClick={() => setShowLockConfirm(false)}
