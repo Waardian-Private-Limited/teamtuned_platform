@@ -33,6 +33,7 @@ import {
     ClipboardList,
     UserCheck,
     Briefcase,
+    QrCode,
     Heart,
     ListChecks,
     LayoutGrid,
@@ -52,6 +53,7 @@ import {
     Layers,
     Activity,
     Link2,
+    Award,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
@@ -94,6 +96,7 @@ export default function OrgSidebar({
     const [managementOpen, setManagementOpen] = React.useState(false);
     const [attendanceOpen, setAttendanceOpen] = React.useState(true);
     const [laborOpen, setLaborOpen] = React.useState(false);
+    const [hrOperationOpen, setHrOperationOpen] = React.useState(true);
     const [isNavigating, setIsNavigating] = React.useState(false);
 
     // Auto-collapse on hover state
@@ -124,6 +127,7 @@ export default function OrgSidebar({
                 setTaskOpen(true);
                 setDashboardOpen(true);
                 setLaborOpen(true);
+                setHrOperationOpen(true);
             }, 500);
         }
 
@@ -306,7 +310,7 @@ export default function OrgSidebar({
                             <Item icon={DollarSign} label="Budget Requests" href="/org-admin/site-budget-requests" active={pathname === "/org-admin/site-budget-requests"} />
                             <Item icon={Coins} label="Salary Components" href="/org-admin/salary-components" active={pathname === "/org-admin/salary-components"} />
                             <Item icon={ListChecks} label="Debit Rules" href="/org-admin/debit-rules" active={pathname === "/org-admin/debit-rules"} />
-                            <Item icon={Upload} label="Salary Import" href="/org-admin/salary-import" active={pathname === "/org-admin/salary-import"} />
+                                <Item icon={Upload} label="Salary Import" href="/org-admin/salary-import" active={pathname === "/org-admin/salary-import"} />
                         </div>
                     )}
 
@@ -412,6 +416,25 @@ export default function OrgSidebar({
                             </div>
                         )}
                     </>
+
+                    {/* HR Operation Section */}
+                    <>
+                        <CategoryButton label="HR Operation" isOpen={hrOperationOpen} onClick={() => setHrOperationOpen(!hrOperationOpen)} />
+                        {hrOperationOpen && (
+                            <div className="space-y-1 ml-2">
+                                <Item icon={Link2} label="Department Mapper" href="/org-admin/department-mapper" active={pathname === "/org-admin/department-mapper"} />
+                                <Item icon={FileText} label="Technical Questions" href="/org-admin/hr-operation/technical-questions" active={pathname === "/org-admin/hr-operation/technical-questions"} />
+                                <Item icon={Award} label="Technical Assessments" href="/org-admin/hr-operation/technical-assessments" active={pathname === "/org-admin/hr-operation/technical-assessments"} />
+                                <Item icon={Briefcase} label="Applied Positions" href="/org-admin/hr-operation/applied-positions" active={pathname === "/org-admin/hr-operation/applied-positions"} />
+                                <Item icon={QrCode} label="Interview Management" href="/org-admin/hr-operation/interviews" active={pathname === "/org-admin/hr-operation/interviews"} />
+                                <Item icon={UserCheck} label="Operation Round" href="/org-admin/hr-operation/operation-round" active={pathname === "/org-admin/hr-operation/operation-round"} />
+                                <Item icon={TrendingUp} label="Final Round" href="/org-admin/hr-operation/final-round" active={pathname === "/org-admin/hr-operation/final-round"} />
+                                <Item icon={UserPlus} label="Onboarding" href="/org-admin/hr-operation/onboarding" active={pathname === "/org-admin/hr-operation/onboarding"} />
+                                <Item icon={Briefcase} label="Onboarding Status" href="/org-admin/hr-operation/onboarding/status" active={pathname === "/org-admin/hr-operation/onboarding/status"} />
+                            </div>
+                        )}
+                    </>
+
 
                     {/* Settings */}
                     <CategoryButton label="Settings" isOpen={false} onClick={() => { }} />

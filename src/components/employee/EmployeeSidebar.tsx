@@ -43,6 +43,9 @@ import {
   HardHat,
   Layers,
   Link2,
+  Award,
+  QrCode,
+  UserPlus,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
@@ -81,6 +84,7 @@ export default function EmployeeSidebar({
   const [attendanceOpen, setAttendanceOpen] = React.useState(true);
   const [otherOpen, setOtherOpen] = React.useState(false);
   const [laborOpen, setLaborOpen] = React.useState(false);
+  const [hrOperationOpen, setHrOperationOpen] = React.useState(true);
   const [isNavigating, setIsNavigating] = React.useState(false);
 
   // Auto-collapse on hover state
@@ -109,6 +113,7 @@ export default function EmployeeSidebar({
         setInventoryOpen(true);
         setTaskOpen(true);
         setLaborOpen(true);
+        setHrOperationOpen(true);
       }, 500);
     }
 
@@ -433,12 +438,14 @@ export default function EmployeeSidebar({
                     />
                   )}
                   {canViewDepartments && (
-                    <Item
-                      icon={Building}
-                      label="Departments"
-                      href="/employee/departments"
-                      active={pathname?.startsWith("/employee/departments") || false}
-                    />
+                    <>
+                      <Item
+                        icon={Building}
+                        label="Departments"
+                        href="/employee/departments"
+                        active={pathname?.startsWith("/employee/departments") || false}
+                      />
+                    </>
                   )}
                   {canViewRoles && (
                     <Item
@@ -456,6 +463,12 @@ export default function EmployeeSidebar({
                       active={pathname?.startsWith("/employee/attendance-rules") || false}
                     />
                   )}
+                  <Item
+                    icon={Briefcase}
+                    label="Onboarding Status"
+                    href="/hr-operation/onboarding/status"
+                    active={pathname === "/hr-operation/onboarding/status"}
+                  />
                   {canViewAttendanceConfig && (
                     <Item
                       icon={Settings}
@@ -1147,6 +1160,78 @@ export default function EmployeeSidebar({
             )}
           </div>
         )}
+
+        {/* HR Operation Section */}
+        <div className="mt-2">
+          {!isCollapsed && (
+            <CategoryButton
+              label="HR Operation"
+              isOpen={hrOperationOpen}
+              onClick={() => setHrOperationOpen(!hrOperationOpen)}
+            />
+          )}
+          {hrOperationOpen && (
+            <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+              <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                <Item
+                  icon={Link2}
+                  label="Department Mapper"
+                  href="/employee/department-mapper"
+                  active={pathname === "/employee/department-mapper"}
+                />
+                <Item
+                  icon={FileText}
+                  label="Technical Questions"
+                  href="/employee/hr-operation/technical-questions"
+                  active={pathname === "/employee/hr-operation/technical-questions"}
+                />
+                <Item
+                  icon={Award}
+                  label="Technical Assessments"
+                  href="/employee/hr-operation/technical-assessments"
+                  active={pathname === "/employee/hr-operation/technical-assessments"}
+                />
+                <Item
+                  icon={Briefcase}
+                  label="Applied Positions"
+                  href="/employee/hr-operation/applied-positions"
+                  active={pathname === "/employee/hr-operation/applied-positions"}
+                />
+                <Item
+                  icon={QrCode}
+                  label="Interview Management"
+                  href="/employee/hr-operation/interviews"
+                  active={pathname === "/employee/hr-operation/interviews"}
+                />
+                <Item
+                  icon={UserCheck}
+                  label="Operation Round"
+                  href="/employee/hr-operation/operation-round"
+                  active={pathname === "/employee/hr-operation/operation-round"}
+                />
+                <Item
+                  icon={TrendingUp}
+                  label="Final Round"
+                  href="/employee/hr-operation/final-round"
+                  active={pathname === "/employee/hr-operation/final-round"}
+                />
+                <Item
+                  icon={UserPlus}
+                  label="Onboarding"
+                  href="/employee/hr-operation/onboarding"
+                  active={pathname === "/employee/hr-operation/onboarding"}
+                />
+                <Item
+                  icon={Briefcase}
+                  label="Onboarding Status"
+                  href="/employee/hr-operation/onboarding/status"
+                  active={pathname === "/employee/hr-operation/onboarding/status"}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
       </div>
 
       {/* Footer */}

@@ -66,6 +66,10 @@ const PAGE_TITLES: Record<string, { title: string; category: string }> = {
     '/employee/inventory/grn': { title: 'GRN', category: 'Inventory' },
     '/employee/rfq': { title: 'RFQ', category: 'Inventory' },
     '/employee/pr': { title: 'Purchase Request', category: 'Inventory' },
+
+    // Public Portal
+    '/careers': { title: 'Careers Portal', category: 'Public' },
+    '/interview/apply': { title: 'Job Application', category: 'Public Request' },
 };
 
 export function getPageTitle(pathname: string, role: 'employee' | 'org-admin') {
@@ -77,6 +81,11 @@ export function getPageTitle(pathname: string, role: 'employee' | 'org-admin') {
 
     // Fallback for dynamic routes or unknown paths
     const parts = pathname.split('/').filter(Boolean);
+
+    if (pathname.startsWith('/careers')) {
+        return { title: 'Careers Portal', description: 'Public' };
+    }
+
     const lastPart = parts[parts.length - 1];
 
     if (!lastPart) {
