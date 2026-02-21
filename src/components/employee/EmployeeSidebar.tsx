@@ -85,6 +85,7 @@ export default function EmployeeSidebar({
   const [otherOpen, setOtherOpen] = React.useState(false);
   const [laborOpen, setLaborOpen] = React.useState(false);
   const [hrOperationOpen, setHrOperationOpen] = React.useState(true);
+  const [formBuilderOpen, setFormBuilderOpen] = React.useState(true);
   const [isNavigating, setIsNavigating] = React.useState(false);
 
   // Auto-collapse on hover state
@@ -114,6 +115,7 @@ export default function EmployeeSidebar({
         setTaskOpen(true);
         setLaborOpen(true);
         setHrOperationOpen(true);
+        setFormBuilderOpen(true);
       }, 500);
     }
 

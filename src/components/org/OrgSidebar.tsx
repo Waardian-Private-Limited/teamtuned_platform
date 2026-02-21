@@ -54,6 +54,7 @@ import {
     Activity,
     Link2,
     Award,
+    Layout,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
@@ -97,6 +98,7 @@ export default function OrgSidebar({
     const [attendanceOpen, setAttendanceOpen] = React.useState(true);
     const [laborOpen, setLaborOpen] = React.useState(false);
     const [hrOperationOpen, setHrOperationOpen] = React.useState(true);
+    const [formBuilderOpen, setFormBuilderOpen] = React.useState(true);
     const [isNavigating, setIsNavigating] = React.useState(false);
 
     // Auto-collapse on hover state
@@ -128,6 +130,7 @@ export default function OrgSidebar({
                 setDashboardOpen(true);
                 setLaborOpen(true);
                 setHrOperationOpen(true);
+                setFormBuilderOpen(true);
             }, 500);
         }
 
@@ -269,6 +272,17 @@ export default function OrgSidebar({
                         </div>
                     )}
 
+                    {/* Form Builder Section */}
+                    <>
+                        <CategoryButton label="Form Builder" isOpen={formBuilderOpen} onClick={() => setFormBuilderOpen(!formBuilderOpen)} />
+                        {formBuilderOpen && (
+                            <div className="space-y-1 ml-2">
+                                <Item icon={Upload} label="Upload Template" href="/org-admin/form-builder/upload" active={pathname === "/org-admin/form-builder/upload"} />
+                                <Item icon={Layout} label="Forms Library" href="/org-admin/form-builder/library" active={pathname === "/org-admin/form-builder/library"} />
+                            </div>
+                        )}
+                    </>
+
                     {/* Attendance Section */}
                     <CategoryButton label="Attendance" isOpen={attendanceOpen} onClick={() => setAttendanceOpen(!attendanceOpen)} />
                     {attendanceOpen && (
@@ -310,7 +324,7 @@ export default function OrgSidebar({
                             <Item icon={DollarSign} label="Budget Requests" href="/org-admin/site-budget-requests" active={pathname === "/org-admin/site-budget-requests"} />
                             <Item icon={Coins} label="Salary Components" href="/org-admin/salary-components" active={pathname === "/org-admin/salary-components"} />
                             <Item icon={ListChecks} label="Debit Rules" href="/org-admin/debit-rules" active={pathname === "/org-admin/debit-rules"} />
-                                <Item icon={Upload} label="Salary Import" href="/org-admin/salary-import" active={pathname === "/org-admin/salary-import"} />
+                            <Item icon={Upload} label="Salary Import" href="/org-admin/salary-import" active={pathname === "/org-admin/salary-import"} />
                         </div>
                     )}
 
