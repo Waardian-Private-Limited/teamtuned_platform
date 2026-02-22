@@ -34,6 +34,9 @@ export default function ContractorAttendanceDashboard() {
     const isEmployee = (role || "").toLowerCase() === "employee";
     const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
     const canHRMode = !isEmployee || hasPerm("HR_MODE");
+    const isLaborAdmin = (role || "").toLowerCase() === "labor admin" || hasPerm("LABOR_ADMIN");
+    const isOrgAdmin = (role || "").toLowerCase() === "org admin" || (role || "").toLowerCase() === "orgadmin" || hasPerm("OrgAdmin");
+    const canViewAll = canHRMode || hasPerm("MULTISITE_MANAGER") || isOrgAdmin || isLaborAdmin;
 
     const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
     const [selectedSiteId, setSelectedSiteId] = useState<number | null>(null);
@@ -52,8 +55,7 @@ export default function ContractorAttendanceDashboard() {
                 setInchargeSites(list);
 
                 // Default Site Selection
-                const canViewAll = canHRMode || hasPerm("MULTISITE_MANAGER") || hasPerm("OrgAdmin");
-                if (list.length > 0 && selectedSiteId == null && !canViewAll) {
+                if (!canViewAll && list.length > 0 && selectedSiteId == null) {
                     const sid = list[0]?.id;
                     setSelectedSiteId(typeof sid === "number" ? sid : parseInt(String(sid)) || null);
                 }
@@ -72,11 +74,19 @@ export default function ContractorAttendanceDashboard() {
                 }
             } catch (e) { }
         })();
-    }, [canHRMode, permissions]);
+    }, [canHRMode, permissions, canViewAll, selectedSiteId]); // Updated dependencies
 
     // 2. Fetch Stats
     const fetchStats = useCallback(async () => {
         setLoading(true);
+        const effSite = selectedSiteId;
+
+        // In Contractor Dashboard, there is no hqMode toggle. We just rely on canViewAll.
+        if ((!effSite || Number(effSite) <= 0) && !canViewAll) {
+            setStats([]);
+            setLoading(false);
+            return;
+        }
         try {
             const params: any = { date };
             if (selectedSiteId) params.site_id = String(selectedSiteId);
@@ -88,7 +98,7 @@ export default function ContractorAttendanceDashboard() {
         } finally {
             setLoading(false);
         }
-    }, [date, selectedSiteId]);
+    }, [date, selectedSiteId, canViewAll]); // Updated dependencies
 
     useEffect(() => {
         fetchStats();
@@ -178,15 +188,19 @@ export default function ContractorAttendanceDashboard() {
                             onChange={(e) => setDate(e.target.value)}
                             className="pl-3 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm"
                         />
-                        <select
-                            value={selectedSiteId || ""}
-                            onChange={(e) => setSelectedSiteId(e.target.value ? Number(e.target.value) : null)}
-                            className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm"
-                        >
-                            {(canHRMode || hasPerm("MULTISITE_MANAGER") || hasPerm("OrgAdmin") ? allSites : inchargeSites).map((site) => (
-                                <option key={site.id} value={site.id}>{site.name}</option>
-                            ))}
-                        </select>
+                        <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Site</label>
+                            <select
+                                value={selectedSiteId || ""}
+                                onChange={(e) => setSelectedSiteId(e.target.value ? Number(e.target.value) : null)}
+                                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                                {canViewAll && <option value="">All Sites</option>}
+                                {(canViewAll ? allSites : inchargeSites).map((site) => (
+                                    <option key={site.id} value={site.id}>{site.name}</option>
+                                ))}
+                            </select>
+                        </div>
                         <button onClick={() => fetchStats()} className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 shadow-sm transition-colors">
                             <RefreshCw className={`w-4 h-4 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
                         </button>

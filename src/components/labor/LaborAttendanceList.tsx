@@ -837,9 +837,10 @@ export default function LaborAttendanceList() {
                         status: statusFilter,
                         search: searchQuery
                     }}
-                    siteOptions={canHRMode ? allSites : inchargeSites}
+                    siteOptions={canViewAll ? allSites : inchargeSites}
                     contractors={contractors}
                     categories={categories}
+                    canViewAll={canViewAll}
                     onClose={() => setShowExportModal(false)}
                 />
             )}
@@ -875,6 +876,7 @@ function LaborExportModal({
     siteOptions,
     contractors,
     categories,
+    canViewAll,
     onClose
 }: {
     current: {
@@ -889,6 +891,7 @@ function LaborExportModal({
     siteOptions: any[];
     contractors: any[];
     categories: any[];
+    canViewAll: boolean;
     onClose: () => void;
 }) {
     const [local, setLocal] = useState({ ...current });
@@ -979,7 +982,7 @@ function LaborExportModal({
                             onChange={(e) => setLocal({ ...local, siteId: e.target.value ? Number(e.target.value) : null })}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                         >
-                            <option value="">All Sites</option>
+                            {canViewAll && <option value="">All Sites</option>}
                             {siteOptions.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
                         </select>
                     </div>
