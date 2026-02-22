@@ -50,6 +50,9 @@ export default function LaborAttendanceDashboard() {
     const isEmployee = (role || "").toLowerCase() === "employee";
     const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
     const canHRMode = !isEmployee || hasPerm("HR_MODE");
+    const isLaborAdmin = (role || "").toLowerCase() === "labor admin" || hasPerm("LABOR_ADMIN");
+    const isOrgAdmin = (role || "").toLowerCase() === "org admin" || (role || "").toLowerCase() === "orgadmin" || hasPerm("OrgAdmin");
+    const canViewAll = canHRMode || hasPerm("MULTISITE_MANAGER") || isOrgAdmin || isLaborAdmin;
 
     const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
     const [hqMode, setHqMode] = useState(false);
@@ -73,28 +76,21 @@ export default function LaborAttendanceDashboard() {
                 const list = Array.isArray(res?.sites) ? res!.sites! : [];
                 setInchargeSites(list);
 
-                const canViewAll = canHRMode || hasPerm("MULTISITE_MANAGER") || hasPerm("OrgAdmin");
-
-                // If not Admin/HR, default to first incharge site
+                // If not Admin/HR/LaborAdmin, default to first incharge site
                 if (!canViewAll && list.length > 0 && selectedSiteId == null) {
                     const sid = list[0]?.id;
                     setSelectedSiteId(typeof sid === "number" ? sid : parseInt(String(sid)) || null);
                 }
             } catch (e) { }
         })();
-    }, [canHRMode, permissions]);
+    }, [canViewAll]);
 
     useEffect(() => {
         (async () => {
-            const canViewAll = canHRMode || hasPerm("MULTISITE_MANAGER") || hasPerm("OrgAdmin");
             if (!canViewAll) return;
 
-            // If already loaded, just check selection
+            // If already loaded, just return
             if (allSites.length > 0) {
-                if (selectedSiteId == null) {
-                    const sid = allSites[0]?.id;
-                    setSelectedSiteId(typeof sid === "number" ? sid : parseInt(String(sid)) || null);
-                }
                 return;
             }
 
@@ -102,15 +98,9 @@ export default function LaborAttendanceDashboard() {
                 const res = await apiClient<{ sites?: any[]; data?: any[] }>("/sites", { method: "GET", withAuth: true, params: { incharge_only: "0" } });
                 const list = Array.isArray(res?.sites) ? res!.sites! : (Array.isArray(res?.data) ? res!.data! : []);
                 setAllSites(list);
-
-                // Force select first site if Admin and nothing selected
-                if (list.length > 0 && selectedSiteId == null) {
-                    const sid = list[0]?.id;
-                    setSelectedSiteId(typeof sid === "number" ? sid : parseInt(String(sid)) || null);
-                }
             } catch { }
         })();
-    }, [canHRMode, permissions, allSites.length]);
+    }, [canViewAll, allSites.length]);
 
     // Fetch Filters Data (Categories)
     useEffect(() => {
@@ -158,7 +148,7 @@ export default function LaborAttendanceDashboard() {
         const effHq = hqMode && canHRMode;
         const effSite = selectedSiteId;
 
-        if (!effHq && (!effSite || Number(effSite) <= 0)) {
+        if (!effHq && (!effSite || Number(effSite) <= 0) && !canViewAll) {
             setStats(null);
             setAnalytics(null);
             return;
@@ -180,7 +170,7 @@ export default function LaborAttendanceDashboard() {
         } finally {
             setLoadingStats(false);
         }
-    }, [date, selectedSiteId, hqMode, canHRMode, selectedContractorId, selectedCategoryId, selectedSubcategoryId]);
+    }, [date, selectedSiteId, hqMode, canHRMode, selectedContractorId, selectedCategoryId, selectedSubcategoryId, canViewAll]);
 
     useEffect(() => {
         fetchStats();
@@ -260,7 +250,8 @@ export default function LaborAttendanceDashboard() {
                                 onChange={(e) => setSelectedSiteId(e.target.value ? Number(e.target.value) : null)}
                                 className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm"
                             >
-                                {(canHRMode || hasPerm("MULTISITE_MANAGER") || hasPerm("OrgAdmin") ? allSites : inchargeSites).map((site) => (
+                                {canViewAll && <option value="">All Sites</option>}
+                                {(canViewAll ? allSites : inchargeSites).map((site) => (
                                     <option key={site.id} value={site.id}>{site.name}</option>
                                 ))}
                             </select>

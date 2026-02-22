@@ -67,3 +67,6 @@ INSERT INTO org_1765784569491.permissions (category_id, code, name) VALUES
 
 ALTER TABLE org_1765784569491.organization_info ADD COLUMN rekognition_collection_id VARCHAR(255) AFTER timezone;
 ALTER TABLE org_1765784569491.organization_info ADD COLUMN timezone varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT 'Asia/Kolkata';
+
+INSERT INTO org_1765784569491.permissions (category_id, code, name) VALUES
+((SELECT id FROM permission_categories WHERE code='LABOR_MGMT' AND feature_id=1), 'LABOR_ADMIN', 'Labor Admin'),
