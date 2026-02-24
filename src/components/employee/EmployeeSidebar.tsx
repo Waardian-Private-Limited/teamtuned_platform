@@ -86,6 +86,7 @@ export default function EmployeeSidebar({
   const [laborOpen, setLaborOpen] = React.useState(false);
   const [hrOperationOpen, setHrOperationOpen] = React.useState(true);
   const [formBuilderOpen, setFormBuilderOpen] = React.useState(true);
+  const [dpsOpen, setDpsOpen] = React.useState(true);
   const [isNavigating, setIsNavigating] = React.useState(false);
 
   // Auto-collapse on hover state
@@ -385,6 +386,41 @@ export default function EmployeeSidebar({
           href={dashboardPath}
           active={pathname === dashboardPath}
         />
+
+        {/* DPS Section */}
+        <div className="mt-2">
+          {!isCollapsed && (
+            <CategoryButton
+              label="DPS"
+              isOpen={dpsOpen}
+              onClick={() => setDpsOpen(!dpsOpen)}
+            />
+          )}
+          {dpsOpen && (
+            <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+              <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                <Item
+                  icon={ClipboardList}
+                  label="My Submissions"
+                  href="/employee/dps/submissions"
+                  active={pathname === "/employee/dps/submissions"}
+                />
+                <Item
+                  icon={Calendar}
+                  label="My Schedule"
+                  href="/employee/dps/schedule"
+                  active={pathname === "/employee/dps/schedule"}
+                />
+                <Item
+                  icon={ClipboardList} // you can use another suitable icon if imported
+                  label="Daily Update"
+                  href="/employee/dps/daily-update"
+                  active={pathname === "/employee/dps/daily-update"}
+                />
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Main Section */}
         {showCoreHR && showOrgMain && (

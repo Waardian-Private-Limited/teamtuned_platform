@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Upload, FileText, ChevronRight, CheckCircle, Loader2, BarChart3, Settings, Download, Layout } from 'lucide-react';
+import { Upload, FileText, ChevronRight, CheckCircle, Loader2, BarChart3, Settings, Download, Layout, Image } from 'lucide-react';
 import { apiClient } from '@/lib/apiClient';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
@@ -15,17 +15,28 @@ export default function OrgFormBuilderUpload() {
 
     const handleDownloadSample = async () => {
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/form-builder/download-sample`);
+            let response;
+            if (activeStep === 2 && analysisResult) {
+                // Generate mirrored template from current analysis result
+                response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/form-builder/generate-template`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                    body: JSON.stringify({ layout: analysisResult })
+                });
+            } else {
+                response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/form-builder/download-sample`);
+            }
+
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'Construction_Template.xlsx';
+            a.download = activeStep === 2 ? `Template_${analysisResult.form_name || 'Mirrored'}.xlsx` : 'Construction_Template.xlsx';
             document.body.appendChild(a);
             a.click();
             window.URL.revokeObjectURL(url);
         } catch (error) {
-            toast.error('Failed to download sample template');
+            toast.error('Failed to download template');
         }
     };
 
@@ -97,6 +108,7 @@ export default function OrgFormBuilderUpload() {
                         <div className="bg-white rounded-[2rem] border-2 border-dashed border-gray-200 p-20 text-center space-y-6 hover:border-black transition-colors group relative overflow-hidden">
                             <input
                                 type="file"
+                                accept=".pdf,.xlsx,.png,.jpg,.jpeg"
                                 className="absolute inset-0 opacity-0 cursor-pointer"
                                 onChange={handleFileUpload}
                                 disabled={isAnalyzing}
@@ -109,7 +121,7 @@ export default function OrgFormBuilderUpload() {
                                 <p className="text-gray-500">or click to browse from your computer</p>
                             </div>
                             <div className="flex gap-2 justify-center">
-                                {['PDF', 'XLSX', 'DOCX'].map(ext => (
+                                {['PDF', 'XLSX', 'IMAGE'].map(ext => (
                                     <span key={ext} className="px-3 py-1 bg-gray-100 rounded-lg text-[10px] font-bold text-gray-400">{ext}</span>
                                 ))}
                             </div>
@@ -123,13 +135,22 @@ export default function OrgFormBuilderUpload() {
                                     <h2 className="text-2xl font-black uppercase tracking-tighter">Document Layout Preview</h2>
                                     <p className="text-gray-400 text-xs mt-1">Found {analysisResult.sections?.length} lines to be converted into form fields</p>
                                 </div>
-                                <button
-                                    onClick={() => setActiveStep(3)}
-                                    className="px-8 py-3 bg-white text-black rounded-xl font-bold hover:bg-gray-200 transition-all flex items-center gap-2 shadow-lg"
-                                >
-                                    Confirm Layout & Save
-                                    <ChevronRight size={18} />
-                                </button>
+                                <div className="flex gap-4">
+                                    <button
+                                        onClick={handleDownloadSample}
+                                        className="px-6 py-3 bg-white/10 text-white rounded-xl font-bold hover:bg-white/20 border border-white/20 transition-all flex items-center gap-2"
+                                    >
+                                        <Download size={18} />
+                                        Mirror to Excel Template
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveStep(3)}
+                                        className="px-8 py-3 bg-white text-black rounded-xl font-bold hover:bg-gray-200 transition-all flex items-center gap-2 shadow-lg"
+                                    >
+                                        Confirm Layout & Save
+                                        <ChevronRight size={18} />
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="p-12 space-y-2 bg-gray-50 max-h-[600px] overflow-y-auto">
@@ -139,10 +160,13 @@ export default function OrgFormBuilderUpload() {
                                             {section.fields?.map((field: any, fIdx: number) => (
                                                 <div key={fIdx} className="flex-1 min-w-[200px]">
                                                     <div className="flex items-center justify-between mb-1">
-                                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{field.field_type} FIELD</span>
+                                                        <span className={`text-[10px] font-black uppercase tracking-widest ${field.field_type === 'media' ? 'text-blue-500' : 'text-gray-400'}`}>
+                                                            {field.field_type === 'media' ? 'MEDIA' : field.field_type} FIELD
+                                                        </span>
+                                                        {field.field_type === 'media' && <Image size={12} className="text-blue-500" />}
                                                     </div>
-                                                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
-                                                        <p className="font-bold text-gray-900">{field.label}</p>
+                                                    <div className={`p-3 rounded-xl border ${field.field_type === 'media' ? 'bg-blue-50 border-blue-100' : 'bg-gray-50 border-gray-100'}`}>
+                                                        <p className={`font-bold ${field.field_type === 'media' ? 'text-blue-900' : 'text-gray-900'}`}>{field.label}</p>
                                                     </div>
                                                 </div>
                                             ))}

@@ -99,6 +99,7 @@ export default function OrgSidebar({
     const [laborOpen, setLaborOpen] = React.useState(false);
     const [hrOperationOpen, setHrOperationOpen] = React.useState(true);
     const [formBuilderOpen, setFormBuilderOpen] = React.useState(true);
+    const [dpsOpen, setDpsOpen] = React.useState(true);
     const [isNavigating, setIsNavigating] = React.useState(false);
 
     // Auto-collapse on hover state
@@ -282,6 +283,17 @@ export default function OrgSidebar({
                             </div>
                         )}
                     </>
+
+                    {/* DPS Section */}
+                    <CategoryButton label="DPS" isOpen={dpsOpen} onClick={() => setDpsOpen(!dpsOpen)} />
+                    {dpsOpen && (
+                        <div className="space-y-1 ml-2">
+                            <Item icon={LayoutDashboard} label="Dashboard" href="/org-admin/dps" active={pathname === "/org-admin/dps"} />
+                            <Item icon={ClipboardList} label="Submissions" href="/org-admin/dps/submissions" active={pathname === "/org-admin/dps/submissions"} />
+                            <Item icon={Calendar} label="Schedule" href="/org-admin/dps/schedule" active={pathname === "/org-admin/dps/schedule"} />
+                            <Item icon={UserPlus} label="Assignments" href="/org-admin/dps/assignments" active={pathname === "/org-admin/dps/assignments"} />
+                        </div>
+                    )}
 
                     {/* Attendance Section */}
                     <CategoryButton label="Attendance" isOpen={attendanceOpen} onClick={() => setAttendanceOpen(!attendanceOpen)} />
