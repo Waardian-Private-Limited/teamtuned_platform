@@ -31,6 +31,23 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
     const [showRegularizeAction, setShowRegularizeAction] = React.useState(false);
     const [regularizeAction, setRegularizeAction] = React.useState<'approve' | 'reject'>('approve');
     const [regularizeReason, setRegularizeReason] = React.useState("");
+    const [showManualPunchOut, setShowManualPunchOut] = React.useState(false);
+    const [manualOutTime, setManualOutTime] = React.useState("");
+    const [manualOutRemarks, setManualOutRemarks] = React.useState("");
+
+    React.useEffect(() => {
+        if (showManualPunchOut && record?.attendance_date) {
+            // Set it to the date of attendance + current time as a default
+            const date = new Date(record.attendance_date);
+            const now = new Date();
+            date.setHours(now.getHours(), now.getMinutes(), 0, 0);
+
+            // Format for datetime-local: YYYY-MM-DDTHH:mm
+            const pad = (n: number) => n.toString().padStart(2, '0');
+            const formatted = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+            setManualOutTime(formatted);
+        }
+    }, [showManualPunchOut, record?.attendance_date]);
 
     // Check permissions
     const isOrgAdmin = (role || "").toLowerCase() === "orgadmin";
@@ -110,6 +127,34 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
         } catch (err: any) {
             console.error('Regularize Action Error:', err);
             alert(err.message || "Failed to process request");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleManualPunchOut = async () => {
+        if (!manualOutTime) {
+            alert("Please select an out-time.");
+            return;
+        }
+
+        try {
+            setLoading(true);
+            await apiClient('/attendance/manual-punch-out', {
+                method: 'POST',
+                body: {
+                    attendance_id: record.attendance_id || record.id,
+                    punch_out_time: manualOutTime,
+                    remarks: manualOutRemarks
+                },
+                withAuth: true
+            });
+            setShowManualPunchOut(false);
+            if (onUpdate) onUpdate();
+            onClose();
+        } catch (err: any) {
+            console.error('Manual Punch Out Error:', err);
+            alert(err.message || "Failed to update out-time");
         } finally {
             setLoading(false);
         }
@@ -328,6 +373,59 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                     <button
                                         onClick={() => setShowOverride(false)}
                                         className="px-3 py-1.5 bg-white border border-amber-300 text-amber-800 text-xs font-medium rounded-md hover:bg-amber-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Manual Punch Out Form */}
+                {showManualPunchOut && (
+                    <div className="bg-indigo-50 border-b border-indigo-200 p-4 shrink-0 transition-all">
+                        <div className="flex items-start gap-3">
+                            <Clock className="w-5 h-5 text-indigo-600 mt-0.5" />
+                            <div className="flex-1 space-y-3">
+                                <div>
+                                    <h4 className="text-sm font-bold text-indigo-900">Add Missing Out-Time</h4>
+                                    <p className="text-xs text-indigo-700 mt-1">
+                                        Manually add an out-time for this record.
+                                    </p>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-medium text-indigo-800 mb-1">Punch Out Time</label>
+                                        <input
+                                            type="datetime-local"
+                                            value={manualOutTime}
+                                            onChange={(e) => setManualOutTime(e.target.value)}
+                                            className="w-full text-sm rounded-md border-indigo-300 focus:border-indigo-500 focus:ring-indigo-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-indigo-800 mb-1">Remarks (Optional)</label>
+                                        <input
+                                            type="text"
+                                            value={manualOutRemarks}
+                                            onChange={(e) => setManualOutRemarks(e.target.value)}
+                                            placeholder="Reason for manual update"
+                                            className="w-full text-sm rounded-md border-indigo-300 focus:border-indigo-500 focus:ring-indigo-500"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 pt-1">
+                                    <button
+                                        onClick={handleManualPunchOut}
+                                        disabled={loading}
+                                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-md flex items-center gap-1.5 disabled:opacity-50"
+                                    >
+                                        {loading ? "Saving..." : "Save Out-Time"}
+                                    </button>
+                                    <button
+                                        onClick={() => setShowManualPunchOut(false)}
+                                        className="px-3 py-1.5 bg-white border border-indigo-300 text-indigo-800 text-xs font-medium rounded-md hover:bg-indigo-50"
                                     >
                                         Cancel
                                     </button>
@@ -623,13 +721,22 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                             Locked
                         </button>
                     )}
-                    {hasEditPerm && !showOverride && !locked && (
+                    {hasEditPerm && !showOverride && !showManualPunchOut && !locked && (
                         <button
                             onClick={() => setShowOverride(true)}
                             className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-2 shadow-sm"
                         >
                             <Edit className="w-4 h-4 text-slate-500" />
                             Override Status
+                        </button>
+                    )}
+                    {hasEditPerm && !locked && !(record.punch_out_time || record.check_out) && (record.punch_in_time || record.check_in) && !showManualPunchOut && (
+                        <button
+                            onClick={() => setShowManualPunchOut(true)}
+                            className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm"
+                        >
+                            <Clock className="w-4 h-4" />
+                            Add Out Time
                         </button>
                     )}
                     {/* Regularization Approve/Reject Buttons */}
