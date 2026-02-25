@@ -730,7 +730,7 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                             Override Status
                         </button>
                     )}
-                    {hasEditPerm && !locked && !(record.punch_out_time || record.check_out) && (record.punch_in_time || record.check_in) && !showManualPunchOut && (
+                    {(hasEditPerm || hasHrMode) && !locked && !(record.punch_out_time || record.check_out) && (record.punch_in_time || record.check_in) && !showManualPunchOut && (
                         <button
                             onClick={() => setShowManualPunchOut(true)}
                             className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm"
