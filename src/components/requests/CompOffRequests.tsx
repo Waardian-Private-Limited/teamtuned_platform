@@ -87,6 +87,11 @@ export default function CompOffRequests() {
     const [timeline, setTimeline] = useState<Array<Record<string, any>>>([]);
     const [attendanceRecord, setAttendanceRecord] = useState<any>(null);
 
+    // Rechecker state
+    const [recheckModalOpen, setRecheckModalOpen] = useState<boolean>(false);
+    const [recheckDate, setRecheckDate] = useState<string>("");
+    const [recheckLoading, setRecheckLoading] = useState<boolean>(false);
+
     // Stats animation
     const pendingCount = useCountUp(stats?.pending || 0);
     const approvedCount = useCountUp(stats?.approved || 0);
@@ -372,6 +377,26 @@ export default function CompOffRequests() {
                 }
             }, 500);
         }, 5000);
+    };
+
+    const handleRecheck = async () => {
+        if (!recheckDate) return;
+        setRecheckLoading(true);
+        try {
+            const res = await apiClient<any>("/attendance/recheck-compoff", {
+                method: "POST",
+                body: { date: recheckDate, site_id: selectedSiteId },
+                withAuth: true
+            });
+            showNotification(`Recheck complete. ${res.generated} comp-offs generated.`, "success");
+            setRecheckModalOpen(false);
+            setRecheckDate("");
+            fetchList();
+        } catch (e: any) {
+            showNotification(e?.message || "Failed to recheck comp-offs", "error");
+        } finally {
+            setRecheckLoading(false);
+        }
     };
 
     const formatDate = (dateStr: string): string => {
@@ -711,6 +736,16 @@ export default function CompOffRequests() {
                             <span>Filters</span>
                             {filtersExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                         </button>
+                        {(isOrgAdmin || canHRMode) && (
+                            <button
+                                onClick={() => setRecheckModalOpen(true)}
+                                className="px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors flex items-center space-x-1 text-sm"
+                                title="Recheck for missing comp-offs on a specific date"
+                            >
+                                <RefreshCw className="w-4 h-4" />
+                                <span>Retroactive Check</span>
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -1123,6 +1158,59 @@ export default function CompOffRequests() {
                                 className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                             >
                                 Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Retroactive Recheck Modal */}
+            {recheckModalOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] p-4">
+                    <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+                        <div className="p-6 border-b border-gray-200">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-xl font-semibold text-gray-900">Retroactive Compoff Check</h3>
+                                <button onClick={() => setRecheckModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                                    <X className="w-5 h-5 text-gray-500" />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-sm text-gray-600 mb-4">
+                                Select a date to scan for employees who worked on Week-Offs or Holidays but didn't receive comp-offs.
+                                Compoffs will be generated based on the current policy rules (4h for 0.5, 6h for 1.0).
+                            </p>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Target Date</label>
+                                    <input
+                                        type="date"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500"
+                                        value={recheckDate}
+                                        onChange={(e) => setRecheckDate(e.target.value)}
+                                    />
+                                </div>
+                                {selectedSiteId && (
+                                    <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-700">
+                                        Filtering by currently selected site.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <div className="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                            <button
+                                onClick={() => setRecheckModalOpen(false)}
+                                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleRecheck}
+                                disabled={!recheckDate || recheckLoading}
+                                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center space-x-2"
+                            >
+                                {recheckLoading && <RefreshCw className="w-4 h-4 animate-spin" />}
+                                <span>Run Check</span>
                             </button>
                         </div>
                     </div>
