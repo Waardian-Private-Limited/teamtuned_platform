@@ -1,6 +1,6 @@
 import React from 'react';
-import EmployeeAppliedPositions from '@/components/hr-operation/EmployeeAppliedPositions';
+import OrgAppliedPositions from '@/components/hr-operation/OrgAppliedPositions';
 
 export default function Page() {
-    return <EmployeeAppliedPositions />;
+    return <OrgAppliedPositions />;
 }

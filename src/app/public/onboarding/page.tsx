@@ -30,6 +30,7 @@ function OnboardingContent() {
   const [companyDocs, setCompanyDocs] = useState<Record<number, any[]>>({});
   const [companyDocType, setCompanyDocType] = useState<Record<number, string>>({});
   const [totalExperienceMonths, setTotalExperienceMonths] = useState<number>(0);
+  const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     const fetchInfo = async () => {
@@ -56,7 +57,7 @@ function OnboardingContent() {
                 uan_pf_number: ''
               })));
             }
-          } catch {}
+          } catch { }
         } else {
           setError(res.message || 'Failed to load');
         }
@@ -144,7 +145,6 @@ function OnboardingContent() {
           { key: 'experience', label: 'Experience Letter' },
           { key: 'reliev', label: 'Relieving Letter' },
           { key: 'salary', label: 'Last 3 Months Salary Slips' },
-          { key: 'uan', label: 'PF / UAN Details Document' },
         ];
         for (const entry of employmentHistory) {
           const docs = companyDocs[entry.id] || [];
@@ -161,15 +161,15 @@ function OnboardingContent() {
           }
         }
       }
-        // Validate general mandatory docs: PAN and Aadhaar
-        const generalNames = documents.map(d => String(d.name || d.label || '').toLowerCase());
-        const generalMissing: string[] = [];
-        if (!generalNames.some(n => n.includes('pan'))) generalMissing.push('PAN');
-        if (!generalNames.some(n => n.includes('aadhaar'))) generalMissing.push('Aadhaar');
-        if (generalMissing.length) {
-          toast.error(`Missing mandatory documents: ${generalMissing.join(', ')}`);
-          valid = false;
-        }
+      // Validate general mandatory docs: PAN and Aadhaar
+      const generalNames = documents.map(d => String(d.name || d.label || '').toLowerCase());
+      const generalMissing: string[] = [];
+      if (!generalNames.some(n => n.includes('pan'))) generalMissing.push('PAN');
+      if (!generalNames.some(n => n.includes('aadhaar'))) generalMissing.push('Aadhaar');
+      if (generalMissing.length) {
+        toast.error(`Missing mandatory documents: ${generalMissing.join(', ')}`);
+        valid = false;
+      }
       if (!valid) {
         setSubmitting(false);
         return;
@@ -182,6 +182,7 @@ function OnboardingContent() {
       });
       if (res.success) {
         toast.success('Details submitted successfully');
+        setSubmitted(true);
       } else {
         toast.error(res.message || 'Submission failed');
       }
@@ -197,81 +198,141 @@ function OnboardingContent() {
       <GlobalHeader role="employee" />
       <div className="max-w-3xl mx-auto px-6 py-12">
         {loading ? (
-          <div className="text-center text-gray-400 font-bold">Loading...</div>
+          <div className="text-center text-gray-900 font-bold">Loading...</div>
         ) : error ? (
           <div className="text-center text-red-500 font-bold">{error}</div>
+        ) : submitted ? (
+          <div className="bg-white p-12 rounded-3xl border border-gray-100 text-center space-y-4">
+            <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Send size={40} />
+            </div>
+            <h1 className="text-3xl font-black text-gray-900">Successfully Submitted!</h1>
+            <p className="text-gray-600">Your onboarding details have been recorded. You can now close this tab.</p>
+          </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-8 bg-white p-8 rounded-3xl border border-gray-100">
-            <h1 className="text-2xl font-black">Onboarding Details</h1>
-            <p className="text-gray-500 text-sm">
+            <h1 className="text-2xl font-black text-gray-900">Onboarding Details</h1>
+            <p className="text-gray-900 text-sm">
               {meta?.candidate_name} for {meta?.position_name} — {meta?.department}
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="text-xs font-black text-gray-400 uppercase">Email</label>
-                <input disabled className="w-full p-4 bg-gray-100 border border-gray-200 rounded-xl" value={meta?.candidate_email || ''} />
+                <label className="text-xs font-black text-gray-900 uppercase">Email</label>
+                <input
+                  disabled
+                  className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-md outline-none text-sm text-gray-900 cursor-not-allowed"
+                  value={meta?.candidate_email || ''}
+                />
               </div>
               <div>
-                <label className="text-xs font-black text-gray-400 uppercase">Phone</label>
-                <input disabled className="w-full p-4 bg-gray-100 border border-gray-200 rounded-xl" value={meta?.candidate_phone || ''} />
+                <label className="text-xs font-black text-gray-900 uppercase">Phone</label>
+                <input
+                  disabled
+                  className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-md outline-none text-sm text-gray-900 cursor-not-allowed"
+                  value={meta?.candidate_phone || ''}
+                />
               </div>
               <div>
-                <label className="text-xs font-black text-gray-400 uppercase">DOB</label>
-                <input disabled className="w-full p-4 bg-gray-100 border border-gray-200 rounded-xl" value={meta?.dob || ''} />
+                <label className="text-xs font-black text-gray-900 uppercase">DOB</label>
+                <input
+                  disabled
+                  className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-md outline-none text-sm text-gray-900 cursor-not-allowed"
+                  value={meta?.dob || ''}
+                />
               </div>
               <div>
-                <label className="text-xs font-black text-gray-400 uppercase">Gender</label>
-                <input disabled className="w-full p-4 bg-gray-100 border border-gray-200 rounded-xl" value={meta?.gender || ''} />
+                <label className="text-xs font-black text-gray-900 uppercase">Gender</label>
+                <input
+                  disabled
+                  className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-md outline-none text-sm text-gray-900 cursor-not-allowed"
+                  value={meta?.gender || ''}
+                />
               </div>
               <div>
-                <label className="text-xs font-black text-gray-400 uppercase">City</label>
-                <input disabled className="w-full p-4 bg-gray-100 border border-gray-200 rounded-xl" value={meta?.current_city || ''} />
+                <label className="text-xs font-black text-gray-900 uppercase">City</label>
+                <input
+                  disabled
+                  className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-md outline-none text-sm text-gray-900 cursor-not-allowed"
+                  value={meta?.current_city || ''}
+                />
               </div>
               <div>
-                <label className="text-xs font-black text-gray-400 uppercase">Highest Education</label>
-                <input disabled className="w-full p-4 bg-gray-100 border border-gray-200 rounded-xl" value={meta?.highest_education || ''} />
+                <label className="text-xs font-black text-gray-900 uppercase">Highest Education</label>
+                <input
+                  disabled
+                  className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-md outline-none text-sm text-gray-900 cursor-not-allowed"
+                  value={meta?.highest_education || ''}
+                />
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="text-xs font-black text-gray-400 uppercase">Address</label>
-                <input className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl" value={details.address} onChange={e => setDetails({ ...details, address: e.target.value })} />
+                <label className="text-xs font-black text-gray-900 uppercase">Address</label>
+                <input
+                  className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all text-sm text-gray-900 placeholder:text-gray-900"
+                  value={details.address}
+                  onChange={e => setDetails({ ...details, address: e.target.value })}
+                />
               </div>
               <div>
-                <label className="text-xs font-black text-gray-400 uppercase">Bank Account</label>
-                <input className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl" value={details.bank_account} onChange={e => setDetails({ ...details, bank_account: e.target.value })} />
+                <label className="text-xs font-black text-gray-900 uppercase">Bank Account</label>
+                <input
+                  className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all text-sm text-gray-900 placeholder:text-gray-900"
+                  value={details.bank_account}
+                  onChange={e => setDetails({ ...details, bank_account: e.target.value })}
+                />
               </div>
               <div>
-                <label className="text-xs font-black text-gray-400 uppercase">IFSC</label>
-                <input className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl" value={details.ifsc} onChange={e => setDetails({ ...details, ifsc: e.target.value })} />
+                <label className="text-xs font-black text-gray-900 uppercase">IFSC</label>
+                <input
+                  className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all text-sm text-gray-900 placeholder:text-gray-900"
+                  value={details.ifsc}
+                  onChange={e => setDetails({ ...details, ifsc: e.target.value })}
+                />
               </div>
               <div>
-                <label className="text-xs font-black text-gray-400 uppercase">Emergency Contact</label>
-                <input className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl" value={details.emergency_contact} onChange={e => setDetails({ ...details, emergency_contact: e.target.value })} />
+                <label className="text-xs font-black text-gray-900 uppercase">Emergency Contact</label>
+                <input
+                  className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all text-sm text-gray-900 placeholder:text-gray-900"
+                  value={details.emergency_contact}
+                  onChange={e => setDetails({ ...details, emergency_contact: e.target.value })}
+                />
               </div>
               <div>
-                <label className="text-xs font-black text-gray-400 uppercase">PAN</label>
-                <input className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl" value={details.pan} onChange={e => setDetails({ ...details, pan: e.target.value })} />
+                <label className="text-xs font-black text-gray-900 uppercase">PAN</label>
+                <input
+                  className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all text-sm text-gray-900 placeholder:text-gray-900"
+                  value={details.pan}
+                  onChange={e => setDetails({ ...details, pan: e.target.value })}
+                />
               </div>
               <div>
-                <label className="text-xs font-black text-gray-400 uppercase">Aadhaar</label>
-                <input className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl" value={details.aadhaar} onChange={e => setDetails({ ...details, aadhaar: e.target.value })} />
+                <label className="text-xs font-black text-gray-900 uppercase">Aadhaar</label>
+                <input
+                  className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all text-sm text-gray-900 placeholder:text-gray-900"
+                  value={details.aadhaar}
+                  onChange={e => setDetails({ ...details, aadhaar: e.target.value })}
+                />
               </div>
             </div>
             <div className="space-y-3">
-              <label className="text-xs font-black text-gray-400 uppercase">Documents</label>
+              <label className="text-xs font-black text-gray-900 uppercase">Documents</label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <p className="text-[10px] font-black text-gray-400 uppercase">PAN</p>
+                  <p className="text-[10px] font-black text-gray-900 uppercase">PAN</p>
                   <div className="flex items-center gap-3">
-                    <button type="button" className="px-4 py-2 bg-black text-white rounded-xl font-bold" onClick={() => document.getElementById('doc-file-pan')?.click()}>
-                      <Upload size={16} className="inline mr-2" />
-                      Upload
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white rounded-md text-xs font-black uppercase tracking-[0.16em] hover:bg-gray-900 transition-all"
+                      onClick={() => document.getElementById('doc-file-pan')?.click()}
+                    >
+                      <Upload size={14} />
+                      <span>Upload</span>
                     </button>
                     <input id="doc-file-pan" type="file" multiple className="hidden" onChange={(e) => handleFileUpload(e, undefined, 'pan')} />
-                    {uploading && <span className="text-xs text-gray-500">Uploading...</span>}
+                    {uploading && <span className="text-xs text-gray-900">Uploading...</span>}
                   </div>
-                  <ul className="text-sm text-gray-600 mt-2">
+                  <ul className="text-sm text-gray-900 mt-2">
                     {documents
                       .filter(d => String(d.name || d.label || '').toLowerCase().includes('pan'))
                       .map((d, i) => (
@@ -280,16 +341,20 @@ function OnboardingContent() {
                   </ul>
                 </div>
                 <div>
-                  <p className="text-[10px] font-black text-gray-400 uppercase">Aadhaar</p>
+                  <p className="text-[10px] font-black text-gray-900 uppercase">Aadhaar</p>
                   <div className="flex items-center gap-3">
-                    <button type="button" className="px-4 py-2 bg-black text-white rounded-xl font-bold" onClick={() => document.getElementById('doc-file-aadhaar')?.click()}>
-                      <Upload size={16} className="inline mr-2" />
-                      Upload
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white rounded-md text-xs font-black uppercase tracking-[0.16em] hover:bg-gray-900 transition-all"
+                      onClick={() => document.getElementById('doc-file-aadhaar')?.click()}
+                    >
+                      <Upload size={14} />
+                      <span>Upload</span>
                     </button>
                     <input id="doc-file-aadhaar" type="file" multiple className="hidden" onChange={(e) => handleFileUpload(e, undefined, 'aadhaar')} />
-                    {uploading && <span className="text-xs text-gray-500">Uploading...</span>}
+                    {uploading && <span className="text-xs text-gray-900">Uploading...</span>}
                   </div>
-                  <ul className="text-sm text-gray-600 mt-2">
+                  <ul className="text-sm text-gray-900 mt-2">
                     {documents
                       .filter(d => String(d.name || d.label || '').toLowerCase().includes('aadhaar'))
                       .map((d, i) => (
@@ -298,23 +363,39 @@ function OnboardingContent() {
                   </ul>
                 </div>
               </div>
-              <div className="text-[11px] text-gray-600">Mandatory: PAN, Aadhaar</div>
+              <div className="text-[11px] text-gray-900">Mandatory: PAN, Aadhaar</div>
             </div>
             <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-black">Previous Employment</h2>
-                <button type="button" onClick={() => {
-                  const id = (employmentHistory[employmentHistory.length - 1]?.id || 0) + 1;
-                  setEmploymentHistory(prev => [...prev, { id, company_name: '', designation: '', start_date: '', end_date: '', reason_for_leaving: '', last_drawn_ctc: '', uan_pf_number: '' }]);
-                }} className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold hover:border-black">
+                <h2 className="text-lg font-black text-gray-900">Previous Employment</h2>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const id = (employmentHistory[employmentHistory.length - 1]?.id || 0) + 1;
+                    setEmploymentHistory(prev => [
+                      ...prev,
+                      {
+                        id,
+                        company_name: '',
+                        designation: '',
+                        start_date: '',
+                        end_date: '',
+                        reason_for_leaving: '',
+                        last_drawn_ctc: '',
+                        uan_pf_number: ''
+                      }
+                    ]);
+                  }}
+                  className="px-3 py-2 bg-black text-white rounded-md text-xs font-black uppercase tracking-[0.16em] hover:bg-gray-900 transition-all"
+                >
                   <Plus size={14} className="inline mr-1" /> Add Another Company
                 </button>
               </div>
-              <p className="text-xs text-gray-500">Total Experience: {(totalExperienceMonths / 12).toFixed(2)} years</p>
+              <p className="text-xs text-gray-900">Total Experience: {(totalExperienceMonths / 12).toFixed(2)} years</p>
               {employmentHistory.map((e) => (
                 <div key={e.id} className="p-4 border border-gray-100 rounded-2xl bg-gray-50">
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-[10px] font-black text-gray-400 uppercase">Company #{e.id}</p>
+                    <p className="text-[10px] font-black text-gray-900 uppercase">Company #{e.id}</p>
                     <button type="button" onClick={() => {
                       setEmploymentHistory(prev => prev.filter(x => x.id !== e.id));
                       setCompanyDocs(prev => {
@@ -327,115 +408,187 @@ function OnboardingContent() {
                     </button>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <input placeholder="Previous Company Name*" className="p-3 bg-white border border-gray-200 rounded-xl" value={e.company_name} onChange={v => setEmploymentHistory(prev => prev.map(x => x.id === e.id ? { ...x, company_name: v.target.value } : x))} />
-                    <input placeholder="Designation*" className="p-3 bg-white border border-gray-200 rounded-xl" value={e.designation} onChange={v => setEmploymentHistory(prev => prev.map(x => x.id === e.id ? { ...x, designation: v.target.value } : x))} />
+                    <input
+                      placeholder="Previous Company Name*"
+                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all text-sm text-gray-900 placeholder:text-gray-900"
+                      value={e.company_name}
+                      onChange={v => setEmploymentHistory(prev => prev.map(x => x.id === e.id ? { ...x, company_name: v.target.value } : x))}
+                    />
+                    <input
+                      placeholder="Designation*"
+                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all text-sm text-gray-900 placeholder:text-gray-900"
+                      value={e.designation}
+                      onChange={v => setEmploymentHistory(prev => prev.map(x => x.id === e.id ? { ...x, designation: v.target.value } : x))}
+                    />
                     <div className="grid grid-cols-2 gap-2">
-                      <input type="date" className="p-3 bg-white border border-gray-200 rounded-xl" placeholder="Date of Joining*" value={e.start_date} onChange={v => setEmploymentHistory(prev => prev.map(x => x.id === e.id ? { ...x, start_date: v.target.value } : x))} />
-                      <input type="date" className="p-3 bg-white border border-gray-200 rounded-xl" placeholder="Last Working Date*" value={e.end_date} onChange={v => setEmploymentHistory(prev => prev.map(x => x.id === e.id ? { ...x, end_date: v.target.value } : x))} />
+                      <input
+                        type="date"
+                        className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all text-sm text-gray-900"
+                        placeholder="Date of Joining*"
+                        value={e.start_date}
+                        onChange={v => setEmploymentHistory(prev => prev.map(x => x.id === e.id ? { ...x, start_date: v.target.value } : x))}
+                      />
+                      <input
+                        type="date"
+                        className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all text-sm text-gray-900"
+                        placeholder="Last Working Date*"
+                        value={e.end_date}
+                        onChange={v => setEmploymentHistory(prev => prev.map(x => x.id === e.id ? { ...x, end_date: v.target.value } : x))}
+                      />
                     </div>
-                    <input placeholder="Reason for Leaving*" className="p-3 bg-white border border-gray-200 rounded-xl md:col-span-2" value={e.reason_for_leaving} onChange={v => setEmploymentHistory(prev => prev.map(x => x.id === e.id ? { ...x, reason_for_leaving: v.target.value } : x))} />
-                    <input placeholder="Last Drawn CTC*" className="p-3 bg-white border border-gray-200 rounded-xl" value={e.last_drawn_ctc} onChange={v => setEmploymentHistory(prev => prev.map(x => x.id === e.id ? { ...x, last_drawn_ctc: v.target.value } : x))} />
-                    <input placeholder="UAN / PF Number (if applicable)*" className="p-3 bg-white border border-gray-200 rounded-xl" value={e.uan_pf_number} onChange={v => setEmploymentHistory(prev => prev.map(x => x.id === e.id ? { ...x, uan_pf_number: v.target.value } : x))} />
+                    <input
+                      placeholder="Reason for Leaving*"
+                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all text-sm text-gray-900 placeholder:text-gray-900 md:col-span-2"
+                      value={e.reason_for_leaving}
+                      onChange={v => setEmploymentHistory(prev => prev.map(x => x.id === e.id ? { ...x, reason_for_leaving: v.target.value } : x))}
+                    />
+                    <input
+                      placeholder="Last Drawn CTC*"
+                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all text-sm text-gray-900 placeholder:text-gray-900"
+                      value={e.last_drawn_ctc}
+                      onChange={v => setEmploymentHistory(prev => prev.map(x => x.id === e.id ? { ...x, last_drawn_ctc: v.target.value } : x))}
+                    />
+                    <input
+                      placeholder="UAN / PF Number (if applicable)*"
+                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all text-sm text-gray-900 placeholder:text-gray-900"
+                      value={e.uan_pf_number}
+                      onChange={v => setEmploymentHistory(prev => prev.map(x => x.id === e.id ? { ...x, uan_pf_number: v.target.value } : x))}
+                    />
                   </div>
                   <div className="mt-3">
-                    <p className="text-[10px] font-black text-gray-400 uppercase">Company-wise Documents</p>
+                    <p className="text-[10px] font-black text-gray-900 uppercase">Company-wise Documents</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <p className="text-[10px] font-black text-gray-400 uppercase">Experience Letter</p>
+                        <p className="text-[10px] font-black text-gray-900 uppercase">Experience Letter</p>
                         <div className="flex items-center gap-3">
-                          <button type="button" className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold" onClick={() => document.getElementById(`doc-file-${e.id}-experience`)?.click()}>
-                            <Upload size={14} className="inline mr-1" /> Upload
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 px-3 py-2 bg-black text-white rounded-md text-xs font-black uppercase tracking-[0.16em] hover:bg-gray-900 transition-all"
+                            onClick={() => document.getElementById(`doc-file-${e.id}-experience`)?.click()}
+                          >
+                            <Upload size={14} />
+                            <span>Upload</span>
                           </button>
                           <input id={`doc-file-${e.id}-experience`} type="file" multiple className="hidden" onChange={(ev) => handleFileUpload(ev, e.id, 'experience')} />
                         </div>
-                        <ul className="text-xs text-gray-600 mt-2">
+                        <ul className="text-xs text-gray-900 mt-2">
                           {(companyDocs[e.id] || [])
                             .filter(d => String(d.name || d.label || '').toLowerCase().includes('experience'))
                             .map((d, i) => <li key={i} className="truncate">{(d.label || d.name)} — {(d.filename || d.url || '')}</li>)}
                         </ul>
                       </div>
                       <div>
-                        <p className="text-[10px] font-black text-gray-400 uppercase">Relieving Letter</p>
+                        <p className="text-[10px] font-black text-gray-900 uppercase">Relieving Letter</p>
                         <div className="flex items-center gap-3">
-                          <button type="button" className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold" onClick={() => document.getElementById(`doc-file-${e.id}-reliev`)?.click()}>
-                            <Upload size={14} className="inline mr-1" /> Upload
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 px-3 py-2 bg-black text-white rounded-md text-xs font-black uppercase tracking-[0.16em] hover:bg-gray-900 transition-all"
+                            onClick={() => document.getElementById(`doc-file-${e.id}-reliev`)?.click()}
+                          >
+                            <Upload size={14} />
+                            <span>Upload</span>
                           </button>
                           <input id={`doc-file-${e.id}-reliev`} type="file" multiple className="hidden" onChange={(ev) => handleFileUpload(ev, e.id, 'reliev')} />
                         </div>
-                        <ul className="text-xs text-gray-600 mt-2">
+                        <ul className="text-xs text-gray-900 mt-2">
                           {(companyDocs[e.id] || [])
                             .filter(d => String(d.name || d.label || '').toLowerCase().includes('reliev'))
                             .map((d, i) => <li key={i} className="truncate">{(d.label || d.name)} — {(d.filename || d.url || '')}</li>)}
                         </ul>
                       </div>
                       <div>
-                        <p className="text-[10px] font-black text-gray-400 uppercase">Last 3 Months Salary Slips</p>
+                        <p className="text-[10px] font-black text-gray-900 uppercase">Last 3 Months Salary Slips</p>
                         <div className="flex items-center gap-3">
-                          <button type="button" className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold" onClick={() => document.getElementById(`doc-file-${e.id}-salary`)?.click()}>
-                            <Upload size={14} className="inline mr-1" /> Upload
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 px-3 py-2 bg-black text-white rounded-md text-xs font-black uppercase tracking-[0.16em] hover:bg-gray-900 transition-all"
+                            onClick={() => document.getElementById(`doc-file-${e.id}-salary`)?.click()}
+                          >
+                            <Upload size={14} />
+                            <span>Upload</span>
                           </button>
                           <input id={`doc-file-${e.id}-salary`} type="file" multiple className="hidden" onChange={(ev) => handleFileUpload(ev, e.id, 'salary')} />
                         </div>
-                        <ul className="text-xs text-gray-600 mt-2">
+                        <ul className="text-xs text-gray-900 mt-2">
                           {(companyDocs[e.id] || [])
                             .filter(d => String(d.name || d.label || '').toLowerCase().includes('salary'))
                             .map((d, i) => <li key={i} className="truncate">{(d.label || d.name)} — {(d.filename || d.url || '')}</li>)}
                         </ul>
                       </div>
                       <div>
-                        <p className="text-[10px] font-black text-gray-400 uppercase">PF / UAN Details Document</p>
+                        <p className="text-[10px] font-black text-gray-900 uppercase">PF / UAN Details Document</p>
                         <div className="flex items-center gap-3">
-                          <button type="button" className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold" onClick={() => document.getElementById(`doc-file-${e.id}-uan`)?.click()}>
-                            <Upload size={14} className="inline mr-1" /> Upload
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 px-3 py-2 bg-black text-white rounded-md text-xs font-black uppercase tracking-[0.16em] hover:bg-gray-900 transition-all"
+                            onClick={() => document.getElementById(`doc-file-${e.id}-uan`)?.click()}
+                          >
+                            <Upload size={14} />
+                            <span>Upload</span>
                           </button>
                           <input id={`doc-file-${e.id}-uan`} type="file" multiple className="hidden" onChange={(ev) => handleFileUpload(ev, e.id, 'uan')} />
                         </div>
-                        <ul className="text-xs text-gray-600 mt-2">
+                        <ul className="text-xs text-green-600 mt-2 font-bold">
                           {(companyDocs[e.id] || [])
                             .filter(d => String(d.name || d.label || '').toLowerCase().includes('uan'))
-                            .map((d, i) => <li key={i} className="truncate">{(d.label || d.name)} — {(d.filename || d.url || '')}</li>)}
+                            .length > 0 && <li>Uploaded</li>}
                         </ul>
                       </div>
                       <div>
-                        <p className="text-[10px] font-black text-gray-400 uppercase">Bank Statement</p>
+                        <p className="text-[10px] font-black text-gray-900 uppercase">Bank Statement</p>
                         <div className="flex items-center gap-3">
-                          <button type="button" className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold" onClick={() => document.getElementById(`doc-file-${e.id}-bank`)?.click()}>
-                            <Upload size={14} className="inline mr-1" /> Upload
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 px-3 py-2 bg-black text-white rounded-md text-xs font-black uppercase tracking-[0.16em] hover:bg-gray-900 transition-all"
+                            onClick={() => document.getElementById(`doc-file-${e.id}-bank`)?.click()}
+                          >
+                            <Upload size={14} />
+                            <span>Upload</span>
                           </button>
                           <input id={`doc-file-${e.id}-bank`} type="file" multiple className="hidden" onChange={(ev) => handleFileUpload(ev, e.id, 'bank')} />
                         </div>
-                        <ul className="text-xs text-gray-600 mt-2">
+                        <ul className="text-xs text-green-600 mt-2 font-bold">
                           {(companyDocs[e.id] || [])
                             .filter(d => String(d.name || d.label || '').toLowerCase().includes('bank'))
-                            .map((d, i) => <li key={i} className="truncate">{(d.label || d.name)} — {(d.filename || d.url || '')}</li>)}
+                            .length > 0 && <li>Uploaded</li>}
                         </ul>
                       </div>
                       <div>
-                        <p className="text-[10px] font-black text-gray-400 uppercase">Form 16</p>
+                        <p className="text-[10px] font-black text-gray-900 uppercase">Form 16</p>
                         <div className="flex items-center gap-3">
-                          <button type="button" className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold" onClick={() => document.getElementById(`doc-file-${e.id}-form16`)?.click()}>
-                            <Upload size={14} className="inline mr-1" /> Upload
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 px-3 py-2 bg-black text-white rounded-md text-xs font-black uppercase tracking-[0.16em] hover:bg-gray-900 transition-all"
+                            onClick={() => document.getElementById(`doc-file-${e.id}-form16`)?.click()}
+                          >
+                            <Upload size={14} />
+                            <span>Upload</span>
                           </button>
                           <input id={`doc-file-${e.id}-form16`} type="file" multiple className="hidden" onChange={(ev) => handleFileUpload(ev, e.id, 'form16')} />
                         </div>
-                        <ul className="text-xs text-gray-600 mt-2">
+                        <ul className="text-xs text-green-600 mt-2 font-bold">
                           {(companyDocs[e.id] || [])
                             .filter(d => String(d.name || d.label || '').toLowerCase().includes('form16'))
-                            .map((d, i) => <li key={i} className="truncate">{(d.label || d.name)} — {(d.filename || d.url || '')}</li>)}
+                            .length > 0 && <li>Uploaded</li>}
                         </ul>
                       </div>
                       <div>
-                        <p className="text-[10px] font-black text-gray-400 uppercase">Promotion / Increment Letter</p>
+                        <p className="text-[10px] font-black text-gray-900 uppercase">Promotion / Increment Letter</p>
                         <div className="flex items-center gap-3">
-                          <button type="button" className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold" onClick={() => document.getElementById(`doc-file-${e.id}-promo`)?.click()}>
-                            <Upload size={14} className="inline mr-1" /> Upload
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 px-3 py-2 bg-black text-white rounded-md text-xs font-black uppercase tracking-[0.16em] hover:bg-gray-900 transition-all"
+                            onClick={() => document.getElementById(`doc-file-${e.id}-promo`)?.click()}
+                          >
+                            <Upload size={14} />
+                            <span>Upload</span>
                           </button>
                           <input id={`doc-file-${e.id}-promo`} type="file" multiple className="hidden" onChange={(ev) => handleFileUpload(ev, e.id, 'promo')} />
                         </div>
-                        <ul className="text-xs text-gray-600 mt-2">
+                        <ul className="text-xs text-green-600 mt-2 font-bold">
                           {(companyDocs[e.id] || [])
                             .filter(d => String(d.name || d.label || '').toLowerCase().includes('promo'))
-                            .map((d, i) => <li key={i} className="truncate">{(d.label || d.name)} — {(d.filename || d.url || '')}</li>)}
+                            .length > 0 && <li>Uploaded</li>}
                         </ul>
                       </div>
                     </div>
@@ -462,13 +615,23 @@ function OnboardingContent() {
                           {order.map((label) => {
                             const list = byType[label] || [];
                             if (!list.length) return null;
+                            const showFullList = ![
+                              'PF / UAN Details Document',
+                              'Bank Statement',
+                              'Form 16',
+                              'Promotion / Increment Letter'
+                            ].includes(label);
                             return (
                               <div key={label}>
                                 <p className="text-[10px] font-black text-gray-400 uppercase">{label}</p>
-                                <ul className="text-xs text-gray-600 mt-1">
-                                  {list.map((d, j) => (
-                                    <li key={j} className="truncate">{d.filename || d.url || d.name}</li>
-                                  ))}
+                                <ul className={`text-xs mt-1 ${showFullList ? 'text-gray-600' : 'text-green-600 font-bold'}`}>
+                                  {showFullList ? (
+                                    list.map((d, j) => (
+                                      <li key={j} className="truncate">{d.filename || d.url || d.name}</li>
+                                    ))
+                                  ) : (
+                                    <li>Uploaded</li>
+                                  )}
                                 </ul>
                               </div>
                             );
@@ -477,9 +640,9 @@ function OnboardingContent() {
                       );
                     })()}
                     <div className="mt-2 text-xs text-gray-500">
-                      Mandatory: Experience Letter, Relieving Letter, Last 3 Months Salary Slips, PF / UAN Details Document
+                      Mandatory: Experience Letter, Relieving Letter, Last 3 Months Salary Slips
                       <br />
-                      Optional: Bank Statement (salary credit proof), Form 16, Promotion / Increment Letter
+                      Optional: PF / UAN Details Document, Bank Statement (salary credit proof), Form 16, Promotion / Increment Letter
                     </div>
                   </div>
                 </div>

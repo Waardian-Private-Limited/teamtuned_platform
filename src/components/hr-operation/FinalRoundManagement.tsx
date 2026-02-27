@@ -8,8 +8,6 @@ import {
 } from 'lucide-react';
 import { apiClient } from '@/lib/apiClient';
 import toast from 'react-hot-toast';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { useAuth } from '@/context/AuthContext';
 
 export default function FinalRoundManagement({ myOnly = false }: { myOnly?: boolean }) {
@@ -66,7 +64,7 @@ export default function FinalRoundManagement({ myOnly = false }: { myOnly?: bool
                 if (outcome === 'Passed' && res.data?.token) {
                     const link = `${window.location.origin}/public/onboarding?token=${res.data.token}&orgId=${organization?.id}`;
                     setOnboardingLink(link);
-                    navigator.clipboard.writeText(link).catch(() => {});
+                    navigator.clipboard.writeText(link).catch(() => { });
                     toast.success('Candidate approved and onboarding link copied');
                 } else {
                     toast.success(outcome === 'Passed' ? 'Candidate approved for Onboarding!' : 'Candidate marked as Failed');
@@ -93,48 +91,34 @@ export default function FinalRoundManagement({ myOnly = false }: { myOnly?: bool
                 const token = res.data.token;
                 const link = `${window.location.origin}/public/onboarding?token=${token}&orgId=${organization?.id}`;
                 setOnboardingLink(link);
-                navigator.clipboard.writeText(link).catch(() => {});
+                navigator.clipboard.writeText(link).catch(() => { });
                 toast.success('Onboarding link generated and copied');
             }
         } catch (err: any) {
             toast.error(err.message || 'Failed to generate link');
         }
     };
-    const generatePDF = (candidate: any) => {
-        const doc = new jsPDF();
-        doc.setFillColor(0, 0, 0);
-        doc.rect(0, 0, 210, 40, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(22);
-        doc.setFont('helvetica', 'bold');
-        doc.text('FINAL SELECTION REPORT', 14, 25);
+    const generatePDF = async (candidate: any) => {
+        try {
+            toast.loading('Generating report...', { id: 'report-gen' });
+            const blob = await apiClient.get(`/hr-operation/report/${candidate.id}`, {}, {
+                responseType: 'blob',
+                withAuth: true
+            });
 
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 34);
-
-        doc.setTextColor(0, 0, 0);
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Candidate Final Evaluation', 14, 55);
-
-        const candidateData = [
-            ['Full Name', candidate.candidate_name],
-            ['Position', candidate.position_name],
-            ['Department', candidate.department || 'N/A'],
-            ['Email', candidate.candidate_email],
-            ['Phone', candidate.candidate_phone],
-            ['Decision', outcome === 'Passed' ? 'APPROVED FOR HIRING' : 'REJECTED']
-        ];
-
-        autoTable(doc, {
-            startY: 60,
-            body: candidateData,
-            theme: 'grid',
-            headStyles: { fillColor: [0, 0, 0] }
-        });
-
-        doc.save(`${candidate.candidate_name}_Final_Round.pdf`);
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Final_Report_${candidate.candidate_name.replace(/\s+/g, '_')}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            toast.success('Report downloaded successfully', { id: 'report-gen' });
+        } catch (error: any) {
+            console.error('Report generation failed:', error);
+            toast.error(error.message || 'Failed to generate report', { id: 'report-gen' });
+        }
     };
 
     return (
