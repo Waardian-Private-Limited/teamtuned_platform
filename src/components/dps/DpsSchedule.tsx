@@ -45,12 +45,14 @@ interface SiteUnit {
 }
 
 interface Tower {
+    id: string;
     name: string;
     startDate: string;
     endDate: string;
     floors: number;
     plinths: number;
     basements: number;
+    terraces: number;
 }
 
 interface OtherArea {
