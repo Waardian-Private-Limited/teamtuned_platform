@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import EmployeeSidebar from "@/components/employee/EmployeeSidebar";
 import GlobalHeader from "@/components/shared/GlobalHeader";
 import GlobalFooter from "@/components/shared/GlobalFooter";
@@ -12,6 +12,7 @@ import { useUserStore } from "@/lib/store/userStore";
 
 export default function EmployeeLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = React.useState(false);
   const { setUser } = useUserStore();
 
@@ -32,8 +33,9 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
       return;
     }
 
-    // Redirect non-employees
-    if (role === "OrgAdmin") {
+    // Redirect non-employees (Allow OrgAdmin for specific shared pages like DPS updates)
+    const isSharedPage = pathname.startsWith("/employee/dps/daily-update");
+    if (role === "OrgAdmin" && !isSharedPage) {
       router.replace("/org-admin");
       return;
     }

@@ -35,6 +35,7 @@ import {
   Box,
   Monitor,
   Copy,
+  Layout,
 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import type { FormField, FieldType, FieldOption, TemplateSnapshot } from "./types";
@@ -331,12 +332,16 @@ export default function FormBuilder({
   templateDescription = "",
   onDirtyChange,
   onBack,
+  customApiUrl,
+  customSaveUrl,
 }: {
   templateId?: string;
   templateName?: string;
   templateDescription?: string;
   onDirtyChange?: (dirty: boolean) => void;
   onBack?: () => void;
+  customApiUrl?: string;
+  customSaveUrl?: string;
 }) {
   const [fields, setFields] = React.useState<FormField[]>([]);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
@@ -401,7 +406,8 @@ export default function FormBuilder({
     (async () => {
       if (/^[0-9]+$/.test(String(templateId))) {
         try {
-          const res = await apiClient<any>(`/templates/${templateId}`, { method: "GET", withAuth: true });
+          const endpoint = customApiUrl || `/templates/${templateId}`;
+          const res = await apiClient<any>(endpoint, { method: "GET", withAuth: true });
           const fetchedFields = Array.isArray(res?.fields) ? res.fields : [];
           const normalized = fetchedFields.map((f: any) => {
             const ft = String(f.field_type) as FieldType;
@@ -848,32 +854,54 @@ export default function FormBuilder({
         };
       });
 
-      const endpoint = serverTemplateId
-        ? `/templates/${serverTemplateId}/versions`
-        : `/templates`;
-
-      const body = {
-        name: nameInput,
-        description: descInput,
-        fields: payloadFields,
-        publish: savePublish
-      };
-
-      const res = await apiClient<any>(endpoint, {
-        method: "POST",
-        body: body,
-        withAuth: true
-      });
-
-      if (res && (res.success || res.id || res.version_id)) {
-        setToast({ type: "success", msg: "Template saved successfully" });
-        setDirty(false);
-        setShowSaveModal(false);
-        if (res.template_id && !serverTemplateId) {
-          setServerTemplateId(res.template_id);
+      // If this is a high-fidelity analyzed form, save back to fb_templates
+      if (customSaveUrl) {
+        const res = await apiClient<any>(customSaveUrl, {
+          method: "PUT",
+          body: { name: nameInput, fields: payloadFields },
+          withAuth: true
+        });
+        if (res && (res.id || res.message === 'Template updated successfully')) {
+          setToast({ type: "success", msg: "✅ Template saved! Returning to library..." });
+          setDirty(false);
+          setShowSaveModal(false);
+          // Redirect back to library after brief toast
+          setTimeout(() => {
+            if (onBack) onBack();
+          }, 1200);
+        } else {
+          throw new Error(res?.message || "Save failed");
         }
       } else {
-        throw new Error(res?.message || "Save failed");
+        // Standard template flow
+        const endpoint = serverTemplateId
+          ? `/templates/${serverTemplateId}/versions`
+          : `/templates`;
+
+        const body = {
+          name: nameInput,
+          description: descInput,
+          fields: payloadFields,
+          publish: savePublish,
+          type: "data_collection"
+        };
+
+        const res = await apiClient<any>(endpoint, {
+          method: "POST",
+          body: body,
+          withAuth: true
+        });
+
+        if (res && (res.success || res.id || res.version_id)) {
+          setToast({ type: "success", msg: "Template saved successfully" });
+          setDirty(false);
+          setShowSaveModal(false);
+          if (res.template_id && !serverTemplateId) {
+            setServerTemplateId(res.template_id);
+          }
+        } else {
+          throw new Error(res?.message || "Save failed");
+        }
       }
     } catch (e: any) {
       console.error(e);
@@ -1163,6 +1191,26 @@ export default function FormBuilder({
                     onChange={(e) => updateSelected({ metadata: { ...(selectedField.metadata || {}), placeholder: e.target.value } })}
                     placeholder="Enter placeholder text"
                   />
+                </div>
+
+                {/* Dual-Phase Execution Logic */}
+                <div className="pt-4 border-t border-slate-100">
+                  <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+                    <Layout size={14} className="text-blue-600" />
+                    Execution Phase
+                  </h3>
+                  <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+                    Tag this field for Plan vs Actual tracking.
+                  </p>
+                  <select
+                    className="w-full border border-slate-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 transition-all bg-white"
+                    value={selectedField.metadata?.executionPhase || "none"}
+                    onChange={(e) => updateSelected({ metadata: { ...(selectedField.metadata || {}), executionPhase: e.target.value as "none" | "plan" | "actual" } })}
+                  >
+                    <option value="none">Standard Field (Always Editable)</option>
+                    <option value="plan">Plan / Target (Filled at Start of Month)</option>
+                    <option value="actual">Actual / Daily (Filled by Employees)</option>
+                  </select>
                 </div>
               </div>
 

@@ -61,6 +61,7 @@ export interface FieldMeta {
   fileUrl?: string; // for autocad or other files
   // For reference fields
   referenceUrl?: string; // URL of the uploaded reference file
+  executionPhase?: "none" | "plan" | "actual";
 }
 
 export interface FormField {
