@@ -19,6 +19,8 @@ interface Employee {
     sites?: Array<{ id: number; name?: string; code?: string }>;
     department_id?: number;
     designation_id?: number;
+    role_name?: string;
+    designation?: string;
 }
 
 interface Organization {

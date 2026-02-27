@@ -279,7 +279,7 @@ export default function EmployeeSidebar({
   }, [pathname]);
 
   // Use AuthContext for immediate updates, fallback to props if context is initial loading (though context is preferred)
-  const { permissions: authPermissions, role: authRole, organization } = useAuth();
+  const { permissions: authPermissions, role: authRole, organization, employee } = useAuth();
 
   // Prefer context values over props for immediate reactivity after login
   const effectivePermissions = authPermissions && authPermissions.length > 0 ? authPermissions : (permissions || []);
@@ -301,6 +301,10 @@ export default function EmployeeSidebar({
   const hasPerm = (code: string) => (effectivePermissions || []).some((p: any) => (p || "").toUpperCase() === code.toUpperCase());
 
   const isOrgAdmin = (effectiveRole || "").toLowerCase() === "orgadmin";
+
+  const isDirector =
+    (employee?.role_name || "").toLowerCase().includes("director") ||
+    (employee?.designation || "").toLowerCase().includes("director");
 
   const Item = ({
     icon: Icon,
@@ -415,7 +419,8 @@ export default function EmployeeSidebar({
   const canViewLaborAttendance = isOrgAdmin || hasAnyPerm(["LABOR_ATTEND_VIEW", "LABOR_ATTENDANCE_ADD", "LABOR_ATTENDANCE_EDIT"]);
 
   // Reimbursement Permissions
-  const canViewAllReimbursements = isOrgAdmin || hasAnyPerm(["REIMB_VIEW", "REIMB_APPROVE", "REIMB_REJECT", "REIMB_EXPORT"]);
+  const canViewAllReimbursements =
+    isOrgAdmin || isDirector || hasAnyPerm(["REIMB_VIEW", "REIMB_APPROVE", "REIMB_REJECT", "REIMB_EXPORT"]);
   const canDisburseReimbursements = isOrgAdmin || hasPerm("REIMB_DISBURSE");
   const showReimbursements = canViewAllReimbursements || canDisburseReimbursements || true; // Always show for "My Reimbursements"
 
@@ -1509,16 +1514,16 @@ export default function EmployeeSidebar({
                       <Item
                         icon={Receipt}
                         label="All Reimbursements"
-                        href="/org/hr-operation/reimbursements"
-                        active={pathname === "/org/hr-operation/reimbursements"}
+                        href="/employee/hr-operation/reimbursement"
+                        active={pathname === "/employee/hr-operation/reimbursement"}
                       />
                     )}
                     {canDisburseReimbursements && (
                       <Item
                         icon={Receipt}
                         label="Accounts / Disburse"
-                        href="/org/accounts/reimbursements"
-                        active={pathname === "/org/accounts/reimbursements"}
+                        href="/employee/accounts/reimbursements"
+                        active={pathname === "/employee/accounts/reimbursements"}
                       />
                     )}
                   </div>
