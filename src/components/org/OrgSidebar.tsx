@@ -13,6 +13,7 @@ import {
     Building2,
     Building,
     MapPin,
+    Thermometer,
     Calendar,
     UserCog,
     Wallet,
@@ -32,6 +33,7 @@ import {
     ClipboardList,
     UserCheck,
     Briefcase,
+    QrCode,
     Heart,
     ListChecks,
     LayoutGrid,
@@ -46,6 +48,13 @@ import {
     Zap,
     CreditCard,
     PieChart,
+    Phone,
+    HardHat,
+    Layers,
+    Activity,
+    Link2,
+    Award,
+    Layout,
     MessageSquare,
     Plus,
 } from "lucide-react";
@@ -90,12 +99,147 @@ export default function OrgSidebar({
     const [dashboardOpen, setDashboardOpen] = React.useState(false);
     const [managementOpen, setManagementOpen] = React.useState(false);
     const [attendanceOpen, setAttendanceOpen] = React.useState(true);
+    const [laborOpen, setLaborOpen] = React.useState(false);
+    const [hrOperationOpen, setHrOperationOpen] = React.useState(true);
+    const [formBuilderOpen, setFormBuilderOpen] = React.useState(true);
+    const [dpsOpen, setDpsOpen] = React.useState(true);
+    const [reimbursementsOpen, setReimbursementsOpen] = React.useState(false);
     const [meetingsOpen, setMeetingsOpen] = React.useState(false);
     const [isNavigating, setIsNavigating] = React.useState(false);
+
+    // Auto-collapse on hover state
+    const [isHovered, setIsHovered] = React.useState(false);
+    const hoverTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+
+    // Auto-collapse effect
+    useEffect(() => {
+        if (isHovered) {
+            // Clear any pending collapse and expand immediately
+            if (hoverTimeoutRef.current) {
+                clearTimeout(hoverTimeoutRef.current);
+            }
+            setIsCollapsed(false);
+        } else {
+            // Collapse after 500ms when not hovered
+            hoverTimeoutRef.current = setTimeout(() => {
+                setIsCollapsed(true);
+            }, 500);
+        }
+
+        return () => {
+            if (hoverTimeoutRef.current) {
+                clearTimeout(hoverTimeoutRef.current);
+            }
+        };
+    }, [isHovered, setIsCollapsed]);
+
+    // Effect to handle expansion behavior: keep all collapsed except the active category
+    useEffect(() => {
+        if (!isCollapsed) {
+            // Helper function to check if a category is active
+            const isActive = (prefixes: string[]) => prefixes.some(p => pathname?.startsWith(p));
+
+            setMainOpen(pathname === "/org-admin");
+
+            setAttendanceOpen(isActive([
+                "/org-admin/attendance",
+                "/org-admin/holiday-calendar",
+                "/org-admin/approval-workflows",
+                "/org-admin/requests",
+                "/org-admin/payroll",
+                "/org-admin/salary-slips"
+            ]));
+
+            setManagementOpen(isActive([
+                "/org-admin/employees",
+                "/org-admin/assignments",
+                "/org-admin/policy-mapper",
+                "/org-admin/emergency-contacts",
+                "/org-admin/roles",
+                "/org-admin/departments",
+                "/org-admin/sites",
+                "/org-admin/sub-organizations",
+                "/org-admin/site-sub-org-mapper",
+                "/org-admin/employee-sites",
+                "/org-admin/other-locations",
+                "/org-admin/site-budget-requests",
+                "/org-admin/salary-components",
+                "/org-admin/debit-rules",
+                "/org-admin/salary-import"
+            ]));
+
+            setWalletOpen(isActive(["/org-admin/wallet"]));
+            setSalaryAdvanceOpen(isActive(["/org-admin/salary-advance"]));
+            setInventoryOpen(isActive(["/org-admin/inventory"]));
+            setTaskOpen(isActive(["/org-admin/tasks", "/org-admin/task-dashboard", "/org-admin/task-assignments", "/org-admin/task-create"]));
+            setFormBuilderOpen(isActive(["/org-admin/form-builder"]));
+            setDpsOpen(isActive(["/org-admin/dps"]));
+            setInsuranceOpen(isActive(["/org-admin/insurance"]));
+            setPettyCashOpen(isActive([
+                "/org-admin/petty-cash",
+                "/org-admin/wallet-overview",
+                "/org-admin/wallet-config",
+                "/org-admin/wallet-topups"
+            ]));
+            setLaborOpen(isActive(["/org-admin/labor-attendance", "/org-admin/labor/"]));
+            setHrOperationOpen(isActive(["/org-admin/department-mapper", "/org-admin/hr-operation"]));
+            setReimbursementsOpen(isActive(["/org/hr-operation/reimbursements", "/org/accounts/reimbursements", "/employee/hr-operation/reimbursements"]));
+        } else {
+            // When collapsed, only keep the active category open
+            const isActive = (prefixes: string[]) => prefixes.some(p => pathname?.startsWith(p));
+
+            setMainOpen(pathname === "/org-admin");
+            setAttendanceOpen(isActive(["/org-admin/attendance", "/org-admin/holiday-calendar", "/org-admin/approval-workflows", "/org-admin/requests", "/org-admin/payroll", "/org-admin/salary-slips"]));
+            setManagementOpen(isActive(["/org-admin/employees", "/org-admin/assignments", "/org-admin/policy-mapper", "/org-admin/emergency-contacts", "/org-admin/roles", "/org-admin/departments", "/org-admin/sites", "/org-admin/sub-organizations", "/org-admin/site-sub-org-mapper", "/org-admin/employee-sites", "/org-admin/other-locations", "/org-admin/site-budget-requests", "/org-admin/salary-components", "/org-admin/debit-rules", "/org-admin/salary-import"]));
+            setWalletOpen(isActive(["/org-admin/wallet"]));
+            setSalaryAdvanceOpen(isActive(["/org-admin/salary-advance"]));
+            setInventoryOpen(isActive(["/org-admin/inventory"]));
+            setTaskOpen(isActive(["/org-admin/tasks", "/org-admin/task-dashboard", "/org-admin/task-assignments", "/org-admin/task-create"]));
+            setFormBuilderOpen(isActive(["/org-admin/form-builder"]));
+            setDpsOpen(isActive(["/org-admin/dps"]));
+            setInsuranceOpen(isActive(["/org-admin/insurance"]));
+            setPettyCashOpen(isActive(["/org-admin/petty-cash", "/org-admin/wallet-overview", "/org-admin/wallet-config", "/org-admin/wallet-topups"]));
+            setLaborOpen(isActive(["/org-admin/labor-attendance", "/org-admin/labor/"]));
+            setHrOperationOpen(isActive(["/org-admin/department-mapper", "/org-admin/hr-operation"]));
+            setReimbursementsOpen(isActive(["/org/hr-operation/reimbursements", "/org/accounts/reimbursements"]));
+        }
+    }, [isCollapsed, pathname]);
+
+    const closeAll = () => {
+        setMainOpen(false);
+        setAttendanceOpen(false);
+        setManagementOpen(false);
+        setWalletOpen(false);
+        setSalaryAdvanceOpen(false);
+        setInventoryOpen(false);
+        setTaskOpen(false);
+        setFormBuilderOpen(false);
+        setDpsOpen(false);
+        setInsuranceOpen(false);
+        setPettyCashOpen(false);
+        setLaborOpen(false);
+        setHrOperationOpen(false);
+        setReimbursementsOpen(false);
+    };
+
+    const handleToggle = (setter: React.Dispatch<React.SetStateAction<boolean>>, currentState: boolean) => {
+        if (!currentState) {
+            closeAll();
+        }
+        setter(!currentState);
+    };
 
     // Track navigation for loading state
     useEffect(() => {
         setIsNavigating(false);
+
+        // Failsafe: if navigation takes too long or hangs, hide loader after 10s
+        const timer = setTimeout(() => {
+            setIsNavigating(false);
+        }, 10000);
+
+        return () => clearTimeout(timer);
     }, [pathname]);
 
     const hasFeature = (code: string) => {
@@ -120,7 +264,11 @@ export default function OrgSidebar({
     }) => (
         <Link
             href={href}
-            onClick={() => setIsNavigating(true)}
+            onClick={() => {
+                if (href !== pathname) {
+                    setIsNavigating(true);
+                }
+            }}
             className={`group flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-all duration-200 ${active
                 ? "bg-black text-white font-medium shadow-md"
                 : "text-black hover:bg-gray-100"
@@ -173,6 +321,8 @@ export default function OrgSidebar({
     return (
         <>
             <aside
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
                 className={`h-screen bg-white border-r border-gray-200 transition-all duration-300 flex flex-col ${isCollapsed ? "w-20" : "w-64"
                     }`}
             >
@@ -204,52 +354,63 @@ export default function OrgSidebar({
                 {/* Scrollable Navigation */}
                 <div className="flex-1 overflow-y-auto p-3 space-y-1">
                     {/* Main Section */}
-                    <CategoryButton label="Main" isOpen={mainOpen} onClick={() => setMainOpen(!mainOpen)} />
+                    <CategoryButton label="Main" isOpen={mainOpen} onClick={() => handleToggle(setMainOpen, mainOpen)} />
                     {mainOpen && (
                         <div className="space-y-1 ml-2">
                             <Item icon={Home} label="Dashboard" href="/org-admin" active={pathname === "/org-admin"} />
                         </div>
                     )}
 
+
                     {/* Attendance Section */}
-                    <CategoryButton label="Attendance" isOpen={attendanceOpen} onClick={() => setAttendanceOpen(!attendanceOpen)} />
+                    <CategoryButton label="Attendance" isOpen={attendanceOpen} onClick={() => handleToggle(setAttendanceOpen, attendanceOpen)} />
                     {attendanceOpen && (
                         <div className="space-y-1 ml-2">
                             <Item icon={LayoutDashboard} label="Dashboard" href="/org-admin/attendance/dashboard" active={pathname === "/org-admin/attendance/dashboard"} />
                             <Item icon={UserCheck} label="Employee Attendance" href="/org-admin/attendance/employee" active={pathname === "/org-admin/attendance/employee"} />
                             <Item icon={Settings} label="Attendance Config" href="/org-admin/attendance-config" active={pathname === "/org-admin/attendance-config"} />
                             <Item icon={Settings} label="Attendance Rules" href="/org-admin/attendance-rules" active={pathname === "/org-admin/attendance-rules"} />
+                            <Item icon={Calendar} label="Holiday Calendar" href="/org-admin/holiday-calendar" active={pathname === "/org-admin/holiday-calendar"} />
+                            <Item icon={ListChecks} label="Approval Workflows" href="/org-admin/approval-workflows" active={pathname === "/org-admin/approval-workflows"} />
                             <Item icon={ClipboardList} label="Leave Requests" href="/org-admin/requests/leaves" active={pathname === "/org-admin/requests/leaves"} />
                             <Item icon={Calendar} label="Comp-Off Requests" href="/org-admin/requests/comp-offs" active={pathname === "/org-admin/requests/comp-offs"} />
                             <Item icon={Clock} label="Regularization" href="/org-admin/requests/regularization" active={pathname === "/org-admin/requests/regularization"} />
+                            <Item icon={Clock} label="Night OT Requests" href="/org-admin/requests/night-ot" active={pathname === "/org-admin/requests/night-ot"} />
                             <Item icon={AlertCircle} label="Verification Issues" href="/org-admin/requests/verification" active={pathname === "/org-admin/requests/verification"} />
                             <Item icon={ListChecks} label="Session Requests" href="/org-admin/requests/sessions" active={pathname === "/org-admin/requests/sessions"} />
                             <Item icon={ListChecks} label="Payroll" href="/org-admin/payroll" active={pathname === "/org-admin/payroll"} />
+                            <Item icon={FileText} label="Salary Slips" href="/org-admin/salary-slips" active={pathname === "/org-admin/salary-slips"} />
                         </div>
                     )}
 
                     {/* Management Section */}
-                    <CategoryButton label="Management" isOpen={managementOpen} onClick={() => setManagementOpen(!managementOpen)} />
+                    <CategoryButton label="Management" isOpen={managementOpen} onClick={() => handleToggle(setManagementOpen, managementOpen)} />
                     {managementOpen && (
                         <div className="space-y-1 ml-2">
                             <Item icon={Users} label="Employees" href="/org-admin/employees" active={pathname === "/org-admin/employees"} />
+                            <Item icon={UserCog} label="Team Mapper" href="/org-admin/assignments" active={pathname === "/org-admin/assignments"} />
+                            <Item icon={Shield} label="Policy Mapper" href="/org-admin/policy-mapper" active={pathname === "/org-admin/policy-mapper"} />
+                            <Item icon={Phone} label="Emergency Contacts" href="/org-admin/emergency-contacts" active={pathname === "/org-admin/emergency-contacts"} />
                             <Item icon={Upload} label="Import Employees" href="/org-admin/employees/import" active={pathname === "/org-admin/employees/import"} />
                             <Item icon={Clock} label="Shift Management" href="/org-admin/employees/shifts" active={pathname === "/org-admin/employees/shifts"} />
                             <Item icon={UserCog} label="Roles" href="/org-admin/roles" active={pathname === "/org-admin/roles"} />
                             <Item icon={Building} label="Departments" href="/org-admin/departments" active={pathname === "/org-admin/departments"} />
                             <Item icon={MapPin} label="Sites" href="/org-admin/sites" active={pathname === "/org-admin/sites"} />
+                            <Item icon={Building2} label="Sub Organizations" href="/org-admin/sub-organizations" active={pathname === "/org-admin/sub-organizations"} />
+                            <Item icon={Link2} label="Site-Sub-Org Mapper" href="/org-admin/site-sub-org-mapper" active={pathname === "/org-admin/site-sub-org-mapper"} />
                             <Item icon={MapPin} label="Employee Sites" href="/org-admin/employee-sites" active={pathname === "/org-admin/employee-sites"} />
                             <Item icon={MapPin} label="Other Locations" href="/org-admin/other-locations" active={pathname === "/org-admin/other-locations"} />
                             <Item icon={DollarSign} label="Budget Requests" href="/org-admin/site-budget-requests" active={pathname === "/org-admin/site-budget-requests"} />
                             <Item icon={Coins} label="Salary Components" href="/org-admin/salary-components" active={pathname === "/org-admin/salary-components"} />
                             <Item icon={ListChecks} label="Debit Rules" href="/org-admin/debit-rules" active={pathname === "/org-admin/debit-rules"} />
+                            <Item icon={Upload} label="Salary Import" href="/org-admin/salary-import" active={pathname === "/org-admin/salary-import"} />
                         </div>
                     )}
 
                     {/* Wallet Section */}
                     {hasFeature("WALLET") && (
                         <>
-                            <CategoryButton label="Wallet" isOpen={walletOpen} onClick={() => setWalletOpen(!walletOpen)} />
+                            <CategoryButton label="Wallet" isOpen={walletOpen} onClick={() => handleToggle(setWalletOpen, walletOpen)} />
                             {walletOpen && (
                                 <div className="space-y-1 ml-2">
                                     <Item icon={Wallet} label="Wallet Requests" href="/org-admin/wallet/requests" active={pathname === "/org-admin/wallet/requests"} />
@@ -261,7 +422,7 @@ export default function OrgSidebar({
                     )}
 
                     {/* Salary Advance Section */}
-                    <CategoryButton label="Salary Advance" isOpen={salaryAdvanceOpen} onClick={() => setSalaryAdvanceOpen(!salaryAdvanceOpen)} />
+                    <CategoryButton label="Salary Advance" isOpen={salaryAdvanceOpen} onClick={() => handleToggle(setSalaryAdvanceOpen, salaryAdvanceOpen)} />
                     {salaryAdvanceOpen && (
                         <div className="ml-4 space-y-1">
                             <Item icon={ClipboardList} label="All Requests" href="/org-admin/salary-advance/requests" active={pathname === "/org-admin/salary-advance/requests"} />
@@ -276,7 +437,7 @@ export default function OrgSidebar({
                     {/* Inventory Section */}
                     {hasFeature("INVENTORY") && (
                         <>
-                            <CategoryButton label="Inventory" isOpen={inventoryOpen} onClick={() => setInventoryOpen(!inventoryOpen)} />
+                            <CategoryButton label="Inventory" isOpen={inventoryOpen} onClick={() => handleToggle(setInventoryOpen, inventoryOpen)} />
                             {inventoryOpen && (
                                 <div className="space-y-1 ml-2">
                                     <Item icon={Package} label="Items" href="/org-admin/inventory/items" active={pathname === "/org-admin/inventory/items"} />
@@ -287,7 +448,7 @@ export default function OrgSidebar({
                     )}
 
                     {/* Task Section */}
-                    <CategoryButton label="Tasks" isOpen={taskOpen} onClick={() => setTaskOpen(!taskOpen)} />
+                    <CategoryButton label="Tasks" isOpen={taskOpen} onClick={() => handleToggle(setTaskOpen, taskOpen)} />
                     {taskOpen && (
                         <div className="space-y-1 ml-2">
                             <Item icon={CheckSquare} label="All Tasks" href="/org-admin/tasks" active={pathname === "/org-admin/tasks"} />
@@ -297,6 +458,29 @@ export default function OrgSidebar({
                         </div>
                     )}
 
+                    {/* Form Builder Section */}
+                    <>
+                        <CategoryButton label="Form Builder" isOpen={formBuilderOpen} onClick={() => handleToggle(setFormBuilderOpen, formBuilderOpen)} />
+                        {formBuilderOpen && (
+                            <div className="space-y-1 ml-2">
+                                <Item icon={Upload} label="Upload Template" href="/org-admin/form-builder/upload" active={pathname === "/org-admin/form-builder/upload"} />
+                                <Item icon={Layout} label="Forms Library" href="/org-admin/form-builder/library" active={pathname === "/org-admin/form-builder/library"} />
+                            </div>
+                        )}
+                    </>
+
+                    {/* DPR Section */}
+                    <>
+                        <CategoryButton label="DPR" isOpen={dpsOpen} onClick={() => handleToggle(setDpsOpen, dpsOpen)} />
+                        {dpsOpen && (
+                            <div className="space-y-1 ml-2">
+                                <Item icon={LayoutDashboard} label="Dashboard" href="/org-admin/dps" active={pathname === "/org-admin/dps"} />
+                                <Item icon={ClipboardList} label="Submissions" href="/org-admin/dps/submissions" active={pathname === "/org-admin/dps/submissions"} />
+                                <Item icon={Calendar} label="Schedule" href="/org-admin/dps/schedule" active={pathname === "/org-admin/dps/schedule"} />
+                                <Item icon={UserPlus} label="Assignments" href="/org-admin/dps/assignments" active={pathname === "/org-admin/dps/assignments"} />
+                            </div>
+                        )}
+                    </>
                     {/* Meetings Section (MoM) */}
                     {hasFeature("MOM_FEATURE") && (
                         <>
@@ -313,7 +497,7 @@ export default function OrgSidebar({
 
                     {/* Insurance Section */}
                     <>
-                        <CategoryButton label="Insurance" isOpen={insuranceOpen} onClick={() => setInsuranceOpen(!insuranceOpen)} />
+                        <CategoryButton label="Insurance" isOpen={insuranceOpen} onClick={() => handleToggle(setInsuranceOpen, insuranceOpen)} />
                         {insuranceOpen && (
                             <div className="space-y-1 ml-2">
                                 <Item icon={LayoutGrid} label="Dashboard" href="/org-admin/insurance/dashboard" active={pathname === "/org-admin/insurance/dashboard"} />
@@ -331,7 +515,7 @@ export default function OrgSidebar({
 
                     {/* Petty Cash Section */}
                     <>
-                        <CategoryButton label="Petty Cash" isOpen={pettyCashOpen} onClick={() => setPettyCashOpen(!pettyCashOpen)} />
+                        <CategoryButton label="Petty Cash" isOpen={pettyCashOpen} onClick={() => handleToggle(setPettyCashOpen, pettyCashOpen)} />
                         {pettyCashOpen && (
                             <div className="space-y-1 ml-2">
                                 <Item icon={DollarSign} label="Wallets" href="/org-admin/petty-cash" active={pathname === "/org-admin/petty-cash"} />
@@ -342,6 +526,65 @@ export default function OrgSidebar({
                         )}
                     </>
 
+                    {/* Labor Management Section */}
+                    <>
+                        <CategoryButton label="Labor Management" isOpen={laborOpen} onClick={() => handleToggle(setLaborOpen, laborOpen)} />
+                        {laborOpen && (
+                            <div className="space-y-1 ml-2">
+                                <Item icon={LayoutDashboard} label="Attendance Dashboard" href="/org-admin/labor-attendance/dashboard" active={pathname === "/org-admin/labor-attendance/dashboard"} />
+                                <Item icon={BarChart3} label="Contractor Dashboard" href="/org-admin/labor-attendance/contractor-dashboard" active={pathname === "/org-admin/labor-attendance/contractor-dashboard"} />
+                                <Item icon={ClipboardList} label="Attendance Logs" href="/org-admin/labor-attendance/logs" active={pathname === "/org-admin/labor-attendance/logs"} />
+                                <Item icon={LayoutGrid} label="Categories" href="/org-admin/labor/categories" active={pathname === "/org-admin/labor/categories"} />
+                                <Item icon={Layers} label="Subcategories" href="/org-admin/labor/subcategories" active={pathname === "/org-admin/labor/subcategories"} />
+                                <Item icon={Briefcase} label="Contractors" href="/org-admin/labor/contractors" active={pathname === "/org-admin/labor/contractors"} />
+                                <Item icon={HardHat} label="Laborers" href="/org-admin/labor/laborers" active={pathname === "/org-admin/labor/laborers"} />
+                                <Item icon={DollarSign} label="Rate Cards" href="/org-admin/labor/rate-cards" active={pathname === "/org-admin/labor/rate-cards"} />
+                                <Item icon={Shield} label="Site Logins" href="/org-admin/site-logins" active={pathname === "/org-admin/site-logins"} />
+                                <Item icon={Settings} label="Settings" href="/org-admin/labor/settings" active={pathname === "/org-admin/labor/settings"} />
+                                <Item icon={Activity} label="Device Health" href="/org-admin/labor-attendance/temperature-dashboard" active={pathname === "/org-admin/labor-attendance/temperature-dashboard"} />
+                                <Item icon={Thermometer} label="Device Logs" href="/org-admin/labor-attendance/device-logs" active={pathname === "/org-admin/labor-attendance/device-logs"} />
+                            </div>
+                        )}
+                    </>
+
+                    {/* HR Operation Section */}
+                    <>
+                        <CategoryButton label="HR Operation" isOpen={hrOperationOpen} onClick={() => handleToggle(setHrOperationOpen, hrOperationOpen)} />
+                        {hrOperationOpen && (
+                            <div className="space-y-1 ml-2">
+                                <Item icon={Briefcase} label="Applied Positions" href="/org-admin/hr-operation/applied-positions" active={pathname === "/org-admin/hr-operation/applied-positions"} />
+                                <Item icon={QrCode} label="Interview Management" href="/org-admin/hr-operation/interviews" active={pathname === "/org-admin/hr-operation/interviews"} />
+
+                                <Item icon={Award} label="Technical Assessments" href="/org-admin/hr-operation/technical-assessments" active={pathname === "/org-admin/hr-operation/technical-assessments"} />
+                                <Item icon={FileText} label="Technical Questions" href="/org-admin/hr-operation/technical-questions" active={pathname === "/org-admin/hr-operation/technical-questions"} />
+                                <Item
+                                    icon={UserCheck}
+                                    label="Operation / Final Round"
+                                    href="/org-admin/hr-operation/operation-round"
+                                    active={
+                                        pathname === "/org-admin/hr-operation/operation-round" ||
+                                        pathname === "/org-admin/hr-operation/final-round"
+                                    }
+                                />
+                                <Item icon={UserPlus} label="Onboarding" href="/org-admin/hr-operation/onboarding" active={pathname === "/org-admin/hr-operation/onboarding"} />
+                                <Item icon={Briefcase} label="Onboarding Status" href="/org-admin/hr-operation/onboarding/status" active={pathname === "/org-admin/hr-operation/onboarding/status"} />
+                                <Item icon={FileText} label="Document Center" href="/org-admin/hr-operation/document-center" active={pathname === "/org-admin/hr-operation/document-center"} />
+                                <Item icon={Receipt} label="Reimbursements" href="/org/hr-operation/reimbursements" active={pathname === "/org/hr-operation/reimbursements"} />
+                            </div>
+                        )}
+                    </>
+
+
+                    {/* Reimbursements Section */}
+                    <>
+                        <CategoryButton label="Reimbursements" isOpen={reimbursementsOpen} onClick={() => handleToggle(setReimbursementsOpen, reimbursementsOpen)} />
+                        {reimbursementsOpen && (
+                            <div className="space-y-1 ml-2">
+                                <Item icon={Receipt} label="All Reimbursements" href="/org/hr-operation/reimbursements" active={pathname === "/org/hr-operation/reimbursements"} />
+                                <Item icon={Receipt} label="Accounts / Disburse" href="/org/accounts/reimbursements" active={pathname === "/org/accounts/reimbursements"} />
+                            </div>
+                        )}
+                    </>
 
                     {/* Settings */}
                     <CategoryButton label="Settings" isOpen={false} onClick={() => { }} />

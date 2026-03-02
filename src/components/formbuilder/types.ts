@@ -17,7 +17,11 @@ export type FieldType =
   | "barcode"
   | "toggle"
   | "section"
-  | "readonly";
+  | "container"
+  | "autocad"
+  | "pdf_viewer"
+  | "readonly"
+  | "reference";
 
 export interface FieldOption {
   value: string;
@@ -53,8 +57,11 @@ export interface FieldMeta {
   uploadMode?: "camera" | "any";
   // For date/time/datetime fields: restrict to current device time when liveOnly; otherwise manual entry
   captureMode?: "live" | "manual";
-  // For gps fields: whether to capture current device location or allow any coordinates
   gpsMode?: "current" | "any";
+  fileUrl?: string; // for autocad or other files
+  // For reference fields
+  referenceUrl?: string; // URL of the uploaded reference file
+  executionPhase?: "none" | "plan" | "actual";
 }
 
 export interface FormField {

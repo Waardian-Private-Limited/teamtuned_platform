@@ -6,7 +6,7 @@ import RouteGuard from '@/components/auth/RouteGuard';
 
 export default function EmployeeDebitRulesPage() {
     return (
-        <RouteGuard requireOrgAdmin>
+        <RouteGuard>
             <DebitRules />
         </RouteGuard>
     );

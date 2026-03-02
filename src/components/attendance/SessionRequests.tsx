@@ -191,6 +191,28 @@ export default function SessionRequests({ defaultStatus = 'Pending', defaultHQ =
                         <h1 className="text-xl font-bold text-gray-900">Session Requests</h1>
                     </div>
                     <div className="flex items-center space-x-3">
+                        {/* Refresh Button */}
+                        <button
+                            onClick={loadRequests}
+                            disabled={loading}
+                            className="flex items-center gap-2 px-4 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium text-gray-700"
+                        >
+                            <svg
+                                className={`w-4 h-4 text-gray-600 ${loading ? 'animate-spin' : ''}`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                />
+                            </svg>
+                            <span>Refresh</span>
+                        </button>
+
                         {/* HR Mode Toggle */}
                         {!externalControl && showHQToggle && canHRMode && !isOrgAdmin && (
                             <label className="inline-flex items-center gap-2 text-sm text-gray-700 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200 cursor-pointer">
@@ -204,6 +226,18 @@ export default function SessionRequests({ defaultStatus = 'Pending', defaultHQ =
                                 <span>HR Mode</span>
                             </label>
                         )}
+
+                        {/* Status Filter */}
+                        <select
+                            value={filter}
+                            onChange={(e) => setFilter(e.target.value as any)}
+                            className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        >
+                            <option value="All">All Status</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Approved">Approved</option>
+                            <option value="Rejected">Rejected</option>
+                        </select>
 
                         {/* Site Selector */}
                         {!externalControl && (
@@ -250,18 +284,7 @@ export default function SessionRequests({ defaultStatus = 'Pending', defaultHQ =
                 {/* Collapsible Filters */}
                 {filtersExpanded && (
                     <div className="mt-4 pt-4 border-t border-gray-200">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                            <select
-                                value={filter}
-                                onChange={(e) => setFilter(e.target.value as any)}
-                                className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                            >
-                                <option value="All">All Status</option>
-                                <option value="Pending">Pending</option>
-                                <option value="Approved">Approved</option>
-                                <option value="Rejected">Rejected</option>
-                            </select>
-
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-3">
                             <input
                                 type="date"
                                 className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
@@ -279,8 +302,8 @@ export default function SessionRequests({ defaultStatus = 'Pending', defaultHQ =
                             />
                         </div>
 
-                        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                            <div className="md:col-span-4 flex items-center space-x-2">
+                        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="md:col-span-2 flex items-center space-x-2">
                                 <button
                                     onClick={loadRequests}
                                     className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm flex-1"
@@ -373,7 +396,7 @@ export default function SessionRequests({ defaultStatus = 'Pending', defaultHQ =
                         </thead>
                         <tbody className="divide-y divide-gray-200">
                             {loading && (requests || []).length === 0 ? (
-                                [...Array(5)].map((_, i) => (
+                                [...Array(10)].map((_, i) => (
                                     <tr key={i} className="animate-pulse">
                                         <td className="px-4 py-3"><div className="h-4 bg-gray-100 rounded w-32"></div></td>
                                         <td className="px-4 py-3"><div className="h-4 bg-gray-100 rounded w-24"></div></td>
@@ -449,6 +472,8 @@ export default function SessionRequests({ defaultStatus = 'Pending', defaultHQ =
                                         setHqMode(defaultHQ);
                                     }
                                     setPage(1);
+                                    // Reload requests after clearing filters
+                                    setTimeout(() => loadRequests(), 100);
                                 }}
                                 className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
                             >

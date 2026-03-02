@@ -81,10 +81,33 @@ export default function EmployeeLeaveHistory({ employeeId, employeeName, onClose
 
     const fetchCurrentBalances = async () => {
         try {
-            const res = await apiClient<any>(`/leaves/balances`, {
+            const res = await apiClient<any>(`/leaves/summary`, {
                 params: { employee_id: String(employeeId) }
             });
-            setCurrentBalances(res.balances || []);
+
+            const balances = res.leave_balances || [];
+
+            // Process Comp-offs
+            const compoffs = res.compoff || [];
+            // In backend getSummary, expired 'Approved' are filtered out.
+            // Remaining = Approved (valid)
+            // Used = Used
+            const compoffApproved = compoffs.filter((c: any) => (c.effective_status || c.status) === 'Approved').length;
+            const compoffUsed = compoffs.filter((c: any) => c.status === 'Used').length;
+            const compoffAllocated = compoffApproved + compoffUsed;
+
+            if (compoffAllocated > 0 || compoffApproved > 0) {
+                balances.push({
+                    leave_type: 'Comp-off',
+                    total_allocated: compoffAllocated,
+                    used: compoffUsed,
+                    carry_forward: 0,
+                    period_month: undefined,
+                    period_year: undefined
+                });
+            }
+
+            setCurrentBalances(balances);
             setPolicy(res.policy);
         } catch (error) {
             console.error("Failed to fetch balances:", error);
@@ -155,8 +178,8 @@ export default function EmployeeLeaveHistory({ employeeId, employeeName, onClose
                     <button
                         onClick={() => setActiveTab("current")}
                         className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "current"
-                                ? "border-blue-600 text-blue-600"
-                                : "border-transparent text-gray-500 hover:text-gray-700"
+                            ? "border-blue-600 text-blue-600"
+                            : "border-transparent text-gray-500 hover:text-gray-700"
                             }`}
                     >
                         Current Balances
@@ -164,8 +187,8 @@ export default function EmployeeLeaveHistory({ employeeId, employeeName, onClose
                     <button
                         onClick={() => setActiveTab("history")}
                         className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "history"
-                                ? "border-blue-600 text-blue-600"
-                                : "border-transparent text-gray-500 hover:text-gray-700"
+                            ? "border-blue-600 text-blue-600"
+                            : "border-transparent text-gray-500 hover:text-gray-700"
                             }`}
                     >
                         Balance History
@@ -173,8 +196,8 @@ export default function EmployeeLeaveHistory({ employeeId, employeeName, onClose
                     <button
                         onClick={() => setActiveTab("applications")}
                         className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "applications"
-                                ? "border-blue-600 text-blue-600"
-                                : "border-transparent text-gray-500 hover:text-gray-700"
+                            ? "border-blue-600 text-blue-600"
+                            : "border-transparent text-gray-500 hover:text-gray-700"
                             }`}
                     >
                         Applications

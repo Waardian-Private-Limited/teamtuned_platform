@@ -56,6 +56,7 @@ export type AttendancePolicy = {
   auto_convert_to_compoff: boolean;
   min_extra_work_for_compoff_minutes: number;
   compoff_requires_approval: boolean;
+  regularization_allowed_days: number;
 
   // Late check-in rules
   allow_full_day_if_late_checkin: boolean;
@@ -73,6 +74,19 @@ export type AttendancePolicy = {
   // Leave reset dates
   leave_reset_day?: number;
   leave_reset_month?: number | null;
+
+  // Night OT policy
+  allow_night_ot?: boolean;
+  night_shift_min_percentage?: number;
+  night_shift_full_credit_percentage?: number;
+  night_ot_compoff_conversion?: boolean;
+
+
+  // Display settings
+  show_grace_minutes?: boolean;
+  show_late_min?: boolean;
+  show_ot_minutes?: boolean;
+  adjust_leave_compoff?: boolean;
 };
 
 const defaultPolicy: AttendancePolicy = {
@@ -98,6 +112,7 @@ const defaultPolicy: AttendancePolicy = {
   auto_convert_to_compoff: true,
   min_extra_work_for_compoff_minutes: 240,
   compoff_requires_approval: true,
+  regularization_allowed_days: 0,
 
   allow_full_day_if_late_checkin: false,
   half_day_threshold_percent: 50,
@@ -114,6 +129,17 @@ const defaultPolicy: AttendancePolicy = {
 
   leave_reset_day: 1,
   leave_reset_month: 1,
+
+  allow_night_ot: false,
+  night_shift_min_percentage: 50,
+  night_shift_full_credit_percentage: 75,
+  night_ot_compoff_conversion: false,
+
+
+  show_grace_minutes: true,
+  show_late_min: true,
+  show_ot_minutes: true,
+  adjust_leave_compoff: true,
 };
 
 export default function AttendanceRulesManager() {
@@ -347,6 +373,7 @@ export default function AttendanceRulesManager() {
     if (policy.half_day_threshold_percent < 1 || policy.half_day_threshold_percent > 99) errs.half_day_threshold_percent = "Enter a percentage between 1 and 99";
     if (policy.full_day_threshold_percent < 1 || policy.full_day_threshold_percent > 100) errs.full_day_threshold_percent = "Enter a percentage between 1 and 100";
     if (policy.late_threshold_for_halfday_minutes < 0) errs.late_threshold_for_halfday_minutes = "Enter 0 or more";
+    if (policy.regularization_allowed_days < 0 || policy.regularization_allowed_days > 31) errs.regularization_allowed_days = "Enter between 0 and 31";
 
     setFormErrors((prev) => ({ ...prev, ...errs }));
     return Object.keys(errs).length === 0;
@@ -1611,6 +1638,182 @@ export default function AttendanceRulesManager() {
                           <option value="false">No</option>
                         </select>
                         <p className="mt-1 text-xs text-gray-500">If enabled, comp-off issuance needs manager approval.</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Regularization Allowed Days
+                        </label>
+                        <input
+                          type="number"
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.regularization_allowed_days ? 'border-red-500' : 'border-gray-300'
+                            }`}
+                          min={0}
+                          max={31}
+                          value={policy.regularization_allowed_days}
+                          onChange={(e) => setField("regularization_allowed_days", Number(e.target.value))}
+                        />
+                        {formErrors.regularization_allowed_days && (
+                          <p className="mt-1 text-sm text-red-600">{formErrors.regularization_allowed_days}</p>
+                        )}
+                        <p className="mt-1 text-xs text-gray-500">
+                          Number of days back users can regularize (0-31). 0 means no restriction or immediate only.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Auto-adjust Leaves & Comp Offs
+                        </label>
+                        <select
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          value={policy.adjust_leave_compoff !== false ? "true" : "false"}
+                          onChange={(e) => setField("adjust_leave_compoff", e.target.value === "true")}
+                        >
+                          <option value="true">Yes</option>
+                          <option value="false">No</option>
+                        </select>
+                        <p className="mt-1 text-xs text-gray-500">
+                          If enabled, system will automatically deduct Paid Leaves and Comp Offs for absent days during payroll.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Night OT Configuration */}
+                    <div className="border-t pt-6 mt-6">
+                      <h5 className="text-md font-semibold text-gray-900 mb-4">Night OT Configuration</h5>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Allow Night OT
+                          </label>
+                          <select
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            value={policy.allow_night_ot ? "true" : "false"}
+                            onChange={(e) => {
+                              const yes = e.target.value === "true";
+                              setField("allow_night_ot", yes);
+                            }}
+                          >
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                          </select>
+                          <p className="mt-1 text-xs text-gray-500">
+                            Enable Night OT for day shift employees (excludes night shift workers)
+                          </p>
+                        </div>
+
+                        {policy.allow_night_ot && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Minimum Night Shift Percentage
+                            </label>
+                            <input
+                              type="number"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              min={1}
+                              max={100}
+                              value={policy.night_shift_min_percentage || 50}
+                              onChange={(e) => setField("night_shift_min_percentage", Number(e.target.value))}
+                            />
+                            <p className="mt-1 text-xs text-gray-500">
+                              Minimum % of standard hours required for valid Night OT (e.g., 50% of 8h = 4h minimum)
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Additional Night OT Settings */}
+                      {policy.allow_night_ot && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Full Credit Percentage
+                            </label>
+                            <input
+                              type="number"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              min={1}
+                              max={100}
+                              value={policy.night_shift_full_credit_percentage || 75}
+                              onChange={(e) => setField("night_shift_full_credit_percentage", Number(e.target.value))}
+                            />
+                            <p className="mt-1 text-xs text-gray-500">
+                              If Night OT hours exceed this % of standard hours, grant full day credit (e.g., 75% = full day)
+                            </p>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Convert to Comp-Off
+                            </label>
+                            <select
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              value={policy.night_ot_compoff_conversion ? "true" : "false"}
+                              onChange={(e) => setField("night_ot_compoff_conversion", e.target.value === "true")}
+                            >
+                              <option value="true">Yes</option>
+                              <option value="false">No</option>
+                            </select>
+                            <p className="mt-1 text-xs text-gray-500">
+                              Automatically convert approved Night OT hours to comp-off days
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Display Settings */}
+                    <div className="border-t pt-6 mt-6">
+                      <h5 className="text-md font-semibold text-gray-900 mb-4">Employee App Display Settings</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Show Grace Minutes
+                          </label>
+                          <select
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            value={policy.show_grace_minutes !== false ? "true" : "false"}
+                            onChange={(e) => setField("show_grace_minutes", e.target.value === "true")}
+                          >
+                            <option value="true">Show</option>
+                            <option value="false">Hide</option>
+                          </select>
+                          <p className="mt-1 text-xs text-gray-500">Show/Hide grace usage in app</p>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Show Late Minutes
+                          </label>
+                          <select
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            value={policy.show_late_min !== false ? "true" : "false"}
+                            onChange={(e) => setField("show_late_min", e.target.value === "true")}
+                          >
+                            <option value="true">Show</option>
+                            <option value="false">Hide</option>
+                          </select>
+                          <p className="mt-1 text-xs text-gray-500">Show/Hide late minutes in app</p>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Show OT Minutes
+                          </label>
+                          <select
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            value={policy.show_ot_minutes !== false ? "true" : "false"}
+                            onChange={(e) => setField("show_ot_minutes", e.target.value === "true")}
+                          >
+                            <option value="true">Show</option>
+                            <option value="false">Hide</option>
+                          </select>
+                          <p className="mt-1 text-xs text-gray-500">Show/Hide overtime in app</p>
+                        </div>
                       </div>
                     </div>
                   </>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { apiClient } from "@/lib/apiClient";
 import {
     BarChart3,
@@ -29,7 +29,8 @@ import {
     Activity,
     CalendarOff,
     LogOut,
-    Coffee
+    Coffee,
+    Moon
 } from "lucide-react";
 import { format } from "date-fns";
 import { createPortal } from "react-dom";
@@ -62,6 +63,7 @@ interface AttendanceStats {
     late: number;
     early_exit: number;
     overtime: number;
+    night_ot: number;
     outside_work: number;
     on_break: number;
     working_employees: number;
@@ -134,6 +136,7 @@ export default function AttendanceDashboard() {
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [searchQuery, setSearchQuery] = useState("");
+    const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const isEmployee = (role || "").toLowerCase() === "employee";
     const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
@@ -244,6 +247,23 @@ export default function AttendanceDashboard() {
         }
     }, [selectedSiteId, selectedDepartmentId, selectedRoleId, date]);
 
+    // Debounced search handler
+    const handleSearchChange = (value: string) => {
+        setSearchQuery(value);
+
+        // Clear existing timeout
+        if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current);
+        }
+
+        // Set new timeout for 500ms
+        searchTimeoutRef.current = setTimeout(() => {
+            if (selectedStatus) {
+                fetchEmployees(selectedStatus, 1, value);
+            }
+        }, 500);
+    };
+
     const handleCardClick = (status: string) => {
         setSelectedStatus(status);
         setSearchQuery("");
@@ -281,6 +301,14 @@ export default function AttendanceDashboard() {
             value: stats?.absent || 0,
             icon: UserX,
             color: 'from-red-500 to-red-600',
+            trend: null
+        },
+        {
+            title: 'Night OT',
+            statKey: 'night_ot',
+            value: stats?.night_ot || 0,
+            icon: Moon,
+            color: 'from-violet-500 to-violet-600',
             trend: null
         },
         {
@@ -415,21 +443,22 @@ export default function AttendanceDashboard() {
                             <p className="text-sm text-gray-500 mt-1">Real-time workforce insights & analytics</p>
                         </div>
                         <div className="flex items-center gap-3">
-                            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-1 flex items-center">
+                            <div className="relative bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                                <Calendar className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                                 <input
                                     type="date"
                                     value={date}
                                     onChange={(e) => setDate(e.target.value)}
-                                    className="border-none text-sm font-medium text-gray-700 focus:ring-0 bg-transparent"
+                                    className="pl-10 pr-4 py-2.5 border-none text-sm font-medium text-gray-700 focus:ring-2 focus:ring-blue-500 bg-transparent cursor-pointer"
                                 />
                             </div>
                             <button
                                 onClick={fetchData}
                                 disabled={loading}
-                                className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all text-sm font-medium text-gray-700"
+                                className="flex items-center gap-2 px-4 py-2.5 bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all text-sm font-medium text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-                                Refresh
+                                <span>Refresh</span>
                             </button>
                         </div>
                     </div>
@@ -485,7 +514,7 @@ export default function AttendanceDashboard() {
                                             onChange={(e) => setHqMode(e.target.checked)}
                                             className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
                                         />
-                                        <span className="text-sm font-medium text-gray-700">HQ Mode (All Sites)</span>
+                                        <span className="text-sm font-medium text-gray-700">HR Mode (All Sites)</span>
                                     </label>
                                 </div>
                             )}
@@ -493,7 +522,23 @@ export default function AttendanceDashboard() {
                     </div>
 
                     {/* Stats Grid */}
-                    {stats && (
+                    {loading ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                            {[...Array(10)].map((_, i) => (
+                                <div key={i} className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-100 to-gray-200 p-1 shadow-lg animate-pulse">
+                                    <div className="relative h-full bg-white/95 backdrop-blur-xl rounded-xl p-5">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div className="p-2.5 rounded-xl bg-gray-100 w-10 h-10"></div>
+                                        </div>
+                                        <div>
+                                            <div className="h-8 bg-gray-200 rounded w-16 mb-2"></div>
+                                            <div className="h-4 bg-gray-200 rounded w-24"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : stats && (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                             {statsConfig.map((stat, index) => (
                                 <StatCard key={index} {...stat} onClick={() => handleCardClick(stat.statKey)} />
@@ -502,7 +547,33 @@ export default function AttendanceDashboard() {
                     )}
 
                     {/* Analytics Section */}
-                    {analytics && (
+                    {loading ? (
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            {/* Site Attendance Overview Skeleton */}
+                            <div className="lg:col-span-2 bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-gray-200 p-6 animate-pulse">
+                                <div className="flex items-center justify-between mb-6">
+                                    <div>
+                                        <div className="h-6 bg-gray-200 rounded w-48 mb-2"></div>
+                                        <div className="h-4 bg-gray-200 rounded w-32"></div>
+                                    </div>
+                                    <div className="p-2 bg-gray-100 rounded-lg w-9 h-9"></div>
+                                </div>
+                                <div className="h-56 bg-gray-100 rounded-xl"></div>
+                            </div>
+
+                            {/* Overtime Breakdown Skeleton */}
+                            <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-gray-200 p-6 animate-pulse">
+                                <div className="flex items-center justify-between mb-6">
+                                    <div>
+                                        <div className="h-6 bg-gray-200 rounded w-40 mb-2"></div>
+                                        <div className="h-4 bg-gray-200 rounded w-36"></div>
+                                    </div>
+                                    <div className="p-2 bg-gray-100 rounded-lg w-9 h-9"></div>
+                                </div>
+                                <div className="h-52 bg-gray-100 rounded-xl"></div>
+                            </div>
+                        </div>
+                    ) : analytics && (
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                             {/* Site Attendance Overview */}
                             <div className="lg:col-span-2 bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-gray-200 p-6">
@@ -567,7 +638,33 @@ export default function AttendanceDashboard() {
                             </div>
                         </div>
                     )}
-                    {analytics && (
+                    {loading ? (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Attendance Trend Skeleton */}
+                            <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-gray-200 p-6 animate-pulse">
+                                <div className="flex items-center justify-between mb-6">
+                                    <div>
+                                        <div className="h-6 bg-gray-200 rounded w-40 mb-2"></div>
+                                        <div className="h-4 bg-gray-200 rounded w-36"></div>
+                                    </div>
+                                    <div className="p-2 bg-gray-100 rounded-lg w-9 h-9"></div>
+                                </div>
+                                <div className="h-56 bg-gray-100 rounded-xl"></div>
+                            </div>
+
+                            {/* Clock-in Distribution Skeleton */}
+                            <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-gray-200 p-6 animate-pulse">
+                                <div className="flex items-center justify-between mb-6">
+                                    <div>
+                                        <div className="h-6 bg-gray-200 rounded w-44 mb-2"></div>
+                                        <div className="h-4 bg-gray-200 rounded w-32"></div>
+                                    </div>
+                                    <div className="p-2 bg-gray-100 rounded-lg w-9 h-9"></div>
+                                </div>
+                                <div className="h-56 bg-gray-100 rounded-xl"></div>
+                            </div>
+                        </div>
+                    ) : analytics && (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                             <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-gray-200 p-6">
                                 <div className="flex items-center justify-between mb-6">
@@ -623,7 +720,47 @@ export default function AttendanceDashboard() {
                     )}
 
                     {/* Leaderboards & Issues */}
-                    {analytics && (
+                    {loading ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Early Birds Skeleton */}
+                            <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-gray-200 p-6 animate-pulse">
+                                <div className="h-6 bg-gray-200 rounded w-32 mb-4"></div>
+                                <div className="space-y-3">
+                                    {[...Array(5)].map((_, i) => (
+                                        <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-gray-200"></div>
+                                                <div>
+                                                    <div className="h-4 bg-gray-200 rounded w-24 mb-1"></div>
+                                                    <div className="h-3 bg-gray-200 rounded w-16"></div>
+                                                </div>
+                                            </div>
+                                            <div className="h-4 bg-gray-200 rounded w-16"></div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Late Arrivals Skeleton */}
+                            <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-gray-200 p-6 animate-pulse">
+                                <div className="h-6 bg-gray-200 rounded w-32 mb-4"></div>
+                                <div className="space-y-3">
+                                    {[...Array(5)].map((_, i) => (
+                                        <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-gray-200"></div>
+                                                <div>
+                                                    <div className="h-4 bg-gray-200 rounded w-24 mb-1"></div>
+                                                    <div className="h-3 bg-gray-200 rounded w-16"></div>
+                                                </div>
+                                            </div>
+                                            <div className="h-6 bg-gray-200 rounded-full w-12"></div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    ) : analytics && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {/* Top Early Arrivals */}
                             <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-gray-200 p-6">
@@ -701,19 +838,13 @@ export default function AttendanceDashboard() {
                                     </div>
                                     <div className="flex items-center gap-3">
                                         <div className="relative">
-                                            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                            <Search className="w-4 h-4 text-blue-500 absolute left-3 top-1/2 -translate-y-1/2" />
                                             <input
                                                 type="text"
-                                                placeholder="Search employees..."
+                                                placeholder="Search by name, email, or phone..."
                                                 value={searchQuery}
-                                                onChange={(e) => {
-                                                    setSearchQuery(e.target.value);
-                                                    // Debounce could be added here
-                                                    if (e.target.value.length === 0 || e.target.value.length > 2) {
-                                                        fetchEmployees(selectedStatus || '', 1, e.target.value);
-                                                    }
-                                                }}
-                                                className="pl-9 pr-4 py-2 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 w-64"
+                                                onChange={(e) => handleSearchChange(e.target.value)}
+                                                className="pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-72 placeholder:text-gray-400 placeholder:font-medium transition-all"
                                             />
                                         </div>
                                         <button onClick={closeModal} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
@@ -724,8 +855,35 @@ export default function AttendanceDashboard() {
 
                                 <div className="flex-1 overflow-y-auto p-0 bg-gray-50/50">
                                     {employeesLoading ? (
-                                        <div className="flex items-center justify-center py-20">
-                                            <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6">
+                                            {[...Array(6)].map((_, i) => (
+                                                <div key={i} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm animate-pulse">
+                                                    <div className="flex items-start justify-between mb-3">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 rounded-full bg-gray-200"></div>
+                                                            <div>
+                                                                <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
+                                                                <div className="h-3 bg-gray-200 rounded w-16"></div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="h-6 bg-gray-200 rounded-full w-16"></div>
+                                                    </div>
+                                                    <div className="space-y-2 mb-3">
+                                                        <div className="h-3 bg-gray-200 rounded w-full"></div>
+                                                        <div className="h-3 bg-gray-200 rounded w-3/4"></div>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-2 pt-3 border-t border-gray-50">
+                                                        <div className="bg-gray-100 rounded-lg p-2">
+                                                            <div className="h-2 bg-gray-200 rounded w-12 mb-1"></div>
+                                                            <div className="h-4 bg-gray-200 rounded w-16"></div>
+                                                        </div>
+                                                        <div className="bg-gray-100 rounded-lg p-2">
+                                                            <div className="h-2 bg-gray-200 rounded w-12 mb-1"></div>
+                                                            <div className="h-4 bg-gray-200 rounded w-16"></div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     ) : employees.length === 0 ? (
                                         <div className="text-center py-20">
@@ -804,14 +962,14 @@ export default function AttendanceDashboard() {
                                 {/* Pagination */}
                                 {employees.length > 0 && (
                                     <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-white">
-                                        <div className="text-sm text-gray-500 font-medium">
-                                            Page {page} of {totalPages}
+                                        <div className="text-sm text-gray-600 font-medium">
+                                            Page <span className="font-bold text-gray-900">{page}</span> of <span className="font-bold text-gray-900">{totalPages}</span>
                                         </div>
                                         <div className="flex gap-2">
                                             <button
                                                 onClick={() => fetchEmployees(selectedStatus || '', page - 1, searchQuery)}
                                                 disabled={page <= 1}
-                                                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 text-sm font-medium transition-colors"
+                                                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-900 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 hover:border-gray-300 hover:shadow-sm text-sm font-medium transition-all disabled:hover:bg-white disabled:hover:border-gray-200 disabled:hover:shadow-none"
                                             >
                                                 <ChevronLeft className="w-4 h-4" />
                                                 Previous
@@ -819,7 +977,7 @@ export default function AttendanceDashboard() {
                                             <button
                                                 onClick={() => fetchEmployees(selectedStatus || '', page + 1, searchQuery)}
                                                 disabled={page >= totalPages}
-                                                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 text-sm font-medium transition-colors"
+                                                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-700 text-sm font-medium transition-all disabled:hover:bg-blue-600"
                                             >
                                                 Next
                                                 <ChevronRight className="w-4 h-4" />

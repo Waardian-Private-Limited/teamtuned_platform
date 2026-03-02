@@ -1,13 +1,19 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { apiClient } from "@/lib/apiClient";
-import { Loader2, AlertCircle, Calendar, RefreshCw, MoreVertical, Eye, Edit2, ToggleLeft, ToggleRight, Trash2, Shield } from "lucide-react";
+import {
+  Loader2, AlertCircle, Calendar, RefreshCw, MoreVertical, Eye, Edit2,
+  ToggleLeft, ToggleRight, Trash2, Shield, LayoutGrid, CheckCircle,
+  Clock, XCircle, Search, Filter, Plus, ChevronDown, ChevronUp, Users,
+  Briefcase, ChevronLeft, ChevronRight, FileText
+} from "lucide-react";
 import TaskAssignmentViewer from "@/components/tasks/TaskAssignmentViewer";
 import TaskCreate from "@/components/tasks/TaskCreate";
 
 import { useAuth } from "@/context/AuthContext";
+
 type Task = {
   id: number;
   title?: string | null;
@@ -25,42 +31,72 @@ type Task = {
   assignee_designations?: string | null;
 };
 
-type Assignment = {
-  id: number;
-  task_id: number;
-  site_id?: number | null;
-  user_id?: number | null;
-  occurrence_date: string;
-  status: string;
-  submission_id?: number | null;
-  remarks?: string | null;
+type DashboardStats = {
+  tasksCounts: { total: number; active: number; paused: number; cancelled: number };
+  assignmentCounts: { assigned: number; pending: number; approved: number; rejected: number };
 };
+
+function useCountUp(target: number, duration = 1000) {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    let startTime: number;
+    let animationFrame: number;
+    const start = (timestamp: number) => {
+      if (!startTime) startTime = timestamp;
+      const progress = timestamp - startTime;
+      const percentage = Math.min(progress / duration, 1);
+      setCount(Math.floor(target * percentage));
+      if (progress < duration) {
+        animationFrame = requestAnimationFrame(start);
+      } else {
+        setCount(target);
+      }
+    };
+    animationFrame = requestAnimationFrame(start);
+    return () => cancelAnimationFrame(animationFrame);
+  }, [target, duration]);
+  return count;
+}
 
 export default function TaskAssignments({ role = "org" }: { role?: "org" | "employee" }) {
   const [tasks, setTasks] = React.useState<Task[]>([]);
-  const [assignments, setAssignments] = React.useState<Assignment[]>([]);
+  const [stats, setStats] = React.useState<DashboardStats | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [running, setRunning] = React.useState(false);
   const [showCreate, setShowCreate] = React.useState(false);
+  const [showDataCollection, setShowDataCollection] = React.useState(false);
   const [viewTaskId, setViewTaskId] = React.useState<number | null>(null);
+
+  // Filters
+  const [filtersExpanded, setFiltersExpanded] = React.useState(false);
+  const [searchTerm, setSearchTerm] = React.useState("");
   const [filters, setFilters] = React.useState<{ status?: string; recurrence?: string }>({});
   const [sites, setSites] = React.useState<Array<{ id: number; name: string }>>([]);
   const [selectedSiteId, setSelectedSiteId] = React.useState<number | undefined>(undefined);
+
+  // Pagination
   const [loadingTasks, setLoadingTasks] = React.useState(false);
-  const [loadingAssign, setLoadingAssign] = React.useState(false);
   const [page, setPage] = React.useState<number>(1);
-  const [limit, setLimit] = React.useState<number>(20);
+  const [limit, setLimit] = React.useState<number>(10);
   const [total, setTotal] = React.useState<number>(0);
   const [hasNext, setHasNext] = React.useState<boolean>(false);
 
-  // Use centralized auth
-  const { role: authRole, permissions, loading: authLoading } = useAuth();
-  const userRole = authRole;
-  const checkingPerms = authLoading;
-
-  const isOrgAdmin = (userRole || "").toLowerCase() === "orgadmin";
+  // Auth
+  const { role: authRole, user, employee, permissions, loading: authLoading } = useAuth();
+  const isOrgAdmin = (authRole || "").toLowerCase() === "orgadmin";
   const canView = isOrgAdmin || permissions.some(p => ["TASK_VIEW", "TASK_ASSIGN"].includes(p));
   const canCreate = isOrgAdmin || permissions.some(p => ["TASK_CREATE", "TASK_TEMPLATES"].includes(p));
+
+  // Load Dashboard Stats
+  useEffect(() => {
+    if (!canView) return;
+    (async () => {
+      try {
+        const res = await apiClient<DashboardStats>("/tasks/dashboard", { method: "GET", withAuth: true });
+        setStats(res);
+      } catch (_) { }
+    })();
+  }, [canView, role]);
 
   const loadTasks = React.useCallback(async () => {
     if (!canView) return;
@@ -70,7 +106,9 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
       const q: string[] = ["format=paginated", `page=${page}`, `limit=${limit}`];
       if (filters.status) q.push(`status=${encodeURIComponent(filters.status)}`);
       if (filters.recurrence) q.push(`recurrence=${encodeURIComponent(filters.recurrence)}`);
-      if (selectedSiteId && Number.isFinite(selectedSiteId)) q.push(`site_id=${encodeURIComponent(String(selectedSiteId))}`);
+      if (selectedSiteId) q.push(`site_id=${encodeURIComponent(String(selectedSiteId))}`);
+      // if (searchTerm) q.push(`search=${encodeURIComponent(searchTerm)}`); 
+
       const qs = q.length ? `?${q.join("&")}` : "";
       const res = await apiClient<{ items: Task[]; total: number; page: number; limit: number; hasNext: boolean }>(`/tasks${qs}`, { method: "GET", withAuth: true });
       const items = Array.isArray((res as any)?.items) ? (res as any).items : [];
@@ -79,47 +117,34 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
       setHasNext(!!(res as any)?.hasNext);
     } catch (e: any) {
       setError(e?.message || "Failed to load tasks");
+      setTasks([]);
     } finally {
       setLoadingTasks(false);
     }
-  }, [filters, selectedSiteId, page, limit, canView]);
-
-  const loadAssignments = React.useCallback(async (taskId: number) => {
-    setLoadingAssign(true);
-    setError(null);
-    try {
-      const res = await apiClient<Assignment[]>(`/tasks/${taskId}/assignments`, { method: "GET", withAuth: true });
-      setAssignments(Array.isArray(res) ? res : []);
-    } catch (e: any) {
-      setError(e?.message || "Failed to load assignments");
-    } finally {
-      setLoadingAssign(false);
-    }
-  }, []);
+  }, [filters, selectedSiteId, page, limit, canView, searchTerm]);
 
   React.useEffect(() => {
-    if (!checkingPerms && canView) {
+    if (!authLoading && canView) {
       loadTasks();
     }
-  }, [loadTasks, page, limit, checkingPerms, canView]);
-
-  React.useEffect(() => {
-    if (viewTaskId != null) {
-      loadAssignments(viewTaskId);
-    }
-  }, [viewTaskId, loadAssignments]);
+  }, [loadTasks, authLoading, canView]);
 
   React.useEffect(() => {
     (async () => {
       try {
-        const res = await apiClient<any>("/sites", { method: "GET", withAuth: true });
-        const list = Array.isArray(res) ? res : (Array.isArray(res?.sites) ? res.sites : []);
-        setSites(list);
+        if (isOrgAdmin) {
+          const res = await apiClient<any>("/sites", { method: "GET", withAuth: true });
+          const list = Array.isArray(res) ? res : (Array.isArray(res?.sites) ? res.sites : []);
+          setSites(list);
+        } else {
+          // Fetch assigned sites from API directly
+          const res = await apiClient<any>("/sites?assigned_only=true", { method: "GET", withAuth: true });
+          const list = Array.isArray(res) ? res : (Array.isArray(res?.sites) ? res.sites : []);
+          setSites(list);
+        }
       } catch { }
     })();
-  }, []);
-
-
+  }, [isOrgAdmin, employee]);
 
   const runScheduler = async () => {
     setRunning(true);
@@ -151,9 +176,11 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
     }
   };
 
+  // Action State
   const [confirm, setConfirm] = React.useState<{ type: 'status' | 'delete'; taskId: number; next?: 'active' | 'paused' | 'cancelled' } | null>(null);
-
   const [edit, setEdit] = React.useState<{ id: number; form: any } | null>(null);
+  const [viewDetails, setViewDetails] = React.useState<any | null>(null);
+
   const startEdit = async (id: number) => {
     try {
       const res = await apiClient<any>(`/tasks/${id}`, { method: 'GET', withAuth: true });
@@ -162,6 +189,7 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
       const approvalChain = Array.isArray(res?.approval_chain) ? res.approval_chain : [];
       setEdit({
         id, form: {
+          id,
           title: t.title || '',
           description: t.description || '',
           template_id: t.template_id || '',
@@ -174,35 +202,17 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
           requires_approval: !!t.requires_approval,
           assignees,
           approval_chain: approvalChain,
+          is_data_collection: !!t.is_data_collection,
+          shared_completion_mode: t.shared_completion_mode || 'individual',
+          target_role_id: t.target_role_id ? String(t.target_role_id) : '',
+          target_department_id: t.target_department_id ? String(t.target_department_id) : ''
         }
       });
     } catch (e: any) {
       setError(e?.message || 'Failed to load task');
     }
   };
-  const saveEdit = async () => {
-    if (!edit) return;
-    try {
-      await apiClient(`/tasks/${edit.id}`, {
-        method: 'PUT', withAuth: true, body: {
-          title: edit.form.title || null,
-          template_id: edit.form.template_id ? Number(edit.form.template_id) : undefined,
-          site_id: edit.form.site_id ? Number(edit.form.site_id) : undefined,
-          assignment_type: edit.form.assignment_type,
-          recurrence: edit.form.recurrence,
-          start_date: edit.form.start_date || null,
-          end_date: edit.form.end_date || null,
-          requires_approval: !!edit.form.requires_approval,
-        }
-      });
-      setEdit(null);
-      await loadTasks();
-    } catch (e: any) {
-      setError(e?.message || 'Failed to save task');
-    }
-  };
 
-  const [view, setView] = React.useState<any | null>(null);
   const viewTask = async (id: number) => {
     try {
       const res = await apiClient<any>(`/tasks/${id}`, { method: 'GET', withAuth: true });
@@ -211,126 +221,78 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
         assignees: Array.isArray(res?.assignees) ? res.assignees : [],
         approval_chain: Array.isArray(res?.approval_chain) ? res.approval_chain : [],
       };
-      setView(viewObj);
+      setViewDetails(viewObj);
     } catch (e: any) {
       setError(e?.message || 'Failed to load task');
     }
   };
 
-  const ActionDropdown = ({
-    task,
-    onViewAssignments,
-    onMakeActive,
-    onMakeInactive,
-    onDelete,
-    onEdit,
-    onViewTask,
-  }: {
-    task: Task;
-    onViewAssignments: () => void;
-    onMakeActive: () => void;
-    onMakeInactive: () => void;
-    onDelete: () => void;
-    onEdit: () => void;
-    onViewTask: () => void;
-  }) => {
-    const [isOpen, setIsOpen] = React.useState(false);
-    const dropdownRef = React.useRef<HTMLDivElement>(null);
-    const buttonRef = React.useRef<HTMLButtonElement>(null);
-    const [menuPos, setMenuPos] = React.useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const ActionDropdown = ({ task }: { task: Task }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+    const triggerRef = useRef<HTMLButtonElement>(null);
+    const [placeUp, setPlaceUp] = useState(false);
 
-    React.useEffect(() => {
+    useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
         if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
           setIsOpen(false);
         }
       };
       document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
+      return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    useEffect(() => {
+      if (isOpen && triggerRef.current) {
+        const rect = triggerRef.current.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        setPlaceUp(spaceBelow < 200);
+      }
+    }, [isOpen]);
 
     return (
       <div className="relative" ref={dropdownRef}>
         <button
-          ref={buttonRef}
-          onClick={() => {
-            const rect = buttonRef.current?.getBoundingClientRect();
-            if (rect) {
-              const estH = 240;
-              const width = 192;
-              let top = rect.bottom + window.scrollY + 6;
-              if (top + estH > window.scrollY + window.innerHeight) {
-                top = rect.top + window.scrollY - estH - 6;
-              }
-              let left = rect.left + window.scrollX;
-              if (left + width > window.scrollX + window.innerWidth) {
-                left = rect.right + window.scrollX - width;
-              }
-              setMenuPos({ top, left });
-            }
-            setIsOpen((o) => !o);
-          }}
-          className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
+          ref={triggerRef}
+          onClick={() => setIsOpen(!isOpen)}
+          className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200"
         >
           <MoreVertical className="w-4 h-4 text-gray-600" />
         </button>
         {isOpen && (
           <>
-            <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
+            <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
             <div
-              className="fixed w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
-              style={{ top: menuPos.top, left: menuPos.left }}
+              className={`fixed z-50 w-48 bg-white rounded-lg shadow-xl border border-gray-200 py-1 ${placeUp ? 'mb-2' : 'mt-2'}`}
+              style={{
+                left: triggerRef.current?.getBoundingClientRect().left! - 160 + 'px',
+                top: placeUp ? 'auto' : triggerRef.current?.getBoundingClientRect().bottom! + 'px',
+                bottom: placeUp ? (window.innerHeight - triggerRef.current?.getBoundingClientRect().top!) + 'px' : 'auto'
+              }}
             >
-              <div className="py-1">
-                <button
-                  onClick={() => { onViewAssignments(); setIsOpen(false); }}
-                  className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  <Eye className="w-4 h-4" />
-                  <span>View Assignments</span>
+              <button onClick={() => { setViewTaskId(task.id); setIsOpen(false); }} className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 text-left">
+                <Eye className="w-4 h-4" /> <span>View Submissions</span>
+              </button>
+              <button onClick={() => { startEdit(task.id); setIsOpen(false); }} className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 text-left">
+                <Edit2 className="w-4 h-4" /> <span>Edit Task</span>
+              </button>
+              <button onClick={() => { viewTask(task.id); setIsOpen(false); }} className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 text-left">
+                <Briefcase className="w-4 h-4" /> <span>View Details</span>
+              </button>
+              <div className="border-t border-gray-100 my-1" />
+              {task.status !== 'active' ? (
+                <button onClick={() => { setConfirm({ type: 'status', taskId: task.id, next: 'active' }); setIsOpen(false); }} className="flex items-center gap-2 w-full px-4 py-2 text-sm text-green-700 hover:bg-green-50 text-left">
+                  <ToggleRight className="w-4 h-4" /> <span>Activate</span>
                 </button>
-                <button
-                  onClick={() => { onEdit(); setIsOpen(false); }}
-                  className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  <Edit2 className="w-4 h-4" />
-                  <span>Edit Task</span>
+              ) : (
+                <button onClick={() => { setConfirm({ type: 'status', taskId: task.id, next: 'paused' }); setIsOpen(false); }} className="flex items-center gap-2 w-full px-4 py-2 text-sm text-yellow-700 hover:bg-yellow-50 text-left">
+                  <ToggleLeft className="w-4 h-4" /> <span>Pause</span>
                 </button>
-                <button
-                  onClick={() => { onViewTask(); setIsOpen(false); }}
-                  className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  <Eye className="w-4 h-4" />
-                  <span>View Task</span>
-                </button>
-                <div className="border-t border-gray-100 my-1" />
-                {task.status !== 'active' ? (
-                  <button
-                    onClick={() => { onMakeActive(); setIsOpen(false); }}
-                    className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-green-700 hover:bg-green-50"
-                  >
-                    <ToggleRight className="w-4 h-4" />
-                    <span>Activate</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => { onMakeInactive(); setIsOpen(false); }}
-                    className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-yellow-700 hover:bg-yellow-50"
-                  >
-                    <ToggleLeft className="w-4 h-4" />
-                    <span>Make Inactive</span>
-                  </button>
-                )}
-                <button
-                  onClick={() => { onDelete(); setIsOpen(false); }}
-                  className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span>Delete</span>
-                </button>
-              </div>
+              )}
+              <button onClick={() => { setConfirm({ type: 'delete', taskId: task.id }); setIsOpen(false); }} className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50 text-left">
+                <Trash2 className="w-4 h-4" /> <span>Delete</span>
+              </button>
             </div>
           </>
         )}
@@ -338,223 +300,378 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
     );
   };
 
-  if (checkingPerms) return <div className="p-8 text-center text-gray-500">Checking access...</div>;
+  const StatsCard = ({ title, count, icon: Icon, color, onClick, isActive }: any) => {
+    const animatedCount = useCountUp(count);
 
-  if (!canView) {
+    // Map colors to background classes
+    const colorMap: Record<string, { bg: string; border: string; text: string; textDark: string }> = {
+      'bg-green-500': { bg: 'bg-green-50', border: 'border-green-100', text: 'text-green-600', textDark: 'text-green-900' },
+      'bg-yellow-500': { bg: 'bg-yellow-50', border: 'border-yellow-100', text: 'text-yellow-600', textDark: 'text-yellow-900' },
+      'bg-red-500': { bg: 'bg-red-50', border: 'border-red-100', text: 'text-red-600', textDark: 'text-red-900' },
+      'bg-indigo-500': { bg: 'bg-indigo-50', border: 'border-indigo-100', text: 'text-indigo-600', textDark: 'text-indigo-900' },
+    };
+
+    const colors = colorMap[color] || { bg: 'bg-gray-50', border: 'border-gray-100', text: 'text-gray-600', textDark: 'text-gray-900' };
+
     return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 text-center text-gray-500">
-        <Shield size={48} className="mb-4 text-gray-300" />
-        <h2 className="text-xl font-semibold text-gray-900">Access Denied</h2>
-        <p className="mt-2">You do not have permission to view task assignments.</p>
+      <div
+        onClick={onClick}
+        className={`${colors.bg} rounded-xl p-4 border ${colors.border} cursor-pointer transition-all duration-200 ${isActive ? 'ring-2 ring-offset-1 ring-blue-500 shadow-md' : 'hover:shadow-md'}`}
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <p className={`text-xs font-medium uppercase tracking-wider ${colors.text}`}>{title}</p>
+            <p className={`text-2xl font-bold mt-1 ${colors.textDark}`}>{animatedCount}</p>
+          </div>
+          <div className="p-2 bg-white rounded-lg shadow-sm">
+            <Icon className={`w-5 h-5 ${colors.text}`} />
+          </div>
+        </div>
       </div>
     );
-  }
+  };
 
   if (viewTaskId != null) {
     return <TaskAssignmentViewer taskId={viewTaskId} onClose={() => setViewTaskId(null)} />;
   }
 
+  if (authLoading) return <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-gray-400" /></div>;
+  if (!canView) return <div className="p-10 text-center text-gray-500">Access Denied</div>;
+
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
   return (
-    <div className="p-1 space-y-2">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Task Assignments</h1>
-          <p className="mt-1 text-sm text-gray-600">View per-task generated assignments and statuses.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {canCreate && (
-            <button
-              onClick={() => setShowCreate(true)}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-green-600 text-white hover:bg-green-700"
-            >
-              Generate Task
-            </button>
-          )}
-          {role === "org" && (
-            <button
-              onClick={runScheduler}
-              disabled={running}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
-            >
-              <RefreshCw className="w-4 h-4" />
-              {running ? "Running..." : "Run Scheduler"}
-            </button>
-          )}
-        </div>
-      </div>
+    <div className="space-y-4">
 
-      <div className="bg-white border border-gray-200 rounded-lg p-4">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <label className="text-sm">Status</label>
-            <select
-              value={filters.status || ''}
-              onChange={(e) => setFilters((p) => ({ ...p, status: e.target.value || undefined }))}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-            >
-              <option value="">All</option>
-              <option value="active">active</option>
-              <option value="paused">paused</option>
-              <option value="cancelled">cancelled</option>
-            </select>
+      {/* 1. Header Card */}
+      <div className="bg-white rounded-xl border border-gray-200 p-2">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="px-2">
+            <h1 className="text-xl font-bold text-gray-900">Task Management</h1>
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm">Recurrence</label>
-            <select
-              value={filters.recurrence || ''}
-              onChange={(e) => setFilters((p) => ({ ...p, recurrence: e.target.value || undefined }))}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+          <div className="flex items-center space-x-2 overflow-x-auto pb-1 md:pb-0">
+            {role === "org" && (
+              <button
+                onClick={runScheduler}
+                disabled={running}
+                className="flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 text-sm font-medium text-gray-700 whitespace-nowrap"
+              >
+                <RefreshCw className={`w-4 h-4 ${running ? 'animate-spin' : ''}`} />
+                <span>{running ? "Running..." : "Scheduler"}</span>
+              </button>
+            )}
+            {canCreate && (
+              <>
+                <button
+                  onClick={() => setShowCreate(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors shadow-sm text-sm font-medium whitespace-nowrap"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Generate Task</span>
+                </button>
+                <button
+                  onClick={() => setShowDataCollection(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors shadow-sm text-sm font-medium whitespace-nowrap"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Data Collection Form</span>
+                </button>
+              </>
+            )}
+            <div className="h-6 w-px bg-gray-200 mx-1"></div>
+            <button
+              onClick={() => setFiltersExpanded(!filtersExpanded)}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-1 text-sm font-medium text-gray-700 whitespace-nowrap"
             >
-              <option value="">All</option>
-              <option value="one_time">one_time</option>
-              <option value="daily">daily</option>
-              <option value="weekly">weekly</option>
-              <option value="monthly">monthly</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm">Site</label>
-            <select
-              value={selectedSiteId ? String(selectedSiteId) : ''}
-              onChange={(e) => {
-                const v = e.target.value;
-                setSelectedSiteId(v ? Number(v) : undefined);
-              }}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-            >
-              <option value="">All</option>
-              {sites.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
-          <button onClick={loadTasks} className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200">
-            <Calendar className="w-4 h-4" />
-            Apply Filters
-          </button>
-          <div className="ml-auto flex items-center gap-2">
-            <label className="text-sm">Page</label>
-            <input type="number" className="w-16 border rounded px-2 py-1 text-sm" value={page} onChange={(e) => setPage(Math.max(1, Number(e.target.value) || 1))} />
-            <label className="text-sm">Limit</label>
-            <select className="border rounded px-2 py-1 text-sm" value={limit} onChange={(e) => setLimit(Number(e.target.value))}>
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-            </select>
+              <Filter className="w-4 h-4" />
+              <span>Filters</span>
+              {filtersExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
           </div>
         </div>
-      </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg">
-        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">Tasks</h2>
-          {loadingTasks && <Loader2 className="w-4 h-4 animate-spin text-gray-600" />}
-        </div>
-        {error && (
-          <div className="px-4 py-3 text-sm text-red-700 bg-red-50 border-t border-red-200 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4" /> {error}
+        {/* Collapsible Filters */}
+        {filtersExpanded && (
+          <div className="mt-3 pt-3 border-t border-gray-200 px-2">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search by title..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                />
+              </div>
+              <select
+                value={filters.recurrence || ''}
+                onChange={(e) => setFilters(prev => ({ ...prev, recurrence: e.target.value }))}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+              >
+                <option value="">All Recurrences</option>
+                <option value="one_time">One Time</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+              <select
+                value={selectedSiteId ? String(selectedSiteId) : ''}
+                onChange={(e) => setSelectedSiteId(e.target.value ? Number(e.target.value) : undefined)}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+              >
+                <option value="">All Sites</option>
+                {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+              <div className="flex gap-2">
+                <button onClick={loadTasks} className="flex-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">Apply</button>
+                <button
+                  onClick={() => {
+                    setFilters({});
+                    setSelectedSiteId(undefined);
+                    setSearchTerm("");
+                    loadTasks(); // Trigger reload
+                  }}
+                  className="flex-1 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
           </div>
         )}
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+      </div>
+
+      {/* 2. Stats Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatsCard
+          title="Active"
+          count={stats?.tasksCounts?.active || 0}
+          icon={Briefcase}
+          color="bg-green-500"
+          onClick={() => setFilters(prev => ({ ...prev, status: prev.status === 'active' ? '' : 'active' }))}
+          isActive={filters.status === 'active'}
+        />
+        <StatsCard
+          title="Paused"
+          count={stats?.tasksCounts?.paused || 0}
+          icon={Clock}
+          color="bg-yellow-500"
+          onClick={() => setFilters(prev => ({ ...prev, status: prev.status === 'paused' ? '' : 'paused' }))}
+          isActive={filters.status === 'paused'}
+        />
+        <StatsCard
+          title="Cancelled"
+          count={stats?.tasksCounts?.cancelled || 0}
+          icon={XCircle}
+          color="bg-red-500"
+          onClick={() => setFilters(prev => ({ ...prev, status: prev.status === 'cancelled' ? '' : 'cancelled' }))}
+          isActive={filters.status === 'cancelled'}
+        />
+        <StatsCard
+          title="Total"
+          count={stats?.tasksCounts?.total || 0}
+          icon={LayoutGrid}
+          color="bg-indigo-500"
+          onClick={() => setFilters(prev => ({ ...prev, status: '' }))}
+          isActive={!filters.status}
+        />
+      </div>
+
+      {/* 3. Table Card */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="overflow-y-auto max-h-[400px] overflow-x-auto relative [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <table className="w-full border-collapse">
+            <thead>
               <tr>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recurrence</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assignees</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Site</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task Name</th>
+                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Schedule</th>
+                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assignees</th>
+                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Site</th>
+                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {tasks.length === 0 && (
+            <tbody className="divide-y divide-gray-200">
+              {loadingTasks ? (
+                [...Array(10)].map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="px-4 py-3">
+                      <div className="space-y-2">
+                        <div className="h-4 w-32 bg-gray-100 rounded" />
+                        <div className="h-3 w-20 bg-gray-100 rounded" />
+                      </div>
+                    </td>
+                    <td className="px-4 py-3"><div className="h-4 w-24 bg-gray-100 rounded" /></td>
+                    <td className="px-4 py-3"><div className="h-4 w-20 bg-gray-100 rounded" /></td>
+                    <td className="px-4 py-3"><div className="h-4 w-24 bg-gray-100 rounded" /></td>
+                    <td className="px-4 py-3"><div className="h-6 w-16 bg-gray-100 rounded-full" /></td>
+                    <td className="px-4 py-3"><div className="h-8 w-8 ml-auto bg-gray-100 rounded" /></td>
+                  </tr>
+                ))
+              ) : tasks.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-gray-500">No tasks found.</td>
+                  <td colSpan={6} className="px-6 py-12 text-center">
+                    <div className="flex flex-col items-center justify-center text-gray-400">
+                      <Briefcase className="w-10 h-10 mb-3 opacity-20" />
+                      <h3 className="text-sm font-medium text-gray-900">No tasks found</h3>
+                      <p className="text-xs text-gray-500 mt-1">Adjust filters or create a new task.</p>
+                    </div>
+                  </td>
                 </tr>
+              ) : (
+                tasks.map((task) => (
+                  <tr key={task.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <div>
+                        <div className="font-medium text-gray-900 line-clamp-1 text-sm">{task.title || `Task #${task.id}`}</div>
+                        <div className="text-xs text-gray-500 capitalize">{task.assignment_type}</div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5 text-gray-600 text-sm">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <span className="capitalize">{task.recurrence.replace('_', ' ')}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5 text-gray-600 text-sm">
+                        <Users className="w-3.5 h-3.5" />
+                        <span>{task.assignee_count || 0}</span>
+                      </div>
+                      <div className="text-xs text-gray-400 truncate max-w-[150px]">{task.assignee_names}</div>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 text-sm">
+                      {task.site_name || (task.site_count ? `${task.site_count} Sites` : 'All Sites')}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border capitalize ${task.status === 'active' ? 'bg-green-50 text-green-700 border-green-200' :
+                        task.status === 'paused' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                          'bg-red-50 text-red-700 border-red-200'
+                        }`}>
+                        {task.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <ActionDropdown task={task} />
+                    </td>
+                  </tr>
+                ))
               )}
-              {tasks.map((t) => (
-                <tr key={t.id}>
-                  <td className="px-4 py-2 text-sm text-gray-900">{t.title || `Task #${t.id}`}</td>
-                  <td className="px-4 py-2 text-sm text-gray-700">{t.recurrence}</td>
-                  <td className="px-4 py-2 text-sm text-gray-700">
-                    {t.assignee_names && t.assignee_names.length
-                      ? (
-                        <div>
-                          <div title={t.assignee_names}>{t.assignee_names}</div>
-                          {t.assignee_designations && t.assignee_designations.length ? (
-                            <div className="text-xs text-gray-500 mt-0.5" title={t.assignee_designations}>{t.assignee_designations}</div>
-                          ) : null}
-                        </div>
-                      )
-                      : (t.assignee_count ?? 0)}
-                  </td>
-                  <td className="px-4 py-2 text-sm text-gray-700">
-                    {t.site_name?.toString()?.length
-                      ? t.site_name
-                      : ((t.site_count ?? (t.site_id ? 1 : 0)) + ' sites')}
-                  </td>
-                  <td className="px-4 py-2 text-sm"><span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">{t.status}</span></td>
-                  <td className="px-4 py-2 text-sm">
-                    <ActionDropdown
-                      task={t}
-                      onViewAssignments={() => setViewTaskId(t.id)}
-                      onMakeActive={() => setConfirm({ type: 'status', taskId: t.id, next: 'active' })}
-                      onMakeInactive={() => setConfirm({ type: 'status', taskId: t.id, next: 'paused' })}
-                      onDelete={() => setConfirm({ type: 'delete', taskId: t.id })}
-                      onEdit={() => startEdit(t.id)}
-                      onViewTask={() => viewTask(t.id)}
-                    />
-                  </td>
-                </tr>
-              ))}
             </tbody>
           </table>
         </div>
-        <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between text-sm">
-          <div>Total: {total}</div>
-          <div className="flex items-center gap-2">
-            <button className="px-2 py-1 rounded bg-gray-100" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</button>
-            <button className="px-2 py-1 rounded bg-gray-100" disabled={!hasNext} onClick={() => setPage((p) => p + 1)}>Next</button>
-          </div>
-        </div>
       </div>
 
-      {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-xl max-h-[80vh] overflow-y-auto my-8">
-            <div className="flex items-center justify-between px-4 py-3 border-b">
-              <h2 className="text-lg font-semibold">Generate Task</h2>
-              <button
-                onClick={() => setShowCreate(false)}
-                className="px-3 py-1 rounded bg-gray-100 hover:bg-gray-200"
+      {/* 4. Pagination Card */}
+      {total > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-2 flex items-center justify-between">
+          <div className="text-xs text-gray-500 px-2">
+            Page {page} of {totalPages} ({total} items)
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-1">
+              <span className="text-xs text-gray-500">Rows:</span>
+              <select
+                value={limit}
+                onChange={(e) => setLimit(Number(e.target.value))}
+                className="text-xs border border-gray-300 rounded px-1 py-0.5 focus:ring-1 focus:ring-blue-500"
               >
-                Close
-              </button>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
             </div>
-            <div className="p-4">
-              <TaskCreate mode="create" defaultSiteId={selectedSiteId} onSaved={() => { setShowCreate(false); loadTasks(); }} />
+            <div className="flex items-center space-x-1">
+              <button
+                disabled={page <= 1}
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                className="p-1.5 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <button
+                disabled={!hasNext}
+                onClick={() => setPage(p => p + 1)}
+                className="p-1.5 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Modals placed at bottom */}
+      {showCreate && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col m-4">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+              <h2 className="text-lg font-semibold text-gray-900">Generate Task</h2>
+              <button
+                onClick={() => setShowCreate(false)}
+                className="p-2 rounded-full hover:bg-gray-200 transition-colors"
+              >
+                <XCircle className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto custom-scrollbar">
+              <TaskCreate mode="create" defaultSiteId={selectedSiteId} onSaved={() => { setShowCreate(false); loadTasks(); }} onCancel={() => setShowCreate(false)} />
+            </div>
+          </div>
+        </div>
+      )}
 
+      {showDataCollection && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col m-4">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-purple-100 bg-purple-50/50">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-purple-600" />
+                <h2 className="text-lg font-semibold text-purple-900">Create Data Collection Form</h2>
+              </div>
+              <button
+                onClick={() => setShowDataCollection(false)}
+                className="p-2 rounded-full hover:bg-purple-100 transition-colors"
+              >
+                <XCircle className="w-5 h-5 text-purple-600" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto custom-scrollbar">
+              <TaskCreate
+                mode="create"
+                defaultSiteId={selectedSiteId}
+                initialDataCollection={true}
+                onSaved={() => { setShowDataCollection(false); loadTasks(); }}
+                onCancel={() => setShowDataCollection(false)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setConfirm(null)} />
-          <div className="relative w-[95%] max-w-md rounded bg-white shadow-lg">
-            <div className="p-4 border-b">
-              <div className="text-base font-semibold">Confirm Action</div>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 m-4 animate-in zoom-in-95">
+            <div className="flex items-center gap-4 mb-4">
+              <div className={`p-3 rounded-full ${confirm.type === 'delete' ? 'bg-red-100' : 'bg-yellow-100'}`}>
+                <AlertCircle className={`w-6 h-6 ${confirm.type === 'delete' ? 'text-red-600' : 'text-yellow-600'}`} />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Confirm Action</h3>
+                <p className="text-sm text-gray-500">
+                  {confirm.type === 'delete' ? 'Are you sure you want to delete this task? This action cannot be undone.' : `Are you sure you want to change status to ${confirm.next}?`}
+                </p>
+              </div>
             </div>
-            <div className="p-4 text-sm text-slate-700">
-              {confirm.type === 'delete' ? 'Are you sure you want to delete this task? This cannot be undone.' : `Are you sure you want to set status to ${confirm.next}?`}
-            </div>
-            <div className="p-4 flex items-center justify-end gap-2">
-              <button className="px-3 py-1.5 rounded border" onClick={() => setConfirm(null)}>Cancel</button>
+            <div className="flex justify-end gap-3 mt-6">
               <button
-                className="px-3 py-1.5 rounded bg-red-600 text-white"
+                onClick={() => setConfirm(null)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-colors border"
+              >
+                Cancel
+              </button>
+              <button
                 onClick={async () => {
                   if (confirm.type === 'delete') {
                     await deleteTask(confirm.taskId);
@@ -563,6 +680,7 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
                   }
                   setConfirm(null);
                 }}
+                className={`px-4 py-2 text-white rounded-xl font-medium transition-colors ${confirm.type === 'delete' ? 'bg-red-600 hover:bg-red-700' : 'bg-yellow-600 hover:bg-yellow-700'}`}
               >
                 Confirm
               </button>
@@ -571,28 +689,36 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
         </div>
       )}
 
-      {view && (
-        <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setView(null)} />
-          <div className="relative mx-auto my-8 w-[95%] max-w-xl max-h-[80vh] overflow-y-auto rounded bg-white shadow-lg">
-            <div className="p-4 border-b"><div className="text-base font-semibold">Task Details</div></div>
-            <div className="p-4">
-              <TaskCreate mode="view" initialTask={view} initialAssignees={Array.isArray(view?.assignees) ? view.assignees.map((a: any) => a.user_id) : undefined} initialApprovalChain={view?.approval_chain} readOnly />
+      {viewDetails && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col m-4">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+              <h2 className="text-lg font-bold text-gray-900">Task Details</h2>
+              <button onClick={() => setViewDetails(null)} className="p-2 rounded-full hover:bg-gray-200"><XCircle className="w-5 h-5 text-gray-500" /></button>
             </div>
-            <div className="p-4 flex items-center justify-end gap-2 sticky bottom-0 bg-white">
-              <button className="px-3 py-1.5 rounded border" onClick={() => setView(null)}>Close</button>
+            <div className="p-6 overflow-y-auto">
+              <TaskCreate mode="view" initialTask={viewDetails} initialAssignees={Array.isArray(viewDetails?.assignees) ? viewDetails.assignees.map((a: any) => a.user_id) : undefined} initialApprovalChain={viewDetails?.approval_chain} readOnly />
             </div>
           </div>
         </div>
       )}
 
       {edit && (
-        <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setEdit(null)} />
-          <div className="relative mx-auto my-8 w-[95%] max-w-xl max-h-[80vh] overflow-y-auto rounded bg-white shadow-lg">
-            <div className="p-4 border-b"><div className="text-base font-semibold">Edit Task</div></div>
-            <div className="p-4">
-              <TaskCreate mode="edit" initialTask={edit!.form} initialAssignees={edit!.form?.assignees} initialApprovalChain={edit!.form?.approval_chain} onSaved={() => { setEdit(null); loadTasks(); }} />
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col m-4">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+              <h2 className="text-lg font-bold text-gray-900">Edit Task</h2>
+              <button onClick={() => setEdit(null)} className="p-2 rounded-full hover:bg-gray-200"><XCircle className="w-5 h-5 text-gray-500" /></button>
+            </div>
+            <div className="p-6 overflow-y-auto">
+              <TaskCreate
+                mode="edit"
+                initialTask={edit.form}
+                initialAssignees={edit.form.assignees}
+                initialApprovalChain={edit.form.approval_chain}
+                onSaved={() => { setEdit(null); loadTasks(); }}
+                onCancel={() => setEdit(null)}
+              />
             </div>
           </div>
         </div>

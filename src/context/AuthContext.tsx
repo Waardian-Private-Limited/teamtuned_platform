@@ -19,6 +19,8 @@ interface Employee {
     sites?: Array<{ id: number; name?: string; code?: string }>;
     department_id?: number;
     designation_id?: number;
+    role_name?: string;
+    designation?: string;
 }
 
 interface Organization {
@@ -118,6 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch (error) {
             console.error("Logout error:", error);
         } finally {
+            localStorage.removeItem('token'); // Critical: clear persistent token
             clearAuthState();
             router.push("/login");
         }

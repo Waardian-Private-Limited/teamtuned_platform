@@ -11,6 +11,7 @@ type WorkflowLevel = {
     approver_type: "role" | "employee";
     approver_role_id: number | null;
     approver_employee_id: number | null;
+    approver_employee_ids?: number[] | null;
     type: "MANDATORY" | "CONDITIONAL";
     condition?: string;
     can_finalize_budget?: boolean;
@@ -40,6 +41,7 @@ type WorkflowDesignerProps = {
 function WorkflowDesigner({ workflow, onChange, workflowType, disabled = false }: WorkflowDesignerProps) {
     const [roles, setRoles] = useState<any[]>([]);
     const [employees, setEmployees] = useState<any[]>([]);
+    const [employeeCache, setEmployeeCache] = useState<Map<number, any>>(new Map()); // Cache for selected employees
     const [departments, setDepartments] = useState<any[]>([]);
     const [levels, setLevels] = useState<WorkflowLevel[]>([]);
     const [showEmployeeModal, setShowEmployeeModal] = useState(false);
@@ -50,20 +52,58 @@ function WorkflowDesigner({ workflow, onChange, workflowType, disabled = false }
         fetchDepartments();
         if (workflow && workflow.levels) {
             setLevels(workflow.levels);
+            // Fetch employee details for all selected employees
+            const allEmployeeIds = workflow.levels
+                .filter(level => level.approver_type === 'employee')
+                .flatMap(level => level.approver_employee_ids || (level.approver_employee_id ? [level.approver_employee_id] : []));
+
+            if (allEmployeeIds.length > 0) {
+                fetchEmployeeDetails(allEmployeeIds);
+            }
         }
-    }, []);
+    }, [workflow]);
 
     const fetchWorkflowOptions = async () => {
         try {
-            const data = await apiClient<{ roles: any[]; employees: any[] }>(
+            const data = await apiClient<{ roles: any[]; departments: any[] }>(
                 "/wallet-workflow/options",
                 { withAuth: true }
             );
             setRoles(data.roles || []);
-            setEmployees(data.employees || []);
+            setDepartments(data.departments || []);
         } catch (error) {
             console.error("Failed to fetch workflow options:", error);
             showError("Failed to load roles and employees");
+        }
+    };
+
+    // Fetch employees with server-side filtering
+    const fetchEmployees = async (params?: {
+        search?: string;
+        role_id?: number;
+        department_id?: number;
+        page?: number;
+        limit?: number;
+    }) => {
+        try {
+            const queryParams = new URLSearchParams();
+            if (params?.search) queryParams.append('search', params.search);
+            if (params?.role_id) queryParams.append('role_id', params.role_id.toString());
+            if (params?.department_id) queryParams.append('department_id', params.department_id.toString());
+            if (params?.page) queryParams.append('page', params.page.toString());
+            if (params?.limit) queryParams.append('limit', params.limit.toString());
+
+            const data = await apiClient<{
+                employees: any[];
+                pagination: { page: number; limit: number; total: number; totalPages: number };
+            }>(
+                `/wallet-workflow/options?${queryParams.toString()}`,
+                { withAuth: true }
+            );
+            return data;
+        } catch (error) {
+            console.error("Failed to fetch employees:", error);
+            throw error;
         }
     };
 
@@ -81,10 +121,18 @@ function WorkflowDesigner({ workflow, onChange, workflowType, disabled = false }
 
     // Get already selected employee IDs (excluding current level being edited)
     const getSelectedEmployeeIds = (excludeIndex?: number) => {
-        return levels
-            .filter((level, index) => index !== excludeIndex && level.approver_type === "employee")
-            .map((level) => level.approver_employee_id)
-            .filter((id): id is number => id !== null);
+        const ids: number[] = [];
+        levels.forEach((level, index) => {
+            if (index !== excludeIndex && level.approver_type === "employee") {
+                if (level.approver_employee_id) ids.push(level.approver_employee_id);
+                if (level.approver_employee_ids) {
+                    level.approver_employee_ids.forEach(id => {
+                        if (!ids.includes(id)) ids.push(id);
+                    });
+                }
+            }
+        });
+        return ids;
     };
 
     const addLevel = () => {
@@ -112,13 +160,18 @@ function WorkflowDesigner({ workflow, onChange, workflowType, disabled = false }
     };
 
     const updateLevel = (index: number, field: string, value: any) => {
+        updateLevelMultiple(index, { [field]: value });
+    };
+
+    const updateLevelMultiple = (index: number, updates: Partial<WorkflowLevel>) => {
         const updatedLevels = [...levels];
-        updatedLevels[index] = { ...updatedLevels[index], [field]: value };
+        updatedLevels[index] = { ...updatedLevels[index], ...updates };
 
         // Clear the other approver field when switching types
-        if (field === "approver_type") {
-            if (value === "role") {
+        if (updates.approver_type) {
+            if (updates.approver_type === "role") {
                 updatedLevels[index].approver_employee_id = null;
+                updatedLevels[index].approver_employee_ids = null;
             } else {
                 updatedLevels[index].approver_role_id = null;
             }
@@ -134,15 +187,85 @@ function WorkflowDesigner({ workflow, onChange, workflowType, disabled = false }
     };
 
     const handleEmployeeSelect = (employeeId: number) => {
+        // This is now for single select fallback or internal use
         if (currentLevelIndex !== null) {
-            updateLevel(currentLevelIndex, "approver_employee_id", employeeId);
+            updateLevelMultiple(currentLevelIndex, {
+                approver_employee_id: employeeId,
+                approver_employee_ids: [employeeId]
+            });
+        }
+    };
+
+    const handleEmployeesSelect = (employeeIds: number[]) => {
+        if (currentLevelIndex !== null) {
+            updateLevelMultiple(currentLevelIndex, {
+                approver_employee_ids: employeeIds,
+                // Backward compatibility: set the first one to approver_employee_id
+                approver_employee_id: employeeIds[0] || null
+            });
+        }
+    };
+
+    // Update employee cache when employees are fetched
+    const updateEmployeeCache = (newEmployees: any[]) => {
+        setEmployeeCache(prev => {
+            const updated = new Map(prev);
+            newEmployees.forEach(emp => {
+                updated.set(emp.id, emp);
+            });
+            return updated;
+        });
+    };
+
+    // Fetch employee details by IDs to populate cache
+    const fetchEmployeeDetails = async (ids: number[]) => {
+        if (ids.length === 0) return;
+
+        try {
+            // Fetch employees by IDs - we'll use the search endpoint with no filters
+            // This is a workaround since we don't have a dedicated endpoint for fetching by IDs
+            const data = await fetchEmployees({ limit: 100 });
+            if (data?.employees) {
+                updateEmployeeCache(data.employees);
+            }
+        } catch (error) {
+            console.error("Failed to fetch employee details:", error);
         }
     };
 
     const getEmployeeName = (employeeId: number | null) => {
         if (!employeeId) return "Select employee...";
+        // Check cache first
+        const cached = employeeCache.get(employeeId);
+        if (cached) return `${cached.first_name} ${cached.last_name}`;
+        // Fallback to current employees list
         const emp = employees.find((e) => e.id === employeeId);
-        return emp ? `${emp.first_name} ${emp.last_name}` : "Unknown Employee";
+        if (emp) {
+            updateEmployeeCache([emp]); // Add to cache
+            return `${emp.first_name} ${emp.last_name}`;
+        }
+        return `Employee #${employeeId}`; // Show ID instead of "Unknown"
+    };
+
+    const getEmployeeNames = (employeeIds: number[] | null | undefined) => {
+        if (!employeeIds || employeeIds.length === 0) return "Select employees...";
+        if (employeeIds.length === 1) return getEmployeeName(employeeIds[0]);
+
+        // Get names from cache
+        const names = employeeIds.map(id => {
+            const cached = employeeCache.get(id);
+            if (cached) return `${cached.first_name} ${cached.last_name}`;
+            const emp = employees.find(e => e.id === id);
+            if (emp) {
+                updateEmployeeCache([emp]);
+                return `${emp.first_name} ${emp.last_name}`;
+            }
+            return null;
+        }).filter(Boolean);
+
+        if (names.length === 0) return `${employeeIds.length} employees selected`;
+        if (names.length <= 2) return names.join(", ");
+        return `${names[0]}, ${names[1]} +${employeeIds.length - 2} more`;
     };
 
     return (
@@ -213,17 +336,41 @@ function WorkflowDesigner({ workflow, onChange, workflowType, disabled = false }
                                     </div>
                                 ) : (
                                     <div>
-                                        <label className="block text-xs font-medium text-gray-700 mb-1">Select Employee</label>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">Select Employee(s)</label>
                                         <button
                                             type="button"
                                             onClick={() => openEmployeeModal(index)}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-left hover:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 flex items-center justify-between"
                                         >
-                                            <span className={level.approver_employee_id ? "text-gray-900" : "text-gray-500"}>
-                                                {getEmployeeName(level.approver_employee_id)}
+                                            <span className={(level.approver_employee_ids?.length || level.approver_employee_id) ? "text-gray-900" : "text-gray-500"}>
+                                                {getEmployeeNames(level.approver_employee_ids || (level.approver_employee_id ? [level.approver_employee_id] : []))}
                                             </span>
                                             <Users className="w-4 h-4 text-gray-400" />
                                         </button>
+                                        {level.approver_employee_ids && level.approver_employee_ids.length > 0 && (
+                                            <div className="mt-2">
+                                                <div className="text-xs font-medium text-gray-700 mb-1">Selected Approvers:</div>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {level.approver_employee_ids.map(id => {
+                                                        const emp = employeeCache.get(id) || employees.find(e => e.id === id);
+                                                        return (
+                                                            <div key={id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                                                <div className="flex flex-col">
+                                                                    <span className="font-semibold">
+                                                                        {emp ? `${emp.first_name} ${emp.last_name}` : `Employee #${id}`}
+                                                                    </span>
+                                                                    {emp?.department_name && (
+                                                                        <span className="text-[10px] text-indigo-600">
+                                                                            {emp.department_name}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
@@ -278,12 +425,20 @@ function WorkflowDesigner({ workflow, onChange, workflowType, disabled = false }
             <EmployeeSelectionModal
                 isOpen={showEmployeeModal}
                 onClose={() => setShowEmployeeModal(false)}
-                onSelect={handleEmployeeSelect}
-                employees={employees}
+                onSelect={(employeeId) => {
+                    handleEmployeeSelect(employeeId);
+                }}
+                onSelectMultiple={(employeeIds) => {
+                    handleEmployeesSelect(employeeIds);
+                }}
+                isMultiSelect={true}
+                fetchEmployees={fetchEmployees}
                 roles={roles}
                 departments={departments}
-                selectedEmployeeIds={getSelectedEmployeeIds(currentLevelIndex || undefined)}
-                title="Select Approver"
+                selectedEmployeeIds={getSelectedEmployeeIds(currentLevelIndex ?? undefined)}
+                initialSelectedIds={currentLevelIndex !== null ? (levels[currentLevelIndex].approver_employee_ids || (levels[currentLevelIndex].approver_employee_id ? [levels[currentLevelIndex].approver_employee_id] : [])) : []}
+                title="Select Approvers"
+                onEmployeesLoaded={(emps) => updateEmployeeCache(emps)} // Update cache when employees are loaded
             />
         </div>
     );

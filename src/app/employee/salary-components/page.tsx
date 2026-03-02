@@ -6,7 +6,7 @@ import RouteGuard from '@/components/auth/RouteGuard';
 
 export default function EmployeeSalaryComponentsPage() {
     return (
-        <RouteGuard requireOrgAdmin>
+        <RouteGuard>
             <SalaryComponents />
         </RouteGuard>
     );

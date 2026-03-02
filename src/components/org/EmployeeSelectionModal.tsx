@@ -28,30 +28,55 @@ type EmployeeSelectionModalProps = {
     isOpen: boolean;
     onClose: () => void;
     onSelect: (employeeId: number) => void;
-    employees: Employee[];
+    employees?: Employee[]; // Optional - for backward compatibility
+    fetchEmployees?: (params?: {
+        search?: string;
+        role_id?: number;
+        department_id?: number;
+        page?: number;
+        limit?: number;
+    }) => Promise<{
+        employees: Employee[];
+        pagination: { page: number; limit: number; total: number; totalPages: number };
+    }>;
+    onEmployeesLoaded?: (employees: Employee[]) => void; // Callback when employees are loaded
     roles: Role[];
     departments?: Department[];
     selectedEmployeeIds?: number[]; // Already selected employees in other levels
+    initialSelectedIds?: number[]; // IDs already selected for the CURRENT level
     title?: string;
+    isMultiSelect?: boolean;
+    onSelectMultiple?: (employeeIds: number[]) => void;
 };
 
 export default function EmployeeSelectionModal({
     isOpen,
     onClose,
     onSelect,
-    employees,
+    employees: initialEmployees = [],
+    fetchEmployees,
+    onEmployeesLoaded,
     roles,
     departments = [],
     selectedEmployeeIds = [],
+    initialSelectedIds = [],
     title = "Select Employee",
+    isMultiSelect = false,
+    onSelectMultiple,
 }: EmployeeSelectionModalProps) {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);
     const [selectedDepartmentId, setSelectedDepartmentId] = useState<number | null>(null);
     const [showFilters, setShowFilters] = useState(false);
+    const [localSelectedIds, setLocalSelectedIds] = useState<number[]>([]);
+    const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
+    const [loading, setLoading] = useState(false);
+    const [debouncedSearch, setDebouncedSearch] = useState("");
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalEmployees, setTotalEmployees] = useState(0);
     const itemsPerPage = 20;
 
     // Reset filters and pagination when modal closes
@@ -62,20 +87,76 @@ export default function EmployeeSelectionModal({
             setSelectedDepartmentId(null);
             setShowFilters(false);
             setCurrentPage(1);
+            setLocalSelectedIds(initialSelectedIds);
         }
-    }, [isOpen]);
+    }, [isOpen, initialSelectedIds]);
+
+    // Update local selected IDs when initialSelectedIds changes while open
+    useEffect(() => {
+        if (isOpen && initialSelectedIds.length > 0 && localSelectedIds.length === 0) {
+            setLocalSelectedIds(initialSelectedIds);
+        }
+    }, [isOpen, initialSelectedIds]);
+
+    // Debounce search query
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchQuery);
+            setCurrentPage(1); // Reset to page 1 when search changes
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
 
     // Reset to page 1 when filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchQuery, selectedRoleId, selectedDepartmentId]);
+    }, [selectedRoleId, selectedDepartmentId]);
+
+    // Fetch employees when filters change
+    useEffect(() => {
+        if (isOpen && fetchEmployees) {
+            loadEmployees();
+        }
+    }, [isOpen, debouncedSearch, selectedRoleId, selectedDepartmentId, currentPage]);
+
+    // Load employees from server
+    const loadEmployees = async () => {
+        if (!fetchEmployees) {
+            setEmployees(initialEmployees);
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const data = await fetchEmployees({
+                search: debouncedSearch || undefined,
+                role_id: selectedRoleId || undefined,
+                department_id: selectedDepartmentId || undefined,
+                page: currentPage,
+                limit: itemsPerPage,
+            });
+            setEmployees(data.employees || []);
+            setTotalPages(data.pagination?.totalPages || 1);
+            setTotalEmployees(data.pagination?.total || 0);
+            // Notify parent component
+            if (onEmployeesLoaded && data.employees) {
+                onEmployeesLoaded(data.employees);
+            }
+        } catch (error) {
+            console.error("Failed to load employees:", error);
+            setEmployees([]);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     if (!isOpen) return null;
 
-    // Filter employees
-    const filteredEmployees = employees.filter((emp) => {
-        // Exclude already selected employees
-        if (selectedEmployeeIds.includes(emp.id)) {
+    // Filter employees (only if using client-side mode)
+    const filteredEmployees = fetchEmployees ? employees : employees.filter((emp) => {
+        // Exclude employees selected in OTHER levels, 
+        // but ALLOW if they are already selected in the CURRENT level (so user can see/unselect them)
+        if (selectedEmployeeIds.includes(emp.id) && !initialSelectedIds.includes(emp.id)) {
             return false;
         }
 
@@ -97,19 +178,35 @@ export default function EmployeeSelectionModal({
         return matchesSearch && matchesRole && matchesDepartment;
     });
 
-    // Pagination calculations
-    const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
+    // Pagination calculations (only for client-side mode)
+    const clientTotalPages = fetchEmployees ? totalPages : Math.ceil(filteredEmployees.length / itemsPerPage);
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
-    const paginatedEmployees = filteredEmployees.slice(startIndex, endIndex);
+    const paginatedEmployees = fetchEmployees ? filteredEmployees : filteredEmployees.slice(startIndex, endIndex);
+    const displayTotalEmployees = fetchEmployees ? totalEmployees : filteredEmployees.length;
 
     const handleSelect = (employeeId: number) => {
-        onSelect(employeeId);
+        if (isMultiSelect) {
+            setLocalSelectedIds(prev =>
+                prev.includes(employeeId)
+                    ? prev.filter(id => id !== employeeId)
+                    : [...prev, employeeId]
+            );
+        } else {
+            onSelect(employeeId);
+            onClose();
+        }
+    };
+
+    const handleConfirmMultiSelect = () => {
+        if (onSelectMultiple) {
+            onSelectMultiple(localSelectedIds);
+        }
         onClose();
     };
 
     const goToPage = (page: number) => {
-        setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+        setCurrentPage(Math.max(1, Math.min(page, clientTotalPages)));
     };
 
     return (
@@ -203,7 +300,12 @@ export default function EmployeeSelectionModal({
 
                 {/* Employee List */}
                 <div className="flex-1 overflow-y-auto p-6">
-                    {filteredEmployees.length === 0 ? (
+                    {loading ? (
+                        <div className="text-center py-12">
+                            <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto mb-3"></div>
+                            <p className="text-gray-600">Loading employees...</p>
+                        </div>
+                    ) : filteredEmployees.length === 0 ? (
                         <div className="text-center py-12">
                             <p className="text-gray-600">
                                 {selectedEmployeeIds.length > 0 && employees.length === selectedEmployeeIds.length
@@ -217,11 +319,19 @@ export default function EmployeeSelectionModal({
                                 <button
                                     key={emp.id}
                                     onClick={() => handleSelect(emp.id)}
-                                    className="p-4 border border-gray-200 rounded-lg hover:border-indigo-600 hover:bg-indigo-50 transition-all text-left group"
+                                    className={`p-4 border rounded-lg transition-all text-left group ${isMultiSelect && localSelectedIds.includes(emp.id)
+                                        ? "border-indigo-600 bg-indigo-50"
+                                        : "border-gray-200 hover:border-indigo-600 hover:bg-indigo-50"
+                                        }`}
                                 >
                                     <div className="flex items-start justify-between">
                                         <div className="flex-1">
-                                            <div className="font-semibold text-gray-900 group-hover:text-indigo-900">
+                                            <div className="font-semibold text-gray-900 group-hover:text-indigo-900 flex items-center gap-2">
+                                                {isMultiSelect && (
+                                                    <div className={`w-4 h-4 rounded border flex items-center justify-center ${localSelectedIds.includes(emp.id) ? "bg-indigo-600 border-indigo-600" : "border-gray-300"}`}>
+                                                        {localSelectedIds.includes(emp.id) && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                                                    </div>
+                                                )}
                                                 {emp.first_name} {emp.last_name}
                                             </div>
                                             <div className="text-sm text-gray-600 mt-1">{emp.email}</div>
@@ -238,9 +348,11 @@ export default function EmployeeSelectionModal({
                                                 )}
                                             </div>
                                         </div>
-                                        <div className="text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            →
-                                        </div>
+                                        {!isMultiSelect && (
+                                            <div className="text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                →
+                                            </div>
+                                        )}
                                     </div>
                                 </button>
                             ))}
@@ -253,11 +365,11 @@ export default function EmployeeSelectionModal({
                     <div className="flex items-center justify-between">
                         {/* Results Info */}
                         <span className="text-sm text-gray-600">
-                            Showing {filteredEmployees.length > 0 ? startIndex + 1 : 0}-{Math.min(endIndex, filteredEmployees.length)} of {filteredEmployees.length} employees
+                            Showing {displayTotalEmployees > 0 ? startIndex + 1 : 0}-{Math.min(endIndex, displayTotalEmployees)} of {displayTotalEmployees} employees
                         </span>
 
                         {/* Pagination Controls */}
-                        {totalPages > 1 && (
+                        {clientTotalPages > 1 && (
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => goToPage(currentPage - 1)}
@@ -268,14 +380,14 @@ export default function EmployeeSelectionModal({
                                 </button>
 
                                 <div className="flex items-center gap-1">
-                                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                    {Array.from({ length: Math.min(5, clientTotalPages) }, (_, i) => {
                                         let pageNum;
-                                        if (totalPages <= 5) {
+                                        if (clientTotalPages <= 5) {
                                             pageNum = i + 1;
                                         } else if (currentPage <= 3) {
                                             pageNum = i + 1;
-                                        } else if (currentPage >= totalPages - 2) {
-                                            pageNum = totalPages - 4 + i;
+                                        } else if (currentPage >= clientTotalPages - 2) {
+                                            pageNum = clientTotalPages - 4 + i;
                                         } else {
                                             pageNum = currentPage - 2 + i;
                                         }
@@ -297,7 +409,7 @@ export default function EmployeeSelectionModal({
 
                                 <button
                                     onClick={() => goToPage(currentPage + 1)}
-                                    disabled={currentPage === totalPages}
+                                    disabled={currentPage === clientTotalPages}
                                     className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                 >
                                     <ChevronRight className="w-4 h-4" />
@@ -305,13 +417,23 @@ export default function EmployeeSelectionModal({
                             </div>
                         )}
 
-                        {/* Cancel Button */}
-                        <button
-                            onClick={onClose}
-                            className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
-                        >
-                            Cancel
-                        </button>
+                        {/* Multi-select Confirm Button */}
+                        {isMultiSelect ? (
+                            <button
+                                onClick={handleConfirmMultiSelect}
+                                disabled={localSelectedIds.length === 0}
+                                className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                            >
+                                Confirm Selection ({localSelectedIds.length})
+                            </button>
+                        ) : (
+                            <button
+                                onClick={onClose}
+                                className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+                            >
+                                Cancel
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>

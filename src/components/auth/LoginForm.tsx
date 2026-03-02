@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Mail, Lock, Smartphone, Building2 } from 'lucide-react';
 import { login, verifyOtp, checkAccounts, loginWithAccount, sendWebOtp, Account } from '@/lib/apiClient';
@@ -39,6 +39,50 @@ export default function LoginFormTabs() {
     setOtp('');
     setMobile('');
     setError('');
+  };
+
+
+
+  const resetToStep = () => {
+    setStep(tab === 'otp' ? 'otp' : 'email');
+    setAccounts([]);
+    setSelectedAccount(null);
+    setEmail('');
+    setPassword('');
+    setOtp('');
+    setMobile('');
+    setError('');
+  };
+
+  const [rememberMe, setRememberMe] = useState(false);
+  const [isRememberedLogin, setIsRememberedLogin] = useState(false);
+
+  // Load remembered account
+  useEffect(() => {
+    const stored = localStorage.getItem('tt_remembered_account');
+    if (stored) {
+      try {
+        const { account, email: storedEmail } = JSON.parse(stored);
+        if (account && account.id) {
+          setSelectedAccount(account);
+          setEmail(storedEmail || account.email);
+          setStep('password');
+          setRememberMe(true);
+          setIsRememberedLogin(true);
+        }
+      } catch (e) {
+        console.error('Failed to parse remembered account', e);
+        localStorage.removeItem('tt_remembered_account');
+      }
+    }
+  }, []);
+
+  // Back handler for remembered login
+  const handleSwitchAccount = () => {
+    localStorage.removeItem('tt_remembered_account');
+    setRememberMe(false);
+    setIsRememberedLogin(false);
+    resetToStep();
   };
 
   // ----- Handlers -----
@@ -122,6 +166,15 @@ export default function LoginFormTabs() {
         };
         setUser(user);
 
+        // Handle Remember Me for SuperAdmin
+        if (rememberMe) {
+          // Construct a dummy account object for superadmin to fit standard flow or just store email
+          // Taking a simpler approach: Just store a flag or generic account structure
+          // Since SuperAdmin login flow is slightly different (direct email/pass step), 
+          // we might skip standard remember-account logic or adapt it.
+          // For now, let's focus on standard account login which is the main target.
+        }
+
         const roleRoutes: { [key: string]: string } = {
           superAdmin: '/superadmin',
           OrgAdmin: '/org-admin',
@@ -155,6 +208,16 @@ export default function LoginFormTabs() {
       const response = await loginWithAccount(selectedAccount.id, password);
 
       if (response.success && response.user) {
+        // Save Remember Me
+        if (rememberMe) {
+          localStorage.setItem('tt_remembered_account', JSON.stringify({
+            account: selectedAccount,
+            email: email || selectedAccount.email
+          }));
+        } else {
+          localStorage.removeItem('tt_remembered_account');
+        }
+
         const user = {
           ...response.user,
           id: String(response.user.id),
@@ -292,16 +355,7 @@ export default function LoginFormTabs() {
     }
   };
 
-  const resetToStep = () => {
-    setStep(tab === 'otp' ? 'otp' : 'email');
-    setAccounts([]);
-    setSelectedAccount(null);
-    setEmail('');
-    setPassword('');
-    setOtp('');
-    setMobile('');
-    setError('');
-  };
+
 
   // ----- Render -----
   return (
@@ -365,7 +419,18 @@ export default function LoginFormTabs() {
       )}
 
       {step === 'password' && selectedAccount && (
-        <PasswordStep selectedAccount={selectedAccount} password={password} setPassword={setPassword} onSubmit={handlePasswordLogin} onBack={resetToStep} error={error} isLoading={isLoading} />
+        <PasswordStep
+          selectedAccount={selectedAccount}
+          password={password}
+          setPassword={setPassword}
+          onSubmit={handlePasswordLogin}
+          onBack={isRememberedLogin ? handleSwitchAccount : resetToStep}
+          error={error}
+          isLoading={isLoading}
+          rememberMe={rememberMe}
+          setRememberMe={setRememberMe}
+          isRemembered={isRememberedLogin}
+        />
       )}
 
       {step === 'otp' && (
@@ -422,12 +487,48 @@ const SuperadminPasswordStep = ({ email, password, setPassword, onSubmit, onBack
   </form>
 );
 
-const PasswordStep = ({ selectedAccount, password, setPassword, onSubmit, onBack, error, isLoading }: { selectedAccount: Account, password: string, setPassword: (v: string) => void, onSubmit: (e: React.FormEvent) => void, onBack: () => void, error: string, isLoading: boolean }) => (
+const PasswordStep = ({
+  selectedAccount, password, setPassword, onSubmit, onBack, error, isLoading, rememberMe, setRememberMe, isRemembered
+}: {
+  selectedAccount: Account, password: string, setPassword: (v: string) => void, onSubmit: (e: React.FormEvent) => void, onBack: () => void, error: string, isLoading: boolean,
+  rememberMe: boolean, setRememberMe: (v: boolean) => void, isRemembered: boolean
+}) => (
   <form className="space-y-5" onSubmit={onSubmit}>
     {error && <ErrorBox message={error} />}
+
+    {/* Account Info Card (Especially important if auto-jumped logic) */}
+    <div className="p-4 bg-gray-50 rounded-lg flex items-center justify-between">
+      <div>
+        <p className="font-medium text-gray-900">{selectedAccount.societyName || 'Account'}</p>
+        <p className="text-sm text-gray-500">{selectedAccount.username}</p>
+      </div>
+      {isRemembered && (
+        <button type="button" onClick={onBack} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+          Switch
+        </button>
+      )}
+    </div>
+
     <InputWithIcon label="Password" icon={<Lock className="w-5 h-5 text-gray-400" />} type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} disabled={isLoading} />
+
+    <div className="flex items-center">
+      <input
+        id="remember-me"
+        type="checkbox"
+        checked={rememberMe}
+        onChange={(e) => setRememberMe(e.target.checked)}
+        className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+      />
+      <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
+        Remember me
+      </label>
+    </div>
+
     <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white py-3 rounded-xl">{isLoading ? 'Logging in...' : 'Login'}</button>
-    <button type="button" onClick={onBack} className="w-full text-blue-600 py-3 rounded-xl text-sm" disabled={isLoading}>Back</button>
+
+    {!isRemembered && (
+      <button type="button" onClick={onBack} className="w-full text-blue-600 py-3 rounded-xl text-sm" disabled={isLoading}>Back</button>
+    )}
   </form>
 );
 

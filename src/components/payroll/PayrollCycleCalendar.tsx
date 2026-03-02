@@ -5,6 +5,8 @@ import { apiClient } from "@/lib/apiClient";
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   AlertCircle,
   Clock,
   Calendar as CalendarIcon,
@@ -23,8 +25,19 @@ import {
   Award,
   Sun,
   Sunset,
-  Coffee
+  Coffee,
+  Calculator,
+  Info,
+  User,
+  AlertTriangle,
+  MoreVertical,
+  Download,
+  Lock,
+  Unlock,
+  Plus,
+  Trash2
 } from "lucide-react";
+import SalarySlipEditorModal from "./SalarySlipEditorModal";
 import AttendanceDetailsModal from "../attendance/AttendanceDetailsModal";
 
 import { useAuth } from "@/context/AuthContext";
@@ -49,6 +62,9 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
   const { role, permissions, user, employee } = useAuth();
   const [now, setNow] = React.useState<Date>(new Date());
   const [items, setItems] = React.useState<AttendanceRecord[]>([]);
+  const [overviewOpen, setOverviewOpen] = React.useState(true);
+  const [breakdownOpen, setBreakdownOpen] = React.useState(true);
+  const [calcOpen, setCalcOpen] = React.useState(true);
   const [breakdown, setBreakdown] = React.useState<SalaryItem[]>([]);
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -63,7 +79,32 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
   const [overrideError, setOverrideError] = React.useState<string | null>(null);
   const [overrideOpen, setOverrideOpen] = React.useState<boolean>(false);
 
+  const [actionMenuOpen, setActionMenuOpen] = React.useState<boolean>(false);
+  const [actionMenuPos, setActionMenuPos] = React.useState<{ x: number; y: number } | null>(null);
+  const actionButtonRef = React.useRef<HTMLButtonElement>(null);
+
+  const closeActionMenu = () => {
+    setActionMenuOpen(false);
+    setActionMenuPos(null);
+  };
+
   const [policyData, setPolicyData] = React.useState<any>(null);
+
+  // Custom calculator states
+  const [customCalcOpen, setCustomCalcOpen] = React.useState<boolean>(false);
+  const [customMetrics, setCustomMetrics] = React.useState({
+    total_days: 0,
+    present_days: 0,
+    absent_days: 0,
+    half_days: 0,
+    full_days: 0,
+    late_days: 0,
+    paid_leave_days: 0,
+    week_offs: 0,
+    holidays: 0,
+    comp_off_days: 0,
+    sandwich_loss_days: 0
+  });
 
   const computeCycle = React.useCallback((ref: Date, startDay: number, endDay: number) => {
     let cycleYear = ref.getFullYear();
@@ -196,6 +237,25 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
     fetchData();
   }, [fetchData]);
 
+  // Initialize custom metrics from actual data
+  React.useEffect(() => {
+    if (payrollData?.metrics) {
+      setCustomMetrics({
+        total_days: payrollData.metrics.total_days || 0,
+        present_days: payrollData.metrics.present_days || 0,
+        absent_days: payrollData.metrics.absent_days || 0,
+        half_days: payrollData.metrics.half_days || 0,
+        full_days: payrollData.metrics.full_days || 0,
+        late_days: payrollData.metrics.late_days || 0,
+        paid_leave_days: payrollData.metrics.total_paid_leave_days || 0,
+        week_offs: payrollData.metrics.total_week_offs || 0,
+        holidays: payrollData.metrics.total_holidays || 0,
+        comp_off_days: payrollData.metrics.comp_off_days || 0,
+        sandwich_loss_days: payrollData.metrics.sandwich_loss_days || 0
+      });
+    }
+  }, [payrollData]);
+
   const attMap = React.useMemo(() => {
     const m = new Map<string, AttendanceRecord>();
     items.forEach((r) => {
@@ -219,11 +279,109 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
     });
   };
 
+  const isUnpaidLeave = (dateStr: string) => {
+    const leaves = payrollData?.unpaid_leaves || [];
+    return leaves.some((l: any) => {
+      const start = String(l.start_date || '').slice(0, 10);
+      const end = String(l.end_date || '').slice(0, 10);
+      return dateStr >= start && dateStr <= end;
+    });
+  };
+
+  const [showSlipEditor, setShowSlipEditor] = React.useState(false);
+  const [editorData, setEditorData] = React.useState<any>(null);
+  const [isFetchingForEditor, setIsFetchingForEditor] = React.useState(false);
+
+  const handleDownloadSlip = async () => {
+    const empId = employeeId || employee?.id;
+    if (!empId) return;
+
+    // Fetch data for editor
+    try {
+      console.log("Fetching payroll data for editor...", { empId, cycleStartKey, cycleEndKey });
+      setIsFetchingForEditor(true);
+
+      const response = await apiClient<any>('/attendance/payroll-cycle', {
+        method: 'GET',
+        withAuth: true,
+        params: {
+          employee_id: String(empId),
+          cycle_start: cycleStartKey,
+          cycle_end: cycleEndKey
+        }
+      });
+
+      console.log("Payroll data response:", response);
+
+      if (response) {
+        setEditorData(response);
+        setShowSlipEditor(true);
+        console.log("Opening editor modal...");
+      } else {
+        alert("Received empty data from server");
+      }
+    } catch (err: any) {
+      console.error("Error fetching payroll for editor", err);
+      alert(err?.message || "Could not load payroll data for editing.");
+    } finally {
+      setIsFetchingForEditor(false);
+    }
+  };
+
+  const [isLocking, setIsLocking] = React.useState(false);
+  const handleLockUnlock = async (id: number, action: 'lock' | 'unlock') => {
+    try {
+      setIsLocking(true);
+      const payload = {
+        employee_ids: [id],
+        month: endKey.split('-')[1],
+        year: endKey.split('-')[0]
+      };
+      const endpoint = action === 'lock' ? "/attendance/payroll-lock" : "/attendance/payroll-unlock";
+      await apiClient(endpoint, { method: "POST", body: payload, withAuth: true });
+      // Use window.alert or toast if available. PayrollCycleCalendar doesn't seem to have toast imported.
+      // Wait, let me check imports.
+      alert(`Payroll ${action === 'lock' ? 'locked' : 'unlocked'} successfully`);
+      fetchData();
+    } catch (err: any) {
+      alert(err.message || `Failed to ${action} payroll`);
+    } finally {
+      setIsLocking(false);
+    }
+  };
+
   const getStatusConfig = (record?: AttendanceRecord | null, dateStr?: string) => {
     const statusRaw = String(record?.status || "").trim();
 
+    // Check Sandwich LOP first (Overwrites Week Off visual)
+    const sandwichDates = payrollData?.sandwich_dates || [];
+    if (dateStr && sandwichDates.includes(dateStr)) {
+      return { color: "text-rose-600", bg: "bg-rose-50", border: "border-rose-200", label: "LOP (Sandwich)", icon: AlertTriangle };
+    }
+
     if (record?.is_holiday) return { color: "text-violet-600", bg: "bg-violet-50", border: "border-violet-200", label: "Holiday", icon: CalendarIcon };
     if (record?.is_weekly_off) return { color: "text-slate-600", bg: "bg-slate-100", border: "border-slate-200", label: "Week Off", icon: CalendarIcon };
+
+    // Unpaid Leave check (if status is leave/unpaid but not is_paid_leave OR explicitly Unpaid Type)
+    const leaveType = (record?.leave_type || '').toLowerCase();
+    const isUnpaidType = leaveType.includes('unpaid') || leaveType.includes('lwp') || leaveType.includes('loss of pay');
+
+    if (isUnpaidType || (record?.status === 'Leave' || record?.is_leave || statusRaw === 'Leave')) {
+      // Use record's own check if contradictory? 
+      // If isUnpaidType is true, we force Unpaid. 
+      // If just generic 'Leave' status, we might need to be careful if it IS paid leave but no type string. 
+      // But usually is_paid_leave would handle it. Here we want to catch "Leave" that fell through.
+      // Wait, if is_paid_leave is TRUE, we want PL. UNLESS leaveType is Unpaid.
+
+      if (isUnpaidType) {
+        return { color: "text-orange-600", bg: "bg-orange-50", border: "border-orange-200", label: "Unpaid Leave", icon: FileText };
+      }
+
+      // Generic Leave... check paid flag
+      if (!record?.is_paid_leave && (record?.status === 'Leave' || record?.is_leave)) {
+        return { color: "text-orange-600", bg: "bg-orange-50", border: "border-orange-200", label: "Unpaid Leave", icon: FileText };
+      }
+    }
 
     if (record?.is_paid_leave) {
       const half = Number(record?.leave_partial || 0) === 0.5;
@@ -232,8 +390,21 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
 
     if (!record) {
       if (dateStr && isHoliday(dateStr)) return { color: "text-violet-600", bg: "bg-violet-50", border: "border-violet-200", label: "Holiday", icon: CalendarIcon };
+      // Priority: Unpaid > Paid (in case of overlap or data issue)
+      if (dateStr && isUnpaidLeave(dateStr)) return { color: "text-orange-600", bg: "bg-orange-50", border: "border-orange-200", label: "Unpaid Leave", icon: FileText };
       if (dateStr && isPaidLeave(dateStr)) return { color: "text-teal-600", bg: "bg-teal-50", border: "border-teal-200", label: "Paid Leave", icon: FileText };
       return { color: "text-slate-400", bg: "bg-slate-50", border: "border-slate-200", label: "—", icon: null };
+    }
+
+
+
+    // Night OT Visual Indicators
+    if (record?.was_night_ot) {
+      if (record?.night_ot_status === 'Pending') {
+        return { color: "text-orange-600", bg: "bg-orange-50", border: "border-orange-200", label: "OT Pending", icon: Clock };
+      } else if (record?.night_ot_status === 'Approved') {
+        return { color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200", label: "OT Approved", icon: CheckCircle2 };
+      }
     }
 
     const tl = String(record.status_timeline || record.status_summary || "").toLowerCase();
@@ -293,16 +464,26 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
     return dateStr >= cycleStartKey && dateStr <= cycleEndKey;
   };
 
+
+
   return (
     <div className="min-h-screen bg-white p-2 sm:p-4">
       <div className="max-w-7xl mx-auto space-y-4">
         {/* Header Section */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-4 sticky top-0 z-30 shadow-sm">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             {/* Title & Navigation */}
             <div className="flex items-center gap-4">
               <div>
-                <h1 className="text-lg font-bold text-slate-900">Payroll Cycle</h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-lg font-bold text-slate-900">Payroll Cycle</h1>
+                  {payrollData?.is_locked === 1 && (
+                    <div className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-200 rounded text-blue-600">
+                      <Lock className="w-3 h-3" />
+                      <span className="text-[10px] font-bold uppercase">Locked</span>
+                    </div>
+                  )}
+                </div>
                 <p className="text-xs text-slate-500">Attendance & Salary</p>
               </div>
 
@@ -334,23 +515,99 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
                 >
                   <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                 </button>
+
+                <button
+                  onClick={() => setOverviewOpen(!overviewOpen)}
+                  className="px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors flex items-center space-x-2 text-sm bg-white text-slate-600"
+                >
+                  <TrendingUp className="w-4 h-4 text-slate-500" />
+                  <span className="font-medium hidden sm:inline">Overview</span>
+                  {overviewOpen ? <ChevronUp className="w-3.5 h-3.5 text-slate-400" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-400" />}
+                </button>
+
+                <button
+                  onClick={() => setCustomCalcOpen(true)}
+                  className="p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200 transition-all"
+                  title="Custom Calculation"
+                >
+                  <Calculator className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="relative flex items-center gap-2">
+                <button
+                  onClick={() => setActionMenuOpen(!actionMenuOpen)}
+                  className={`p-1.5 border rounded-lg transition-all ${actionMenuOpen ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200'}`}
+                >
+                  <MoreVertical className="w-4 h-4" />
+                </button>
+
+                {actionMenuOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-200 p-1 text-sm animate-in fade-in zoom-in duration-100 origin-top-right z-50">
+                    <button
+                      onClick={() => {
+                        if (payrollData?.s3_url) {
+                          window.open(payrollData.s3_url, '_blank');
+                        } else {
+                          handleDownloadSlip();
+                        }
+                        closeActionMenu();
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 text-slate-700 flex items-center gap-2 transition-colors"
+                    >
+                      <Download className="w-4 h-4 text-slate-500" />
+                      <span>{payrollData?.s3_url ? 'View Payslip' : 'Download Payslip'}</span>
+                    </button>
+                    <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 text-slate-700 flex items-center gap-2 transition-colors">
+                      <FileText className="w-4 h-4 text-slate-500" />
+                      <span>View Breakdown</span>
+                    </button>
+                    <div className="my-1 border-t border-slate-100" />
+                    {payrollData?.is_locked === 1 ? (
+                      <button
+                        disabled={isLocking}
+                        onClick={() => { handleLockUnlock(employeeId || employee?.id || 0, 'unlock'); closeActionMenu(); }}
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-blue-50 text-blue-600 flex items-center gap-2 transition-colors"
+                      >
+                        <Unlock className="w-4 h-4" />
+                        <span>Unlock Cycle</span>
+                      </button>
+                    ) : (
+                      <button
+                        disabled={isLocking}
+                        onClick={() => { handleLockUnlock(employeeId || employee?.id || 0, 'lock'); closeActionMenu(); }}
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-rose-50 text-rose-600 flex items-center gap-2 transition-colors"
+                      >
+                        <Lock className="w-4 h-4" />
+                        <span>Lock Cycle</span>
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
           {/* Metrics Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mt-4">
-            <MetricCard label="Total Days" value={metrics.total_days || 0} color="blue" icon={CalendarIcon} />
-            <MetricCard label="Working Days" value={metrics.scheduled_working_days || 0} color="indigo" icon={Users} />
-            <MetricCard label="Present" value={metrics.present_days || 0} color="emerald" icon={CheckCircle2} />
-            <MetricCard label="Absent" value={metrics.absent_days || 0} color="rose" icon={XCircle} />
-            <MetricCard label="Late Deduction" value={metrics.late_days || 0} color="orange" icon={Clock} />
-            <MetricCard label="Paid Leaves" value={metrics.total_paid_leave_days || 0} color="teal" icon={CheckCircle2} />
-            <MetricCard label="Comp Off" value={metrics.comp_off_days || 0} color="cyan" icon={CheckCircle2} />
-            <MetricCard label="Full Day" value={metrics.full_days || 0} color="green" icon={CheckCircle2} />
-            <MetricCard label="Half Day" value={metrics.half_days || 0} color="amber" icon={Clock} />
-            <MetricCard label="Week Off" value={metrics.total_week_offs || 0} color="slate" icon={CalendarIcon} />
-          </div>
+          {overviewOpen && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mt-4">
+              <MetricCard label="Total Days" value={metrics.total_days || 0} color="blue" icon={CalendarIcon} />
+              <MetricCard label="Working Days" value={metrics.scheduled_working_days || 0} color="indigo" icon={Users} />
+              <MetricCard label="Present" value={metrics.present_days || 0} color="emerald" icon={CheckCircle2} />
+              <MetricCard label="Absent" value={metrics.absent_days || 0} color="rose" icon={XCircle} />
+              <MetricCard label="Late Deduction" value={metrics.late_days || 0} color="orange" icon={Clock} />
+              <MetricCard label="Paid Leaves" value={metrics.total_paid_leave_days || 0} color="teal" icon={CheckCircle2} />
+              <MetricCard label="Adj PL" value={metrics.adjusted_paid_leaves || 0} color="teal" icon={CheckCircle2} />
+              <MetricCard label="Comp Off" value={metrics.comp_off_days || 0} color="cyan" icon={CheckCircle2} />
+              <MetricCard label="Adj CO" value={metrics.adjusted_comp_offs || 0} color="cyan" icon={CheckCircle2} />
+              <MetricCard label="Virtual CO" value={metrics.virtual_comp_offs || 0} color="violet" icon={CheckCircle2} />
+              <MetricCard label="Full Day" value={metrics.full_days || 0} color="green" icon={CheckCircle2} />
+              <MetricCard label="Half Day" value={metrics.half_days || 0} color="amber" icon={Clock} />
+              <MetricCard label="Week Off" value={metrics.total_week_offs || 0} color="slate" icon={CalendarIcon} />
+              <MetricCard label="Holidays" value={metrics.total_holidays || 0} color="violet" icon={CalendarIcon} />
+              <MetricCard label="Sandwich LOP" value={metrics.sandwich_loss_days || 0} color="rose" icon={AlertTriangle} />
+            </div>
+          )}
         </div>
 
         {error && (
@@ -403,15 +660,22 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
                               {date.getDate()}
                             </span>
                             {inCycle && record && (
-                              <div className={`mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold leading-none ${config.bg} ${config.color} border ${config.border}`}>
-                                {config.label === 'Present' ? 'P' :
-                                  config.label === 'Absent' ? 'A' :
-                                    config.label === 'Holiday' ? 'H' :
-                                      config.label === 'Week Off' ? 'WO' :
-                                        config.label.includes('Paid Leave') ? 'PL' :
-                                          config.label.includes('Half') ? 'HD' :
-                                            config.label.slice(0, 2).toUpperCase()}
-                              </div>
+                              <>
+                                <div className={`mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold leading-none ${config.bg} ${config.color} border ${config.border}`}>
+                                  {config.label === 'Present' ? 'P' :
+                                    config.label === 'Absent' ? 'A' :
+                                      config.label === 'Holiday' ? 'H' :
+                                        config.label === 'Week Off' ? 'WO' :
+                                          config.label.includes('Paid Leave') ? 'PL' :
+                                            config.label.includes('Unpaid Leave') ? 'LWP' :
+                                              config.label.includes('Half') ? 'HD' :
+                                                config.label.slice(0, 2).toUpperCase()}
+                                </div>
+                                <div className="absolute bottom-0.5 right-0.5 flex gap-0.5 items-center">
+                                  {record.badges && record.badges.some((b: any) => b.type === 'early_penalty') && <Clock className="w-2.5 h-2.5 text-red-500" />}
+                                  {record.badges && record.badges.some((b: any) => b.type === 'overridden') && <User className="w-2.5 h-2.5 text-blue-500" />}
+                                </div>
+                              </>
                             )}
                           </button>
                         );
@@ -427,158 +691,186 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
           <div className="space-y-4">
             {/* Salary Breakdown */}
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+              <button
+                onClick={() => setBreakdownOpen(!breakdownOpen)}
+                className="w-full flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/50 hover:bg-slate-100 transition-colors"
+              >
                 <div className="flex items-center gap-2">
                   <DollarSign className="w-4 h-4 text-emerald-600" />
                   <h3 className="text-sm font-semibold text-slate-900">Breakdown</h3>
                 </div>
-              </div>
-              <div className="p-4 space-y-3 max-h-[300px] overflow-y-auto text-sm">
-                {/* Earnings */}
-                <div className="space-y-1">
-                  <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Earnings</h4>
-                  {breakdown.filter(i => i.type === 'credit').map((item, i) => (
-                    <div key={`c-${i}`} className="flex items-center justify-between py-1">
-                      <span className="text-slate-600">{item.name}</span>
-                      <span className="font-medium text-emerald-600">+₹{item.amount.toLocaleString()}</span>
-                    </div>
-                  ))}
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between font-medium">
-                    <span className="text-slate-900">Total Earnings</span>
-                    <span className="text-emerald-700">₹{salary.credit_total?.toLocaleString()}</span>
-                  </div>
-                </div>
-
-                {/* Deductions */}
-                {breakdown.filter(i => i.type === 'debit').length > 0 && (
-                  <div className="space-y-1 pt-2">
-                    <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Deductions</h4>
-                    {breakdown.filter(i => i.type === 'debit').map((item, i) => (
-                      <div key={`d-${i}`} className="space-y-1">
-                        <div className="flex items-center justify-between py-1">
-                          <span className="text-slate-600">{item.name}</span>
-                          <span className="font-medium text-rose-600">-₹{item.amount.toLocaleString()}</span>
-                        </div>
-                        {/* Show calculation breakdown if available */}
-                        {item.breakdown && item.breakdown.steps && item.breakdown.steps.length > 0 && (
-                          <details className="ml-4 text-xs text-slate-500">
-                            <summary className="cursor-pointer hover:text-slate-700 select-none">
-                              View calculation
-                            </summary>
-                            <div className="mt-2 space-y-1 pl-3 border-l-2 border-slate-200">
-                              {item.breakdown.steps.map((step, stepIdx) => (
-                                <div key={stepIdx} className="flex items-start justify-between gap-2 py-0.5">
-                                  <span className="text-slate-600 font-medium">{step.step}:</span>
-                                  <span className="text-slate-700 text-right">{step.formula}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </details>
-                        )}
+                {breakdownOpen ? <ChevronDown className="w-4 h-4 text-slate-500" /> : <ChevronRight className="w-4 h-4 text-slate-500" />}
+              </button>
+              {breakdownOpen && (
+                <div className="p-4 space-y-3 max-h-[300px] overflow-y-auto text-sm transition-all">
+                  {/* Earnings */}
+                  <div className="space-y-1">
+                    <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Earnings</h4>
+                    {breakdown.filter(i => i.type === 'credit').map((item, i) => (
+                      <div key={`c-${i}`} className="flex items-center justify-between py-1">
+                        <span className="text-slate-600">{item.name}</span>
+                        <span className="font-medium text-emerald-600">+₹{item.amount.toLocaleString()}</span>
                       </div>
                     ))}
                     <div className="pt-2 border-t border-slate-100 flex items-center justify-between font-medium">
-                      <span className="text-slate-900">Total Deductions</span>
-                      <span className="text-rose-700">₹{salary.debit_total?.toLocaleString()}</span>
+                      <span className="text-slate-900">Total Earnings</span>
+                      <span className="text-emerald-700">₹{salary.credit_total?.toLocaleString()}</span>
                     </div>
                   </div>
-                )}
-              </div>
+
+                  {/* Deductions */}
+                  {breakdown.filter(i => i.type === 'debit').length > 0 && (
+                    <div className="space-y-1 pt-2">
+                      <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Deductions</h4>
+                      {breakdown.filter(i => i.type === 'debit').map((item, i) => (
+                        <div key={`d-${i}`} className="space-y-1">
+                          <div className="flex items-center justify-between py-1">
+                            <span className="text-slate-600">{item.name}</span>
+                            <span className="font-medium text-rose-600">-₹{item.amount.toLocaleString()}</span>
+                          </div>
+                          {/* Show calculation breakdown if available */}
+                          {item.breakdown && item.breakdown.steps && item.breakdown.steps.length > 0 && (
+                            <details className="ml-4 text-xs text-slate-500">
+                              <summary className="cursor-pointer hover:text-slate-700 select-none">
+                                View calculation
+                              </summary>
+                              <div className="mt-2 space-y-1 pl-3 border-l-2 border-slate-200">
+                                {item.breakdown.steps.map((step, stepIdx) => (
+                                  <div key={stepIdx} className="flex items-start justify-between gap-2 py-0.5">
+                                    <span className="text-slate-600 font-medium">{step.step}:</span>
+                                    <span className="text-slate-700 text-right">{step.formula}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          )}
+                        </div>
+                      ))}
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between font-medium">
+                        <span className="text-slate-900">Total Deductions</span>
+                        <span className="text-rose-700">₹{salary.debit_total?.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Calculation Details */}
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+              <button
+                onClick={() => setCalcOpen(!calcOpen)}
+                className="w-full flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/50 hover:bg-slate-100 transition-colors"
+              >
                 <div className="flex items-center gap-2">
                   <Users className="w-4 h-4 text-blue-600" />
                   <h3 className="text-sm font-semibold text-slate-900">Calculation</h3>
                 </div>
-              </div>
-              <div className="p-4 space-y-3 text-sm">
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-slate-600">Working Days</span>
-                    <span className="font-medium text-slate-900">{metrics.working_days?.toLocaleString() || 0}</span>
+                {calcOpen ? <ChevronDown className="w-4 h-4 text-slate-500" /> : <ChevronRight className="w-4 h-4 text-slate-500" />}
+              </button>
+              {calcOpen && (
+                <div className="p-4 space-y-3 text-sm transition-all">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Working Days</span>
+                      <span className="font-medium text-slate-900">{metrics.working_days?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Scheduled Working</span>
+                      <span className="font-medium text-slate-900">{metrics.scheduled_working_days?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Present</span>
+                      <span className="font-medium text-emerald-700">{metrics.present_days?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Absent</span>
+                      <span className="font-medium text-rose-700">{metrics.absent_days?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Paid Leaves</span>
+                      <span className="font-medium text-teal-700">{metrics.total_paid_leave_days?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Adj PL</span>
+                      <span className="font-medium text-teal-700">{metrics.adjusted_paid_leaves?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Holidays</span>
+                      <span className="font-medium text-violet-700">{metrics.total_holidays?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Week Offs</span>
+                      <span className="font-medium text-slate-700">{metrics.total_week_offs?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Late Deduction Days</span>
+                      <span className="font-medium text-orange-700">{metrics.late_days?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Sandwich LOP Days</span>
+                      <span className="font-medium text-rose-700">{metrics.sandwich_loss_days?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Comp Off</span>
+                      <span className="font-medium text-cyan-700">{metrics.comp_off_days?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Adj CO</span>
+                      <span className="font-medium text-cyan-700">{metrics.adjusted_comp_offs?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Virtual CO (Credit)</span>
+                      <span className="font-medium text-violet-700">{metrics.virtual_comp_offs?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Full Day</span>
+                      <span className="font-medium text-slate-900">{metrics.full_days?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Half Day</span>
+                      <span className="font-medium text-amber-700">{metrics.half_days?.toLocaleString() || 0}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-slate-600">Scheduled Working</span>
-                    <span className="font-medium text-slate-900">{metrics.scheduled_working_days?.toLocaleString() || 0}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-slate-600">Present</span>
-                    <span className="font-medium text-emerald-700">{metrics.present_days?.toLocaleString() || 0}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-slate-600">Absent</span>
-                    <span className="font-medium text-rose-700">{metrics.absent_days?.toLocaleString() || 0}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-slate-600">Paid Leaves</span>
-                    <span className="font-medium text-teal-700">{metrics.total_paid_leave_days?.toLocaleString() || 0}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-slate-600">Holidays</span>
-                    <span className="font-medium text-violet-700">{metrics.total_holidays?.toLocaleString() || 0}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-slate-600">Week Offs</span>
-                    <span className="font-medium text-slate-700">{metrics.total_week_offs?.toLocaleString() || 0}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-slate-600">Late Deduction Days</span>
-                    <span className="font-medium text-orange-700">{metrics.late_days?.toLocaleString() || 0}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-slate-600">Comp Off</span>
-                    <span className="font-medium text-cyan-700">{metrics.comp_off_days?.toLocaleString() || 0}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-slate-600">Full Day</span>
-                    <span className="font-medium text-slate-900">{metrics.full_days?.toLocaleString() || 0}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-slate-600">Half Day</span>
-                    <span className="font-medium text-amber-700">{metrics.half_days?.toLocaleString() || 0}</span>
+
+                  <div className="pt-2 border-t border-slate-100" />
+
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Gross Salary</span>
+                      <span className="font-medium text-slate-900">₹{salary.gross_salary?.toLocaleString() || '0'}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Adjusted Gross</span>
+                      <span className="font-medium text-blue-700">₹{salary.adjusted_gross?.toLocaleString() || '0'}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Credits</span>
+                      <span className="font-medium text-emerald-700">₹{salary.credit_total?.toLocaleString() || '0'}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Debits</span>
+                      <span className="font-medium text-rose-700">₹{salary.debit_total?.toLocaleString() || '0'}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Salary Advance EMI</span>
+                      <span className="font-medium text-slate-900">₹{salary.salary_advance_emi?.toLocaleString() || '0'}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Total Deductions</span>
+                      <span className="font-medium text-rose-700">₹{salary.total_deductions?.toLocaleString() || '0'}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Net Payment</span>
+                      <span className="font-semibold text-blue-700">₹{salary.net_payment?.toLocaleString() || salary.net?.toLocaleString() || '0'}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-600">Bank Payment</span>
+                      <span className="font-semibold text-blue-700">₹{salary.bank_payment?.toLocaleString() || '0'}</span>
+                    </div>
                   </div>
                 </div>
-
-                <div className="pt-2 border-t border-slate-100" />
-
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-slate-600">Gross Salary</span>
-                    <span className="font-medium text-slate-900">₹{salary.gross_salary?.toLocaleString() || '0'}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-slate-600">Adjusted Gross</span>
-                    <span className="font-medium text-blue-700">₹{salary.adjusted_gross?.toLocaleString() || '0'}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-slate-600">Credits</span>
-                    <span className="font-medium text-emerald-700">₹{salary.credit_total?.toLocaleString() || '0'}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-slate-600">Debits</span>
-                    <span className="font-medium text-rose-700">₹{salary.debit_total?.toLocaleString() || '0'}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-slate-600">Salary Advance EMI</span>
-                    <span className="font-medium text-slate-900">₹{salary.salary_advance_emi?.toLocaleString() || '0'}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-slate-600">Total Deductions</span>
-                    <span className="font-medium text-rose-700">₹{salary.total_deductions?.toLocaleString() || '0'}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-slate-600">Net Payment</span>
-                    <span className="font-semibold text-blue-700">₹{salary.net_payment?.toLocaleString() || salary.net?.toLocaleString() || '0'}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-slate-600">Bank Payment</span>
-                    <span className="font-semibold text-blue-700">₹{salary.bank_payment?.toLocaleString() || '0'}</span>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -586,13 +878,46 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
 
 
       {/* Detail Modal */}
-      {detailOpen && detailRecord && (
-        <AttendanceDetailsModal
-          record={detailRecord}
-          onClose={() => setDetailOpen(false)}
+      {
+        detailOpen && detailRecord && (
+          <AttendanceDetailsModal
+            record={detailRecord}
+            onClose={() => setDetailOpen(false)}
+          />
+        )
+      }
+
+      {/* Custom Calculator Modal */}
+      {
+        customCalcOpen && (
+          <CustomCalculatorModal
+            metrics={customMetrics}
+            onMetricsChange={setCustomMetrics}
+            payrollData={payrollData}
+            breakdown={breakdown}
+            employeeId={employeeId || employee?.id || 0}
+            onClose={() => setCustomCalcOpen(false)}
+          />
+        )
+      }
+
+      {/* Debug: Check if modal renders */}
+      {showSlipEditor && (
+        console.log("Trying to render SalarySlipEditorModal", { showSlipEditor, hasData: !!editorData }),
+        null
+      )}
+
+      {showSlipEditor && editorData && (
+        <SalarySlipEditorModal
+          isOpen={showSlipEditor}
+          onClose={() => setShowSlipEditor(false)}
+          initialData={editorData}
+          employeeId={employeeId || employee?.id || 0}
+          cycleStart={cycleStartKey}
+          cycleEnd={cycleEndKey}
         />
       )}
-    </div>
+    </div >
   );
 }
 
@@ -622,3 +947,374 @@ function MetricCard({ label, value, color, icon: Icon }: { label: string; value:
     </div>
   );
 }
+
+// Custom Calculator Modal Component
+function CustomCalculatorModal({
+  metrics,
+  onMetricsChange,
+  payrollData,
+  breakdown,
+  employeeId,
+  onClose
+}: {
+  metrics: any;
+  onMetricsChange: (m: any) => void;
+  payrollData: any;
+  breakdown: SalaryItem[];
+  employeeId: number;
+  onClose: () => void;
+}) {
+  const [calculatedResults, setCalculatedResults] = React.useState<any>(null);
+  const [calculating, setCalculating] = React.useState(false);
+  const [calculateError, setCalculateError] = React.useState<string | null>(null);
+
+  // Calculate using backend API
+  const handleCalculate = async () => {
+    setCalculating(true);
+    setCalculateError(null);
+
+    try {
+      if (!employeeId) throw new Error("Missing employee id");
+
+      // Calculate payable days from metrics
+      const payableDays = metrics.full_days + (metrics.half_days * 0.5) + metrics.paid_leave_days + metrics.week_offs + metrics.holidays;
+
+      // Call backend API with simplified parameters
+      const response = await apiClient<any>("/attendance/payroll-calculate-custom", {
+        method: "POST",
+        withAuth: true,
+        body: {
+          employee_id: employeeId,
+          total_days: metrics.total_days,
+          payable_days: payableDays
+        }
+      });
+
+      setCalculatedResults(response);
+    } catch (e: any) {
+      setCalculateError(e?.message || "Failed to calculate");
+    } finally {
+      setCalculating(false);
+    }
+  };
+
+  // State for expandable sections
+  const [creditsExpanded, setCreditsExpanded] = React.useState(false);
+  const [debitsExpanded, setDebitsExpanded] = React.useState(false);
+  const [expandedDebitIndices, setExpandedDebitIndices] = React.useState<Record<number, boolean>>({});
+
+  const toggleDebitBreakdown = (idx: number) => {
+    setExpandedDebitIndices(prev => ({
+      ...prev,
+      [idx]: !prev[idx]
+    }));
+  };
+
+  // Validation: Check if total attendance days exceed total days
+  const validation = React.useMemo(() => {
+    const totalDays = metrics.total_days || 0;
+    const fullDays = metrics.full_days || 0;
+    const halfDays = metrics.half_days || 0;
+    const absentDays = metrics.absent_days || 0;
+    const paidLeaveDays = metrics.paid_leave_days || 0;
+    const weekOffs = metrics.week_offs || 0;
+    const holidays = metrics.holidays || 0;
+
+    // Calculate total accounted days (counting half days as 0.5)
+    const totalAccountedDays = fullDays + halfDays + absentDays + paidLeaveDays + weekOffs + holidays;
+
+    const isValid = totalAccountedDays <= totalDays;
+    const difference = totalAccountedDays - totalDays;
+
+    return {
+      isValid,
+      totalAccountedDays: Number(totalAccountedDays.toFixed(2)),
+      difference: Number(difference.toFixed(2)),
+      message: isValid
+        ? `Valid: ${totalAccountedDays.toFixed(2)} / ${totalDays} days accounted`
+        : `Invalid: ${totalAccountedDays.toFixed(2)} days exceeds ${totalDays} total days by ${difference.toFixed(2)} days`
+    };
+  }, [metrics]);
+
+  const handleInputChange = (field: string, value: string) => {
+    const numValue = parseFloat(value) || 0;
+    onMetricsChange({ ...metrics, [field]: numValue });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-emerald-50 to-blue-50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-emerald-100 rounded-lg">
+                <Calculator className="w-5 h-5 text-emerald-700" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Custom Payroll Calculator</h2>
+                <p className="text-sm text-slate-600">Enter custom attendance values for verification</p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/50 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5 text-slate-600" />
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Input Section */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wide">Input Metrics</h3>
+
+              <div className="grid grid-cols-2 gap-3">
+                <InputField label="Total Days" value={metrics.total_days} onChange={(v) => handleInputChange('total_days', v)} color="blue" />
+                <InputField label="Full Days" value={metrics.full_days} onChange={(v) => handleInputChange('full_days', v)} color="emerald" />
+                <InputField label="Half Days" value={metrics.half_days} onChange={(v) => handleInputChange('half_days', v)} color="amber" />
+                <InputField label="Absent Days" value={metrics.absent_days} onChange={(v) => handleInputChange('absent_days', v)} color="rose" />
+                <InputField label="Paid Leaves" value={metrics.paid_leave_days} onChange={(v) => handleInputChange('paid_leave_days', v)} color="teal" />
+                <InputField label="Week Offs" value={metrics.week_offs} onChange={(v) => handleInputChange('week_offs', v)} color="slate" />
+                <InputField label="Holidays" value={metrics.holidays} onChange={(v) => handleInputChange('holidays', v)} color="violet" />
+                <InputField label="Comp Off" value={metrics.comp_off_days} onChange={(v) => handleInputChange('comp_off_days', v)} color="cyan" />
+                <InputField label="Late Days" value={metrics.late_days} onChange={(v) => handleInputChange('late_days', v)} color="orange" />
+              </div>
+
+              {/* Validation Indicator */}
+              <div className={`mt-4 p-3 rounded-lg border ${validation.isValid ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
+                <div className="flex items-start gap-2">
+                  {validation.isValid ? (
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                  )}
+                  <div>
+                    <p className={`text-sm font-medium ${validation.isValid ? 'text-emerald-900' : 'text-rose-900'}`}>
+                      {validation.isValid ? 'Valid Configuration' : 'Invalid Configuration'}
+                    </p>
+                    <p className={`text-xs mt-1 ${validation.isValid ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      {validation.message}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Calculation Results */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wide">Calculated Results</h3>
+                <button
+                  onClick={handleCalculate}
+                  disabled={calculating || !validation.isValid}
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {calculating ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Calculating...
+                    </>
+                  ) : (
+                    <>
+                      <Calculator className="w-4 h-4" />
+                      Calculate
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {calculateError && (
+                <div className="bg-rose-50 border border-rose-200 rounded-lg p-3 flex items-start gap-2">
+                  <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                  <p className="text-sm text-rose-700">{calculateError}</p>
+                </div>
+              )}
+
+              {!calculatedResults && !calculating && (
+                <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-8 border border-slate-200 text-center">
+                  <Calculator className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+                  <p className="text-sm text-slate-600">Click "Calculate" to see results</p>
+                  <p className="text-xs text-slate-500 mt-1">Backend will calculate accurate salary based on your custom metrics</p>
+                </div>
+              )}
+
+              {calculatedResults && (
+                <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-4 space-y-3 border border-slate-200">
+                  <ResultRow label="Total Days" value={calculatedResults.metrics?.total_days || 0} />
+                  <ResultRow label="Payable Days" value={calculatedResults.metrics?.payable_days || 0} />
+                  <ResultRow label="Proration Ratio" value={`${(calculatedResults.metrics?.proration_ratio * 100).toFixed(2)}%`} />
+
+                  <div className="border-t border-slate-300 my-2" />
+
+                  <ResultRow label="Gross Salary (Monthly)" value={`₹${calculatedResults.salary?.gross_salary?.toLocaleString() || '0'}`} highlight />
+                  <ResultRow label="Per Day Gross" value={`₹${calculatedResults.salary?.per_day_gross?.toLocaleString() || '0'}`} />
+                  <ResultRow label="Earned Gross" value={`₹${calculatedResults.salary?.earned_gross?.toLocaleString() || '0'}`} highlight />
+
+                  <div className="border-t border-slate-300 my-2" />
+
+                  {/* Expandable Credits Section */}
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => setCreditsExpanded(!creditsExpanded)}
+                      className="w-full flex items-center justify-between p-2 hover:bg-slate-200/50 rounded-lg transition-colors"
+                    >
+                      <span className="text-sm font-semibold text-emerald-700">Total Credits (Earned)</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-emerald-700">₹{calculatedResults.salary_breakdown?.filter((b: any) => b.type === 'credit').reduce((sum: number, item: any) => sum + (item.earned_amount || 0), 0).toLocaleString() || '0'}</span>
+                        {creditsExpanded ? (
+                          <ChevronUp className="w-4 h-4 text-slate-600" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-slate-600" />
+                        )}
+                      </div>
+                    </button>
+                    {creditsExpanded && (
+                      <div className="pl-4 space-y-1 border-l-2 border-emerald-200">
+                        {calculatedResults.salary_breakdown?.filter((b: any) => b.type === 'credit').map((item: any, idx: number) => (
+                          <div key={idx} className="flex items-center justify-between text-xs py-1">
+                            <span className="text-slate-600">{item.name}</span>
+                            <span className="font-medium text-emerald-600">+₹{item.earned_amount?.toLocaleString() || '0'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Expandable Debits Section */}
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => setDebitsExpanded(!debitsExpanded)}
+                      className="w-full flex items-center justify-between p-2 hover:bg-slate-200/50 rounded-lg transition-colors"
+                    >
+                      <span className="text-sm font-semibold text-rose-700">All Debits</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-rose-700">₹{calculatedResults.salary?.additional_debits?.toLocaleString() || '0'}</span>
+                        {debitsExpanded ? (
+                          <ChevronUp className="w-4 h-4 text-slate-600" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-slate-600" />
+                        )}
+                      </div>
+                    </button>
+                    {debitsExpanded && (
+                      <div className="pl-4 space-y-1 border-l-2 border-rose-200">
+                        {calculatedResults.salary_breakdown?.filter((b: any) => b.type === 'debit').map((item: any, idx: number) => (
+                          <div key={idx} className="py-1">
+                            <div className="flex items-center justify-between text-xs">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-slate-600">{item.name}</span>
+                                {item.breakdown && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleDebitBreakdown(idx);
+                                    }}
+                                    className="text-slate-400 hover:text-blue-500 transition-colors"
+                                  >
+                                    <Info className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                              <span className="font-medium text-rose-600">-₹{item.amount.toLocaleString()}</span>
+                            </div>
+
+                            {/* Breakdown Steps */}
+                            {expandedDebitIndices[idx] && item.breakdown && (
+                              <div className="mt-1 ml-2 pl-2 border-l border-slate-300 space-y-0.5">
+                                {item.breakdown.steps.map((step: any, sIdx: number) => (
+                                  <div key={sIdx} className="text-[10px] text-slate-500 flex justify-between gap-2">
+                                    <span>{step.step}:</span>
+                                    <span className="font-mono">{step.formula}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <ResultRow label="Salary Advance EMI" value={`₹${calculatedResults.salary?.salary_advance_emi?.toLocaleString() || '0'}`} color="orange" />
+                  <ResultRow label="Total Deductions" value={`₹${calculatedResults.salary?.total_deductions?.toLocaleString() || '0'}`} color="rose" highlight />
+
+                  <div className="border-t-2 border-slate-400 my-2" />
+
+                  <ResultRow label="Net Payment" value={`₹${calculatedResults.salary?.net_payment?.toLocaleString() || '0'}`} color="blue" highlight large />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+          <p className="text-xs text-slate-500">
+            * Calculations are performed by the backend for 100% accuracy
+          </p>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors font-medium"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Input Field Component
+function InputField({ label, value, onChange, color = "blue" }: { label: string; value: number; onChange: (v: string) => void; color?: string }) {
+  const colorMap: Record<string, string> = {
+    blue: "border-blue-200 focus:border-blue-500 focus:ring-blue-500",
+    emerald: "border-emerald-200 focus:border-emerald-500 focus:ring-emerald-500",
+    amber: "border-amber-200 focus:border-amber-500 focus:ring-amber-500",
+    rose: "border-rose-200 focus:border-rose-500 focus:ring-rose-500",
+    teal: "border-teal-200 focus:border-teal-500 focus:ring-teal-500",
+    slate: "border-slate-200 focus:border-slate-500 focus:ring-slate-500",
+    violet: "border-violet-200 focus:border-violet-500 focus:ring-violet-500",
+    cyan: "border-cyan-200 focus:border-cyan-500 focus:ring-cyan-500",
+    orange: "border-orange-200 focus:border-orange-500 focus:ring-orange-500",
+  };
+
+  return (
+    <div>
+      <label className="block text-xs font-medium text-slate-700 mb-1">{label}</label>
+      <input
+        type="number"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-all ${colorMap[color] || colorMap.blue}`}
+        min="0"
+        step="0.5"
+      />
+    </div>
+  );
+}
+
+// Result Row Component
+function ResultRow({ label, value, color, highlight, large }: { label: string; value: string | number; color?: string; highlight?: boolean; large?: boolean }) {
+  const colorMap: Record<string, string> = {
+    emerald: "text-emerald-700",
+    rose: "text-rose-700",
+    blue: "text-blue-700",
+    orange: "text-orange-700",
+  };
+
+  const textColor = color ? colorMap[color] : "text-slate-900";
+  const fontWeight = highlight ? "font-bold" : "font-medium";
+  const fontSize = large ? "text-lg" : "text-sm";
+
+  return (
+    <div className="flex items-center justify-between">
+      <span className={`${fontSize} ${highlight ? 'font-semibold' : ''} text-slate-700`}>{label}</span>
+      <span className={`${fontSize} ${fontWeight} ${textColor}`}>{value}</span>
+    </div>
+  );
+}
+

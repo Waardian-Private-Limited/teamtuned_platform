@@ -4,7 +4,7 @@ import React from "react";
 import { createPortal } from "react-dom";
 import { apiClient } from "@/lib/apiClient";
 import PayrollCycleCalendar from "@/components/payroll/PayrollCycleCalendar";
-import { Search, Filter, Users, Phone, Building, Clock, MapPin, MoreVertical, ChevronLeft, ChevronRight, Calendar, User, Shield, Eye, RefreshCw, X, CheckCircle, AlertCircle, LogOut, Layers, ChevronDown, Download, FileText, CreditCard, Loader2 } from "lucide-react";
+import { Search, Filter, Users, Phone, Building, Clock, MapPin, MoreVertical, ChevronLeft, ChevronRight, Calendar, User, Shield, Eye, RefreshCw, X, CheckCircle, AlertCircle, LogOut, Layers, ChevronDown, Download, FileText, CreditCard, Loader2, Lock, Unlock, FileUp, Upload } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { useAuth } from "@/context/AuthContext";
@@ -35,7 +35,9 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
   }, [closeMenu]);
 
   const [search, setSearch] = React.useState<string>("");
-  const [department, setDepartment] = React.useState<string>(""); const isEmployee = (role || "").toLowerCase() === "employee";
+  const [department, setDepartment] = React.useState<string>("");
+  const [lockStatus, setLockStatus] = React.useState<string>("all");
+  const isEmployee = (role || "").toLowerCase() === "employee";
   const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
   const canHRMode = !isEmployee || hasPerm("HR_MODE");
 
@@ -53,9 +55,18 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
   const [exportEmail, setExportEmail] = React.useState('');
   const [isExporting, setIsExporting] = React.useState(false);
 
+  // Update (Override)
+  const [showUpdateModal, setShowUpdateModal] = React.useState(false);
+  const [isUpdating, setIsUpdating] = React.useState(false);
+  const [updateFile, setUpdateFile] = React.useState<File | null>(null);
+
   // Cycle Navigation (EXACTLY like PayrollCycleCalendar)
   const [now, setNow] = React.useState<Date>(new Date());
   const [policyData, setPolicyData] = React.useState<any>(null);
+  const [selectedIds, setSelectedIds] = React.useState<Set<number>>(new Set());
+  const [isLocking, setIsLocking] = React.useState(false);
+  const [showLockConfirm, setShowLockConfirm] = React.useState(false);
+  const [includeInactive, setIncludeInactive] = React.useState(false);
 
   const computeCycle = React.useCallback((ref: Date, startDay: number, endDay: number) => {
     let cycleYear = ref.getFullYear();
@@ -173,6 +184,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
   const clearFilters = () => {
     setSearch("");
     setDepartment("");
+    setLockStatus("all");
     setNow(new Date());
     setPage(1);
     fetchList();
@@ -288,6 +300,9 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
         const dep = departments.find(d => String(d.name) === department);
         if (dep?.id != null) params["department_id"] = String(dep.id);
       }
+      if (lockStatus !== "all") {
+        params["is_locked"] = lockStatus === "locked" ? "1" : "0";
+      }
       params["page"] = String(page);
       params["limit"] = String(pageSize);
 
@@ -301,12 +316,177 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
         setCycleStartKey(list[0].cycle_start);
         setCycleEndKey(list[0].cycle_end);
       }
+      setSelectedIds(new Set());
     } catch (e: any) {
       setError(e?.message || "Failed to load payroll data");
     } finally {
       setLoading(false);
     }
   }, [hqMode, selectedSiteId, canHRMode, externalControl, extHq, extSiteId, startKey, endKey, search, department, page, pageSize, departments]);
+
+  const handleLockUnlock = async (ids: number[], action: 'lock' | 'unlock') => {
+    try {
+      setIsLocking(true);
+      const payload = {
+        employee_ids: ids,
+        month: endKey.split('-')[1],
+        year: endKey.split('-')[0]
+      };
+      const endpoint = action === 'lock' ? "/attendance/payroll-lock" : "/attendance/payroll-unlock";
+      await apiClient(endpoint, { method: "POST", body: payload, withAuth: true });
+      toast.success(`Payroll ${action === 'lock' ? 'locked' : 'unlocked'} successfully`);
+      fetchList();
+    } catch (err: any) {
+      toast.error(err.message || `Failed to ${action} payroll`);
+    } finally {
+      setIsLocking(false);
+    }
+  };
+
+  const executeLockAll = async () => {
+    try {
+      setIsLocking(true);
+      setShowLockConfirm(false);
+      const payload = {
+        lock_all: true,
+        month: endKey.split('-')[1],
+        year: endKey.split('-')[0],
+        include_inactive: includeInactive
+      };
+      await apiClient("/attendance/payroll-lock", { method: "POST", body: payload, withAuth: true });
+      toast.success("Payroll locked for all active employees");
+      fetchList();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to lock all payroll");
+    } finally {
+      setIsLocking(false);
+    }
+  };
+
+  const handleLockAll = () => {
+    setShowLockConfirm(true);
+  };
+
+  const [isGenerating, setIsGenerating] = React.useState(false);
+  const handleGenerateSlips = async (ids: number[]) => {
+    try {
+      setIsGenerating(true);
+      const payload = {
+        employee_ids: ids,
+        month: endKey.split('-')[1],
+        year: endKey.split('-')[0]
+      };
+      await apiClient("/attendance/payroll-generate", { method: "POST", body: payload, withAuth: true });
+      toast.success(`${ids.length} Salary slips generated successfully`);
+      fetchList();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate salary slips");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === items.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(items.map(item => item.id)));
+    }
+  };
+
+  const toggleSelect = (id: number) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedIds(next);
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const year = cycleEndKey.slice(0, 4);
+      const month = cycleEndKey.slice(5, 7);
+      const token = localStorage.getItem('accessToken') || localStorage.getItem('token'); // Try common keys or check auth context
+
+      // Construct URL manually to avoid apiClient interception issues with Blobs
+      const queryParams = new URLSearchParams({
+        month,
+        year,
+        site_id: String(selectedSiteId || ''),
+        cycle_start: cycleStartKey,
+        cycle_end: cycleEndKey
+      });
+
+      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3006/api/v1';
+      console.log("Downloading template from:", `${baseUrl}/attendance/payroll-edit-template`);
+
+      const response = await fetch(`${baseUrl}/attendance/payroll-edit-template?${queryParams}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error("Download response error:", response.status, errText);
+        throw new Error(`Download failed: ${response.status} ${errText}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Payroll_Edit_Template_${year}_${month}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success("Template downloaded");
+    } catch (err: any) {
+      console.error("Download template error:", err);
+      toast.error("Failed to download template");
+    }
+  };
+
+  const handleUpdatePayroll = async () => {
+    if (!updateFile) {
+      toast.error("Please select a file first");
+      return;
+    }
+
+    try {
+      setIsUpdating(true);
+      const year = cycleEndKey.slice(0, 4);
+      const month = cycleEndKey.slice(5, 7);
+
+      const formData = new FormData();
+      formData.append('file', updateFile);
+      formData.append('month', month);
+      formData.append('year', year);
+      formData.append('cycle_start', cycleStartKey);
+      formData.append('cycle_end', cycleEndKey);
+
+      // We need to send FormData. apiClient might default to JSON.
+      // We usually pass `body: formData` and let browser set Content-Type (multipart).
+      // But we need to ensure apiClient doesn't force Content-Type: application/json.
+
+      // Let's try passing body directly.
+      const response = await apiClient<any>('/attendance/payroll-update', {
+        method: 'POST',
+        body: formData,
+        withAuth: true,
+        // headers: {} // Let browser set boundary
+      });
+
+      toast.success(`Updated ${response.processed} records`);
+      setShowUpdateModal(false);
+      setUpdateFile(null);
+      fetchList();
+    } catch (err: any) {
+      console.error("Update error:", err);
+      toast.error(err.message || "Failed to update payroll");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   React.useEffect(() => { fetchList(); }, [fetchList]);
 
@@ -398,13 +578,12 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                 <input type="text" className="w-full pl-7 pr-2 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." />
               </div>
             </div>
-            <div className="lg:col-span-2">
-              <label className="block text-xs font-medium text-slate-500 mb-1">Department</label>
-              <select className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all" value={department} onChange={(e) => setDepartment(e.target.value)}>
-                <option value="">All Departments</option>
-                {departments.map((d) => (
-                  <option key={d.id} value={d.name}>{d.name}</option>
-                ))}
+            <div className="lg:col-span-1">
+              <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
+              <select className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all" value={lockStatus} onChange={(e) => setLockStatus(e.target.value)}>
+                <option value="all">All Status</option>
+                <option value="locked">Locked</option>
+                <option value="unlocked">Unlocked</option>
               </select>
             </div>
             {!externalControl && (
@@ -420,14 +599,6 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
               </div>
             )}
             <div className="lg:col-span-1">
-              <label className="block text-xs font-medium text-slate-500 mb-1">Page Size</label>
-              <select className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all" value={String(pageSize)} onChange={(e) => setPageSize(parseInt(e.target.value) || 10)}>
-                <option value="10">10</option>
-                <option value="20">20</option>
-                <option value="50">50</option>
-              </select>
-            </div>
-            <div className="lg:col-span-1">
               <label className="block text-xs font-medium text-slate-500 mb-1">&nbsp;</label>
               <button
                 onClick={() => setShowExportModal(true)}
@@ -437,6 +608,63 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                 Export
               </button>
             </div>
+            {selectedIds.size > 0 ? (
+              <div className="lg:col-span-3 flex items-center gap-2">
+                <button
+                  disabled={isLocking || isGenerating}
+                  onClick={() => handleLockUnlock(Array.from(selectedIds), 'lock')}
+                  className="flex-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  Lock ({selectedIds.size})
+                </button>
+                <button
+                  disabled={isLocking || isGenerating}
+                  onClick={() => handleLockUnlock(Array.from(selectedIds), 'unlock')}
+                  className="flex-1 px-3 py-1.5 bg-slate-600 text-white rounded-lg text-xs font-medium hover:bg-slate-700 transition-all flex items-center justify-center gap-2"
+                >
+                  <Unlock className="w-3.5 h-3.5" />
+                  Unlock
+                </button>
+                <button
+                  disabled={isLocking || isGenerating}
+                  onClick={() => handleGenerateSlips(Array.from(selectedIds))}
+                  className="flex-1 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
+                >
+                  {isGenerating ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <FileText className="w-3.5 h-3.5" />
+                  )}
+                  Slips
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="lg:col-span-1">
+                  <label className="block text-xs font-medium text-slate-500 mb-1">&nbsp;</label>
+                  <button
+                    disabled={isLocking}
+                    onClick={handleLockAll}
+                    className="w-full px-3 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-medium hover:bg-rose-700 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    Lock All
+                  </button>
+                </div>
+                <div className="lg:col-span-1">
+                  <label className="block text-xs font-medium text-slate-500 mb-1">&nbsp;</label>
+                  <button
+                    onClick={() => setShowUpdateModal(true)}
+                    className="w-full px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
+                  >
+                    <FileUp className="w-3.5 h-3.5" />
+                    Update
+                  </button>
+                </div>
+
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -457,27 +685,38 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
           <div className="flex-1 overflow-hidden bg-white border border-slate-200 rounded-lg">
             {/* Horizontal scroll container for both header and body with modern scrollbar */}
             <div className="h-full overflow-x-auto [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-400">
-              <div className="min-w-[1900px] h-full flex flex-col">
+              <div className="min-w-[2100px] h-full flex flex-col">
                 {/* Fixed Header */}
                 <div className="bg-white border-b border-slate-200 flex-shrink-0 z-10">
-                  <div className="grid grid-cols-[80px_200px_150px_120px_80px_80px_80px_80px_80px_80px_80px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-3">
+                  <div className="grid grid-cols-[40px_80px_200px_120px_80px_100px_100px_110px_80px_80px_80px_80px_100px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-3">
+                    <div className="flex items-center justify-center">
+                      <input
+                        type="checkbox"
+                        checked={items.length > 0 && selectedIds.size === items.length}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                      />
+                    </div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">Image</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">Name</div>
-                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">ID</div>
+
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">Site</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Total Days</div>
-                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Present</div>
-                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Absent</div>
-                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Paid Leaves</div>
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Present Days</div>
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Absent Days</div>
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Paid Leave</div>
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Adj PL</div>
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Adj CO</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Week Off</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Holidays</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Full Days</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Half Days</div>
+
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Gross Salary</div>
-                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Net Salary</div>
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Earned Gross</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Deductions</div>
-                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Net Payment</div>
-                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Actions</div>
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Net Pay</div>
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right sticky right-0 bg-white shadow-[-10px_0_15px_-10px_rgba(0,0,0,0.05)] z-20 px-2 py-3 -my-3 flex items-center justify-end">Actions</div>
                   </div>
                 </div>
 
@@ -486,10 +725,10 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                   {loading ? (
                     // Ghost Loader
                     Array.from({ length: 5 }).map((_, i) => (
-                      <div key={i} className="min-w-[1900px] grid grid-cols-[80px_200px_150px_120px_80px_80px_80px_80px_80px_80px_80px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-4 animate-pulse">
+                      <div key={i} className="min-w-[2100px] grid grid-cols-[80px_200px_120px_80px_100px_100px_110px_80px_80px_80px_80px_100px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-4 animate-pulse">
                         <div className="w-9 h-9 bg-slate-100 rounded-lg"></div>
                         <div className="h-4 bg-slate-100 rounded w-32"></div>
-                        <div className="h-4 bg-slate-100 rounded w-20"></div>
+
                         <div className="h-4 bg-slate-100 rounded w-24"></div>
                         <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
                         <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
@@ -498,6 +737,10 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                         <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
                         <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
                         <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
+                        <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
+                        <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
+                        <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
+
                         <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
                         <div className="h-4 bg-slate-100 rounded w-20 ml-auto"></div>
                         <div className="h-4 bg-slate-100 rounded w-20 ml-auto"></div>
@@ -525,7 +768,17 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                       const salary = employee.salary || {};
 
                       return (
-                        <div key={employee.id} className="min-w-[1900px] grid grid-cols-[80px_200px_150px_120px_80px_80px_80px_80px_80px_80px_80px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-3 hover:bg-slate-50 transition-colors items-center group border-l-2 border-transparent hover:border-blue-500">
+                        <div key={employee.id} className="min-w-[2100px] grid grid-cols-[40px_80px_200px_120px_80px_100px_100px_110px_80px_80px_80px_80px_100px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-3 hover:bg-slate-50 transition-colors items-center group border-l-2 border-transparent hover:border-blue-500">
+                          {/* Checkbox */}
+                          <div className="flex items-center justify-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(employee.id)}
+                              onChange={() => toggleSelect(employee.id)}
+                              className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                            />
+                          </div>
+
                           {/* Image */}
                           <div className="flex-shrink-0">
                             {employee.profile_image_url ? (
@@ -543,14 +796,16 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
 
                           {/* Name */}
                           <div className="min-w-0">
-                            <div className="text-sm font-medium text-slate-900 truncate">
+                            <div className="text-sm font-medium text-slate-900 truncate flex items-center gap-1.5">
                               {employee.first_name} {employee.last_name}
+                              {employee.is_locked === 1 && (
+                                <Lock className="w-3 h-3 text-blue-600" />
+                              )}
                             </div>
                             <div className="text-xs text-slate-500 truncate">{employee.department_name || "-"}</div>
                           </div>
 
-                          {/* ID */}
-                          <div className="text-sm text-slate-600 truncate">#{employee.id}</div>
+
 
                           {/* Site */}
                           <div className="text-sm text-slate-600 truncate">{employee.primary_site_name || "Unassigned"}</div>
@@ -559,13 +814,19 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                           <div className="text-sm text-slate-900 font-medium text-right">{metrics.total_days || 0}</div>
 
                           {/* Present */}
-                          <div className="text-sm text-emerald-600 font-medium text-right">{metrics.full_days || 0}</div>
+                          <div className="text-sm text-emerald-600 font-medium text-right">{((metrics.full_days || 0) + ((metrics.half_days || 0) * 0.5)).toFixed(1)}</div>
 
                           {/* Absent */}
                           <div className="text-sm text-rose-600 font-medium text-right">{metrics.absent_days || 0}</div>
 
                           {/* Paid Leaves */}
                           <div className="text-sm text-teal-600 font-medium text-right">{Number(metrics.total_paid_leave_days || 0).toFixed(1)}</div>
+
+                          {/* Adj PL */}
+                          <div className="text-sm text-blue-600 font-medium text-right">{Number(metrics.adjusted_paid_leaves || 0).toFixed(1)}</div>
+
+                          {/* Adj CO */}
+                          <div className="text-sm text-blue-600 font-medium text-right">{Number(metrics.adjusted_comp_offs || 0).toFixed(1)}</div>
 
                           {/* Week Off */}
                           <div className="text-sm text-slate-600 font-medium text-right">{metrics.total_week_offs || 0}</div>
@@ -578,6 +839,8 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
 
                           {/* Half Days */}
                           <div className="text-sm text-amber-600 font-medium text-right">{metrics.half_days || 0}</div>
+
+
 
                           {/* Gross Salary */}
                           <div className="text-sm text-slate-900 font-medium text-right">₹{Number(salary.gross_salary || 0).toLocaleString()}</div>
@@ -592,7 +855,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                           <div className="text-sm text-emerald-700 font-bold text-right">₹{Number(salary.net_payment || 0).toLocaleString()}</div>
 
                           {/* Actions */}
-                          <div className="text-right">
+                          <div className="text-right sticky right-0 bg-white group-hover:bg-slate-50 shadow-[-10px_0_15px_-10px_rgba(0,0,0,0.05)] z-10 px-2 py-3 -my-3 flex items-center justify-end">
                             <button
                               onClick={(e) => {
                                 const rect = e.currentTarget.getBoundingClientRect();
@@ -613,6 +876,59 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                         </div>
                       );
                     })
+
+                  )}
+
+                  {/* Total Row */}
+                  {items.length > 0 && (
+                    <div className="min-w-[2100px] grid grid-cols-[40px_80px_200px_120px_80px_100px_100px_110px_80px_80px_80px_80px_100px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-3 bg-slate-100 border-t-2 border-slate-200 items-center font-bold text-slate-900 sticky bottom-0 z-10 shadow-inner">
+                      <div></div>
+                      <div></div>
+                      <div>Total Employees: {items.length}</div>
+                      <div></div>
+                      <div>Total</div>
+
+                      {/* Total Days */}
+                      <div className="text-right">{items.reduce((sum, item) => sum + (Number(item?.metrics?.total_days) || 0), 0)}</div>
+
+                      {/* Present */}
+                      <div className="text-right">{items.reduce((sum, item) => sum + ((Number(item?.metrics?.full_days) || 0) + ((Number(item?.metrics?.half_days) || 0) * 0.5)), 0).toFixed(1)}</div>
+
+                      {/* Absent */}
+                      <div className="text-right">{items.reduce((sum, item) => sum + (Number(item?.metrics?.absent_days) || 0), 0)}</div>
+
+                      {/* Paid Leaves */}
+                      <div className="text-right">{items.reduce((sum, item) => sum + (Number(item?.metrics?.total_paid_leave_days) || 0), 0).toFixed(1)}</div>
+
+                      {/* Adj PL */}
+                      <div className="text-right">{items.reduce((sum, item) => sum + (Number(item?.metrics?.adjusted_paid_leaves) || 0), 0).toFixed(1)}</div>
+
+                      {/* Adj CO */}
+                      <div className="text-right">{items.reduce((sum, item) => sum + (Number(item?.metrics?.adjusted_comp_offs) || 0), 0).toFixed(1)}</div>
+
+                      {/* Week Off */}
+                      <div className="text-right">{items.reduce((sum, item) => sum + (Number(item?.metrics?.total_week_offs) || 0), 0)}</div>
+
+                      {/* Holidays */}
+                      <div className="text-right">{items.reduce((sum, item) => sum + (Number(item?.metrics?.total_holidays) || 0), 0)}</div>
+
+                      {/* Full Days */}
+                      <div className="text-right">{items.reduce((sum, item) => sum + (Number(item?.metrics?.full_days) || 0), 0)}</div>
+
+                      {/* Half Days */}
+                      <div className="text-right">{items.reduce((sum, item) => sum + (Number(item?.metrics?.half_days) || 0), 0)}</div>
+
+                      {/* Gross Salary */}
+                      <div className="text-right">₹{items.reduce((sum, item) => sum + (Number(item?.salary?.gross_salary) || 0), 0).toLocaleString()}</div>
+
+                      {/* Net Salary */}
+                      <div className="text-right">₹{items.reduce((sum, item) => sum + (Number(item?.salary?.adjusted_gross) || 0), 0).toLocaleString()}</div>
+
+                      {/* Deductions */}
+                      <div className="text-right">₹{items.reduce((sum, item) => sum + (Number(item?.salary?.total_deductions) || 0), 0).toLocaleString()}</div>
+
+                      <div></div>
+                    </div>
                   )}
                 </div>
               </div>
@@ -623,6 +939,22 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
           {totalItems > 0 && (
             <div className="flex-shrink-0 px-4 pb-4 pt-2 border-t border-slate-100 bg-white">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-500">Rows per page:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
                 <div className="text-xs text-slate-500">
                   Showing <span className="font-medium text-slate-900">{(page - 1) * pageSize + 1}-{Math.min(page * pageSize, totalItems)}</span> of <span className="font-medium text-slate-900">{totalItems}</span>
                 </div>
@@ -655,203 +987,344 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
         </div>
       </div>
 
-      {menuOpen && menuPos && menuEmployee && createPortal(
-        <div className="fixed inset-0 z-50" onClick={closeMenu}>
-          <div className="absolute w-48 border border-slate-200 rounded-xl bg-white shadow-xl shadow-slate-200/50 text-sm overflow-hidden animate-in fade-in zoom-in duration-100" style={{ left: `${menuPos.x}px`, top: `${menuPos.y}px` }} onClick={(e) => e.stopPropagation()}>
-            <button className="w-full text-left px-4 py-2.5 hover:bg-blue-50 text-slate-700 hover:text-blue-700 transition-colors flex items-center gap-2.5" onClick={() => { setActiveEmployee(menuEmployee); setActiveView("payroll"); closeMenu(); }}>
-              <Calendar className="w-4 h-4" />
-              <span className="font-medium">View Payroll</span>
-            </button>
-            <div className="border-t border-slate-100">
-              <button className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-slate-600 transition-colors flex items-center gap-2.5" onClick={closeMenu}>
-                <X className="w-4 h-4" />
-                <span className="font-medium">Close</span>
+      {
+        menuOpen && menuPos && menuEmployee && createPortal(
+          <div className="fixed inset-0 z-50" onClick={closeMenu}>
+            <div className="absolute w-48 border border-slate-200 rounded-xl bg-white shadow-xl shadow-slate-200/50 text-sm overflow-hidden animate-in fade-in zoom-in duration-100" style={{ left: `${menuPos.x}px`, top: `${menuPos.y}px` }} onClick={(e) => e.stopPropagation()}>
+              <button className="w-full text-left px-4 py-2.5 hover:bg-blue-50 text-slate-700 hover:text-blue-700 transition-colors flex items-center gap-2.5" onClick={() => { setActiveEmployee(menuEmployee); setActiveView("payroll"); closeMenu(); }}>
+                <Calendar className="w-4 h-4" />
+                <span className="font-medium">View Payroll</span>
               </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-      {/* Export Modal */}
-      {showExportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <h3 className="text-lg font-semibold text-slate-900">Export Payroll</h3>
-              <button onClick={() => setShowExportModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-5">
-              {/* Cycle Info */}
-              <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 flex items-center gap-3">
-                <Calendar className="w-5 h-5 text-blue-600" />
-                <div>
-                  <div className="text-xs text-blue-600 font-medium uppercase tracking-wide">Selected Cycle</div>
-                  <div className="text-sm font-semibold text-blue-900">
-                    {formatDate(cycleStartKey)} - {formatDate(cycleEndKey)}
-                  </div>
-                </div>
+              {menuEmployee.is_locked === 1 ? (
+                <button className="w-full text-left px-4 py-2.5 hover:bg-blue-50 text-slate-700 hover:text-blue-700 transition-colors flex items-center gap-2.5" onClick={() => { handleLockUnlock([menuEmployee.id], 'unlock'); closeMenu(); }}>
+                  <Unlock className="w-4 h-4" />
+                  <span className="font-medium">Unlock Payroll</span>
+                </button>
+              ) : (
+                <button className="w-full text-left px-4 py-2.5 hover:bg-blue-50 text-slate-700 hover:text-blue-700 transition-colors flex items-center gap-2.5" onClick={() => { handleLockUnlock([menuEmployee.id], 'lock'); closeMenu(); }}>
+                  <Lock className="w-4 h-4" />
+                  <span className="font-medium">Lock Payroll</span>
+                </button>
+              )}
+              <div className="border-t border-slate-100">
+                <button className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-slate-600 transition-colors flex items-center gap-2.5" onClick={closeMenu}>
+                  <X className="w-4 h-4" />
+                  <span className="font-medium">Close</span>
+                </button>
               </div>
-
-              {/* Export Type */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Export Type</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => setExportType('payroll')}
-                    className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-all ${exportType === 'payroll'
-                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                      }`}
-                  >
-                    <FileText className="w-4 h-4" />
-                    Payroll Sheet
-                  </button>
-                  <button
-                    onClick={() => setExportType('bank')}
-                    className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-all ${exportType === 'bank'
-                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                      }`}
-                  >
-                    <CreditCard className="w-4 h-4" />
-                    Bank Sheet
-                  </button>
+            </div>
+          </div>,
+          document.body
+        )
+      }
+      {/* Lock Confirmation Modal */}
+      {
+        showLockConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden scale-100 animate-in zoom-in-95 duration-200">
+              <div className="p-6 text-center">
+                <div className="w-12 h-12 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Lock className="w-6 h-6 text-rose-600" />
                 </div>
-              </div>
-
-              {/* Site Selection */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Select Site</label>
-                <select
-                  value={exportSite}
-                  onChange={(e) => setExportSite(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                >
-                  <option value="all">All Sites (Grouped)</option>
-                  {(canHRMode ? allSites : inchargeSites).map((s) => (
-                    <option key={s.id} value={String(s.id)}>{s.name}</option>
-                  ))}
-                </select>
-                <p className="mt-1.5 text-xs text-slate-500">
-                  {exportSite === 'all'
-                    ? "Will generate a single sheet with all sites grouped and totaled."
-                    : "Will generate a sheet for the selected site only."}
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">Lock All Payroll?</h3>
+                <p className="text-sm text-slate-500 mb-4">
+                  Are you sure you want to lock payroll for <span className="font-medium text-slate-900">ALL {includeInactive ? '' : 'active'} employees</span> for this period? <br />This action cannot be easily undone.
                 </p>
-              </div>
 
-              {/* Delivery Method */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Delivery Method</label>
-                <div className="flex gap-4 mb-3">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="exportMethod"
-                      checked={exportMethod === 'download'}
-                      onChange={() => setExportMethod('download')}
-                      className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-slate-700">Download Locally</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="exportMethod"
-                      checked={exportMethod === 'email'}
-                      onChange={() => setExportMethod('email')}
-                      className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-slate-700">Send via Email</span>
+                <div className="flex items-center justify-center gap-2 mb-6">
+                  <input
+                    type="checkbox"
+                    id="includeInactive"
+                    checked={includeInactive}
+                    onChange={(e) => setIncludeInactive(e.target.checked)}
+                    className="rounded border-gray-300 text-rose-600 focus:ring-rose-500"
+                  />
+                  <label htmlFor="includeInactive" className="text-sm text-slate-600">
+                    Include Inactive Employees
                   </label>
                 </div>
-
-                {exportMethod === 'email' && (
-                  <div className="animate-in slide-in-from-top-2 duration-200">
-                    <input
-                      type="email"
-                      value={exportEmail}
-                      onChange={(e) => setExportEmail(e.target.value)}
-                      placeholder="Enter email addresses (comma separated)"
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                    />
-                  </div>
-                )}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowLockConfirm(false)}
+                    className="flex-1 px-4 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={executeLockAll}
+                    className="flex-1 px-4 py-2 bg-rose-600 text-white font-medium rounded-lg hover:bg-rose-700 transition-colors shadow-sm"
+                  >
+                    Yes, Lock All
+                  </button>
+                </div>
               </div>
             </div>
+          </div>
+        )
+      }
 
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-              <button
-                onClick={() => setShowExportModal(false)}
-                className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                disabled={isExporting || (exportMethod === 'email' && !exportEmail)}
-                onClick={async () => {
-                  try {
-                    setIsExporting(true);
-                    const payload = {
-                      cycle_start: cycleStartKey,
-                      cycle_end: cycleEndKey,
-                      type: exportType,
-                      site_id: exportSite === 'all' ? null : parseInt(exportSite),
-                      method: exportMethod,
-                      email: exportEmail,
-                      month: endKey.split('-')[1],
-                      year: endKey.split('-')[0]
-                    };
+      {/* Export Modal */}
+      {
+        showExportModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <h3 className="text-lg font-semibold text-slate-900">Export Payroll</h3>
+                <button onClick={() => setShowExportModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-                    if (exportMethod === 'download') {
-                      const response = await apiClient<Blob>('/attendance/export-payroll', {
-                        method: 'POST',
-                        body: payload,
-                        responseType: 'blob'
-                      });
+              <div className="p-6 space-y-5">
+                {/* Cycle Info */}
+                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 flex items-center gap-3">
+                  <Calendar className="w-5 h-5 text-blue-600" />
+                  <div>
+                    <div className="text-xs text-blue-600 font-medium uppercase tracking-wide">Selected Cycle</div>
+                    <div className="text-sm font-semibold text-blue-900">
+                      {formatDate(cycleStartKey)} - {formatDate(cycleEndKey)}
+                    </div>
+                  </div>
+                </div>
 
-                      const url = window.URL.createObjectURL(response);
-                      const link = document.createElement('a');
-                      link.href = url;
-                      link.setAttribute('download', `${exportType === 'payroll' ? 'Payroll_Sheet' : 'Bank_Sheet'}_${formatDate(cycleEndKey)}.xlsx`);
-                      document.body.appendChild(link);
-                      link.click();
-                      link.remove();
-                    } else {
-                      await apiClient('/attendance/export-payroll', {
-                        method: 'POST',
-                        body: payload
-                      });
-                      toast.success('Email sent successfully!');
+                {/* Export Type */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Export Type</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setExportType('payroll')}
+                      className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-all ${exportType === 'payroll'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                    >
+                      <FileText className="w-4 h-4" />
+                      Payroll Sheet
+                    </button>
+                    <button
+                      onClick={() => setExportType('bank')}
+                      className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-all ${exportType === 'bank'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                    >
+                      <CreditCard className="w-4 h-4" />
+                      Bank Sheet
+                    </button>
+                  </div>
+                </div>
+
+                {/* Site Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Select Site</label>
+                  <select
+                    value={exportSite}
+                    onChange={(e) => setExportSite(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                  >
+                    <option value="all">All Sites (Grouped)</option>
+                    {(canHRMode ? allSites : inchargeSites).map((s) => (
+                      <option key={s.id} value={String(s.id)}>{s.name}</option>
+                    ))}
+                  </select>
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    {exportSite === 'all'
+                      ? "Will generate a single sheet with all sites grouped and totaled."
+                      : "Will generate a sheet for the selected site only."}
+                  </p>
+                </div>
+
+                {/* Delivery Method */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Delivery Method</label>
+                  <div className="flex gap-4 mb-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="exportMethod"
+                        checked={exportMethod === 'download'}
+                        onChange={() => setExportMethod('download')}
+                        className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-slate-700">Download Locally</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="exportMethod"
+                        checked={exportMethod === 'email'}
+                        onChange={() => setExportMethod('email')}
+                        className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-slate-700">Send via Email</span>
+                    </label>
+                  </div>
+
+                  {exportMethod === 'email' && (
+                    <div className="animate-in slide-in-from-top-2 duration-200">
+                      <input
+                        type="email"
+                        value={exportEmail}
+                        onChange={(e) => setExportEmail(e.target.value)}
+                        placeholder="Enter email addresses (comma separated)"
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                <button
+                  onClick={() => setShowExportModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={isExporting || (exportMethod === 'email' && !exportEmail)}
+                  onClick={async () => {
+                    try {
+                      setIsExporting(true);
+                      const payload = {
+                        cycle_start: cycleStartKey,
+                        cycle_end: cycleEndKey,
+                        type: exportType,
+                        site_id: exportSite === 'all' ? null : parseInt(exportSite),
+                        method: exportMethod,
+                        email: exportEmail,
+                        month: endKey.split('-')[1],
+                        year: endKey.split('-')[0]
+                      };
+
+                      if (exportMethod === 'download') {
+                        const response = await apiClient<Blob>('/attendance/export-payroll', {
+                          method: 'POST',
+                          body: payload,
+                          responseType: 'blob'
+                        });
+
+                        const url = window.URL.createObjectURL(response);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.setAttribute('download', `${exportType === 'payroll' ? 'Payroll_Sheet' : 'Bank_Sheet'}_${formatDate(cycleEndKey)}.xlsx`);
+                        document.body.appendChild(link);
+                        link.click();
+                        link.remove();
+                      } else {
+                        await apiClient('/attendance/export-payroll', {
+                          method: 'POST',
+                          body: payload
+                        });
+                        toast.success('Email sent successfully!');
+                      }
+                      setShowExportModal(false);
+                    } catch (err) {
+                      console.error('Export failed:', err);
+                      toast.error('Export failed. Please try again.');
+                    } finally {
+                      setIsExporting(false);
                     }
-                    setShowExportModal(false);
-                  } catch (err) {
-                    console.error('Export failed:', err);
-                    toast.error('Export failed. Please try again.');
-                  } finally {
-                    setIsExporting(false);
-                  }
-                }}
-                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {isExporting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Exporting...
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4" />
-                    Export Now
-                  </>
-                )}
-              </button>
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isExporting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      Export Now
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+      {/* Update Modal */}
+      {
+        showUpdateModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div>
+                  <h3 className="font-semibold text-slate-900">Update Payroll Data</h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Cycle: <span className="font-medium text-slate-700">{formatDate(cycleStartKey)} - {formatDate(cycleEndKey)}</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => { setShowUpdateModal(false); setUpdateFile(null); }}
+                  className="p-1 rounded-lg hover:bg-slate-200/50 text-slate-500 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                <div className="space-y-4">
+                  <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg space-y-3">
+                    <div className="flex items-center gap-2 font-medium text-blue-900">
+                      <div className="w-6 h-6 rounded-full bg-blue-200 flex items-center justify-center text-xs">1</div>
+                      Download Template
+                    </div>
+                    <p className="text-sm text-blue-700 ml-8">
+                      Download the current payroll data to an Excel file.
+                    </p>
+                    <button
+                      onClick={handleDownloadTemplate}
+                      className="ml-8 px-3 py-1.5 bg-white border border-blue-200 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors flex items-center gap-2"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Download Excel
+                    </button>
+                  </div>
+
+                  <div className="p-4 bg-slate-50 border border-slate-100 rounded-lg space-y-3">
+                    <div className="flex items-center gap-2 font-medium text-slate-900">
+                      <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs">2</div>
+                      Upload & Update
+                    </div>
+                    <p className="text-sm text-slate-600 ml-8">
+                      Update "New Payable Days" in the Excel and upload here.
+                    </p>
+                    <div className="ml-8">
+                      <input
+                        type="file"
+                        accept=".xlsx, .xls"
+                        onChange={(e) => setUpdateFile(e.target.files?.[0] || null)}
+                        className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
+                <button
+                  onClick={() => { setShowUpdateModal(false); setUpdateFile(null); }}
+                  className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors"
+                  disabled={isUpdating}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpdatePayroll}
+                  disabled={isUpdating || !updateFile}
+                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                >
+                  {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  Update Payroll
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+    </div >
   );
 }

@@ -27,10 +27,43 @@ import {
   Image,
   ChevronDown,
   ChevronUp,
-  Users
+  Users,
+  Check
 } from "lucide-react";
 
-type RequestItem = Record<string, any>;
+type ApprovalTimelineEntry = {
+  level_number: number;
+  level_name: string;
+  action: string;
+  approver_name?: string;
+  action_taken_at?: string;
+  timeline_due_at?: string;
+  remarks?: string;
+  is_current_level: boolean;
+};
+
+type RequestItem = {
+  id: number;
+  attendance_id: number;
+  attendance_date: string;
+  employee_id: number;
+  employee_name: string;
+  current_status: string;
+  status_timeline: string;
+  status: string;
+  created_at: string;
+  approved_by_name?: string;
+  remarks?: string;
+  punch_in_time?: string;
+  punch_out_time?: string;
+  workflow_id?: number;
+  current_level?: number;
+  workflow_status?: string;
+  workflow_name?: string;
+  approval_timeline?: ApprovalTimelineEntry[];
+  can_approve?: boolean;
+  [key: string]: any;
+};
 
 type Props = {
   defaultHQ?: boolean;
@@ -243,7 +276,7 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
     })();
   }, [items, status, externalControl ? extHq : hqMode, externalControl ? extSiteId : selectedSiteId, fromDate, toDate]);
 
-  const approve = async (id: number, markStatus: string, statusTimeline: string) => {
+  const approve = async (id: number, markStatus: string, statusTimeline: string, remarks: string = "") => {
     try {
       setActionLoading(`approve_${id}`);
       await apiClient(`/attendance/regularize-requests/${id}`, {
@@ -252,11 +285,15 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
           status: "approved",
           mark_status: markStatus,
           status_timeline: statusTimeline,
+          remarks, // Send optional remarks
         },
         withAuth: true,
       });
-      setItems((prev) => prev.map((r) => (Number(r.id) === id ? { ...r, status: "approved", current_status: markStatus, status_timeline: statusTimeline } : r)));
-      showNotification('Regularization request approved successfully', 'success');
+
+      // Refetch data to get accurate status
+      await fetchList();
+
+      showNotification('Request processed successfully', 'success');
     } catch (e: any) {
       setError(e?.message || "Failed to approve");
       showNotification(e?.message || "Failed to approve regularization request", 'error');
@@ -319,7 +356,7 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
     if (!activeItem) return;
     const id = Number(activeItem.id);
     if (modalMode === "approve") {
-      await approve(id, markStatus, statusTimeline);
+      await approve(id, markStatus, statusTimeline, modalReason.trim());
       closeModal();
       return;
     }
@@ -494,7 +531,7 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
                   <span>View Details</span>
                 </button>
 
-                {statusLower === "pending" && (!isEmployee || hasPerm("ATTREG_APPROVE")) && (
+                {statusLower === "pending" && item.can_approve && (
                   <>
                     <div className="border-t border-gray-100 my-1" />
                     <button
@@ -528,13 +565,13 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
     );
   };
 
-  // Modal Components
-  const ApproveRejectModal = () => {
+  // Modal Components - Memoized to prevent re-creation and focus loss
+  const ApproveRejectModal = React.useMemo(() => {
     if (!modalOpen || !activeItem) return null;
 
     return (
       <div className="fixed inset-0 bg-opacity-20 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-        <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+        <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
           <div className="p-6 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <h3 className="text-xl font-semibold text-gray-900">
@@ -549,8 +586,8 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
             </div>
           </div>
 
-          <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-            <div className="space-y-6">
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="space-y-6 pb-6">
               <div className="bg-gray-50 rounded-lg p-4">
                 <h4 className="text-sm font-medium text-gray-900 mb-2">Request Details</h4>
                 <div className="grid grid-cols-2 gap-4 text-sm">
@@ -618,6 +655,17 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
                       </select>
                     </div>
                   )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Remarks (Optional)</label>
+                    <textarea
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      rows={3}
+                      value={modalReason}
+                      onChange={(e) => setModalReason(e.target.value)}
+                      placeholder="Add any comments or notes for this approval (optional)..."
+                    />
+                  </div>
                 </div>
               )}
 
@@ -629,6 +677,14 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
                     rows={4}
                     value={modalReason}
                     onChange={(e) => setModalReason(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        if (modalReason.trim() && !actionLoading?.includes(`reject_${activeItem?.id}`)) {
+                          confirmModal();
+                        }
+                      }
+                    }}
                     placeholder="Please provide a reason for rejecting this request..."
                   />
                 </div>
@@ -636,7 +692,7 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
             </div>
           </div>
 
-          <div className="p-6 border-t border-gray-200 flex justify-end space-x-3">
+          <div className="shrink-0 p-6 border-t border-gray-200 flex justify-end space-x-3">
             <button
               onClick={closeModal}
               className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
@@ -657,6 +713,74 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
         </div>
       </div>
     );
+  }, [modalOpen, activeItem, modalMode, markStatus, statusTimeline, modalReason, actionLoading]);
+
+  // Approval Timeline Component - matching LeaveRequests.tsx style
+  const ApprovalTimeline = ({ timeline, workflowName }: { timeline?: ApprovalTimelineEntry[]; workflowName?: string }) => {
+    if (!timeline || timeline.length === 0) return null;
+
+    return (
+      <div className="bg-gray-50 rounded-lg p-4">
+        <h4 className="text-sm font-medium text-gray-900 mb-3">
+          Approval Workflow{workflowName && ` - ${workflowName}`}
+        </h4>
+        <div className="space-y-3">
+          {timeline.map((level, index) => (
+            <div key={index} className="flex items-start space-x-3">
+              <div className="flex-shrink-0 mt-1">
+                {level.action === 'approved' ? (
+                  <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
+                    <Check className="w-4 h-4 text-green-600" />
+                  </div>
+                ) : level.action === 'rejected' ? (
+                  <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center">
+                    <X className="w-4 h-4 text-red-600" />
+                  </div>
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
+                    <Clock className="w-4 h-4 text-blue-600" />
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-900">
+                    Level {level.level_number}: {level.level_name}
+                    {level.is_current_level && (
+                      <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                        Current
+                      </span>
+                    )}
+                  </p>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${level.action === 'approved' ? 'bg-green-100 text-green-800' :
+                    level.action === 'rejected' ? 'bg-red-100 text-red-800' :
+                      'bg-blue-100 text-blue-800'
+                    }`}>
+                    {level.action === 'pending' ? 'Pending' : level.action.charAt(0).toUpperCase() + level.action.slice(1)}
+                  </span>
+                </div>
+                {level.approver_name && (
+                  <p className="text-xs text-gray-600 mt-1">Approver: {level.approver_name}</p>
+                )}
+                {level.remarks && (
+                  <p className="text-xs text-gray-500 mt-1">Remarks: {level.remarks}</p>
+                )}
+                {level.action_taken_at && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    {new Date(level.action_taken_at).toLocaleString()}
+                  </p>
+                )}
+                {level.timeline_due_at && level.action === 'pending' && (
+                  <p className="text-xs text-red-500 mt-1">
+                    Due: {new Date(level.timeline_due_at).toLocaleString()}
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   const DetailsViewModal = () => {
@@ -664,7 +788,7 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
 
     return (
       <div className="fixed inset-0 bg-opacity-20 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
-        <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+        <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[85vh] flex flex-col overflow-hidden">
           <div className="p-6 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <h3 className="text-xl font-semibold text-gray-900">Regularization Details</h3>
@@ -677,7 +801,7 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
             </div>
           </div>
 
-          <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+          <div className="flex-1 overflow-y-auto p-6">
             {viewLoading ? (
               <div className="flex items-center justify-center py-8">
                 <RefreshCw className="w-8 h-8 animate-spin text-gray-400" />
@@ -806,6 +930,14 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
                     </div>
                   )}
 
+                {/* Approval Timeline */}
+                {(viewData?.approval_timeline || activeItem?.approval_timeline) && (
+                  <ApprovalTimeline
+                    timeline={viewData?.approval_timeline || activeItem?.approval_timeline}
+                    workflowName={viewData?.workflow_name || activeItem?.workflow_name}
+                  />
+                )}
+
                 {/* Location Information */}
                 {(viewData?.punch_in_site_name || viewData?.punch_out_site_name) && (
                   <div>
@@ -861,7 +993,7 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
             )}
           </div>
 
-          <div className="p-6 border-t border-gray-200 flex justify-end">
+          <div className="shrink-0 p-6 border-t border-gray-200 flex justify-end">
             <button
               onClick={() => setViewOpen(false)}
               className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
@@ -899,7 +1031,7 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
   return (
     <div className="space-y-4">
       {/* Render modals */}
-      <ApproveRejectModal />
+      {ApproveRejectModal}
       <DetailsViewModal />
 
       {/* Header */}
@@ -909,6 +1041,28 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
             <h1 className="text-xl font-bold text-gray-900">Regularization Requests</h1>
           </div>
           <div className="flex items-center space-x-3">
+            {/* Refresh Button */}
+            <button
+              onClick={fetchList}
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium text-gray-700"
+            >
+              <svg
+                className={`w-4 h-4 text-gray-600 ${loading ? 'animate-spin' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+              <span>Refresh</span>
+            </button>
+
             {!externalControl && showHQToggle && canHRMode && !isOrgAdmin && (
               <label className="inline-flex items-center gap-2 text-sm text-gray-700 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
                 <input
@@ -950,6 +1104,19 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
                 ))}
               </select>
             )}
+
+            {/* Status Filter */}
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+            >
+              <option value="All">All Status</option>
+              <option value="Pending">Pending</option>
+              <option value="Approved">Approved</option>
+              <option value="Rejected">Rejected</option>
+            </select>
+
             <button
               onClick={() => setFiltersExpanded(!filtersExpanded)}
               className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-1 text-sm"
@@ -964,18 +1131,7 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
         {/* Collapsible Filters */}
         {filtersExpanded && (
           <div className="mt-4 pt-4 border-t border-gray-200">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
-              >
-                <option value="All">All Status</option>
-                <option value="Pending">Pending</option>
-                <option value="Approved">Approved</option>
-                <option value="Rejected">Rejected</option>
-              </select>
-
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-3">
               <input
                 type="date"
                 className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
@@ -995,8 +1151,8 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
               <div className="flex items-center space-x-2"></div>
             </div>
 
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="md:col-span-4 flex items-center space-x-2">
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="md:col-span-2 flex items-center space-x-2">
                 <button
                   onClick={fetchList}
                   className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm flex-1"
@@ -1013,6 +1169,8 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
                       setHqMode(defaultHQ);
                     }
                     setPage(1);
+                    // Reload requests after clearing filters
+                    setTimeout(() => fetchList(), 100);
                   }}
                   className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm flex-1"
                 >
@@ -1114,7 +1272,7 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
             <tbody className="divide-y divide-gray-200">
               {loading && items.length === 0 ? (
                 // Ghost Loader
-                [...Array(5)].map((_, i) => (
+                [...Array(10)].map((_, i) => (
                   <tr key={i} className="animate-pulse">
                     <td className="px-4 py-3">
                       <div className="space-y-2">
@@ -1147,6 +1305,18 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
                             {name}
                           </div>
                           <div className="text-sm text-gray-500">#{String(item.employee_id || "-")}</div>
+                          {String(item.status_summary || '').toLowerCase().includes('no punch') && (
+                            <div className="mt-1">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                                  <circle cx="12" cy="12" r="10"></circle>
+                                  <line x1="12" y1="16" x2="12" y2="12"></line>
+                                  <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                                </svg>
+                                Created from missing attendance
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900">{String(item.attendance_date || "-")}</td>

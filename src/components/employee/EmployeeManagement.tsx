@@ -78,6 +78,7 @@ export type Employee = {
   onboarding_token_expires_at?: string | null;
   created_at?: string;
   work_type?: string;
+  face_image_url?: string | null;
 };
 
 const weeklyDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -164,6 +165,25 @@ export default function EmployeeManagement() {
   const [success, setSuccess] = useState("");
   const [validationMessage, setValidationMessage] = useState("");
 
+  // Modal State
+  const [confirmationModal, setConfirmationModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'danger' | 'warning' | 'info';
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    type: 'info',
+    onConfirm: () => { },
+  });
+
+  const closeConfirmation = () => {
+    setConfirmationModal(prev => ({ ...prev, isOpen: false }));
+  };
+
   // Leave History Modal State
   const [showLeaveHistory, setShowLeaveHistory] = useState(false);
   const [selectedHistoryEmployee, setSelectedHistoryEmployee] = useState<{ id: number, name: string } | null>(null);
@@ -178,6 +198,10 @@ export default function EmployeeManagement() {
   const [showAdd, setShowAdd] = useState<boolean>(false);
   const [step, setStep] = useState<number>(1);
   const [editingEmployeeId, setEditingEmployeeId] = useState<number | null>(null);
+
+  // Export State
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportStatus, setExportStatus] = useState<'active' | 'terminated' | 'all'>('active');
   const [showView, setShowView] = useState<boolean>(false);
   const [viewLoading, setViewLoading] = useState<boolean>(false);
   const [viewData, setViewData] = useState<any>(null);
@@ -193,6 +217,10 @@ export default function EmployeeManagement() {
   const [departmentId, setDepartmentId] = useState<number | "">("");
   const [roleId, setRoleId] = useState<number | "">("");
   const [reportingManagerId, setReportingManagerId] = useState<number | "">("");
+  const [managerSearchQuery, setManagerSearchQuery] = useState<string>("");
+  const [showManagerDropdown, setShowManagerDropdown] = useState<boolean>(false);
+  const [managersList, setManagersList] = useState<Employee[]>([]);
+  const [managersLoading, setManagersLoading] = useState<boolean>(false);
   const [designation, setDesignation] = useState<string>("");
   const [workType, setWorkType] = useState<string>(""); // Full-time / Contract / Daily Wage / Intern
   const [startDate, setStartDate] = useState<string>("");
@@ -245,12 +273,14 @@ export default function EmployeeManagement() {
   const [filterDeptId, setFilterDeptId] = useState<number | "">("");
   const [filterRoleId, setFilterRoleId] = useState<number | "">("");
   const [filterSiteId, setFilterSiteId] = useState<number | "">("");
+  const [filterGender, setFilterGender] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [filtersExpanded, setFiltersExpanded] = useState<boolean>(false);
 
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [saving, setSaving] = useState<boolean>(false);
   const [totalEntries, setTotalEntries] = useState<number>(0);
+
 
   const totalCount = useCountUp(totalEntries || 0);
   const deptCount = useCountUp(departments.length || 0);
@@ -333,23 +363,28 @@ export default function EmployeeManagement() {
       return;
     }
 
-    if (!confirm('Are you sure you want to delete this employee? This action cannot be undone.')) {
-      return;
-    }
+    setConfirmationModal({
+      isOpen: true,
+      title: "Delete Employee",
+      message: "Are you sure you want to delete this employee? This action cannot be undone.",
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          setActionLoading(String(id));
+          await apiClient(`/organization/employees/${id}`, { method: "DELETE" });
+          await fetchEmployees();
 
-    try {
-      setActionLoading(String(id));
-      await apiClient(`/organization/employees/${id}`, { method: "DELETE" });
-      await fetchEmployees();
-
-      // Show success notification
-      showNotification('Employee deleted successfully', 'success');
-    } catch (e: any) {
-      setError(e?.message || "Failed to delete employee");
-      showNotification(e?.message || "Failed to delete employee", 'error');
-    } finally {
-      setActionLoading(null);
-    }
+          // Show success notification
+          showNotification('Employee deleted successfully', 'success');
+        } catch (e: any) {
+          setError(e?.message || "Failed to delete employee");
+          showNotification(e?.message || "Failed to delete employee", 'error');
+        } finally {
+          setActionLoading(null);
+          closeConfirmation();
+        }
+      }
+    });
   };
 
   // Helper functions for modern notifications
@@ -526,6 +561,8 @@ export default function EmployeeManagement() {
     setDepartmentId("");
     setRoleId("");
     setReportingManagerId("");
+    setManagerSearchQuery("");
+    setManagersList([]);
     setDesignation("");
     setWorkType("");
     setStartDate("");
@@ -652,7 +689,9 @@ export default function EmployeeManagement() {
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
       if (typeof filterDeptId === "number") params.set("department_id", String(filterDeptId));
       if (typeof filterRoleId === "number") params.set("role_id", String(filterRoleId));
+      if (filterGender !== "all") params.set("gender", filterGender);
       if (statusFilter !== "all") params.set("status", statusFilter);
+
 
       const data = await apiClient<{ data: Employee[]; total: number; page: number; limit: number; hasNext: boolean }>(`/organization/employees?${params.toString()}`, { method: "GET" });
       // API returns 'data' key for array, but we were looking for 'items'.
@@ -669,15 +708,11 @@ export default function EmployeeManagement() {
     }
   };
 
-  // Fetch dropdowns on load
-  useEffect(() => {
-    fetchDropdowns().catch(() => { });
-  }, []);
+  // Fetch dropdowns on load is handled below
 
   // Initial load and reactive fetches
-  useEffect(() => {
-    fetchEmployees();
-  }, [page, pageSize, searchQuery, filterDeptId, filterRoleId, filterSiteId, statusFilter]);
+  // Combined into one useEffect below matching dependencies
+
 
   const fetchDropdowns = async () => {
     try {
@@ -705,7 +740,8 @@ export default function EmployeeManagement() {
   useEffect(() => {
     fetchEmployees();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, filterDeptId, filterRoleId, filterSiteId, page, pageSize, statusFilter]);
+  }, [searchQuery, filterDeptId, filterRoleId, filterSiteId, filterGender, page, pageSize, statusFilter]);
+
 
   useEffect(() => {
     fetchDropdowns();
@@ -933,6 +969,51 @@ export default function EmployeeManagement() {
     }
   };
 
+  const handleBulkInvite = async () => {
+    try {
+      // Get all invited employees
+      const invitedEmployees = employees.filter(emp => emp.status?.toLowerCase() === 'invited');
+
+      if (invitedEmployees.length === 0) {
+        showNotification("No invited employees found", "error");
+        return;
+      }
+
+      setConfirmationModal({
+        isOpen: true,
+        title: "Bulk Send Invitations",
+        message: `Are you sure you want to send invitations to ${invitedEmployees.length} employee(s)?`,
+        type: 'info',
+        onConfirm: async () => {
+          try {
+            setActionLoading("bulk-invite");
+            const employee_ids = invitedEmployees.map(emp => emp.id);
+
+            const response = await apiClient<{ success: boolean; message: string; results: any }>(
+              '/organization/employees/bulk-resend-invitations',
+              {
+                method: "POST",
+                body: { employee_ids }
+              }
+            );
+
+            showNotification(response.message || "Bulk invitations sent successfully", "success");
+            await fetchEmployees();
+          } catch (e: any) {
+            showNotification(e.message || "Failed to send bulk invitations", "error");
+          } finally {
+            setActionLoading(null);
+            closeConfirmation();
+          }
+        }
+      });
+
+    } catch (e: any) {
+      showNotification(e.message || "Failed to send bulk invitations", "error");
+    }
+  };
+
+
   const handleToggleStatus = async (id: number, currentStatus: string) => {
     // If invited, we might be activating them manually or deactivating?
     // "make inactive active" -> toggle Active <-> Inactive.
@@ -940,18 +1021,25 @@ export default function EmployeeManagement() {
     const s = (currentStatus || "").toLowerCase();
     const newStatus = s === "active" ? "Inactive" : "Active";
 
-    if (!confirm(`Are you sure you want to mark this employee as ${newStatus}?`)) return;
-
-    try {
-      setActionLoading(String(id));
-      await apiClient(`/organization/employees/${id}/toggle-status`, { method: "POST", body: { status: newStatus } });
-      showNotification(`Employee marked as ${newStatus}`, "success");
-      await fetchEmployees();
-    } catch (e: any) {
-      showNotification(e.message || "Failed to update status", "error");
-    } finally {
-      setActionLoading(null);
-    }
+    setConfirmationModal({
+      isOpen: true,
+      title: `${newStatus === 'Inactive' ? 'Deactivate' : 'Activate'} Employee`,
+      message: `Are you sure you want to mark this employee as ${newStatus}?`,
+      type: newStatus === 'Inactive' ? 'warning' : 'info',
+      onConfirm: async () => {
+        try {
+          setActionLoading(String(id));
+          await apiClient(`/organization/employees/${id}/toggle-status`, { method: "POST", body: { status: newStatus } });
+          showNotification(`Employee marked as ${newStatus}`, "success");
+          await fetchEmployees();
+        } catch (e: any) {
+          showNotification(e.message || "Failed to update status", "error");
+        } finally {
+          setActionLoading(null);
+          closeConfirmation();
+        }
+      }
+    });
   };
 
   const getStatusColor = (employee: Employee) => {
@@ -965,7 +1053,8 @@ export default function EmployeeManagement() {
 
     switch (status) {
       case 'active': return 'text-green-700 bg-green-50 border border-green-200';
-      case 'inactive': return 'text-red-700 bg-red-50 border border-red-200';
+      case 'inactive': return 'text-amber-700 bg-amber-50 border border-amber-200';
+      case 'terminated': return 'text-red-700 bg-red-50 border border-red-200';
       default: return 'text-gray-700 bg-gray-50 border border-gray-200';
     }
   };
@@ -981,7 +1070,8 @@ export default function EmployeeManagement() {
 
     switch (status) {
       case 'active': return <CheckCircle className="w-3 h-3 text-green-500" />;
-      case 'inactive': return <AlertCircle className="w-3 h-3 text-red-500" />;
+      case 'inactive': return <AlertCircle className="w-3 h-3 text-amber-500" />;
+      case 'terminated': return <XCircle className="w-3 h-3 text-red-500" />;
       default: return <Clock className="w-3 h-3 text-gray-500" />;
     }
   };
@@ -1100,7 +1190,18 @@ export default function EmployeeManagement() {
                   </button>
                 )}
 
-                {/* Delete Removed as per request */}
+                {canDelete && (
+                  <button
+                    onClick={() => {
+                      deleteEmployee(employee.id);
+                      setIsOpen(false);
+                    }}
+                    className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete</span>
+                  </button>
+                )}
 
                 {canEdit && (
                   <>
@@ -1120,13 +1221,13 @@ export default function EmployeeManagement() {
                     )}
 
                     {/* Toggle Active/Inactive */}
-                    {employee.status?.toLowerCase() !== 'invited' && (
+                    {employee.status?.toLowerCase() !== 'invited' && employee.status?.toLowerCase() !== 'terminated' && (
                       <button
                         onClick={() => {
                           handleToggleStatus(employee.id, employee.status || 'Active');
                           setIsOpen(false);
                         }}
-                        className={`flex items-center space-x-2 w-full px-4 py-2 text-sm hover:bg-gray-50 ${(employee.status || '').toLowerCase() === 'active' ? 'text-red-700' : 'text-green-700'
+                        className={`flex items-center space-x-2 w-full px-4 py-2 text-sm hover:bg-gray-50 ${(employee.status || '').toLowerCase() === 'active' ? 'text-amber-700' : 'text-green-700'
                           }`}
                       >
                         {(employee.status || '').toLowerCase() === 'active' ? (
@@ -1180,7 +1281,19 @@ export default function EmployeeManagement() {
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <h4 className="text-sm font-medium text-gray-500">Personal Information</h4>
+                    {viewData.face_image_url && (
+                      <div className="mb-6 flex justify-center md:justify-start">
+                        <div className="relative group">
+                          <img
+                            src={viewData.face_image_url}
+                            alt="Face Registry"
+                            className="w-32 h-32 rounded-xl object-cover border-2 border-white shadow-lg ring-1 ring-gray-100"
+                          />
+                          <div className="absolute inset-0 rounded-xl ring-1 ring-inset ring-black/10"></div>
+                        </div>
+                      </div>
+                    )}
+                    <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-4">Personal Information</h4>
                     <div className="mt-3 space-y-3">
                       <div className="flex items-center space-x-3">
                         <User className="w-4 h-4 text-gray-400" />
@@ -1385,9 +1498,178 @@ export default function EmployeeManagement() {
     );
   }
 
+  // Confirmation Modal
+  const ConfirmationModal = () => {
+    if (!confirmationModal.isOpen) return null;
+
+    const icon = confirmationModal.type === 'danger'
+      ? <AlertCircle className="w-6 h-6 text-red-600" />
+      : confirmationModal.type === 'warning'
+        ? <AlertCircle className="w-6 h-6 text-amber-600" />
+        : <AlertCircle className="w-6 h-6 text-blue-600" />; // Default/Info
+
+    const btnClass = confirmationModal.type === 'danger'
+      ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500'
+      : confirmationModal.type === 'warning'
+        ? 'bg-amber-600 hover:bg-amber-700 focus:ring-amber-500'
+        : 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500';
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overflow-x-hidden bg-black/50 backdrop-blur-sm p-4 md:p-6">
+        <div className="relative w-full max-w-md transform rounded-2xl bg-white p-6 text-left shadow-xl transition-all border border-gray-100">
+          <div className="flex items-center gap-4">
+            <div className={`flex items-center justify-center w-12 h-12 rounded-full ${confirmationModal.type === 'danger' ? 'bg-red-100' : confirmationModal.type === 'warning' ? 'bg-amber-100' : 'bg-blue-100'}`}>
+              {icon}
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-medium leading-6 text-gray-900">
+                {confirmationModal.title}
+              </h3>
+              <div className="mt-2">
+                <p className="text-sm text-gray-500">
+                  {confirmationModal.message}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 flex justify-end gap-3">
+            <button
+              type="button"
+              className="inline-flex justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:ring-offset-2"
+              onClick={closeConfirmation}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className={`inline-flex justify-center rounded-lg border border-transparent px-4 py-2 text-sm font-medium text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ${btnClass}`}
+              onClick={confirmationModal.onConfirm}
+            >
+              {confirmationModal.type === 'danger' ? 'Delete' : 'Confirm'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const confirmExport = async () => {
+    try {
+      setActionLoading("export");
+      const blob = await apiClient<Blob>("/organization/employees/export", {
+        method: "POST",
+        body: { status: exportStatus },
+        responseType: "blob",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Employees_${exportStatus}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      showNotification("Employees exported successfully", "success");
+      setShowExportModal(false);
+    } catch (e: any) {
+      showNotification(e.message || "Failed to export employees", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const ExportModal = () => {
+    if (!showExportModal) return null;
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overflow-x-hidden bg-black/50 backdrop-blur-sm p-4 md:p-6">
+        <div className="relative w-full max-w-sm transform rounded-2xl bg-white p-6 text-left shadow-xl transition-all border border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium leading-6 text-gray-900">Export Employees</h3>
+            <button onClick={() => setShowExportModal(false)} className="text-gray-400 hover:text-gray-500">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="space-y-3 mb-6">
+            <p className="text-sm text-gray-500 mb-2">Select which employees to export:</p>
+
+            <label className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+              <input
+                type="radio"
+                name="exportStatus"
+                value="active"
+                checked={exportStatus === 'active'}
+                onChange={() => setExportStatus('active')}
+                className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+              />
+              <div>
+                <span className="block text-sm font-medium text-gray-900">Active Only</span>
+                <span className="block text-xs text-gray-500">Includes Active and Invited employees</span>
+              </div>
+            </label>
+
+            <label className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+              <input
+                type="radio"
+                name="exportStatus"
+                value="terminated"
+                checked={exportStatus === 'terminated'}
+                onChange={() => setExportStatus('terminated')}
+                className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+              />
+              <div>
+                <span className="block text-sm font-medium text-gray-900">Terminated Only</span>
+                <span className="block text-xs text-gray-500">Only terminated employees</span>
+              </div>
+            </label>
+
+            <label className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+              <input
+                type="radio"
+                name="exportStatus"
+                value="all"
+                checked={exportStatus === 'all'}
+                onChange={() => setExportStatus('all')}
+                className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+              />
+              <div>
+                <span className="block text-sm font-medium text-gray-900">All Employees</span>
+                <span className="block text-xs text-gray-500">Active, Invited, and Terminated</span>
+              </div>
+            </label>
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              className="inline-flex justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:ring-offset-2"
+              onClick={() => setShowExportModal(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="inline-flex justify-center rounded-lg border border-transparent bg-teal-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+              onClick={confirmExport}
+              disabled={actionLoading === "export"}
+            >
+              {actionLoading === "export" ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Download className="w-4 h-4 mr-2" />}
+              Download
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4">
       {/* Render modals */}
+      <ConfirmationModal />
+      <ExportModal />
       <ViewEmployeeModal />
 
       {/* Header */}
@@ -1408,11 +1690,31 @@ export default function EmployeeManagement() {
             {(isOrgAdmin || hasPerm("EMP_ADD")) && (
               <>
                 <button
-                  onClick={() => window.location.href = isOrgAdmin ? '/org-admin/employees/import' : '/employee/employees/import'}
+                  onClick={() => {
+                    const link = document.createElement('a');
+                    link.href = '/api/v1/organization/employees/import/template';
+                    link.download = 'employee_import_template.xlsx';
+                    link.click();
+                  }}
                   className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-1 text-sm"
+                >
+                  <Download className="w-4 h-4" />
+                  <span className="hidden sm:inline">Template</span>
+                </button>
+                <button
+                  onClick={() => document.getElementById('import-file-input')?.click()}
+                  className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center space-x-1 text-sm"
                 >
                   <Upload className="w-4 h-4" />
                   <span className="hidden sm:inline">Import</span>
+                </button>
+                <button
+                  onClick={() => setShowExportModal(true)}
+                  disabled={actionLoading === "export"}
+                  className="px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center space-x-1 text-sm disabled:opacity-50"
+                >
+                  {actionLoading === "export" ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  <span className="hidden sm:inline">Export</span>
                 </button>
                 <button
                   onClick={() => window.location.href = isOrgAdmin ? '/org-admin/employees/shifts' : '/employee/employees/shifts'}
@@ -1421,6 +1723,25 @@ export default function EmployeeManagement() {
                   <Clock className="w-4 h-4" />
                   <span className="hidden sm:inline">Shifts</span>
                 </button>
+
+                {/* Bulk Invite Button - Show only if there are invited employees */}
+                {employees.filter(emp => emp.status?.toLowerCase() === 'invited').length > 0 && (
+                  <button
+                    onClick={handleBulkInvite}
+                    disabled={actionLoading === "bulk-invite"}
+                    className="px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center space-x-1 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {actionLoading === "bulk-invite" ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Mail className="w-4 h-4" />
+                    )}
+                    <span className="hidden sm:inline">
+                      Bulk Invite ({employees.filter(emp => emp.status?.toLowerCase() === 'invited').length})
+                    </span>
+                  </button>
+                )}
+
                 <button
                   onClick={() => {
                     resetForm();
@@ -1484,6 +1805,18 @@ export default function EmployeeManagement() {
                 <option value="all">All Status</option>
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
+                <option value="invited">Invited</option>
+              </select>
+
+              <select
+                value={filterGender}
+                onChange={(e) => { setFilterGender(e.target.value); setPage(1); }}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+              >
+                <option value="all">All Genders</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
               </select>
             </div>
 
@@ -1613,14 +1946,27 @@ export default function EmployeeManagement() {
                 return (
                   <tr key={employee.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {employee.first_name} {employee.last_name}
-                        </div>
-                        <div className="text-sm text-gray-500">{employee.email}</div>
-                        {employee.phone && (
-                          <div className="text-sm text-gray-500">{employee.phone}</div>
+                      <div className="flex items-center gap-3">
+                        {employee.face_image_url ? (
+                          <img
+                            src={employee.face_image_url}
+                            alt=""
+                            className="w-10 h-10 rounded-full object-cover border border-gray-200 flex-shrink-0 bg-gray-50"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-gray-500 text-xs font-bold border border-gray-200 flex-shrink-0">
+                            {(employee.first_name?.[0] || "").toUpperCase()}{(employee.last_name?.[0] || "").toUpperCase()}
+                          </div>
                         )}
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-gray-900 truncate">
+                            {employee.first_name} {employee.last_name}
+                          </div>
+                          <div className="text-xs text-gray-500 truncate">{employee.email}</div>
+                          {employee.phone && (
+                            <div className="text-xs text-gray-400 truncate mt-0.5">{employee.phone}</div>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900">{deptName}</td>
@@ -1866,24 +2212,140 @@ export default function EmployeeManagement() {
                     <label className="block text-xs text-gray-600 mb-1">Designation</label>
                     <input value={designation} onChange={(e) => setDesignation(e.target.value)} className="w-full border rounded px-2 py-2" />
                   </div>
-                  <div>
+                  <div className="relative">
                     <label className="block text-xs text-gray-600 mb-1">Reporting Manager (optional)</label>
-                    <select
-                      value={reportingManagerId}
-                      onChange={(e) => setReportingManagerId(e.target.value ? Number(e.target.value) : "")}
-                      className="w-full border rounded px-2 py-2"
-                    >
-                      <option value="">None</option>
-                      {employees.map((emp) => {
-                        const deptName = departments.find((d) => d.id === emp.department_id)?.name || null;
-                        const roleName = roles.find((r) => r.id === emp.role_id)?.name || null;
-                        const name = `${emp.first_name} ${emp.last_name}`.trim();
-                        const label = [name, deptName, roleName, emp.designation || null].filter(Boolean).join(" | ");
-                        return (
-                          <option key={emp.id} value={emp.id}>{label}</option>
-                        );
-                      })}
-                    </select>
+                    <div className="relative">
+                      <div
+                        onClick={() => setShowManagerDropdown(!showManagerDropdown)}
+                        className="w-full border rounded px-2 py-2 cursor-pointer bg-white flex items-center justify-between hover:border-gray-400 transition-colors"
+                      >
+                        <span className={reportingManagerId ? "text-gray-900" : "text-gray-400"}>
+                          {reportingManagerId
+                            ? (() => {
+                              const manager = [...employees, ...managersList].find((e) => e.id === reportingManagerId);
+                              if (!manager) return "None";
+                              const deptName = departments.find((d) => d.id === manager.department_id)?.name || null;
+                              const roleName = roles.find((r) => r.id === manager.role_id)?.name || null;
+                              const name = `${manager.first_name} ${manager.last_name}`.trim();
+                              return [name, deptName, roleName, manager.designation || null].filter(Boolean).join(" | ");
+                            })()
+                            : "Select Manager"}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          {reportingManagerId && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setReportingManagerId("");
+                                setManagerSearchQuery("");
+                                setManagersList([]);
+                              }}
+                              className="p-1 hover:bg-gray-100 rounded transition-colors"
+                            >
+                              <X className="w-3 h-3 text-gray-500" />
+                            </button>
+                          )}
+                          <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${showManagerDropdown ? "rotate-180" : ""}`} />
+                        </div>
+                      </div>
+                      {showManagerDropdown && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-10"
+                            onClick={() => {
+                              setShowManagerDropdown(false);
+                              setManagerSearchQuery("");
+                              setManagersList([]);
+                            }}
+                          />
+                          <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg overflow-hidden">
+                            <div className="p-2 border-b border-gray-200">
+                              <div className="relative">
+                                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <input
+                                  type="text"
+                                  placeholder="Search by name (min 2 chars)..."
+                                  value={managerSearchQuery}
+                                  onChange={async (e) => {
+                                    const query = e.target.value;
+                                    setManagerSearchQuery(query);
+
+                                    // Only search when 2+ characters typed
+                                    if (query.trim().length >= 2) {
+                                      setManagersLoading(true);
+                                      try {
+                                        const data = await apiClient<{ data: Employee[] }>(
+                                          `/organization/employees?format=paginated&search=${encodeURIComponent(query.trim())}&limit=10`,
+                                          { method: 'GET', withAuth: true }
+                                        );
+                                        const items = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
+                                        setManagersList(items);
+                                      } catch (e) {
+                                        console.error('Failed to search managers:', e);
+                                        setManagersList([]);
+                                      } finally {
+                                        setManagersLoading(false);
+                                      }
+                                    } else {
+                                      // Clear results when less than 2 characters
+                                      setManagersList([]);
+                                    }
+                                  }}
+                                  className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              </div>
+                            </div>
+                            <div className="overflow-y-auto max-h-48">
+                              {managersLoading ? (
+                                <div className="px-3 py-6 text-center text-sm text-gray-500">
+                                  <RefreshCw className="w-4 h-4 animate-spin mx-auto mb-2" />
+                                  Searching...
+                                </div>
+                              ) : managerSearchQuery.trim().length < 2 ? (
+                                <div className="px-3 py-6 text-center text-sm text-gray-500">
+                                  Type at least 2 characters to search
+                                </div>
+                              ) : managersList.length === 0 ? (
+                                <div className="px-3 py-6 text-center text-sm text-gray-500">
+                                  No managers found
+                                </div>
+                              ) : (
+                                managersList.map((emp) => {
+                                  const deptName = departments.find((d) => d.id === emp.department_id)?.name || null;
+                                  const roleName = roles.find((r) => r.id === emp.role_id)?.name || null;
+                                  const name = `${emp.first_name} ${emp.last_name}`.trim();
+                                  const isSelected = reportingManagerId === emp.id;
+
+                                  return (
+                                    <button
+                                      key={emp.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setReportingManagerId(emp.id);
+                                        setShowManagerDropdown(false);
+                                        setManagerSearchQuery("");
+                                        setManagersList([]);
+                                      }}
+                                      className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors border-b last:border-b-0 ${isSelected ? "bg-blue-50 text-blue-700" : "text-gray-700"
+                                        }`}
+                                    >
+                                      <div className="font-medium">{name}</div>
+                                      {(deptName || roleName || emp.designation) && (
+                                        <div className="text-xs text-gray-500 mt-0.5">
+                                          {[deptName, roleName, emp.designation].filter(Boolean).join(" | ")}
+                                        </div>
+                                      )}
+                                    </button>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs text-gray-600 mb-1">Work Type *</label>

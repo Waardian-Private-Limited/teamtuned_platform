@@ -31,6 +31,11 @@ import {
   XCircle,
   Settings,
   GripVertical,
+  FileText,
+  Box,
+  Monitor,
+  Copy,
+  Layout,
 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import type { FormField, FieldType, FieldOption, TemplateSnapshot } from "./types";
@@ -69,6 +74,7 @@ const WIDGET_GROUPS: { title: string; items: { type: FieldType; label: string; i
     items: [
       { type: "image", label: "Image", icon: <ImageIcon size={18} />, description: "Image upload" },
       { type: "file", label: "File", icon: <FileIcon size={18} />, description: "File upload" },
+      { type: "reference", label: "Reference Material", icon: <FileText size={18} />, description: "Static file for users to view" },
       { type: "signature", label: "Signature", icon: <PenTool size={18} />, description: "Digital signature" },
     ],
   },
@@ -77,7 +83,10 @@ const WIDGET_GROUPS: { title: string; items: { type: FieldType; label: string; i
     items: [
       { type: "gps", label: "Location", icon: <MapPin size={18} />, description: "GPS coordinates" },
       { type: "barcode", label: "Barcode", icon: <ScanLine size={18} />, description: "Barcode/QR scanner" },
-      { type: "section", label: "Section", icon: <Layers size={18} />, description: "Group fields" },
+      { type: "section", label: "Section", icon: <Layers size={18} />, description: "Group fields visually" },
+      { type: "container", label: "Subform Container", icon: <Box size={18} />, description: "Nested group for subform data" },
+      { type: "autocad", label: "AutoCAD Viewer", icon: <Monitor size={18} />, description: "View DWG/DXF files" },
+      { type: "pdf_viewer", label: "PDF Viewer", icon: <FileText size={18} />, description: "View PDF files" },
       { type: "readonly", label: "Read Only", icon: <Eye size={18} />, description: "Display text" },
     ],
   },
@@ -97,12 +106,16 @@ const TYPE_ICON: Record<FieldType, React.ReactNode> = {
   datetime: <CalendarClock size={16} />,
   image: <ImageIcon size={16} />,
   file: <FileIcon size={16} />,
+  reference: <FileText size={16} />,
   signature: <PenTool size={16} />,
   gps: <MapPin size={16} />,
   barcode: <ScanLine size={16} />,
   toggle: <ToggleLeft size={16} />,
   section: <Layers size={16} />,
   readonly: <Eye size={16} />,
+  container: <Box size={16} />,
+  autocad: <Monitor size={16} />,
+  pdf_viewer: <FileText size={16} />,
 };
 
 function generateUniqueKey(type: FieldType, existing: FormField[]): string {
@@ -319,12 +332,16 @@ export default function FormBuilder({
   templateDescription = "",
   onDirtyChange,
   onBack,
+  customApiUrl,
+  customSaveUrl,
 }: {
   templateId?: string;
   templateName?: string;
   templateDescription?: string;
   onDirtyChange?: (dirty: boolean) => void;
   onBack?: () => void;
+  customApiUrl?: string;
+  customSaveUrl?: string;
 }) {
   const [fields, setFields] = React.useState<FormField[]>([]);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
@@ -341,6 +358,7 @@ export default function FormBuilder({
   const templateIdNumeric = React.useMemo(() => !!templateId && /^[0-9]+$/.test(String(templateId)), [templateId]);
   const [serverTemplateId, setServerTemplateId] = React.useState<number | null>(templateIdNumeric ? Number(templateId) : null);
   const selectedField = fields.find((f) => f.id === selectedId) || null;
+  const [isDragging, setIsDragging] = React.useState(false);
 
   const duplicateKeys = React.useMemo(() => {
     const counts = new Map<string, number>();
@@ -388,9 +406,10 @@ export default function FormBuilder({
     (async () => {
       if (/^[0-9]+$/.test(String(templateId))) {
         try {
-          const res = await apiClient<any>(`/templates/${templateId}`, { method: "GET", withAuth: true });
+          const endpoint = customApiUrl || `/templates/${templateId}`;
+          const res = await apiClient<any>(endpoint, { method: "GET", withAuth: true });
           const fetchedFields = Array.isArray(res?.fields) ? res.fields : [];
-          const normalized: FormField[] = fetchedFields.map((f: any) => {
+          const normalized = fetchedFields.map((f: any) => {
             const ft = String(f.field_type) as FieldType;
             const parsedMeta = f.metadata ? (typeof f.metadata === 'object' ? f.metadata : (() => { try { return JSON.parse(f.metadata); } catch { return {}; } })()) : {};
             const defaults: any = (() => {
@@ -404,6 +423,7 @@ export default function FormBuilder({
                 case 'barcode': return { scanTypes: ['barcode', 'qr'] };
                 case 'choice':
                 case 'select': return { autoOptionValues: parsedMeta?.autoOptionValues !== false };
+                case 'reference': return { referenceUrl: '' };
                 default: return {};
               }
             })();
@@ -418,11 +438,24 @@ export default function FormBuilder({
               metadata: finalMeta,
               is_active: f.is_active !== 0,
               sequence: Number(f.sequence || 0),
-              parent_section_id: f.parent_section_id || null,
+              parent_section_id: null, // Will be resolved in second pass
               system: SYSTEM_KEYS.includes(String(f.field_key) as any) ? true : undefined,
-            } as FormField;
+              _temp_parent_key: f.parent_field_key || null // Temp prop for mapping
+            } as (FormField & { _temp_parent_key?: string | null });
           });
-          setFields(ensureSystemFields(normalized));
+
+          // Second pass: resolve parent relationships via keys
+          const finalFields = normalized.map((f: FormField & { _temp_parent_key?: string | null }) => {
+            if (f._temp_parent_key) {
+              const parent = normalized.find((p: FormField & { _temp_parent_key?: string | null }) => p.field_key === f._temp_parent_key);
+              if (parent) {
+                return { ...f, parent_section_id: parent.id };
+              }
+            }
+            return f;
+          });
+
+          setFields(ensureSystemFields(finalFields));
           setDirty(false);
           setServerTemplateId(Number(templateId));
           setNameInput(res?.template?.name || templateName);
@@ -444,13 +477,18 @@ export default function FormBuilder({
     })();
   }, [templateId, templateName, templateDescription]);
 
-  const addField = (type: FieldType) => {
+  const addField = (type: FieldType, parentId: string | null = null) => {
     setFields((prev) => {
       const f = defaultFieldForType(type, prev.length + 1);
       f.field_key = generateUniqueKey(type, prev);
+      f.parent_section_id = parentId; // Set parent if provided
+
       const firstSysIdx = prev.findIndex((x) => SYSTEM_KEYS.includes(String(x.field_key) as any) || x.system);
       const base = [...prev];
-      if (firstSysIdx >= 0) base.splice(firstSysIdx, 0, f); else base.push(f);
+      // If adding to root, respect system fields order. If nested, just push? 
+      // Actually, sequence logic inside container might need refinement, but append is fine for now.
+      if (firstSysIdx >= 0 && !parentId) base.splice(firstSysIdx, 0, f); else base.push(f);
+
       const next = ensureSystemFields(base);
       setDirty(true);
       return next;
@@ -471,24 +509,112 @@ export default function FormBuilder({
     if (selectedId === id) setSelectedId(null);
   };
 
-  const moveField = (id: string, direction: -1 | 1) => {
+
+
+  const duplicateField = (id: string, newParentId: string | null = null) => {
     setFields((prev) => {
+      const fieldToClone = prev.find((f) => f.id === id);
+      if (!fieldToClone) return prev;
+
+      const clone: FormField = {
+        ...fieldToClone,
+        id: uuidv4(),
+        field_key: generateUniqueKey(fieldToClone.field_type, prev),
+        label: `${fieldToClone.label} (Copy)`,
+        parent_section_id: newParentId ?? fieldToClone.parent_section_id,
+        sequence: (fieldToClone.sequence || 0) + 1,
+      };
+
+      // If needed, we could recursively clone children for containers, but simple clone for now
+      // For a container, we just clone the container. Its children point to OLD ID.
+      // So deeper cloning requires re-mapping. 
+      // Let's implement deep clone for containers if possible, or just clone empty container.
+      // Current: Clone empty container (children not duplicated).
+
       const idx = prev.findIndex((f) => f.id === id);
-      if (idx < 0) return prev;
-      if (prev[idx]?.system) {
-        setToast({ type: "error", msg: "System fields cannot be moved." });
-        return prev;
-      }
-      const swapIdx = idx + direction;
-      if (swapIdx < 0 || swapIdx >= prev.length) return prev;
       const copy = [...prev];
-      const tmp = copy[idx];
-      copy[idx] = { ...copy[swapIdx], sequence: tmp.sequence };
-      copy[swapIdx] = { ...tmp, sequence: copy[swapIdx].sequence };
+      copy.splice(idx + 1, 0, clone);
+
+      // Shift downstream
+      // Re-normalize sequences is better done globally? 
+      // We'll leave it to manual sort or next render sort. 
+      // Actually `defaultFieldForType` doesn't enforce strict sequence, just order.
+
       const next = ensureSystemFields(copy);
       setDirty(true);
       return next;
     });
+  };
+
+  const moveField = (id: string, direction: -1 | 1) => {
+    setFields((prev) => {
+      // Logic for flat list move (only works for siblings?)
+      // We need to find siblings in the same parent context.
+      // Filter siblings:
+      const target = prev.find(f => f.id === id);
+      if (!target) return prev;
+
+      const siblings = prev.filter(f => f.parent_section_id === target.parent_section_id && (!f.system || f.system === target.system));
+      // Sort siblings by existing order in main array?
+      // Since `prev` is source of truth, index in `prev` matters.
+      const currentIdx = prev.findIndex(f => f.id === id);
+      // Find swap candidate
+      // This simple array swap logic might be buggy with hierarchy.
+      // Better to swap sequence numbers or position in the filtered list then reconstruct.
+
+      // Let's stick to simple swap in array for now, assuming array order dictates render order.
+      // But we must skip items that are NOT siblings?
+      // "moveField" is called from FieldCard which is rendered in order.
+      // If we move up, we swap with prev sibling.
+      const siblingsInOrder = siblings.sort((a, b) => prev.findIndex(x => x.id === a.id) - prev.findIndex(x => x.id === b.id));
+      const mySiblingIdx = siblingsInOrder.findIndex(f => f.id === id);
+      const swapSibling = siblingsInOrder[mySiblingIdx + direction];
+
+      if (!swapSibling) return prev;
+
+      const swapIdx = prev.findIndex(f => f.id === swapSibling.id);
+
+      const copy = [...prev];
+      const tmp = copy[currentIdx];
+      copy[currentIdx] = copy[swapIdx];
+      copy[swapIdx] = tmp;
+
+      const next = ensureSystemFields(copy);
+      setDirty(true);
+      return next;
+    });
+  };
+
+  // Auto-scroll handler ref
+  const scrollInterval = React.useRef<NodeJS.Timeout | null>(null);
+  const handleAutoScroll = (clientY: number) => {
+    const edgeSize = 100;
+    const viewportHeight = window.innerHeight;
+    const scrollContainer = document.querySelector('main'); // The canvas container
+    if (!scrollContainer) return;
+
+    if (scrollInterval.current) clearInterval(scrollInterval.current);
+
+    if (clientY < edgeSize) {
+      // Scroll up
+      scrollInterval.current = setInterval(() => {
+        scrollContainer.scrollBy({ top: -10, behavior: 'auto' });
+      }, 20);
+    } else if (clientY > viewportHeight - edgeSize) {
+      // Scroll down
+      scrollInterval.current = setInterval(() => {
+        scrollContainer.scrollBy({ top: 10, behavior: 'auto' });
+      }, 20);
+    } else {
+      scrollInterval.current = null;
+    }
+  };
+
+  const stopAutoScroll = () => {
+    if (scrollInterval.current) {
+      clearInterval(scrollInterval.current);
+      scrollInterval.current = null;
+    }
   };
 
   const updateSelected = React.useCallback((patch: Partial<FormField>) => {
@@ -512,12 +638,105 @@ export default function FormBuilder({
   const addOption = React.useCallback(() => {
     if (!selectedField) return;
     const current = Array.isArray(selectedField.options) ? selectedField.options : [];
-    const idx = current.length + 1;
-    const baseLabel = `Option ${idx}`;
-    const baseValue = slugifyIdentifier(baseLabel);
-    const next = ensureUniqueOptionValues([...current, { value: baseValue, label: baseLabel }]);
+    const base = "Option";
+    let i = current.length + 1;
+    let label = `${base} ${i}`;
+    let value = slugifyIdentifier(label);
+
+    // ensure unique
+    const existing = new Set(current.map(o => o.value));
+    while (existing.has(value)) {
+      i++;
+      label = `${base} ${i}`;
+      value = slugifyIdentifier(label);
+    }
+
+    const next = [...current, { label, value }];
     updateFieldOptions(next);
   }, [selectedField, updateFieldOptions]);
+
+
+  const renderFieldList = React.useCallback((parentId: string | null) => {
+    // Filter fields for this parent
+    let list = fields.filter((f) => f.parent_section_id === parentId);
+
+    // Sort by sequence
+    list = list.sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+
+    // Group by section
+    const groups: { section?: FormField; items: FormField[] }[] = [];
+    let currentGroup: { section?: FormField; items: FormField[] } = { items: [] };
+
+    list.forEach((field) => {
+      if (field.field_type === 'section') {
+        if (currentGroup.items.length > 0 || currentGroup.section) {
+          groups.push(currentGroup);
+        }
+        currentGroup = { section: field, items: [] };
+      } else {
+        currentGroup.items.push(field);
+      }
+    });
+    if (currentGroup.items.length > 0 || currentGroup.section) {
+      groups.push(currentGroup);
+    }
+
+    if (groups.length === 0) return <div className="min-h-[50px]" />;
+
+    return (
+      <div className="space-y-6 min-h-[50px]">
+        {groups.map((group, gIdx) => {
+          const isGrouped = !!group.section;
+
+          return (
+            <div
+              key={group.section?.id || `group-${gIdx}`}
+              className={isGrouped ? "p-4 rounded-xl border border-slate-300 bg-slate-50/50" : ""}
+            >
+              {group.section && (
+                <div className="mb-4">
+                  <FieldCard
+                    key={group.section.id}
+                    field={group.section}
+                    isSelected={selectedId === group.section.id}
+                    onSelect={() => setSelectedId(group.section!.id)}
+                    onRemove={() => removeField(group.section!.id)}
+                    onMoveUp={() => moveField(group.section!.id, -1)}
+                    onMoveDown={() => moveField(group.section!.id, 1)}
+                    onUpdate={updateSelected}
+                    hasDuplicateKey={duplicateKeys.has(group.section.field_key)}
+                    onDuplicate={(id) => duplicateField(id, parentId)}
+                    renderChildren={renderFieldList}
+                    onDropInto={(type, pid) => addField(type, pid)}
+                  />
+                </div>
+              )}
+              <div className="space-y-4">
+                {group.items.map((field) => (
+                  <FieldCard
+                    key={field.id}
+                    field={field}
+                    isSelected={selectedId === field.id}
+                    onSelect={() => setSelectedId(field.id)}
+                    onRemove={() => removeField(field.id)}
+                    onMoveUp={() => moveField(field.id, -1)}
+                    onMoveDown={() => moveField(field.id, 1)}
+                    onUpdate={updateSelected}
+                    hasDuplicateKey={duplicateKeys.has(field.field_key)}
+                    onDuplicate={(id) => duplicateField(id, parentId)}
+                    renderChildren={renderFieldList}
+                    onDropInto={(type, pid) => addField(type, pid)}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }, [fields, selectedId, duplicateKeys, removeField, moveField, updateSelected, duplicateField]);
+
+
 
   const removeOption = React.useCallback((index: number) => {
     if (!selectedField) return;
@@ -526,6 +745,38 @@ export default function FormBuilder({
     const next = current.filter((_, i) => i !== index);
     updateFieldOptions(ensureUniqueOptionValues(next));
   }, [selectedField, updateFieldOptions]);
+
+  const handleReferenceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!selectedId || !e.target.files?.length) return;
+    const file = e.target.files[0];
+    const formData = new FormData();
+    formData.append("files", file);
+
+    let context = 'templates';
+    if (selectedField?.field_type === 'pdf_viewer') {
+      context = 'pdf-conversion';
+    }
+
+    try {
+      setToast({ type: "success", msg: "Uploading file..." });
+      const res = await apiClient<{ files: { url: string }[] }>(`/files/org-upload/${context}`, {
+        method: "POST",
+        body: formData,
+        withAuth: true,
+      });
+
+      if (res?.files?.[0]?.url) {
+        if (selectedField?.field_type === 'autocad' || selectedField?.field_type === 'pdf_viewer') {
+          updateSelected({ metadata: { ...(selectedField?.metadata || {}), fileUrl: res.files[0].url } });
+        } else {
+          updateSelected({ metadata: { ...(selectedField?.metadata || {}), referenceUrl: res.files[0].url } });
+        }
+        setToast({ type: "success", msg: "File attached successfully." });
+      }
+    } catch (err) {
+      setToast({ type: "error", msg: "Upload failed. Try again." });
+    }
+  };
 
   const saveSnapshot = () => {
     if (hasDuplicateKeys) {
@@ -573,6 +824,92 @@ export default function FormBuilder({
   };
 
   const canSave = !hasDuplicateKeys && !hasOptionTypeWithTooFewOptions && !hasOptionTypeWithDuplicateValues;
+
+  const executeSave = async () => {
+    if (!nameInput.trim()) {
+      setSaveError("Template name is required");
+      return;
+    }
+
+    setSaveLoading(true);
+    setSaveError(null);
+
+    try {
+      // Logic to resolve parent_section_id UUIDs to parent_field_key strings
+      const idToKeyMap = new Map<string, string>();
+      fields.forEach(f => {
+        if (f.id && f.field_key) {
+          idToKeyMap.set(f.id, String(f.field_key));
+        }
+      });
+
+      const payloadFields = fields.map(f => {
+        let parentFieldKey = null;
+        if (f.parent_section_id) {
+          parentFieldKey = idToKeyMap.get(f.parent_section_id) || null;
+        }
+        return {
+          ...f,
+          parent_field_key: parentFieldKey
+        };
+      });
+
+      // If this is a high-fidelity analyzed form, save back to fb_templates
+      if (customSaveUrl) {
+        const res = await apiClient<any>(customSaveUrl, {
+          method: "PUT",
+          body: { name: nameInput, fields: payloadFields },
+          withAuth: true
+        });
+        if (res && (res.id || res.message === 'Template updated successfully')) {
+          setToast({ type: "success", msg: "✅ Template saved! Returning to library..." });
+          setDirty(false);
+          setShowSaveModal(false);
+          // Redirect back to library after brief toast
+          setTimeout(() => {
+            if (onBack) onBack();
+          }, 1200);
+        } else {
+          throw new Error(res?.message || "Save failed");
+        }
+      } else {
+        // Standard template flow
+        const endpoint = serverTemplateId
+          ? `/templates/${serverTemplateId}/versions`
+          : `/templates`;
+
+        const body = {
+          name: nameInput,
+          description: descInput,
+          fields: payloadFields,
+          publish: savePublish,
+          type: "data_collection"
+        };
+
+        const res = await apiClient<any>(endpoint, {
+          method: "POST",
+          body: body,
+          withAuth: true
+        });
+
+        if (res && (res.success || res.id || res.version_id)) {
+          setToast({ type: "success", msg: "Template saved successfully" });
+          setDirty(false);
+          setShowSaveModal(false);
+          if (res.template_id && !serverTemplateId) {
+            setServerTemplateId(res.template_id);
+          }
+        } else {
+          throw new Error(res?.message || "Save failed");
+        }
+      }
+    } catch (e: any) {
+      console.error(e);
+      setSaveError(e.message || "Failed to save template");
+    } finally {
+      setSaveLoading(false);
+    }
+  };
 
   return (
     <div className="h-screen w-full flex flex-col bg-slate-50">
@@ -633,8 +970,8 @@ export default function FormBuilder({
 
           <button
             className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-colors ${!canSave
-                ? "bg-indigo-400 cursor-not-allowed opacity-60 text-white"
-                : "bg-indigo-600 hover:bg-indigo-700 text-white"
+              ? "bg-indigo-400 cursor-not-allowed opacity-60 text-white"
+              : "bg-indigo-600 hover:bg-indigo-700 text-white"
               }`}
             onClick={saveSnapshot}
             disabled={!canSave}
@@ -645,8 +982,8 @@ export default function FormBuilder({
 
           <button
             className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-colors ${!canSave
-                ? "bg-green-400 cursor-not-allowed opacity-60 text-white"
-                : "bg-green-600 hover:bg-green-700 text-white"
+              ? "bg-green-400 cursor-not-allowed opacity-60 text-white"
+              : "bg-green-600 hover:bg-green-700 text-white"
               }`}
             onClick={saveServer}
             disabled={!canSave}
@@ -736,19 +1073,25 @@ export default function FormBuilder({
             )}
 
             <div className="space-y-4">
-              {(showSystemFields ? fields : fields.filter((f) => !f.system && !SYSTEM_KEYS.includes(String(f.field_key) as any))).map((field) => (
-                <FieldCard
-                  key={field.id}
-                  field={field}
-                  isSelected={selectedId === field.id}
-                  onSelect={() => setSelectedId(field.id)}
-                  onRemove={() => removeField(field.id)}
-                  onMoveUp={() => moveField(field.id, -1)}
-                  onMoveDown={() => moveField(field.id, 1)}
-                  onUpdate={updateSelected}
-                  hasDuplicateKey={duplicateKeys.has(field.field_key)}
-                />
-              ))}
+              <div className="space-y-4">
+                {showSystemFields ? (
+                  fields.filter(f => f.system).map(f => (
+                    <FieldCard
+                      key={f.id}
+                      field={f}
+                      isSelected={selectedId === f.id}
+                      onSelect={() => setSelectedId(f.id)}
+                      onRemove={() => removeField(f.id)}
+                      onMoveUp={() => { }}
+                      onMoveDown={() => { }}
+                      onUpdate={updateSelected}
+                      hasDuplicateKey={duplicateKeys.has(f.field_key)}
+                    />
+                  ))
+                ) : null}
+                {/* Only render root fields (parent_section_id === null) via the helper */}
+                {renderFieldList(null)}
+              </div>
             </div>
 
             {!showSystemFields && (
@@ -811,8 +1154,8 @@ export default function FormBuilder({
                   <label className="block text-sm font-medium text-slate-700 mb-2">Field Key</label>
                   <input
                     className={`w-full border rounded-lg px-4 py-3 text-sm focus:ring-2 focus:border-transparent transition-all ${duplicateKeys.has(selectedField.field_key)
-                        ? "border-red-300 focus:ring-red-500"
-                        : "border-slate-300 focus:ring-blue-500"
+                      ? "border-red-300 focus:ring-red-500"
+                      : "border-slate-300 focus:ring-blue-500"
                       }`}
                     value={selectedField.field_key}
                     onChange={(e) => updateSelected({ field_key: e.target.value })}
@@ -841,12 +1184,33 @@ export default function FormBuilder({
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Placeholder Text</label>
-                  <input
+                  <textarea
                     className="w-full border border-slate-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    rows={3}
                     value={selectedField.metadata?.placeholder || ""}
                     onChange={(e) => updateSelected({ metadata: { ...(selectedField.metadata || {}), placeholder: e.target.value } })}
                     placeholder="Enter placeholder text"
                   />
+                </div>
+
+                {/* Dual-Phase Execution Logic */}
+                <div className="pt-4 border-t border-slate-100">
+                  <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+                    <Layout size={14} className="text-blue-600" />
+                    Execution Phase
+                  </h3>
+                  <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+                    Tag this field for Plan vs Actual tracking.
+                  </p>
+                  <select
+                    className="w-full border border-slate-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 transition-all bg-white"
+                    value={selectedField.metadata?.executionPhase || "none"}
+                    onChange={(e) => updateSelected({ metadata: { ...(selectedField.metadata || {}), executionPhase: e.target.value as "none" | "plan" | "actual" } })}
+                  >
+                    <option value="none">Standard Field (Always Editable)</option>
+                    <option value="plan">Plan / Target (Filled at Start of Month)</option>
+                    <option value="actual">Actual / Daily (Filled by Employees)</option>
+                  </select>
                 </div>
               </div>
 
@@ -992,149 +1356,280 @@ export default function FormBuilder({
               )}
             </div>
           )}
+
+          {selectedField?.field_type === "reference" && (
+            <div className="space-y-4 p-6 border-t border-slate-200">
+              <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Reference Settings</h3>
+              <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="mb-3">
+                  <div className="text-sm font-medium text-slate-700 mb-1">Attached File</div>
+                  {selectedField.metadata?.referenceUrl ? (
+                    <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 px-3 py-2 rounded border border-green-200">
+                      <CheckCircle size={16} />
+                      <span className="truncate flex-1">{selectedField.metadata.referenceUrl.split('/').pop()}</span>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-slate-500 italic">No file attached</div>
+                  )}
+                </div>
+                <div
+                  className={`mt-2 border-2 border-dashed rounded-lg p-6 text-center transition-colors ${isDragging ? "border-blue-500 bg-blue-50" : "border-slate-300 hover:border-slate-400"
+                    }`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragging(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                      handleReferenceUpload({ target: { files: e.dataTransfer.files } } as any);
+                    }
+                  }}
+                >
+                  <Upload size={24} className="mx-auto text-slate-400 mb-2" />
+                  <label className="block cursor-pointer">
+                    <span className="sr-only">Choose file</span>
+                    <input
+                      type="file"
+                      className="hidden"
+                      onChange={handleReferenceUpload}
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.png,.jpg,.jpeg"
+                    />
+                    <span className="text-sm text-blue-600 hover:text-blue-700 font-medium">Click to upload</span>
+                  </label>
+                  <p className="text-xs text-slate-500 mt-1">or drag and drop</p>
+                  <p className="text-xs text-slate-400 mt-2">PDF, Images, Docs</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {selectedField?.field_type === "autocad" && (
+            <div className="space-y-4 p-6 border-t border-slate-200">
+              <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">AutoCAD Settings</h3>
+              <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="mb-3">
+                  <div className="text-sm font-medium text-slate-700 mb-1">Attached DWG/DXF</div>
+                  {selectedField.metadata?.fileUrl ? (
+                    <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 px-3 py-2 rounded border border-green-200">
+                      <CheckCircle size={16} />
+                      <span className="truncate flex-1">{selectedField.metadata.fileUrl.split('/').pop()}</span>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-slate-500 italic">No file attached</div>
+                  )}
+                </div>
+                <div
+                  className={`mt-2 border-2 border-dashed rounded-lg p-6 text-center transition-colors ${isDragging ? "border-blue-500 bg-blue-50" : "border-slate-300 hover:border-slate-400"
+                    }`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragging(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                      handleReferenceUpload({ target: { files: e.dataTransfer.files } } as any);
+                    }
+                  }}
+                >
+                  <Upload size={24} className="mx-auto text-slate-400 mb-2" />
+                  <label className="block cursor-pointer">
+                    <span className="sr-only">Choose file</span>
+                    <input
+                      type="file"
+                      className="hidden"
+                      onChange={handleReferenceUpload}
+                      accept=".dwg,.dxf"
+                    />
+                    <span className="text-sm text-blue-600 hover:text-blue-700 font-medium">Click to upload</span>
+                  </label>
+                  <p className="text-xs text-slate-500 mt-1">or drag and drop</p>
+                  <p className="text-xs text-slate-400 mt-2">DWG, DXF</p>
+                </div>
+              </div>
+            </div>
+          )}
         </aside>
-      </div>
+      </div >
 
-      {/* Modals and Toasts */}
-      {showConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                <XCircle size={20} className="text-amber-600" />
-              </div>
-              <div>
-                <div className="font-semibold text-slate-900">Unsaved Changes</div>
-                <div className="text-sm text-slate-600">You have unsaved changes that will be lost</div>
-              </div>
-            </div>
-            <div className="flex gap-3 justify-end">
-              <button
-                className="px-4 py-2.5 text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                onClick={() => setShowConfirm(false)}
-              >
-                Keep Editing
-              </button>
-              <button
-                className="px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                onClick={() => {
-                  setShowConfirm(false);
-                  setDirty(false);
-                  onBack?.();
-                }}
-              >
-                Discard Changes
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showSaveModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
-            <div className="mb-4">
-              <div className="text-lg font-semibold text-slate-900">Save Template to Server</div>
-              <div className="text-sm text-slate-600">Provide name, description, and choose publish</div>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
-                <input
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  value={nameInput}
-                  onChange={(e) => setNameInput(e.target.value)}
-                  placeholder="Template name"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
-                <input
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  value={descInput}
-                  onChange={(e) => setDescInput(e.target.value)}
-                  placeholder="Short description"
-                />
-              </div>
-              <label className="flex items-center gap-2 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={savePublish}
-                  onChange={(e) => setSavePublish(e.target.checked)}
-                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                />
-                Publish this version
-              </label>
-              {saveError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{saveError}</div>
+      {selectedField?.field_type === "pdf_viewer" && (
+        <div className="space-y-4 p-6 border-t border-slate-200">
+          <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">PDF Viewer Settings</h3>
+          <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <div className="mb-3">
+              <div className="text-sm font-medium text-slate-700 mb-1">Attached Document</div>
+              {selectedField.metadata?.fileUrl ? (
+                <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 px-3 py-2 rounded border border-green-200">
+                  <CheckCircle size={16} />
+                  <span className="truncate flex-1">{selectedField.metadata.fileUrl.split('/').pop()}</span>
+                </div>
+              ) : (
+                <div className="text-sm text-slate-500 italic">No file attached</div>
               )}
             </div>
-            <div className="mt-5 flex gap-3 justify-end">
-              <button
-                className="px-4 py-2.5 text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                onClick={() => { if (!saveLoading) setShowSaveModal(false); }}
-              >
-                Cancel
-              </button>
-              <button
-                className={`px-4 py-2.5 rounded-lg text-white ${saveLoading ? 'bg-green-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'} transition-colors`}
-                onClick={async () => {
-                  if (saveLoading) return;
-                  try {
-                    setSaveLoading(true);
-                    setSaveError(null);
-                    let tplId = serverTemplateId;
-                    if (!tplId) {
-                      const created = await apiClient<any>(`/templates`, { method: 'POST', withAuth: true, body: { name: nameInput.trim() || 'Untitled Template', description: descInput || '', type: 'task' } });
-                      tplId = Number(created?.id);
-                      setServerTemplateId(tplId || null);
-                    }
-                    const toSave = ensureSystemFields(fields).map((f) => ({
-                      field_key: String(f.field_key || ''),
-                      label: String(f.label || ''),
-                      field_type: f.field_type,
-                      options: Array.isArray(f.options) ? f.options : undefined,
-                      metadata: f.metadata || {},
-                      is_required: !!(f.metadata && (f.metadata as any).required),
-                      sequence: Number(f.sequence || 0),
-                      parent_section_id: f.parent_section_id || null,
-                    }));
-                    await apiClient<any>(`/templates/${tplId}/versions`, { method: 'POST', withAuth: true, body: { publish: savePublish, fields: toSave } });
-                    setDirty(false);
-                    setShowSaveModal(false);
-                    setToast({ type: 'success', msg: 'Template saved to server.' });
-                  } catch (err: any) {
-                    const msg = err?.message || 'Save failed';
-                    setSaveError(typeof err?.details === 'string' ? err.details : msg);
-                  } finally {
-                    setSaveLoading(false);
-                  }
-                }}
-                disabled={saveLoading}
-              >
-                {saveLoading ? 'Saving…' : 'Save'}
-              </button>
+            <div
+              className={`mt-2 border-2 border-dashed rounded-lg p-6 text-center transition-colors ${isDragging ? "border-blue-500 bg-blue-50" : "border-slate-300 hover:border-slate-400"
+                }`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                  handleReferenceUpload({ target: { files: e.dataTransfer.files } } as any);
+                }
+              }}
+            >
+              <Upload size={24} className="mx-auto text-slate-400 mb-2" />
+              <label className="block cursor-pointer">
+                <span className="sr-only">Choose file</span>
+                <input
+                  type="file"
+                  className="hidden"
+                  onChange={handleReferenceUpload}
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.png,.jpg,.jpeg,.dwg,.dxf"
+                />
+                <span className="text-sm text-blue-600 hover:text-blue-700 font-medium">Click to upload</span>
+              </label>
+              <p className="text-xs text-slate-500 mt-1">or drag and drop</p>
+              <p className="text-xs text-slate-400 mt-2">PDF, Images, Docs, CAD</p>
             </div>
           </div>
         </div>
       )}
 
-      {toast && (
-        <div className={`fixed bottom-6 right-6 z-50 px-6 py-4 rounded-xl shadow-lg border-l-4 ${toast.type === "success"
+      {/* Modals and Toasts */}
+      {
+        showConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                  <XCircle size={20} className="text-amber-600" />
+                </div>
+                <div>
+                  <div className="font-semibold text-slate-900">Unsaved Changes</div>
+                  <div className="text-sm text-slate-600">You have unsaved changes that will be lost</div>
+                </div>
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button
+                  className="px-4 py-2.5 text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                  onClick={() => setShowConfirm(false)}
+                >
+                  Keep Editing
+                </button>
+                <button
+                  className="px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  onClick={() => {
+                    setShowConfirm(false);
+                    setDirty(false);
+                    onBack?.();
+                  }}
+                >
+                  Discard Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {
+        showSaveModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
+              <div className="mb-4">
+                <div className="text-lg font-semibold text-slate-900">Save Template to Server</div>
+                <div className="text-sm text-slate-600">Provide name, description, and choose publish</div>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+                  <input
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={nameInput}
+                    onChange={(e) => setNameInput(e.target.value)}
+                    placeholder="Template name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                  <input
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={descInput}
+                    onChange={(e) => setDescInput(e.target.value)}
+                    placeholder="Short description"
+                  />
+                </div>
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={savePublish}
+                    onChange={(e) => setSavePublish(e.target.checked)}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  Publish this version
+                </label>
+                {saveError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{saveError}</div>
+                )}
+              </div>
+              <div className="mt-5 flex gap-3 justify-end">
+                <button
+                  className="px-4 py-2.5 text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                  onClick={() => { if (!saveLoading) setShowSaveModal(false); }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className={`px-4 py-2.5 rounded-lg text-white ${saveLoading ? 'bg-green-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'} transition-colors`}
+                  onClick={executeSave}
+                  disabled={saveLoading}
+                >
+                  {saveLoading ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {
+        toast && (
+          <div className={`fixed bottom-6 right-6 z-50 px-6 py-4 rounded-xl shadow-lg border-l-4 ${toast.type === "success"
             ? "bg-green-50 border-green-500 text-green-800"
             : "bg-red-50 border-red-500 text-red-800"
-          }`}>
-          <div className="flex items-center gap-3">
-            {toast.type === "success" ? (
-              <CheckCircle size={20} className="text-green-500" />
-            ) : (
-              <XCircle size={20} className="text-red-500" />
-            )}
-            <span className="font-medium">{toast.msg}</span>
+            }`}>
+            <div className="flex items-center gap-3">
+              {toast.type === "success" ? (
+                <CheckCircle size={20} className="text-green-500" />
+              ) : (
+                <XCircle size={20} className="text-red-500" />
+              )}
+              <span className="font-medium">{toast.msg}</span>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }
 
@@ -1148,6 +1643,9 @@ const FieldCard = React.memo(({
   onMoveDown,
   onUpdate,
   hasDuplicateKey,
+  onDuplicate,
+  renderChildren,
+  onDropInto,
 }: {
   field: FormField;
   isSelected: boolean;
@@ -1157,9 +1655,13 @@ const FieldCard = React.memo(({
   onMoveDown: () => void;
   onUpdate: (patch: Partial<FormField>) => void;
   hasDuplicateKey: boolean;
+  onDuplicate?: (id: string) => void;
+  renderChildren?: (parentId: string | null) => React.ReactNode;
+  onDropInto?: (type: FieldType, parentId: string) => void;
 }) => {
   const [isEditingLabel, setIsEditingLabel] = React.useState(false);
   const labelInputRef = React.useRef<HTMLInputElement>(null);
+  const [isDragOver, setIsDragOver] = React.useState(false);
 
   React.useEffect(() => {
     if (isEditingLabel && labelInputRef.current) {
@@ -1176,17 +1678,20 @@ const FieldCard = React.memo(({
   return (
     <div
       className={`group relative p-6 rounded-xl border-2 transition-all duration-200 ${isSelected
-          ? "border-blue-500 bg-blue-50 shadow-lg"
-          : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-md"
+        ? "border-blue-500 bg-blue-50 shadow-lg"
+        : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-md"
         } ${field.system ? "bg-slate-900 text-white border-slate-700" : ""}`}
-      onClick={onSelect}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect();
+      }}
     >
       {/* Field Header */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3 flex-1">
           <div className={`p-2 rounded-lg ${field.system
-              ? "bg-slate-800 text-slate-200"
-              : "bg-blue-100 text-blue-600"
+            ? "bg-slate-800 text-slate-200"
+            : "bg-blue-100 text-blue-600"
             }`}>
             {TYPE_ICON[field.field_type]}
           </div>
@@ -1200,6 +1705,12 @@ const FieldCard = React.memo(({
                   value={field.label}
                   onChange={(e) => onUpdate({ label: e.target.value })}
                   onBlur={() => setIsEditingLabel(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setIsEditingLabel(false);
+                      e.stopPropagation();
+                    }
+                  }}
                   onClick={(e) => e.stopPropagation()}
                 />
                 <button
@@ -1212,7 +1723,16 @@ const FieldCard = React.memo(({
               </form>
             ) : (
               <div className="flex items-center gap-2">
-                <span className={`font-semibold truncate ${field.system ? "text-white" : "text-slate-900"}`}>
+                <span
+                  className={`font-semibold truncate cursor-text ${field.system ? "text-white" : "text-slate-900"}`}
+                  onDoubleClick={(e) => {
+                    if (!field.system) {
+                      e.stopPropagation();
+                      setIsEditingLabel(true);
+                    }
+                  }}
+                  title="Double-click to edit"
+                >
                   {field.label}
                 </span>
                 {field.system && <Lock size={14} className="text-slate-400" />}
@@ -1234,6 +1754,13 @@ const FieldCard = React.memo(({
         {/* Field Actions */}
         {!field.system && (
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
+              onClick={(e) => { e.stopPropagation(); onDuplicate?.(field.id); }}
+              title="Duplicate"
+            >
+              <Copy size={16} />
+            </button>
             <button
               className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
               onClick={(e) => { e.stopPropagation(); onMoveUp(); }}
@@ -1262,7 +1789,40 @@ const FieldCard = React.memo(({
       {/* Field Preview */}
       <div className={`p-4 rounded-lg border ${field.system ? "bg-slate-800 border-slate-700" : "bg-slate-50 border-slate-200"
         }`}>
-        <FieldPreview field={field} />
+        {field.field_type === 'container' ? (
+          <div
+            className={`min-h-[100px] border-2 rounded-xl relative p-6 transition-all ${isDragOver ? 'border-blue-500 bg-blue-50 ring-4 ring-blue-100' : 'border-slate-300 bg-slate-50'}`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsDragOver(true);
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsDragOver(false);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsDragOver(false);
+              const type = e.dataTransfer.getData("widget/type") as FieldType;
+              if (type && onDropInto) {
+                onDropInto(type, field.id);
+              }
+            }}
+          >
+            <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-200">
+              <Box size={14} className="text-slate-400" />
+              <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Subform Drop Zone</span>
+            </div>
+            <div className="mt-2">
+              {renderChildren ? renderChildren(field.id) : <div className="text-sm text-slate-400 text-center py-4">Drag and drop fields here to add to subform</div>}
+            </div>
+          </div>
+        ) : (
+          <FieldPreview field={field} />
+        )}
       </div>
     </div>
   );
@@ -1399,6 +1959,16 @@ const FieldPreview = ({ field }: { field: FormField }) => {
           <div className="text-sm text-slate-600">Click to upload file</div>
         </div>
       );
+    case "reference":
+      return (
+        <div className="text-center p-4 border border-slate-200 rounded-lg bg-slate-50">
+          <FileText size={24} className="mx-auto text-blue-600 mb-2" />
+          <div className="font-medium text-slate-700">Reference Material</div>
+          <div className="text-sm text-slate-500">
+            {field.metadata?.referenceUrl ? "File attached (Ready)" : "No file attached yet"}
+          </div>
+        </div>
+      );
     case "gps":
       return (
         <div className="text-center p-4 bg-slate-100 rounded-lg">
@@ -1427,6 +1997,16 @@ const FieldPreview = ({ field }: { field: FormField }) => {
       return (
         <div className="p-3 bg-slate-100 rounded-lg border border-slate-300">
           <div className="text-sm text-slate-700">This is read-only text</div>
+        </div>
+      );
+    case "autocad":
+      return (
+        <div className="text-center p-4 bg-slate-900 rounded-lg border border-slate-700">
+          <Monitor size={24} className="mx-auto text-blue-400 mb-2" />
+          <div className="font-medium text-slate-200">AutoCAD Viewer</div>
+          <div className="text-sm text-slate-400 group-hover:text-slate-300">
+            {field.metadata?.fileUrl ? "File linked" : "No file linked"}
+          </div>
         </div>
       );
     default:

@@ -50,6 +50,8 @@ type ExpenseRow = {
   physical_copy_collected_by_name?: string;
   vendor_name?: string;
   seller_name?: string;
+  can_approve_level?: number;
+  current_approval_level?: number;
 };
 
 type Summary = {
@@ -141,6 +143,7 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
   // Missing state variables restoration
   const [searchTerm, setSearchTerm] = React.useState<string>("");
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
+  const [myLevel, setMyLevel] = React.useState<boolean>(false);
   const [paymentMode, setPaymentMode] = React.useState<string>("");
   const [invoiceDateFrom, setInvoiceDateFrom] = React.useState<string>("");
   const [invoiceDateTo, setInvoiceDateTo] = React.useState<string>("");
@@ -164,6 +167,7 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
   const detailModal = React.useMemo(() => ({ open: detailModalOpen, id: detail?.id }), [detailModalOpen, detail]);
 
   const [confirmModal, setConfirmModal] = React.useState<{ open: boolean; type: 'submitted' | 'not_applicable'; expenseId: number } | null>(null);
+  const [approvalOverrideModal, setApprovalOverrideModal] = React.useState<{ open: boolean; expenseId: number } | null>(null);
   const [actionLoading, setActionLoading] = React.useState<string | null>(null);
 
   const [showFilters, setShowFilters] = React.useState<boolean>(false);
@@ -171,6 +175,8 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
   const [showExportDropdown, setShowExportDropdown] = React.useState<boolean>(false);
   const [exporting, setExporting] = React.useState<boolean>(false);
   const [showModal, setShowModal] = React.useState<boolean>(false);
+  const [editModalOpen, setEditModalOpen] = React.useState<boolean>(false);
+  const [editingExpense, setEditingExpense] = React.useState<any>(null);
 
   // Fetch balance summary when filters change
   React.useEffect(() => {
@@ -272,12 +278,25 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
       if (selectedWalletId != null) listParams.wallet_id = String(selectedWalletId);
       if (searchTerm) listParams.q = searchTerm;
       if (paymentMode) listParams.payment_mode = paymentMode;
-      if (statusFilter) listParams.status = statusFilter;
+      if (statusFilter && statusFilter !== "") {
+        const s = statusFilter.toLowerCase();
+        if (s === 'pending') {
+          listParams.status = 'submitted,partially_approved,pending';
+        } else if (s === 'approved') {
+          listParams.status = 'APPROVED';
+        } else if (s === 'rejected') {
+          listParams.status = 'REJECTED';
+        } else {
+          listParams.status = statusFilter;
+        }
+      }
       if (dateFrom) listParams.date_from = dateFrom;
       if (dateTo) listParams.date_to = dateTo;
       if (invoiceDateFrom) listParams.invoice_date_from = invoiceDateFrom;
       if (invoiceDateTo) listParams.invoice_date_to = invoiceDateTo;
+      if (invoiceDateTo) listParams.invoice_date_to = invoiceDateTo;
       if (selectedCategoryId != null) listParams.category_id = String(selectedCategoryId);
+      if (myLevel) listParams.my_level = "true";
 
       const list = await apiClient<any>("/expenses/list", { method: "GET", params: listParams, withAuth: true });
       const rws: ExpenseRow[] = (list?.expenses || []).map((e: any) => ({
@@ -292,6 +311,8 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
         physical_copy_status: e.physical_copy_status || 'pending',
         physical_copy_collected_by_name: e.physical_copy_collected_by_name || undefined,
         vendor_name: e.vendor_name || undefined,
+        can_approve_level: e.can_approve_level != null ? Number(e.can_approve_level) : undefined,
+        current_approval_level: e.current_approval_level != null ? Number(e.current_approval_level) : undefined,
       }));
       setRows(rws);
       setTotal(Number(list?.total || rws.length));
@@ -299,7 +320,7 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
       console.error("Failed to load expenses:", error);
       setError("Failed to load expenses");
     }
-  }, [isOrgAdmin, isWalletAdmin, selectedSiteId, selectedWalletId, page, limit, searchTerm, paymentMode, statusFilter, dateFrom, dateTo, invoiceDateFrom, invoiceDateTo, selectedCategoryId]);
+  }, [isOrgAdmin, isWalletAdmin, selectedSiteId, selectedWalletId, page, limit, searchTerm, paymentMode, statusFilter, dateFrom, dateTo, invoiceDateFrom, invoiceDateTo, selectedCategoryId, myLevel]);
 
   const loadData = React.useCallback(async () => {
     try {
@@ -335,7 +356,7 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
 
   React.useEffect(() => {
     loadData();
-  }, [selectedSiteId, page, limit, searchTerm, paymentMode, statusFilter, dateFrom, dateTo, invoiceDateFrom, invoiceDateTo, selectedCategoryId, loadData]);
+  }, [selectedSiteId, page, limit, searchTerm, paymentMode, statusFilter, dateFrom, dateTo, invoiceDateFrom, invoiceDateTo, selectedCategoryId, myLevel, loadData]);
 
   const openDetail = async (id: number) => {
     try {
@@ -347,6 +368,20 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
       setDetail(data || {});
     } catch (e: any) {
       setDetailError(e?.message || String(e));
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const handleEditExpense = async (id: number) => {
+    try {
+      setDetailLoading(true);
+      setDetailError(null);
+      const data = await apiClient<any>(`/expenses/${id}`, { method: "GET", withAuth: true });
+      setEditingExpense(data || {});
+      setEditModalOpen(true);
+    } catch (e: any) {
+      showNotification(e?.message || "Failed to load expense details", "error");
     } finally {
       setDetailLoading(false);
     }
@@ -429,6 +464,55 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
       showNotification(`Failed to export expenses to ${format.toUpperCase()}. Please try again.`, 'error');
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleApprove = async (expenseId: number, forceProceed = false) => {
+    const row = rows.find(r => r.id === expenseId);
+    if (!forceProceed && row && row.can_approve_level != null && row.current_approval_level != null) {
+      if (row.can_approve_level > row.current_approval_level) {
+        setApprovalOverrideModal({ open: true, expenseId });
+        return;
+      }
+    }
+
+    try {
+      setActionLoading(String(expenseId));
+      await apiClient(`/expenses/${expenseId}/approve`, {
+        method: "POST",
+        body: { force_proceed: forceProceed },
+        withAuth: true
+      });
+      showNotification('Expense approved successfully', 'success');
+      setApprovalOverrideModal(null);
+      await loadData();
+    } catch (e: any) {
+      if (e?.response?.status === 409 && e?.response?.data?.error_code === 'LOWER_LEVEL_PENDING') {
+        setApprovalOverrideModal({ open: true, expenseId });
+      } else {
+        console.error('Failed to approve expense:', e);
+        showNotification(e?.message || 'Failed to approve expense', 'error');
+      }
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleReject = async (expenseId: number) => {
+    if (!confirm('Are you sure you want to reject this expense?')) return;
+    try {
+      setActionLoading(String(expenseId));
+      await apiClient(`/expenses/${expenseId}/reject`, {
+        method: "POST",
+        withAuth: true
+      });
+      showNotification('Expense rejected successfully', 'success');
+      await loadData();
+    } catch (e: any) {
+      console.error('Failed to reject expense:', e);
+      showNotification(e?.message || 'Failed to reject expense', 'error');
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -578,6 +662,33 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
                   className="fixed w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
                 >
                   <div className="py-1">
+                    {(myLevel || (expense.can_approve_level != null)) && (
+                      <>
+                        <button
+                          onClick={() => {
+                            handleApprove(expense.id);
+                            setIsOpen(false);
+                            setMenuPos(null);
+                          }}
+                          className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-green-700 hover:bg-green-50"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          <span>Approve</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            handleReject(expense.id);
+                            setIsOpen(false);
+                            setMenuPos(null);
+                          }}
+                          className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50"
+                        >
+                          <X className="w-4 h-4" />
+                          <span>Reject</span>
+                        </button>
+                        <div className="border-t border-gray-100 my-1" />
+                      </>
+                    )}
                     <button
                       onClick={() => {
                         openDetail(expense.id);
@@ -591,7 +702,7 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
                     </button>
                     <button
                       onClick={() => {
-                        showNotification('Edit functionality would be implemented here', 'success');
+                        handleEditExpense(expense.id);
                         setIsOpen(false);
                         setMenuPos(null);
                       }}
@@ -704,119 +815,139 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
         </div>
       </div>
 
+      {/* My Level Toggle Bar */}
+      <div className="px-4 py-2 bg-white border-b border-gray-200 flex items-center gap-2">
+        <button
+          onClick={() => setMyLevel(!myLevel)}
+          className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-full transition-colors ${myLevel
+            ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-500 ring-offset-1'
+            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+        >
+          <CheckCircle2 className={`w-4 h-4 ${myLevel ? 'fill-blue-500 text-white' : 'text-gray-500'}`} />
+          My Level ({myLevel ? 'On' : 'Off'})
+        </button>
+        <span className="text-xs text-gray-500">
+          {myLevel ? "Showing only expenses pending your approval." : "Filter to see only expenses requiring your approval."}
+        </span>
+      </div>
+
       {/* Balance Summary Bar */}
-      {balanceSummary && showBalanceSummary && (
-        <div className="px-4 py-2 bg-blue-50 border-b border-blue-100 relative">
-          <button
-            onClick={() => setShowBalanceSummary(false)}
-            className="absolute top-1 right-1 p-1 hover:bg-blue-100 rounded-full text-blue-400 hover:text-blue-600 transition-colors z-10"
-          >
-            <X className="w-3 h-3" />
-          </button>
+      {
+        balanceSummary && showBalanceSummary && (
+          <div className="px-4 py-2 bg-blue-50 border-b border-blue-100 relative">
+            <button
+              onClick={() => setShowBalanceSummary(false)}
+              className="absolute top-1 right-1 p-1 hover:bg-blue-100 rounded-full text-blue-400 hover:text-blue-600 transition-colors z-10"
+            >
+              <X className="w-3 h-3" />
+            </button>
 
-          {balanceSummary.breakdown && balanceSummary.breakdown.length > 0 ? (
-            <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-blue-200 scrollbar-track-transparent">
-              {/* Aggregate Card */}
-              <div className="flex-shrink-0 bg-white p-2 rounded border border-blue-100 shadow-sm min-w-[160px]">
-                <div className="text-[10px] font-bold text-blue-600 uppercase mb-1">Total (All Sites)</div>
-                <div className="space-y-0.5 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Opening:</span>
-                    <span className="font-bold text-gray-900">{formatCurrency(balanceSummary.opening)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Closing:</span>
-                    <span className="font-bold text-gray-900">{formatCurrency(balanceSummary.closing)}</span>
-                  </div>
-                  <div className="flex justify-between pt-1 border-t border-gray-100">
-                    <span className="text-gray-500">Net:</span>
-                    <span className={`font-bold ${balanceSummary.net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {balanceSummary.net >= 0 ? '+' : ''}{formatCurrency(balanceSummary.net)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Individual Site Cards */}
-              {balanceSummary.breakdown.map((site: any) => (
-                <div key={site.site_id} className="flex-shrink-0 bg-white p-2 rounded border border-gray-200 shadow-sm min-w-[160px]">
-                  <div className="text-[10px] font-bold text-gray-700 uppercase mb-1 truncate" title={site.site_name}>{site.site_name}</div>
+            {balanceSummary.breakdown && balanceSummary.breakdown.length > 0 ? (
+              <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-blue-200 scrollbar-track-transparent">
+                {/* Aggregate Card */}
+                <div className="flex-shrink-0 bg-white p-2 rounded border border-blue-100 shadow-sm min-w-[160px]">
+                  <div className="text-[10px] font-bold text-blue-600 uppercase mb-1">Total (All Sites)</div>
                   <div className="space-y-0.5 text-xs">
                     <div className="flex justify-between">
                       <span className="text-gray-500">Opening:</span>
-                      <span className="font-medium text-gray-900">{formatCurrency(site.opening)}</span>
+                      <span className="font-bold text-gray-900">{formatCurrency(balanceSummary.opening)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Closing:</span>
-                      <span className="font-medium text-gray-900">{formatCurrency(site.closing)}</span>
+                      <span className="font-bold text-gray-900">{formatCurrency(balanceSummary.closing)}</span>
                     </div>
                     <div className="flex justify-between pt-1 border-t border-gray-100">
                       <span className="text-gray-500">Net:</span>
-                      <span className={`font-medium ${site.net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {site.net >= 0 ? '+' : ''}{formatCurrency(site.net)}
+                      <span className={`font-bold ${balanceSummary.net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {balanceSummary.net >= 0 ? '+' : ''}{formatCurrency(balanceSummary.net)}
                       </span>
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex items-center gap-6 text-xs">
-              <div className="flex items-center gap-1.5">
-                <span className="text-blue-600 font-medium">Opening:</span>
-                <span className="font-bold text-gray-900">{formatCurrency(balanceSummary.opening)}</span>
+
+                {/* Individual Site Cards */}
+                {balanceSummary.breakdown.map((site: any) => (
+                  <div key={site.site_id} className="flex-shrink-0 bg-white p-2 rounded border border-gray-200 shadow-sm min-w-[160px]">
+                    <div className="text-[10px] font-bold text-gray-700 uppercase mb-1 truncate" title={site.site_name}>{site.site_name}</div>
+                    <div className="space-y-0.5 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Opening:</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(site.opening)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Closing:</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(site.closing)}</span>
+                      </div>
+                      <div className="flex justify-between pt-1 border-t border-gray-100">
+                        <span className="text-gray-500">Net:</span>
+                        <span className={`font-medium ${site.net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {site.net >= 0 ? '+' : ''}{formatCurrency(site.net)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-blue-600 font-medium">Closing:</span>
-                <span className="font-bold text-gray-900">{formatCurrency(balanceSummary.closing)}</span>
+            ) : (
+              <div className="flex items-center gap-6 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-blue-600 font-medium">Opening:</span>
+                  <span className="font-bold text-gray-900">{formatCurrency(balanceSummary.opening)}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-blue-600 font-medium">Closing:</span>
+                  <span className="font-bold text-gray-900">{formatCurrency(balanceSummary.closing)}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-blue-600 font-medium">Net:</span>
+                  <span className={`font-bold ${balanceSummary.net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {balanceSummary.net >= 0 ? '+' : ''}{formatCurrency(balanceSummary.net)}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-blue-600 font-medium">Net:</span>
-                <span className={`font-bold ${balanceSummary.net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {balanceSummary.net >= 0 ? '+' : ''}{formatCurrency(balanceSummary.net)}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )
+      }
 
       {/* Filters */}
-      {showFilters && (
-        <div className="px-4 py-3 bg-white border-b border-gray-200 space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search expenses..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-              />
-            </div>
+      {
+        showFilters && (
+          <div className="px-4 py-3 bg-white border-b border-gray-200 space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search expenses..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                />
+              </div>
 
-            {/* Site Filter */}
-            {siteOptions.length > 0 && (
-              <select
-                value={selectedSiteId || ""}
-                onChange={(e) => {
-                  setSelectedSiteId(e.target.value ? Number(e.target.value) : null);
-                  setSelectedWalletId(null);
-                }}
-                className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
-              >
-                <option value="">All Sites</option>
-                {siteOptions.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            )}
+              {/* Site Filter */}
+              {siteOptions.length > 0 && (
+                <select
+                  value={selectedSiteId || ""}
+                  onChange={(e) => {
+                    setSelectedSiteId(e.target.value ? Number(e.target.value) : null);
+                    setSelectedWalletId(null);
+                  }}
+                  className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
+                >
+                  <option value="">All Sites</option>
+                  {siteOptions.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              )}
 
-            {/* Wallet Filter */}
-            {/* Only show if site is selected or if we have wallets loaded globally (which we don't currently fetch all global wallets, but let's assume we fetch based on site) */}
-            {/* Actually, we need to fetch wallets for the selected site to populate this.
+              {/* Wallet Filter */}
+              {/* Only show if site is selected or if we have wallets loaded globally (which we don't currently fetch all global wallets, but let's assume we fetch based on site) */}
+              {/* Actually, we need to fetch wallets for the selected site to populate this.
                  For now, let's assume we can filter by wallet if we had the list.
                  Since the user didn't explicitly ask for wallet filter logic to be fixed (just the balance summary),
                  I'll leave the dropdown if it was there, or add it if needed.
@@ -827,102 +958,103 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
                  I'll stick to the existing filters for now.
              */}
 
-            {/* Status Filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
-            >
-              <option value="">All Statuses</option>
-              <option value="APPROVED">Approved</option>
-              <option value="PENDING">Pending</option>
-              <option value="REJECTED">Rejected</option>
-            </select>
+              {/* Status Filter */}
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
+              >
+                <option value="">All Statuses</option>
+                <option value="Approved">Approved</option>
+                <option value="Pending">Pending</option>
+                <option value="Rejected">Rejected</option>
+              </select>
 
-            {/* Payment Mode */}
-            <select
-              value={paymentMode}
-              onChange={(e) => setPaymentMode(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
-            >
-              <option value="">All Payment Modes</option>
-              <option value="Cash">Cash</option>
-              <option value="Bank">Bank Transfer</option>
-              <option value="UPI">UPI</option>
-              <option value="Card">Card</option>
-            </select>
-          </div>
+              {/* Payment Mode */}
+              <select
+                value={paymentMode}
+                onChange={(e) => setPaymentMode(e.target.value)}
+                className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
+              >
+                <option value="">All Payment Modes</option>
+                <option value="Cash">Cash</option>
+                <option value="Bank">Bank Transfer</option>
+                <option value="UPI">UPI</option>
+                <option value="Card">Card</option>
+              </select>
+            </div>
 
-          {/* Date Filters */}
-          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Expense From</label>
+            {/* Date Filters */}
+            <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Expense From</label>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Expense To</label>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+              <div className="w-px h-4 bg-gray-200 mx-1 hidden md:block"></div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-gray-700">Invoice Date:</span>
                 <input
                   type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  value={invoiceDateFrom}
+                  onChange={(e) => setInvoiceDateFrom(e.target.value)}
+                  className="px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:border-blue-500"
                 />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Expense To</label>
+                <span className="text-gray-400">-</span>
                 <input
                   type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  value={invoiceDateTo}
+                  onChange={(e) => setInvoiceDateTo(e.target.value)}
+                  className="px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:border-blue-500"
                 />
               </div>
-            </div>
-            <div className="w-px h-4 bg-gray-200 mx-1 hidden md:block"></div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-gray-700">Invoice Date:</span>
-              <input
-                type="date"
-                value={invoiceDateFrom}
-                onChange={(e) => setInvoiceDateFrom(e.target.value)}
-                className="px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:border-blue-500"
-              />
-              <span className="text-gray-400">-</span>
-              <input
-                type="date"
-                value={invoiceDateTo}
-                onChange={(e) => setInvoiceDateTo(e.target.value)}
-                className="px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:border-blue-500"
-              />
-            </div>
-
-            <div className="ml-auto flex items-center gap-2">
-              <button
-                onClick={() => {
-                  setSearchTerm("");
-                  setPaymentMode("");
-                  setStatusFilter("");
-                  setDateFrom("");
-                  setDateTo("");
-                  setInvoiceDateFrom("");
-                  setInvoiceDateTo("");
-                  setSelectedCategoryId(null);
-                  setSelectedWalletId(null);
-                  setPage(1);
-                }}
-                className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
-              >
-                Reset Filters
-              </button>
-              <button
-                onClick={() => setShowExportModal(true)}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-md hover:bg-gray-50 transition-colors"
-              >
-                <Download className="w-4 h-4" />
-                Export
-              </button>
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setSearchTerm("");
+                    setPaymentMode("");
+                    setStatusFilter("");
+                    setDateFrom("");
+                    setDateTo("");
+                    setInvoiceDateFrom("");
+                    setInvoiceDateTo("");
+                    setSelectedCategoryId(null);
+                    setSelectedWalletId(null);
+                    setPage(1);
+                  }}
+                  className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                >
+                  Reset Filters
+                </button>
+                <button
+                  onClick={() => setShowExportModal(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-md hover:bg-gray-50 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  Export
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Content */}
       <div className="flex-1 overflow-hidden flex flex-col relative">
@@ -1086,116 +1218,205 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
       </div>
 
       {/* Modals */}
-      {showModal && (
-        <AddExpenseModal
-          siteId={selectedSiteId ?? null}
-          onClose={() => setShowModal(false)}
-          onSubmitted={() => {
-            setShowModal(false);
-            setPage(1);
-            loadSummary();
-            loadExpenses();
-          }}
-        />
-      )}
+      {
+        showModal && (
+          <AddExpenseModal
+            siteId={selectedSiteId ?? null}
+            onClose={() => setShowModal(false)}
+            onSubmitted={() => {
+              setShowModal(false);
+              setPage(1);
+              loadSummary();
+              loadExpenses();
+            }}
+          />
+        )
+      }
 
-      {detailModalOpen && (
-        <ExpenseDetailModal
-          loading={detailLoading}
-          error={detailError}
-          detail={detail}
-          onClose={() => setDetailModalOpen(false)}
-          onUpdatePhysicalCopyStatus={handleUpdatePhysicalCopyStatus}
-          canUpdatePhysicalCopy={(isOrgAdmin || isWalletAdmin)}
-        />
-      )}
+      {/* Edit Expense Modal */}
+      {
+        editModalOpen && editingExpense && (
+          <AddExpenseModal
+            siteId={editingExpense.expense?.site_id ?? null}
+            onClose={() => {
+              setEditModalOpen(false);
+              setEditingExpense(null);
+            }}
+            onSubmitted={() => {
+              setEditModalOpen(false);
+              setEditingExpense(null);
+              setPage(1);
+              loadSummary();
+              loadExpenses();
+            }}
+            editMode={true}
+            expenseId={editingExpense.expense?.id}
+            initialData={editingExpense}
+          />
+        )
+      }
 
-      {showExportModal && (
-        <ExportModal
-          current={{
-            siteId: selectedSiteId,
-            categoryId: selectedCategoryId,
-            paymentMode,
-            status: statusFilter,
-            dateFrom,
-            dateTo,
-            invoiceDateFrom,
-            invoiceDateTo,
-          }}
-          searchTerm={searchTerm}
-          notify={showNotification}
-          categories={categories}
-          siteOptions={siteOptions}
-          onClose={() => setShowExportModal(false)}
-        />
-      )}
+      {
+        detailModalOpen && (
+          <ExpenseDetailModal
+            loading={detailLoading}
+            error={detailError}
+            detail={detail}
+            onClose={() => setDetailModalOpen(false)}
+            onUpdatePhysicalCopyStatus={handleUpdatePhysicalCopyStatus}
+            canUpdatePhysicalCopy={(isOrgAdmin || isWalletAdmin)}
+          />
+        )
+      }
 
-      {rowExportOpen && (
-        <RowExportModal
-          expenseId={rowExportExpenseId}
-          emails={rowExportEmails}
-          notify={showNotification}
-          onChangeEmails={setRowExportEmails}
-          onClose={() => { setRowExportOpen(false); setRowExportEmails(''); setRowExportExpenseId(null); }}
-        />
-      )}
+      {
+        showExportModal && (
+          <ExportModal
+            current={{
+              siteId: selectedSiteId,
+              categoryId: selectedCategoryId,
+              paymentMode,
+              status: statusFilter,
+              dateFrom,
+              dateTo,
+              invoiceDateFrom,
+              invoiceDateTo,
+            }}
+            searchTerm={searchTerm}
+            notify={showNotification}
+            categories={categories}
+            siteOptions={siteOptions}
+            onClose={() => setShowExportModal(false)}
+          />
+        )
+      }
+
+      {
+        rowExportOpen && (
+          <RowExportModal
+            expenseId={rowExportExpenseId}
+            emails={rowExportEmails}
+            notify={showNotification}
+            onChangeEmails={setRowExportEmails}
+            onClose={() => { setRowExportOpen(false); setRowExportEmails(''); setRowExportExpenseId(null); }}
+          />
+        )
+      }
 
       {/* Confirmation Modal */}
-      {confirmModal && confirmModal.open && (
-        <div className="fixed inset-0 backdrop-blur-sm bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden transform transition-all scale-100">
-            <div className="p-6">
-              <div className="flex items-center gap-4 mb-4">
-                <div className={`p-3 rounded-full ${confirmModal.type === 'submitted' ? 'bg-green-100' : 'bg-gray-100'}`}>
-                  {confirmModal.type === 'submitted' ? (
-                    <CheckCircle className={`w-6 h-6 ${confirmModal.type === 'submitted' ? 'text-green-600' : 'text-gray-600'}`} />
-                  ) : (
-                    <AlertCircle className="w-6 h-6 text-gray-600" />
-                  )}
+      {
+        confirmModal && confirmModal.open && (
+          <div className="fixed inset-0 backdrop-blur-sm bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden transform transition-all scale-100">
+              <div className="p-6">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className={`p-3 rounded-full ${confirmModal.type === 'submitted' ? 'bg-green-100' : 'bg-gray-100'}`}>
+                    {confirmModal.type === 'submitted' ? (
+                      <CheckCircle className={`w-6 h-6 ${confirmModal.type === 'submitted' ? 'text-green-600' : 'text-gray-600'}`} />
+                    ) : (
+                      <AlertCircle className="w-6 h-6 text-gray-600" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {confirmModal.type === 'submitted' ? 'Confirm Collection' : 'Mark as N/A'}
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      {confirmModal.type === 'submitted'
+                        ? 'Are you sure you want to mark this physical copy as collected? This will record your name and the current time.'
+                        : 'Are you sure you want to mark this physical copy as Not Applicable?'}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    {confirmModal.type === 'submitted' ? 'Confirm Collection' : 'Mark as N/A'}
-                  </h3>
-                  <p className="text-sm text-gray-500">
-                    {confirmModal.type === 'submitted'
-                      ? 'Are you sure you want to mark this physical copy as collected? This will record your name and the current time.'
-                      : 'Are you sure you want to mark this physical copy as Not Applicable?'}
-                  </p>
-                </div>
-              </div>
 
-              <div className="flex items-center justify-end gap-3 mt-6">
-                <button
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  onClick={() => setConfirmModal(null)}
-                  disabled={actionLoading === String(confirmModal.expenseId)}
-                >
-                  Cancel
-                </button>
-                <button
-                  className={`px-4 py-2 text-sm font-medium text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 ${confirmModal.type === 'submitted'
-                    ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
-                    : 'bg-gray-600 hover:bg-gray-700 focus:ring-gray-500'
-                    }`}
-                  onClick={executePhysicalCopyUpdate}
-                  disabled={actionLoading === String(confirmModal.expenseId)}
-                >
-                  {actionLoading === String(confirmModal.expenseId) ? 'Updating...' : 'Confirm'}
-                </button>
+                <div className="flex items-center justify-end gap-3 mt-6">
+                  <button
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    onClick={() => setConfirmModal(null)}
+                    disabled={actionLoading === String(confirmModal.expenseId)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className={`px-4 py-2 text-sm font-medium text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 ${confirmModal.type === 'submitted'
+                      ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
+                      : 'bg-gray-600 hover:bg-gray-700 focus:ring-gray-500'
+                      }`}
+                    onClick={executePhysicalCopyUpdate}
+                    disabled={actionLoading === String(confirmModal.expenseId)}
+                  >
+                    {actionLoading === String(confirmModal.expenseId) ? 'Updating...' : 'Confirm'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+
+      {/* Approval Override Modal */}
+      {
+        approvalOverrideModal && approvalOverrideModal.open && (
+          <div className="fixed inset-0 backdrop-blur-sm bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden transform transition-all scale-100">
+              <div className="p-6">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="p-3 rounded-full bg-yellow-100">
+                    <AlertCircle className="w-6 h-6 text-yellow-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Skip Lower Approvals?
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-2">
+                      Lower level approvals are still pending for this expense. As a final approver, you can choose to skip them and approve immediately.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 mt-6">
+                  <button
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                    onClick={() => setApprovalOverrideModal(null)}
+                    disabled={actionLoading === String(approvalOverrideModal.expenseId)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    onClick={() => handleApprove(approvalOverrideModal.expenseId, true)}
+                    disabled={actionLoading === String(approvalOverrideModal.expenseId)}
+                  >
+                    {actionLoading === String(approvalOverrideModal.expenseId) ? 'Processing...' : 'Proceed & Skip'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      }
+    </div >
   );
 }
 
 // AddExpenseModal Component (preserving all original functionality)
-function AddExpenseModal({ siteId, onClose, onSubmitted }: { siteId: number | null; onClose: () => void; onSubmitted: () => void; }) {
-  const steps = ["Upload Invoice", "Basic Info", "Seller/Buyer", "Items & Charges", "Payment", "Review"];
-  const [step, setStep] = React.useState<number>(0);
+function AddExpenseModal({
+  siteId,
+  onClose,
+  onSubmitted,
+  editMode = false,
+  expenseId = null,
+  initialData = null
+}: {
+  siteId: number | null;
+  onClose: () => void;
+  onSubmitted: () => void;
+  editMode?: boolean;
+  expenseId?: number | null;
+  initialData?: any;
+}) {
+  const steps = [" Upload Invoice", "Basic Info", "Seller/Buyer", "Items & Charges", "Payment", "Review"];
+  const [step, setStep] = React.useState<number>(editMode ? 1 : 0); // Skip upload step in edit mode
   const [uploading, setUploading] = React.useState<boolean>(false);
   const [submitting, setSubmitting] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -1207,6 +1428,10 @@ function AddExpenseModal({ siteId, onClose, onSubmitted }: { siteId: number | nu
     { invoiceNo: false, invoiceName: false, sellerName: false, itemsEmpty: false, grandTotalInvalid: false, transactionId: false }
   );
   const [previewZoomSrc, setPreviewZoomSrc] = React.useState<string | null>(null);
+
+  // State for existing attachments in edit mode
+  const [existingAttachments, setExistingAttachments] = React.useState<any[]>([]);
+  const [attachmentsToRemove, setAttachmentsToRemove] = React.useState<number[]>([]);
 
   const expenseTypeOptions = ["General", "Transport", "Labour", "Utilities", "Supplies", "Maintenance"];
   const normalizeExpenseType = (raw?: string) => {
@@ -1276,6 +1501,80 @@ function AddExpenseModal({ siteId, onClose, onSubmitted }: { siteId: number | nu
       expense: { ...p.expense, subtotal: Number(subtotal.toFixed(2)), total_tax: Number(taxTotal.toFixed(2)), charges_total: Number(chargesTotal.toFixed(2)), grand_total: Number(grandTotal.toFixed(2)) },
     }));
   };
+
+  // Populate form data when in edit mode
+  React.useEffect(() => {
+    if (editMode && initialData) {
+      console.log("Edit mode - Initial Data:", initialData);
+
+      const exp = initialData.expense || {};
+      const items = initialData.items || [];
+      const taxes = initialData.taxes || [];
+      const charges = initialData.charges || [];
+      const attachments = initialData.attachments || [];
+      const party = initialData.party || {};
+      const buyer = initialData.buyer || {};
+
+      console.log("Extracted expense:", exp);
+      console.log("Extracted items:", items);
+      console.log("Extracted party:", party);
+
+      // Populate structured state with existing data
+      const populatedData = {
+        expense: {
+          expense_type: exp.expense_type || "General",
+          date: exp.date ? new Date(exp.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+          invoice_no: exp.invoice_no || "",
+          invoice_name: exp.invoice_name || "",
+          description: exp.description || "",
+          seller_name: party.name || exp.seller_name || "",
+          seller_address: party.address || exp.seller_address || "",
+          seller_contact: party.phone || exp.seller_contact || "",
+          seller_gst: party.gstin || exp.seller_gst || "",
+          buyer_name: buyer.name || exp.buyer_name || "",
+          buyer_address: buyer.address || exp.buyer_address || "",
+          buyer_contact: buyer.phone || exp.buyer_contact || "",
+          buyer_gst: buyer.gstin || exp.buyer_gst || "",
+          subtotal: Number(exp.subtotal || 0),
+          total_tax: Number(exp.total_tax || 0),
+          charges_total: Number(exp.charges_total || 0),
+          grand_total: Number(exp.grand_total || 0),
+          payment_mode: exp.payment_mode || "Cash",
+          transaction_id: exp.transaction_id || "",
+          transaction_proof_url: exp.transaction_proof_url || null,
+          status: exp.status || "Submitted",
+        },
+        items: items.map((it: any) => ({
+          name: it.item_name || it.name || "",
+          qty: Number(it.qty || it.quantity || 0),
+          rate: Number(it.rate || 0),
+          discount: Number(it.discount || 0),
+          total: Number(it.total || 0),
+        })),
+        taxes: taxes.map((tx: any) => ({
+          label: tx.label || tx.name || "",
+          amount: Number(tx.amount || tx.tax_amount || 0),
+        })),
+        charges: charges.map((ch: any) => ({
+          label: ch.label || ch.name || "",
+          amount: Number(ch.amount || ch.total || 0),
+        })),
+        attachments: [],
+      };
+
+      console.log("Populated data:", populatedData);
+      setStructured(populatedData);
+
+      // Store existing attachments separately for display
+      const existingAtts = attachments.map((att: any) => ({
+        id: att.id,
+        url: att.attachment_url,
+        type: att.file_type || att.attachment_type || "image",
+      }));
+      console.log("Existing attachments:", existingAtts);
+      setExistingAttachments(existingAtts);
+    }
+  }, [editMode, initialData]);
 
   const toBase64 = (file: File) => new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -1356,22 +1655,20 @@ function AddExpenseModal({ siteId, onClose, onSubmitted }: { siteId: number | nu
     }
     const hasItems = (structured.items || []).length > 0;
     const grandTotalOk = Number(structured.expense.grand_total || 0) > 0;
-    const requireTxnId = (structured.expense.payment_mode || "Cash") !== "Cash";
     const v = {
       invoiceNo: !String(structured.expense.invoice_no || "").trim(),
       invoiceName: !String(structured.expense.invoice_name || "").trim(),
       sellerName: !String(structured.expense.seller_name || "").trim(),
       itemsEmpty: !hasItems,
       grandTotalInvalid: !grandTotalOk,
-      transactionId: requireTxnId && !String(structured.expense.transaction_id || "").trim(),
+      transactionId: false, // Transaction ID is optional for all payment modes
     };
     setValidation(v);
-    if (v.invoiceNo || v.invoiceName || v.sellerName || v.itemsEmpty || v.grandTotalInvalid || v.transactionId) {
+    if (v.invoiceNo || v.invoiceName || v.sellerName || v.itemsEmpty || v.grandTotalInvalid) {
       setError("Please fix highlighted fields before submitting.");
       if (v.invoiceNo || v.invoiceName) setStep(1);
       else if (v.sellerName) setStep(2);
       else if (v.itemsEmpty || v.grandTotalInvalid) setStep(3);
-      else if (v.transactionId) setStep(4);
       return;
     }
     try {
@@ -1406,11 +1703,24 @@ function AddExpenseModal({ siteId, onClose, onSubmitted }: { siteId: number | nu
         charges: structured.charges || [],
         attachments,
       };
-      const resp = await apiClient<any>("/expenses/submit", {
-        method: "POST",
-        body,
-        withAuth: true,
-      });
+
+      let resp;
+      if (editMode && expenseId) {
+        // Update existing expense
+        resp = await apiClient<any>(`/expenses/${expenseId}`, {
+          method: "PUT",
+          body,
+          withAuth: true,
+        });
+      } else {
+        // Create new expense
+        resp = await apiClient<any>("/expenses/submit", {
+          method: "POST",
+          body,
+          withAuth: true,
+        });
+      }
+
       if (resp?.success === true) {
         onSubmitted();
       } else {
@@ -1427,7 +1737,7 @@ function AddExpenseModal({ siteId, onClose, onSubmitted }: { siteId: number | nu
     <div className="fixed inset-0 backdrop-blur-sm bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h3 className="text-xl font-semibold text-gray-900">Add Expense</h3>
+          <h3 className="text-xl font-semibold text-gray-900">{editMode ? "Edit Expense" : "Add Expense"}</h3>
           <button
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             onClick={onClose}
@@ -1622,8 +1932,575 @@ function AddExpenseModal({ siteId, onClose, onSubmitted }: { siteId: number | nu
             </div>
           )}
 
-          {/* Steps 2-5 remain with similar modern styling */}
+          {/* Step 2: Seller/Buyer Details */}
+          {step === 2 && (
+            <div className="space-y-6">
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900 mb-4">Seller Details</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Seller Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validation.sellerName ? "border-red-500" : "border-gray-300"
+                        }`}
+                      value={structured.expense.seller_name}
+                      onChange={(e) => setStructured((p: any) => ({ ...p, expense: { ...p.expense, seller_name: e.target.value } }))}
+                    />
+                    {validation.sellerName && <div className="text-sm text-red-600 mt-1">Seller name is required</div>}
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                    <textarea
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      rows={2}
+                      value={structured.expense.seller_address}
+                      onChange={(e) => setStructured((p: any) => ({ ...p, expense: { ...p.expense, seller_address: e.target.value } }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Contact</label>
+                    <input
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      value={structured.expense.seller_contact}
+                      onChange={(e) => setStructured((p: any) => ({ ...p, expense: { ...p.expense, seller_contact: e.target.value } }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">GST Number</label>
+                    <input
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      value={structured.expense.seller_gst}
+                      onChange={(e) => setStructured((p: any) => ({ ...p, expense: { ...p.expense, seller_gst: e.target.value } }))}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900 mb-4">Buyer Details (Optional)</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Buyer Name</label>
+                    <input
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      value={structured.expense.buyer_name}
+                      onChange={(e) => setStructured((p: any) => ({ ...p, expense: { ...p.expense, buyer_name: e.target.value } }))}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                    <textarea
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      rows={2}
+                      value={structured.expense.buyer_address}
+                      onChange={(e) => setStructured((p: any) => ({ ...p, expense: { ...p.expense, buyer_address: e.target.value } }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Contact</label>
+                    <input
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      value={structured.expense.buyer_contact}
+                      onChange={(e) => setStructured((p: any) => ({ ...p, expense: { ...p.expense, buyer_contact: e.target.value } }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">GST Number</label>
+                    <input
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      value={structured.expense.buyer_gst}
+                      onChange={(e) => setStructured((p: any) => ({ ...p, expense: { ...p.expense, buyer_gst: e.target.value } }))}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-4">
+                <button
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => setStep(1)}
+                >
+                  Back
+                </button>
+                <button
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  onClick={() => setStep(3)}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Steps 3-5 remain with similar modern styling */}
           {/* ... (other steps implementation) */}
+
+          {/* Step 3: Items & Charges */}
+          {step === 3 && (
+            <div className="space-y-6">
+              {/* Items Section */}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-lg font-semibold text-gray-900">Items</h4>
+                  <button
+                    className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1"
+                    onClick={() => {
+                      setStructured((p: any) => ({
+                        ...p,
+                        items: [...p.items, { name: "", qty: 1, rate: 0, discount: 0, total: 0 }]
+                      }));
+                    }}
+                  >
+                    <Plus className="w-4 h-4" /> Add Item
+                  </button>
+                </div>
+                {validation.itemsEmpty && <div className="text-sm text-red-600 mb-2">At least one item is required</div>}
+                <div className="space-y-3">
+                  {structured.items.map((item: ItemRow, idx: number) => (
+                    <div key={idx} className="grid grid-cols-12 gap-2 items-start p-3 bg-gray-50 rounded-lg">
+                      <div className="col-span-4">
+                        <input
+                          placeholder="e.g., Cement bags, Steel rods, Paint"
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                          value={item.name}
+                          onChange={(e) => {
+                            const next = [...structured.items];
+                            next[idx].name = e.target.value;
+                            setStructured((p: any) => ({ ...p, items: next }));
+                          }}
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <input
+                          type="number"
+                          placeholder="Quantity"
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                          value={item.qty}
+                          onChange={(e) => {
+                            const next = [...structured.items];
+                            const qty = Number(e.target.value) || 0;
+                            next[idx].qty = qty;
+                            next[idx].total = (qty * next[idx].rate) - next[idx].discount;
+                            setStructured((p: any) => ({ ...p, items: next }));
+                            setTimeout(() => recomputeTotals(), 0);
+                          }}
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <input
+                          type="number"
+                          placeholder="Price per unit"
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                          value={item.rate}
+                          onChange={(e) => {
+                            const next = [...structured.items];
+                            const rate = Number(e.target.value) || 0;
+                            next[idx].rate = rate;
+                            next[idx].total = (next[idx].qty * rate) - next[idx].discount;
+                            setStructured((p: any) => ({ ...p, items: next }));
+                            setTimeout(() => recomputeTotals(), 0);
+                          }}
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <input
+                          type="number"
+                          placeholder="Discount (₹)"
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                          value={item.discount}
+                          onChange={(e) => {
+                            const next = [...structured.items];
+                            const discount = Number(e.target.value) || 0;
+                            next[idx].discount = discount;
+                            next[idx].total = (next[idx].qty * next[idx].rate) - discount;
+                            setStructured((p: any) => ({ ...p, items: next }));
+                            setTimeout(() => recomputeTotals(), 0);
+                          }}
+                        />
+                      </div>
+                      <div className="col-span-1 text-right text-sm font-medium pt-1.5">
+                        ₹{item.total.toFixed(2)}
+                      </div>
+                      <div className="col-span-1 flex justify-end">
+                        <button
+                          className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                          onClick={() => {
+                            const next = structured.items.filter((_: any, i: number) => i !== idx);
+                            setStructured((p: any) => ({ ...p, items: next }));
+                            setTimeout(() => recomputeTotals(), 0);
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Taxes Section */}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-lg font-semibold text-gray-900">Taxes</h4>
+                  <button
+                    className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1"
+                    onClick={() => {
+                      setStructured((p: any) => ({
+                        ...p,
+                        taxes: [...p.taxes, { label: "", amount: 0 }]
+                      }));
+                    }}
+                  >
+                    <Plus className="w-4 h-4" /> Add Tax
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {structured.taxes.map((tax: TaxRow, idx: number) => (
+                    <div key={idx} className="grid grid-cols-12 gap-2 items-center p-2 bg-gray-50 rounded-lg">
+                      <div className="col-span-8">
+                        <input
+                          placeholder="e.g., GST 18%, CGST 9%, SGST 9%"
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                          value={tax.label}
+                          onChange={(e) => {
+                            const next = [...structured.taxes];
+                            next[idx].label = e.target.value;
+                            setStructured((p: any) => ({ ...p, taxes: next }));
+                          }}
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <input
+                          type="number"
+                          placeholder="Tax amount (₹)"
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                          value={tax.amount}
+                          onChange={(e) => {
+                            const next = [...structured.taxes];
+                            next[idx].amount = Number(e.target.value) || 0;
+                            setStructured((p: any) => ({ ...p, taxes: next }));
+                            setTimeout(() => recomputeTotals(), 0);
+                          }}
+                        />
+                      </div>
+                      <div className="col-span-1 flex justify-end">
+                        <button
+                          className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                          onClick={() => {
+                            const next = structured.taxes.filter((_: any, i: number) => i !== idx);
+                            setStructured((p: any) => ({ ...p, taxes: next }));
+                            setTimeout(() => recomputeTotals(), 0);
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Charges Section */}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-lg font-semibold text-gray-900">Additional Charges</h4>
+                  <button
+                    className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1"
+                    onClick={() => {
+                      setStructured((p: any) => ({
+                        ...p,
+                        charges: [...p.charges, { label: "", amount: 0 }]
+                      }));
+                    }}
+                  >
+                    <Plus className="w-4 h-4" /> Add Charge
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {structured.charges.map((charge: ChargeRow, idx: number) => (
+                    <div key={idx} className="grid grid-cols-12 gap-2 items-center p-2 bg-gray-50 rounded-lg">
+                      <div className="col-span-8">
+                        <input
+                          placeholder="e.g., Delivery Fee, Handling Charges, Packing"
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                          value={charge.label}
+                          onChange={(e) => {
+                            const next = [...structured.charges];
+                            next[idx].label = e.target.value;
+                            setStructured((p: any) => ({ ...p, charges: next }));
+                          }}
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <input
+                          type="number"
+                          placeholder="Charge amount (₹)"
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                          value={charge.amount}
+                          onChange={(e) => {
+                            const next = [...structured.charges];
+                            next[idx].amount = Number(e.target.value) || 0;
+                            setStructured((p: any) => ({ ...p, charges: next }));
+                            setTimeout(() => recomputeTotals(), 0);
+                          }}
+                        />
+                      </div>
+                      <div className="col-span-1 flex justify-end">
+                        <button
+                          className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                          onClick={() => {
+                            const next = structured.charges.filter((_: any, i: number) => i !== idx);
+                            setStructured((p: any) => ({ ...p, charges: next }));
+                            setTimeout(() => recomputeTotals(), 0);
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Totals Summary */}
+              <div className="bg-blue-50 p-4 rounded-lg space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-700">Subtotal:</span>
+                  <span className="font-medium">₹{structured.expense.subtotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-700">Total Tax:</span>
+                  <span className="font-medium">₹{structured.expense.total_tax.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-700">Total Charges:</span>
+                  <span className="font-medium">₹{structured.expense.charges_total.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-lg font-bold border-t border-blue-200 pt-2">
+                  <span>Grand Total:</span>
+                  <span className="text-blue-600">₹{structured.expense.grand_total.toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-4">
+                <button
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => setStep(2)}
+                >
+                  Back
+                </button>
+                <button
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  onClick={() => setStep(4)}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Steps 4-5 remain with similar modern styling */}
+          {/* ... (other steps implementation) */}
+
+          {/* Step 4: Payment */}
+          {step === 4 && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Payment Mode</label>
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={structured.expense.payment_mode}
+                    onChange={(e) => setStructured((p: any) => ({ ...p, expense: { ...p.expense, payment_mode: e.target.value } }))}
+                  >
+                    <option value="Cash">Cash</option>
+                    <option value="UPI">UPI</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="Cheque">Cheque</option>
+                    <option value="Credit Card">Credit Card</option>
+                    <option value="Debit Card">Debit Card</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Transaction ID (Optional)
+                  </label>
+                  <input
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validation.transactionId ? "border-red-500" : "border-gray-300"
+                      }`}
+                    value={structured.expense.transaction_id}
+                    onChange={(e) => setStructured((p: any) => ({ ...p, expense: { ...p.expense, transaction_id: e.target.value } }))}
+                    placeholder="Enter transaction/reference ID"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Payment Proof (Optional)</label>
+                <div
+                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${paymentDragActive ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400"
+                    }`}
+                  onDragEnter={() => setPaymentDragActive(true)}
+                  onDragLeave={() => setPaymentDragActive(false)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setPaymentDragActive(false);
+                    const file = e.dataTransfer.files[0];
+                    if (file) setPaymentFile(file);
+                  }}
+                >
+                  {paymentFile ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <FileText className="w-5 h-5 text-green-600" />
+                      <span className="text-sm text-gray-700">{paymentFile.name}</span>
+                      <button
+                        className="p-1 hover:bg-gray-100 rounded"
+                        onClick={() => setPaymentFile(null)}
+                      >
+                        <X className="w-4 h-4 text-gray-500" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm text-gray-600">Drag and drop payment proof or</p>
+                      <label className="mt-2 inline-block px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer">
+                        Browse Files
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept="image/*,application/pdf"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) setPaymentFile(file);
+                          }}
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-4">
+                <button
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => setStep(3)}
+                >
+                  Back
+                </button>
+                <button
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  onClick={() => setStep(5)}
+                >
+                  Review
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 5: Review */}
+          {step === 5 && (
+            <div className="space-y-6">
+              <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                <h4 className="font-semibold text-gray-900">Expense Summary</h4>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="text-gray-600">Invoice No:</div>
+                  <div className="font-medium">{structured.expense.invoice_no}</div>
+                  <div className="text-gray-600">Date:</div>
+                  <div className="font-medium">{structured.expense.date}</div>
+                  <div className="text-gray-600">Seller:</div>
+                  <div className="font-medium">{structured.expense.seller_name}</div>
+                  <div className="text-gray-600">Payment Mode:</div>
+                  <div className="font-medium">{structured.expense.payment_mode}</div>
+                  <div className="text-gray-600">Items:</div>
+                  <div className="font-medium">{structured.items.length}</div>
+                  <div className="text-gray-600 font-semibold">Grand Total:</div>
+                  <div className="font-bold text-blue-600">₹{structured.expense.grand_total.toFixed(2)}</div>
+                </div>
+              </div>
+
+              {/* Existing Attachments (Edit Mode) */}
+              {editMode && existingAttachments.length > 0 && (
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-3">Existing Attachments</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {existingAttachments.map((att) => (
+                      <div key={att.id} className="relative group">
+                        <img
+                          src={att.url}
+                          alt="Attachment"
+                          className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23ddd' width='100' height='100'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999'%3EFile%3C/text%3E%3C/svg%3E";
+                          }}
+                        />
+                        <button
+                          className="absolute top-1 right-1 p-1.5 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => {
+                            setAttachmentsToRemove((prev) => [...prev, att.id]);
+                            setExistingAttachments((prev) => prev.filter((a) => a.id !== att.id));
+                          }}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* New Attachments */}
+              {(invoiceFile || paymentFile) && (
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-3">New Attachments</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {invoiceFile && (
+                      <div className="relative">
+                        <div className="w-full h-32 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
+                          <FileText className="w-8 h-8 text-gray-400" />
+                        </div>
+                        <div className="text-xs text-gray-600 mt-1 truncate">{invoiceFile.name}</div>
+                      </div>
+                    )}
+                    {paymentFile && (
+                      <div className="relative">
+                        <div className="w-full h-32 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
+                          <FileText className="w-8 h-8 text-gray-400" />
+                        </div>
+                        <div className="text-xs text-gray-600 mt-1 truncate">{paymentFile.name}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {error && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                  {error}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-4">
+                <button
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => setStep(4)}
+                >
+                  Back
+                </button>
+                <button
+                  className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50"
+                  onClick={submit}
+                  disabled={submitting}
+                >
+                  {submitting ? "Submitting..." : editMode ? "Update Expense" : "Submit Expense"}
+                </button>
+              </div>
+            </div>
+          )}
+
 
         </div>
 

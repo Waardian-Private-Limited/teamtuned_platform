@@ -1,6 +1,8 @@
 import { encryptPassword } from './crypto';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3002/api/v1';
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:3002/api/v1';
+
+export const getBackendUrl = () => BASE_URL.replace('/api/v1', '');
 
 export type Method = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
@@ -8,7 +10,7 @@ export interface RequestOptions {
   method?: Method;
   body?: any; // JSON or FormData
   headers?: Record<string, string>;
-  params?: Record<string, string>;
+  params?: Record<string, string | number | boolean | undefined | null>;
   withAuth?: boolean; // Adds Authorization header from localStorage
   responseType?: 'json' | 'blob' | 'text';
 }
@@ -26,7 +28,17 @@ export async function apiClient<T = any>(
     responseType = 'json',
   } = options;
 
-  const query = params ? `?${new URLSearchParams(params).toString()}` : '';
+  let query = '';
+  if (params) {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, String(value));
+      }
+    });
+    const qs = searchParams.toString();
+    if (qs) query = `?${qs}`;
+  }
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
 
   const allHeaders: Record<string, string> = {
@@ -62,13 +74,17 @@ export async function apiClient<T = any>(
       window.location.href = '/login';
     }
     let errorMsg = 'Request failed';
+    let errData = null;
     try {
-      const errData = await res.json();
+      errData = await res.json();
       errorMsg = errData.message || JSON.stringify(errData);
     } catch {
       errorMsg = await res.text();
     }
-    throw new Error(errorMsg || `Request failed with status ${res.status}`);
+    const error: any = new Error(errorMsg || `Request failed with status ${res.status}`);
+    error.status = res.status;
+    error.data = errData;
+    throw error;
   }
 
   try {
@@ -84,6 +100,22 @@ export async function apiClient<T = any>(
     return {} as T;
   }
 }
+
+// Add helper methods to the function object
+apiClient.get = <T = any>(path: string, params?: Record<string, any>, options?: RequestOptions) =>
+  apiClient<T>(path, { ...options, method: 'GET', params });
+
+apiClient.post = <T = any>(path: string, body?: any, options?: RequestOptions) =>
+  apiClient<T>(path, { ...options, method: 'POST', body });
+
+apiClient.put = <T = any>(path: string, body?: any, options?: RequestOptions) =>
+  apiClient<T>(path, { ...options, method: 'PUT', body });
+
+apiClient.delete = <T = any>(path: string, options?: RequestOptions) =>
+  apiClient<T>(path, { ...options, method: 'DELETE' });
+
+apiClient.patch = <T = any>(path: string, body?: any, options?: RequestOptions) =>
+  apiClient<T>(path, { ...options, method: 'PATCH', body });
 
 // Types mirrored from waardian_web
 export interface Account {

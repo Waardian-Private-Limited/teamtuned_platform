@@ -39,6 +39,13 @@ import {
   Receipt,
   Cog,
   Upload,
+  Phone,
+  HardHat,
+  Layers,
+  Link2,
+  Award,
+  QrCode,
+  UserPlus,
   MessageSquare,
   Plus,
 } from "lucide-react";
@@ -79,16 +86,204 @@ export default function EmployeeSidebar({
   const [managementOpen, setManagementOpen] = React.useState(false);
   const [attendanceOpen, setAttendanceOpen] = React.useState(true);
   const [otherOpen, setOtherOpen] = React.useState(false);
+  const [laborOpen, setLaborOpen] = React.useState(false);
+  const [hrOperationOpen, setHrOperationOpen] = React.useState(true);
+  const [formBuilderOpen, setFormBuilderOpen] = React.useState(true);
+  const [dpsOpen, setDpsOpen] = React.useState(true);
+  const [reimbursementsOpen, setReimbursementsOpen] = React.useState(false);
   const [meetingsOpen, setMeetingsOpen] = React.useState(false);
   const [isNavigating, setIsNavigating] = React.useState(false);
+
+  // Auto-collapse on hover state
+  const [isHovered, setIsHovered] = React.useState(false);
+  const hoverTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Auto-collapse effect
+  useEffect(() => {
+    if (isHovered) {
+      // Clear any pending collapse and expand immediately
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+      setIsCollapsed(false);
+    } else {
+      // Collapse after 500ms when not hovered
+      hoverTimeoutRef.current = setTimeout(() => {
+        setIsCollapsed(true);
+        // Do NOT auto-open all categories when collapsed, as requested to show only active
+      }, 500);
+    }
+
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, [isHovered, setIsCollapsed]);
+
+  // Effect to handle expansion behavior: keep all collapsed except the active category
+  useEffect(() => {
+    if (!isCollapsed) {
+      // Helper function to check if a category is active
+      const isActive = (prefixes: string[]) => prefixes.some(p => pathname?.startsWith(p));
+
+      setMainOpen(pathname === "/employee");
+
+      setAttendanceOpen(isActive([
+        "/employee/attendance-dashboard",
+        "/employee/attendance",
+        "/employee/regularize-requests",
+        "/employee/verification-issues",
+        "/employee/night-ot-requests",
+        "/employee/leave-requests",
+        "/employee/comp-offs",
+        "/employee/payroll",
+        "/employee/salary-slips",
+        "/employee/attendance-config",
+        "/employee/holiday-calendar",
+        "/employee/approval-workflows",
+        "/employee/attendance-rules"
+      ]));
+
+      setAttendanceOpen(isActive([
+        "/employee/attendance-dashboard",
+        "/employee/attendance",
+        "/employee/regularize-requests",
+        "/employee/verification-issues",
+        "/employee/night-ot-requests",
+        "/employee/leave-requests",
+        "/employee/comp-offs",
+        "/employee/payroll",
+        "/employee/salary-slips"
+      ]));
+
+      setManagementOpen(isActive([
+        "/employee/employee-management",
+        "/employee/emergency-contacts",
+        "/employee/assignments",
+        "/employee/policy-mapper",
+        "/employee/employees/import",
+        "/employee/employees/shifts",
+        "/employee/employee-sites",
+        "/employee/other-locations",
+        "/employee/salary-components",
+        "/employee/site-logins",
+        "/employee/debit-rules",
+        "/employee/salary-import",
+        "/employee/orgProfile",
+        "/employee/sites",
+        "/employee/sub-organizations",
+        "/employee/site-sub-org-mapper",
+        "/employee/site-budget-requests",
+        "/employee/departments",
+        "/employee/roles"
+      ]));
+
+      setInsuranceOpen(isActive(["/employee/insurance"]));
+      setSalaryAdvanceOpen(isActive(["/employee/salary-advance"]));
+      setOtherOpen(isActive([
+        "/employee/petty-cash",
+        "/employee/wallet-overview",
+        "/employee/wallet-config",
+        "/employee/wallet-topups"
+      ]));
+
+      const isInventoryActive = isActive(["/employee/inventory", "/employee/rfq", "/employee/pr"]);
+      setInventoryOpen(isInventoryActive);
+      if (isInventoryActive) {
+        setMasterDataOpen(isActive([
+          "/employee/inventory/onboarding",
+          "/employee/inventory/sites",
+          "/employee/inventory/categories",
+          "/employee/inventory/subcategories",
+          "/employee/inventory/vendors",
+          "/employee/inventory/items"
+        ]));
+        setCoreOpen(isActive([
+          "/employee/inventory/stores",
+          "/employee/inventory/stock",
+          "/employee/inventory/batches",
+          "/employee/inventory/serials",
+          "/employee/inventory/ledger"
+        ]));
+        setTransactionsOpen(isActive([
+          "/employee/inventory/grn",
+          "/employee/rfq",
+          "/employee/pr"
+        ]));
+      } else {
+        setMasterDataOpen(false);
+        setCoreOpen(false);
+        setTransactionsOpen(false);
+      }
+
+      setTaskOpen(isActive(["/employee/tasks", "/employee/task-assignments", "/employee/task-dashboard"]));
+      setDpsOpen(isActive(["/employee/dps"]));
+      setFormBuilderOpen(isActive(["/employee/form-builder"]));
+      setLaborOpen(isActive(["/employee/labor-attendance", "/employee/labor/"]));
+      setHrOperationOpen(isActive(["/employee/department-mapper", "/employee/hr-operation"]));
+      setReimbursementsOpen(isActive([
+        "/org/hr-operation/reimbursements",
+        "/org/accounts/reimbursements",
+        "/employee/hr-operation/reimbursements"
+      ]));
+    } else {
+      // When collapsed, only keep the active category open to follow "check and fix that open only active category"
+      const isActive = (prefixes: string[]) => prefixes.some(p => pathname?.startsWith(p));
+
+      setMainOpen(pathname === "/employee");
+      setAttendanceOpen(isActive(["/employee/attendance-dashboard", "/employee/attendance", "/employee/regularize-requests", "/employee/verification-issues", "/employee/night-ot-requests", "/employee/leave-requests", "/employee/comp-offs", "/employee/payroll", "/employee/salary-slips"]));
+      setManagementOpen(isActive(["/employee/employee-management", "/employee/emergency-contacts", "/employee/assignments", "/employee/policy-mapper", "/employee/employees/import", "/employee/employees/shifts", "/employee/employee-sites", "/employee/other-locations", "/employee/salary-components", "/employee/site-logins", "/employee/debit-rules", "/employee/salary-import", "/employee/orgProfile", "/employee/sites", "/employee/sub-organizations", "/employee/site-sub-org-mapper", "/employee/site-budget-requests", "/employee/departments", "/employee/roles"]));
+      setInsuranceOpen(isActive(["/employee/insurance"]));
+      setSalaryAdvanceOpen(isActive(["/employee/salary-advance"]));
+      setOtherOpen(isActive(["/employee/petty-cash", "/employee/wallet-overview", "/employee/wallet-config", "/employee/wallet-topups"]));
+      setInventoryOpen(isActive(["/employee/inventory", "/employee/rfq", "/employee/pr"]));
+      setTaskOpen(isActive(["/employee/tasks", "/employee/task-assignments", "/employee/task-dashboard"]));
+      setDpsOpen(isActive(["/employee/dps"]));
+      setFormBuilderOpen(isActive(["/employee/form-builder"]));
+      setLaborOpen(isActive(["/employee/labor-attendance", "/employee/labor/"]));
+      setHrOperationOpen(isActive(["/employee/department-mapper", "/employee/hr-operation"]));
+      setReimbursementsOpen(isActive(["/org/hr-operation/reimbursements", "/org/accounts/reimbursements", "/employee/hr-operation/reimbursements"]));
+    }
+  }, [isCollapsed, pathname]);
+
+  const closeAll = () => {
+    setMainOpen(false);
+    setAttendanceOpen(false);
+    setManagementOpen(false);
+    setInsuranceOpen(false);
+    setSalaryAdvanceOpen(false);
+    setOtherOpen(false);
+    setInventoryOpen(false);
+    setTaskOpen(false);
+    setDpsOpen(false);
+    setFormBuilderOpen(false);
+    setLaborOpen(false);
+    setHrOperationOpen(false);
+    setReimbursementsOpen(false);
+  };
+
+  const handleToggle = (setter: React.Dispatch<React.SetStateAction<boolean>>, currentState: boolean) => {
+    if (!currentState) {
+      closeAll();
+    }
+    setter(!currentState);
+  };
 
   // Track navigation for loading state
   useEffect(() => {
     setIsNavigating(false);
+
+    // Failsafe: if navigation takes too long or hangs, hide loader after 10s
+    const timer = setTimeout(() => {
+      setIsNavigating(false);
+    }, 10000);
+
+    return () => clearTimeout(timer);
   }, [pathname]);
 
   // Use AuthContext for immediate updates, fallback to props if context is initial loading (though context is preferred)
-  const { permissions: authPermissions, role: authRole, organization } = useAuth();
+  const { permissions: authPermissions, role: authRole, organization, employee } = useAuth();
 
   // Prefer context values over props for immediate reactivity after login
   const effectivePermissions = authPermissions && authPermissions.length > 0 ? authPermissions : (permissions || []);
@@ -111,6 +306,10 @@ export default function EmployeeSidebar({
 
   const isOrgAdmin = (effectiveRole || "").toLowerCase() === "orgadmin";
 
+  const isDirector =
+    (employee?.role_name || "").toLowerCase().includes("director") ||
+    (employee?.designation || "").toLowerCase().includes("director");
+
   const Item = ({
     icon: Icon,
     label,
@@ -124,7 +323,11 @@ export default function EmployeeSidebar({
   }) => (
     <Link
       href={href}
-      onClick={() => setIsNavigating(true)}
+      onClick={() => {
+        if (href !== pathname) {
+          setIsNavigating(true);
+        }
+      }}
       className={`group flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-all duration-200 ${active
         ? "bg-black text-white font-medium shadow-md"
         : "text-black hover:bg-gray-100"
@@ -195,6 +398,8 @@ export default function EmployeeSidebar({
 
   const canViewInsurance = isOrgAdmin || hasAnyPerm(["INS_PROVIDER_VIEW", "INS_POLICY_VIEW", "INS_ENROLL_VIEW", "INS_CLAIM_VIEW"]);
   const canViewSessionRequests = isOrgAdmin || hasAnyPerm(["EMP_SESSION_VIEW", "EMP_SESSION_APPROVE"]);
+  const canViewNightOTRequests = isOrgAdmin || hasAnyPerm(["ATTEND_VIEW", "ATTVERIFY_APPROVE"]);
+  const canViewWorkflows = isOrgAdmin || hasPerm("HR_MODE");
 
   // Task Permissions
   const canViewTaskTemplates = isOrgAdmin || hasAnyPerm(["TASK_TEMPLATES", "TASK_CREATE"]);
@@ -209,6 +414,19 @@ export default function EmployeeSidebar({
   const canViewSalAdvPolicy = isOrgAdmin || hasAnyPerm(["SALADV_POLICY"]);
   const canViewSalAdvAccounts = isOrgAdmin || hasAnyPerm(["SALADV_PAY"]);
 
+  // Labor Management Permissions
+  const canViewLaborCategories = isOrgAdmin || hasAnyPerm(["LABOR_CAT_VIEW", "LABOR_CAT_ADD", "LABOR_CAT_EDIT"]);
+  const canViewLaborContractors = isOrgAdmin || hasAnyPerm(["LABOR_CONTRACTOR_VIEW", "LABOR_CONTRACTOR_ADD", "LABOR_CONTRACTOR_EDIT"]);
+  const canViewLaborers = isOrgAdmin || hasAnyPerm(["LABORER_VIEW", "LABORER_ADD", "LABORER_EDIT"]);
+  const canViewLaborRates = isOrgAdmin || hasAnyPerm(["LABOR_RATE_VIEW", "LABOR_RATE_ADD", "LABOR_RATE_EDIT"]);
+  const canViewLaborSettings = isOrgAdmin || hasAnyPerm(["LABOR_SETTINGS_VIEW", "LABOR_SETTINGS_EDIT"]);
+  const canViewLaborAttendance = isOrgAdmin || hasAnyPerm(["LABOR_ATTEND_VIEW", "LABOR_ATTENDANCE_ADD", "LABOR_ATTENDANCE_EDIT"]);
+
+  // Reimbursement Permissions
+  const canViewAllReimbursements =
+    isOrgAdmin || isDirector || hasAnyPerm(["REIMB_VIEW", "REIMB_APPROVE", "REIMB_REJECT", "REIMB_EXPORT"]);
+  const canDisburseReimbursements = isOrgAdmin || hasPerm("REIMB_DISBURSE");
+  const showReimbursements = canViewAllReimbursements || canDisburseReimbursements || true; // Always show for "My Reimbursements"
 
   const showOrgMain = [
     canViewOrgProfile,
@@ -233,6 +451,7 @@ export default function EmployeeSidebar({
     canViewVerificationIssues,
     canViewEmployeeAttendance,
     canViewSessionRequests,
+    canViewNightOTRequests,
   ].some(Boolean);
 
   const showOther = [
@@ -258,6 +477,189 @@ export default function EmployeeSidebar({
   ].some(Boolean);
   const showPayroll = isOrgAdmin || hasAnyPerm(["PAYROLL_VIEW", "HR_MODE"]);
 
+  const showLaborManagement = [
+    canViewLaborCategories,
+    canViewLaborContractors,
+    canViewLaborers,
+    canViewLaborRates,
+    canViewLaborSettings
+  ].some(Boolean);
+
+  return (
+    <aside
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className={`h-screen bg-gray-50 ${isCollapsed ? "w-16" : "w-64"
+        } flex flex-col transition-all duration-300 ease-in-out z-50`}
+    >
+      {/* Header - No top border, clean layout */}
+      <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} px-5 pt-6 pb-4 min-h-[80px]`}>
+        {!isCollapsed && (
+          <div className="flex items-center gap-3 min-w-0">
+            {orgLogoUrl ? (
+              <img
+                src={orgLogoUrl}
+                alt="Logo"
+                className="w-10 h-10 rounded-xl object-cover shadow-sm ring-1 ring-gray-100"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center shadow-sm">
+                <Building2 size={20} className="text-gray-400" />
+              </div>
+            )}
+            <div className="flex flex-col min-w-0">
+              <span className="text-sm font-bold text-black leading-tight break-words">
+                {orgName || "Organization"}
+              </span>
+              <span className="text-xs text-gray-500 truncate">
+                {isOrgAdmin ? "Organization Portal" : "Employee Portal"}
+              </span>
+            </div>
+          </div>
+        )}
+        {/* Navigation Loader */}
+        {isNavigating && <TeamTunedLoader />}
+        <button
+          type="button"
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className={`p-2 rounded-xl hover:bg-gray-100 text-black hover:text-black transition-all ${isCollapsed ? '' : 'ml-2'}`}
+          title={isCollapsed ? "Expand" : "Collapse"}
+        >
+          {isCollapsed ? <Menu size={20} /> : <X size={20} />}
+        </button>
+      </div>
+
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
+
+        {/* Dashboard */}
+        <Item
+          icon={Home}
+          label="Dashboard"
+          href={dashboardPath}
+          active={pathname === dashboardPath}
+        />
+
+
+        {/* Main Section */}
+        {
+          showCoreHR && showOrgMain && (
+            <div className="mt-4">
+              {!isCollapsed && (
+                <CategoryButton
+                  label="Main"
+                  isOpen={mainOpen}
+                  onClick={() => handleToggle(setMainOpen, mainOpen)}
+                />
+              )}
+              {mainOpen && (
+                <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                  <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                    {canViewOrgProfile && (
+                      <Item
+                        icon={Building2}
+                        label="Organization Profile"
+                        href="/employee/orgProfile"
+                        active={pathname?.startsWith("/employee/orgProfile") || false}
+                      />
+                    )}
+                    {canViewSites && (
+                      <Item
+                        icon={MapPin}
+                        label="Sites"
+                        href="/employee/sites"
+                        active={pathname === "/employee/sites"}
+                      />
+                    )}
+                    {canViewSites && (
+                      <Item
+                        icon={Building2}
+                        label="Sub Organizations"
+                        href="/employee/sub-organizations"
+                        active={pathname === "/employee/sub-organizations"}
+                      />
+                    )}
+                    {canViewSites && (
+                      <Item
+                        icon={Link2}
+                        label="Site-Sub-Org Mapper"
+                        href="/employee/site-sub-org-mapper"
+                        active={pathname === "/employee/site-sub-org-mapper"}
+                      />
+                    )}
+                    {(hasPerm("SITE_BUDGET_VIEW") || hasPerm("SITE_BUDGET_REQUEST") || hasPerm("SITE_BUDGET_APPROVE")) && (
+                      <Item
+                        icon={DollarSign}
+                        label="Budget Requests"
+                        href="/employee/site-budget-requests"
+                        active={pathname === "/employee/site-budget-requests"}
+                      />
+                    )}
+                    {canViewDepartments && (
+                      <>
+                        <Item
+                          icon={Building}
+                          label="Departments"
+                          href="/employee/departments"
+                          active={pathname?.startsWith("/employee/departments") || false}
+                        />
+                      </>
+                    )}
+                    {canViewRoles && (
+                      <Item
+                        icon={UserCog}
+                        label="Roles"
+                        href="/employee/roles"
+                        active={pathname?.startsWith("/employee/roles") || false}
+                      />
+                    )}
+                    {canViewPolicies && (
+                      <Item
+                        icon={ClipboardList}
+                        label="Policies"
+                        href="/employee/attendance-rules"
+                        active={pathname?.startsWith("/employee/attendance-rules") || false}
+                      />
+                    )}
+                    <Item
+                      icon={Briefcase}
+                      label="Onboarding Status"
+                      href="/hr-operation/onboarding/status"
+                      active={pathname === "/hr-operation/onboarding/status"}
+                    />
+                    {canViewAttendanceConfig && (
+                      <Item
+                        icon={Settings}
+                        label="Configuration"
+                        href="/employee/attendance-config"
+                        active={pathname?.startsWith("/employee/attendance-config") || false}
+                      />
+                    )}
+                    {canViewHoliday && (
+                      <Item
+                        icon={Calendar}
+                        label="Holiday Calendar"
+                        href="/employee/holiday-calendar"
+                        active={pathname?.startsWith("/employee/holiday-calendar") || false}
+                      />
+                    )}
+                    {canViewWorkflows && (
+                      <Item
+                        icon={Settings}
+                        label="Approval Workflows"
+                        href="/employee/approval-workflows"
+                        active={pathname?.startsWith("/employee/approval-workflows") || false}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        }
+        {/* Attendance Section */}
+        {
+          showCoreHR && showAttendanceSection && (
   // MoM Permissions
   const showMoM = hasFeature('MOM_FEATURE');
   const canCreateMeeting = isOrgAdmin || hasPerm('MOM_MEETING_CREATE');
@@ -407,6 +809,7 @@ export default function EmployeeSidebar({
                 <CategoryButton
                   label="Attendance"
                   isOpen={attendanceOpen}
+                  onClick={() => handleToggle(setAttendanceOpen, attendanceOpen)}
                   onClick={() => setAttendanceOpen(!attendanceOpen)}
                 />
               )}
@@ -419,6 +822,46 @@ export default function EmployeeSidebar({
                         label="Dashboard"
                         href="/employee/attendance-dashboard"
                         active={pathname?.startsWith("/employee/attendance-dashboard") || false}
+                      />
+                    )}
+                    {canViewEmployeeAttendance && (
+                      <Item
+                        icon={ClipboardList}
+                        label="Attendance Logs"
+                        href="/employee/attendance"
+                        active={pathname === "/employee/attendance" || (pathname?.startsWith("/employee/attendance") && !pathname?.includes("attendance-dashboard") && !pathname?.includes("sessions")) || false}
+                      />
+                    )}
+                    {canViewAttendanceConfig && (
+                      <Item
+                        icon={Settings}
+                        label="Configuration"
+                        href="/employee/attendance-config"
+                        active={pathname?.startsWith("/employee/attendance-config") || false}
+                      />
+                    )}
+                    {canViewPolicies && (
+                      <Item
+                        icon={ClipboardList}
+                        label="Policies"
+                        href="/employee/attendance-rules"
+                        active={pathname?.startsWith("/employee/attendance-rules") || false}
+                      />
+                    )}
+                    {canViewHoliday && (
+                      <Item
+                        icon={Calendar}
+                        label="Holiday Calendar"
+                        href="/employee/holiday-calendar"
+                        active={pathname?.startsWith("/employee/holiday-calendar") || false}
+                      />
+                    )}
+                    {canViewWorkflows && (
+                      <Item
+                        icon={Settings}
+                        label="Approval Workflows"
+                        href="/employee/approval-workflows"
+                        active={pathname?.startsWith("/employee/approval-workflows") || false}
                       />
                     )}
                     {canViewEmployeeAttendance && (
@@ -453,6 +896,20 @@ export default function EmployeeSidebar({
                         active={pathname?.startsWith("/employee/verification-issues") || false}
                       />
                     )}
+                    {canViewNightOTRequests && (
+                      <Item
+                        icon={Clock}
+                        label="Night OT Requests"
+                        href="/employee/night-ot-requests"
+                        active={pathname?.startsWith("/employee/night-ot-requests") || false}
+                    {canViewLeaveRequests && (
+                      <Item
+                        icon={Calendar}
+                        label="Leave Requests"
+                        href="/employee/leave-requests"
+                        active={pathname?.startsWith("/employee/leave-requests") || false}
+                      />
+                    )}
                     {canViewLeaveRequests && (
                       <Item
                         icon={Calendar}
@@ -477,10 +934,34 @@ export default function EmployeeSidebar({
                         active={pathname?.startsWith("/employee/payroll") || false}
                       />
                     )}
+                    {showPayroll && (
+                      <Item
+                        icon={FileText}
+                        label="Salary Slips"
+                        href="/employee/salary-slips"
+                        active={pathname?.startsWith("/employee/salary-slips") || false}
+                      />
+                    )}
+                      />
+                    )}
+                    {showPayroll && (
+                      <Item
+                        icon={DollarSign}
+                        label="Payroll"
+                        href="/employee/payroll"
+                        active={pathname?.startsWith("/employee/payroll") || false}
+                      />
+                    )}
                   </div>
                 </div>
               )}
             </div>
+          )
+        }
+
+        {/* Management Section */}
+        {
+          showCoreHR && showManagement && (
           )}
 
           {/* Management Section */}
@@ -490,12 +971,178 @@ export default function EmployeeSidebar({
                 <CategoryButton
                   label="Management"
                   isOpen={managementOpen}
+                  onClick={() => handleToggle(setManagementOpen, managementOpen)}
                   onClick={() => setManagementOpen(!managementOpen)}
                 />
               )}
               {managementOpen && (
                 <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
                   <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                    {canViewOrgProfile && (
+                      <Item
+                        icon={Building2}
+                        label="Organization Profile"
+                        href="/employee/orgProfile"
+                        active={pathname?.startsWith("/employee/orgProfile") || false}
+                      />
+                    )}
+                    {canViewSites && (
+                      <Item
+                        icon={MapPin}
+                        label="Sites"
+                        href="/employee/sites"
+                        active={pathname === "/employee/sites"}
+                      />
+                    )}
+                    {canViewSites && (
+                      <Item
+                        icon={Building2}
+                        label="Sub Organizations"
+                        href="/employee/sub-organizations"
+                        active={pathname === "/employee/sub-organizations"}
+                      />
+                    )}
+                    {canViewSites && (
+                      <Item
+                        icon={Link2}
+                        label="Site-Sub-Org Mapper"
+                        href="/employee/site-sub-org-mapper"
+                        active={pathname === "/employee/site-sub-org-mapper"}
+                      />
+                    )}
+                    {(hasPerm("SITE_BUDGET_VIEW") || hasPerm("SITE_BUDGET_REQUEST") || hasPerm("SITE_BUDGET_APPROVE")) && (
+                      <Item
+                        icon={DollarSign}
+                        label="Budget Requests"
+                        href="/employee/site-budget-requests"
+                        active={pathname === "/employee/site-budget-requests"}
+                      />
+                    )}
+                    {canViewDepartments && (
+                      <Item
+                        icon={Building}
+                        label="Departments"
+                        href="/employee/departments"
+                        active={pathname?.startsWith("/employee/departments") || false}
+                      />
+                    )}
+                    {canViewRoles && (
+                      <Item
+                        icon={UserCog}
+                        label="Roles"
+                        href="/employee/roles"
+                        active={pathname?.startsWith("/employee/roles") || false}
+                      />
+                    )}
+                    {canViewEmployeeManagement && (
+                      <>
+                        <Item
+                          icon={Users}
+                          label="Employees"
+                          href="/employee/employee-management"
+                          active={pathname?.startsWith("/employee/employee-management") || false}
+                        />
+                        <Item
+                          icon={Phone}
+                          label="Emergency Contacts"
+                          href="/employee/emergency-contacts"
+                          active={pathname?.startsWith("/employee/emergency-contacts") || false}
+                        />
+                      </>
+                    )}
+                    {(isOrgAdmin || hasPerm('HR_MODE')) && (
+                      <>
+                        <Item
+                          icon={UserCog}
+                          label="Team Mapper"
+                          href="/employee/assignments"
+                          active={pathname === "/employee/assignments"}
+                        />
+                        <Item
+                          icon={Shield}
+                          label="Policy Mapper"
+                          href="/employee/policy-mapper"
+                          active={pathname === "/employee/policy-mapper"}
+                        />
+                      </>
+                    )}
+                    {(isOrgAdmin || hasAnyPerm(['EMP_ADD'])) && (
+                      <>
+                        <Item
+                          icon={Upload}
+                          label="Import Employees"
+                          href="/employee/employees/import"
+                          active={pathname?.startsWith("/employee/employees/import") || false}
+                        />
+                        <Item
+                          icon={Clock}
+                          label="Shift Management"
+                          href="/employee/employees/shifts"
+                          active={pathname?.startsWith("/employee/employees/shifts") || false}
+                        />
+                      </>
+                    )}
+                    {canAssignEmployeeSites && (
+                      <>
+                        <Item
+                          icon={MapPin}
+                          label="Employee Sites"
+                          href="/employee/employee-sites"
+                          active={pathname?.startsWith("/employee/employee-sites") || false}
+                        />
+                        <Item
+                          icon={MapPin}
+                          label="Other Locations"
+                          href="/employee/other-locations"
+                          active={pathname?.startsWith("/employee/other-locations") || false}
+                        />
+                      </>
+                    )}
+                    {(isOrgAdmin || hasAnyPerm(['EMP_ADD'])) && (
+                      <>
+                        <Item
+                          icon={Upload}
+                          label="Import Employees"
+                          href="/employee/employees/import"
+                          active={pathname?.startsWith("/employee/employees/import") || false}
+                        />
+                        <Item
+                          icon={Clock}
+                          label="Shift Management"
+                          href="/employee/employees/shifts"
+                          active={pathname?.startsWith("/employee/employees/shifts") || false}
+                        />
+                      </>
+                    )}
+                    <Item
+                      icon={Coins}
+                      label="Salary Components"
+                      href="/employee/salary-components"
+                      active={pathname?.startsWith("/employee/salary-components") || false}
+                    />
+                    {canViewLaborSettings && (
+                      <Item
+                        icon={Shield}
+                        label="Site Logins"
+                        href="/employee/site-logins"
+                        active={pathname?.startsWith("/employee/site-logins") || false}
+                      />
+                    )}
+
+                    <Item
+                      icon={ListChecks}
+                      label="Debit Rules"
+                      href="/employee/debit-rules"
+                      active={pathname?.startsWith("/employee/debit-rules") || false}
+                    />
+                    {(isOrgAdmin || hasPerm('EMP_ADD')) && (
+                      <Item
+                        icon={Upload}
+                        label="Salary Import"
+                        href="/employee/salary-import"
+                        active={pathname?.startsWith("/employee/salary-import") || false}
+                      />
+                    )}
                     {canViewEmployeeManagement && (
                       <Item
                         icon={Users}
@@ -556,6 +1203,12 @@ export default function EmployeeSidebar({
                 </div>
               )}
             </div>
+          )
+        }
+
+        {/* Insurance Section */}
+        {
+          showCoreHR && canViewInsurance && (
           )}
 
           {/* Insurance Section */}
@@ -565,6 +1218,7 @@ export default function EmployeeSidebar({
                 <CategoryButton
                   label="Insurance"
                   isOpen={insuranceOpen}
+                  onClick={() => handleToggle(setInsuranceOpen, insuranceOpen)}
                   onClick={() => setInsuranceOpen(!insuranceOpen)}
                 />
               )}
@@ -577,6 +1231,24 @@ export default function EmployeeSidebar({
                         label="Dashboard"
                         href="/employee/insurance/dashboard"
                         active={pathname?.startsWith("/employee/insurance/dashboard") || false}
+                      />
+                    )}
+                    {(isOrgAdmin || hasAnyPerm(['INS_PROVIDER_VIEW', 'INS_PROVIDER_ADD', 'INS_PROVIDER_EDIT', 'INS_PROVIDER_DELETE'])) && (
+                      <Item
+                        icon={Building2}
+                        label="Providers"
+                        href="/employee/insurance/providers"
+                        active={pathname?.startsWith("/employee/insurance/providers") || false}
+                      />
+                    )}
+                    {(isOrgAdmin || hasAnyPerm(['INS_POLICY_VIEW', 'INS_POLICY_ADD', 'INS_POLICY_EDIT', 'INS_POLICY_DELETE'])) && (
+                      <Item
+                        icon={Shield}
+                        label="Policies"
+                        href="/employee/insurance/policies"
+                        active={pathname?.startsWith("/employee/insurance/policies") || false}
+                      />
+                    )}
                       />
                     )}
                     {(isOrgAdmin || hasAnyPerm(['INS_PROVIDER_VIEW', 'INS_PROVIDER_ADD', 'INS_PROVIDER_EDIT', 'INS_PROVIDER_DELETE'])) && (
@@ -620,6 +1292,138 @@ export default function EmployeeSidebar({
                       </>
                     )}
                   </div>
+                </div>
+              )}
+            </div>
+          )
+        }
+
+        {/* Salary Advance Section */}
+        {
+          showSalaryAdvanceSection && (
+            <div className="mt-2">
+              {!isCollapsed && (
+                <CategoryButton
+                  label="Salary Advance"
+                  isOpen={salaryAdvanceOpen}
+                  onClick={() => handleToggle(setSalaryAdvanceOpen, salaryAdvanceOpen)}
+                />
+              )}
+              {salaryAdvanceOpen && (
+                <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                  <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                    {canViewSalAdvRequests && (
+                      <Item
+                        icon={ClipboardList}
+                        label="All Requests"
+                        href="/employee/salary-advance/requests"
+                        active={pathname?.startsWith("/employee/salary-advance/requests") || false}
+                      />
+                    )}
+                    {canViewSalAdvApprovals && (
+                      <Item
+                        icon={CheckSquare}
+                        label="Approval Queue"
+                        href="/employee/salary-advance/approvals"
+                        active={pathname?.startsWith("/employee/salary-advance/approvals") || false}
+                      />
+                    )}
+                    {canViewSalAdvRepayments && (
+                      <Item
+                        icon={Calendar}
+                        label="Repayment Schedule"
+                        href="/employee/salary-advance/repayments"
+                        active={pathname?.startsWith("/employee/salary-advance/repayments") || false}
+                      />
+                    )}
+                    {canViewSalAdvAnalytics && (
+                      <Item
+                        icon={TrendingUp}
+                        label="Analytics"
+                        href="/employee/salary-advance/analytics"
+                        active={pathname?.startsWith("/employee/salary-advance/analytics") || false}
+                      />
+                    )}
+                    {canViewSalAdvPolicy && (
+                      <Item
+                        icon={Settings}
+                        label="Policy Configuration"
+                        href="/employee/salary-advance/policy"
+                        active={pathname?.startsWith("/employee/salary-advance/policy") || false}
+                      />
+                    )}
+                    {canViewSalAdvAccounts && (
+                      <Item
+                        icon={Users}
+                        label="Accounts"
+                        href="/employee/salary-advance/accounts"
+                        active={pathname?.startsWith("/employee/salary-advance/accounts") || false}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        }
+
+
+        {/* Petty Cash Section */}
+        {
+          showWallet && showOther && (
+            <div className="mt-2">
+              {!isCollapsed && (
+                <CategoryButton
+                  label="Petty Cash"
+                  isOpen={otherOpen}
+                  onClick={() => handleToggle(setOtherOpen, otherOpen)}
+                />
+              )}
+              {otherOpen && (
+                <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                  <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                    {canViewPettyCash && (
+                      <Item
+                        icon={DollarSign}
+                        label="Wallets"
+                        href="/employee/petty-cash"
+                        active={pathname?.startsWith("/employee/petty-cash") || false}
+                      />
+                    )}
+                    {canViewWalletExpenses && (
+                      <Item
+                        icon={Receipt}
+                        label="Wallet Expenses"
+                        href="/employee/wallet-overview"
+                        active={pathname?.startsWith("/employee/wallet-overview") || false}
+                      />
+                    )}
+                    {(isOrgAdmin || hasAnyPerm(["WALLET_ADMIN"])) && (
+                      <Item
+                        icon={Cog}
+                        label="Wallet Config"
+                        href="/employee/wallet-config"
+                        active={pathname?.startsWith("/employee/wallet-config") || false}
+                      />
+                    )}
+                    {canViewWalletTopups && (
+                      <Item
+                        icon={ArrowUpCircle}
+                        label="Wallet Topups"
+                        href="/employee/wallet-topups"
+                        active={pathname?.startsWith("/employee/wallet-topups") || false}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        }
+
+        {/* Inventory Section */}
+        {
+          showInventory && (
                 </div>
               )}
             </div>
@@ -751,6 +1555,7 @@ export default function EmployeeSidebar({
                 <CategoryButton
                   label="Inventory"
                   isOpen={inventoryOpen}
+                  onClick={() => handleToggle(setInventoryOpen, inventoryOpen)}
                   onClick={() => setInventoryOpen(!inventoryOpen)}
                 />
               )}
@@ -786,6 +1591,27 @@ export default function EmployeeSidebar({
                             <Item icon={Building2} label="Vendors" href="/employee/inventory/vendors" active={pathname?.startsWith("/employee/inventory/vendors") || false} />
                             <Item icon={Package} label="Items" href="/employee/inventory/items" active={pathname?.startsWith("/employee/inventory/items") || false} />
                           </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* CORE Submenu */}
+                    <div className="mt-1">
+                      <button
+                        type="button"
+                        onClick={() => setCoreOpen(!coreOpen)}
+                        className="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                      >
+                        <div className="flex items-center gap-2">
+                          {coreOpen ? (
+                            <ChevronDown size={16} className="text-gray-600" />
+                          ) : (
+                            <ChevronRight size={16} className="text-gray-600" />
+                          )}
+                          {!isCollapsed && (
+                            <span className="text-gray-700 font-medium">CORE</span>
+                          )}
+                        </div>
                         </div>
                       )}
                     </div>
@@ -898,6 +1724,256 @@ export default function EmployeeSidebar({
                 </div>
               )}
             </div>
+          )
+        }
+
+        {/* Task Section */}
+        {
+          showTaskSection && (
+            <div className="mt-2">
+              {!isCollapsed && (
+                <CategoryButton
+                  label="Task"
+                  isOpen={taskOpen}
+                  onClick={() => handleToggle(setTaskOpen, taskOpen)}
+                />
+              )}
+              {taskOpen && (
+                <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                  <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                    {canViewTaskTemplates && (
+                      <Item
+                        icon={FileText}
+                        label="Templates"
+                        href="/employee/tasks"
+                        active={pathname?.startsWith("/employee/tasks") || false}
+                      />
+                    )}
+                    {canViewTaskAssignments && (
+                      <Item
+                        icon={ListChecks}
+                        label="Assignments"
+                        href="/employee/task-assignments"
+                        active={pathname?.startsWith("/employee/task-assignments") || false}
+                      />
+                    )}
+                    {canViewTaskDashboard && (
+                      <Item
+                        icon={LayoutGrid}
+                        label="Dashboard"
+                        href="/employee/task-dashboard"
+                        active={pathname?.startsWith("/employee/task-dashboard") || false}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        }
+
+        {/* Labor Management Section */}
+        {
+          showCoreHR && showLaborManagement && (
+            <div className="mt-2">
+              {!isCollapsed && (
+                <CategoryButton
+                  label="Labor Management"
+                  isOpen={laborOpen}
+                  onClick={() => handleToggle(setLaborOpen, laborOpen)}
+                />
+              )}
+              {laborOpen && (
+                <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                  <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                    <Item
+                      icon={LayoutDashboard}
+                      label="Attendance Dashboard"
+                      href="/employee/labor-attendance/dashboard"
+                      active={pathname === "/employee/labor-attendance/dashboard"}
+                    />
+                    <Item
+                      icon={ClipboardList}
+                      label="Attendance Logs"
+                      href="/employee/labor-attendance/logs"
+                      active={pathname === "/employee/labor-attendance/logs"}
+                    />
+                    {canViewLaborAttendance && (
+                      <Item
+                        icon={BarChart3}
+                        label="Contractor Dashboard"
+                        href="/employee/labor-attendance/contractor-dashboard"
+                        active={pathname?.startsWith("/employee/labor-attendance/contractor-dashboard") || false}
+                      />
+                    )}
+                    {canViewLaborCategories && (
+                      <Item
+                        icon={LayoutGrid}
+                        label="Categories"
+                        href="/employee/labor/categories"
+                        active={pathname?.startsWith("/employee/labor/categories") || false}
+                      />
+                    )}
+                    {canViewLaborCategories && (
+                      <Item
+                        icon={Layers}
+                        label="Subcategories"
+                        href="/employee/labor/subcategories"
+                        active={pathname?.startsWith("/employee/labor/subcategories") || false}
+                      />
+                    )}
+                    {canViewLaborContractors && (
+                      <Item
+                        icon={Briefcase}
+                        label="Contractors"
+                        href="/employee/labor/contractors"
+                        active={pathname?.startsWith("/employee/labor/contractors") || false}
+                      />
+                    )}
+                    {canViewLaborers && (
+                      <Item
+                        icon={HardHat}
+                        label="Laborers"
+                        href="/employee/labor/laborers"
+                        active={pathname?.startsWith("/employee/labor/laborers") || false}
+                      />
+                    )}
+                    {canViewLaborRates && (
+                      <Item
+                        icon={DollarSign}
+                        label="Rate Cards"
+                        href="/employee/labor/rate-cards"
+                        active={pathname?.startsWith("/employee/labor/rate-cards") || false}
+                      />
+                    )}
+                    {canViewLaborSettings && (
+                      <Item
+                        icon={Settings}
+                        label="Settings"
+                        href="/employee/labor/settings"
+                        active={pathname?.startsWith("/employee/labor/settings") || false}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        }
+
+        {/* HR Operation Section */}
+        <div className="mt-2">
+          {!isCollapsed && (
+            <CategoryButton
+              label="HR Operation"
+              isOpen={hrOperationOpen}
+              onClick={() => handleToggle(setHrOperationOpen, hrOperationOpen)}
+            />
+          )}
+          {hrOperationOpen && (
+            <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+              <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                <Item
+                  icon={Briefcase}
+                  label="Applied Positions"
+                  href="/employee/hr-operation/applied-positions"
+                  active={pathname === "/employee/hr-operation/applied-positions"}
+                />
+                <Item
+                  icon={QrCode}
+                  label="Interview Management"
+                  href="/employee/hr-operation/interviews"
+                  active={pathname === "/employee/hr-operation/interviews"}
+                />
+
+                <Item
+                  icon={Award}
+                  label="Technical Assessments"
+                  href="/employee/hr-operation/technical-assessments"
+                  active={pathname === "/employee/hr-operation/technical-assessments"}
+                />
+                <Item
+                  icon={FileText}
+                  label="Technical Questions"
+                  href="/employee/hr-operation/technical-questions"
+                  active={pathname === "/employee/hr-operation/technical-questions"}
+                />
+                <Item
+                  icon={UserCheck}
+                  label="Operation / Final Round"
+                  href="/employee/hr-operation/operation-round"
+                  active={
+                    pathname === "/employee/hr-operation/operation-round" ||
+                    pathname === "/employee/hr-operation/final-round"
+                  }
+                />
+                {(isOrgAdmin || hasPerm('HR_MODE')) && (
+                  <Item
+                    icon={UserCheck}
+                    label="All Operation Rounds"
+                    href="/org-admin/hr-operation/operation-round"
+                    active={pathname === "/org-admin/hr-operation/operation-round"}
+                  />
+                )}
+                <Item
+                  icon={UserPlus}
+                  label="Onboarding"
+                  href="/employee/hr-operation/onboarding"
+                  active={pathname === "/employee/hr-operation/onboarding"}
+                />
+                <Item
+                  icon={Briefcase}
+                  label="Onboarding Status"
+                  href="/employee/hr-operation/onboarding/status"
+                  active={pathname === "/employee/hr-operation/onboarding/status"}
+                />
+                <Item
+                  icon={FileText}
+                  label="Document Center"
+                  href="/employee/hr-operation/document-center"
+                  active={pathname === "/employee/hr-operation/document-center"}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Reimbursements Section */}
+        {
+          showReimbursements && (
+            <div className="mt-2">
+              {!isCollapsed && (
+                <CategoryButton
+                  label="Reimbursements"
+                  isOpen={reimbursementsOpen}
+                  onClick={() => handleToggle(setReimbursementsOpen, reimbursementsOpen)}
+                />
+              )}
+              {reimbursementsOpen && (
+                <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                  <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                    <Item
+                      icon={Receipt}
+                      label="My Reimbursements"
+                      href="/employee/hr-operation/reimbursements"
+                      active={pathname === "/employee/hr-operation/reimbursements"}
+                    />
+                    {canViewAllReimbursements && (
+                      <Item
+                        icon={Receipt}
+                        label="All Reimbursements"
+                        href="/employee/hr-operation/reimbursement"
+                        active={pathname === "/employee/hr-operation/reimbursement"}
+                      />
+                    )}
+                    {canDisburseReimbursements && (
+                      <Item
+                        icon={Receipt}
+                        label="Accounts / Disburse"
+                        href="/employee/accounts/reimbursements"
+                        active={pathname === "/employee/accounts/reimbursements"}
+                      />
+                    )}
           )}
 
           {/* Meetings Section (MoM) */}
@@ -935,6 +2011,24 @@ export default function EmployeeSidebar({
                 </div>
               )}
             </div>
+          )
+        }
+
+      </div >
+
+      {/* Footer */}
+      < div className="p-4" >
+        <button
+          type="button"
+          onClick={onLogout}
+          className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-red-600 text-white hover:bg-red-700 shadow-md hover:shadow-lg transition-all duration-200 group ${isCollapsed ? 'justify-center' : ''}`}
+          title={isCollapsed ? "Logout" : undefined}
+        >
+          <LogOut size={20} className="shrink-0 text-white" />
+          {!isCollapsed && <span className="text-sm font-medium">Logout</span>}
+        </button>
+      </div >
+    </aside >
           )}
         </div>
 

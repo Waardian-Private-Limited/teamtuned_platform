@@ -14,7 +14,9 @@ import {
   AlertCircle,
   TrendingUp,
   Users,
-  FileText
+  FileText,
+  User,
+  AlertTriangle
 } from "lucide-react";
 import AttendanceDetailsModal from "./AttendanceDetailsModal";
 
@@ -57,7 +59,9 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
       else if (Array.isArray(res)) list = res;
 
       setItems(list);
-      setSummary(res?.summary || null);
+      const sum = res?.summary || {};
+      if (res?.salary_date) sum.salary_date = res.salary_date;
+      setSummary(sum);
 
       // Extract cycle info
       if (res?.cycle_start && res?.cycle_end) {
@@ -165,6 +169,25 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
       };
     }
 
+    // Night OT Visual Indicators
+    if (record?.was_night_ot) {
+      if (record?.night_ot_status === 'Pending') {
+        return {
+          color: "bg-orange-100 border-orange-300 text-orange-900",
+          dotColor: "bg-orange-600",
+          label: "OT",
+          type: "pending_ot"
+        };
+      } else if (record?.night_ot_status === 'Approved') {
+        return {
+          color: "bg-emerald-100 border-emerald-300 text-emerald-900",
+          dotColor: "bg-emerald-600",
+          label: "OT",
+          type: "approved_ot"
+        };
+      }
+    }
+
     // Only if status = "Completed" and status_timeline is Full-Day or Half-Day
     if (record?.status === "Completed") {
       if (record?.status_timeline === "Full-Day") {
@@ -184,8 +207,22 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
       }
     }
 
+    // Unpaid Leave (Leave but not paid) - CHECK FIRST (Hierarchy: Unpaid > Paid)
+    // Fix: Backend might send is_paid_leave=true for Unpaid Leave, so we verify leave_type string
+    const leaveType = (record?.leave_type || '').toLowerCase();
+    const isUnpaidType = leaveType.includes('unpaid') || leaveType.includes('lwp') || leaveType.includes('loss of pay');
+
+    if (isUnpaidType || ((record?.status === 'Leave' || record?.is_leave) && !record?.is_paid_leave)) {
+      return {
+        color: "bg-orange-100 border-orange-300 text-orange-900",
+        dotColor: "bg-orange-600",
+        label: "LWP",
+        type: "unpaidleave"
+      };
+    }
+
     // Paid Leave
-    if (record?.status === 'Leave' || record?.is_leave || record?.is_paid_leave) {
+    if (record?.is_paid_leave) {
       return {
         color: "bg-teal-100 border-teal-300 text-teal-900",
         dotColor: "bg-teal-600",
@@ -221,6 +258,10 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
   const leaves = stats.Leaves || 0;
   const overtime = stats.Overtime || 0;
   const holiday = stats.Holiday || 0;
+  const lateDeductionCount = stats.LateDeduction ?? stats.LateMarks ?? 0;
+  const earlyPenaltyCount = stats.EarlyPenalty ?? 0;
+  const lateDeductionDates = stats.LateDeductionDates || [];
+  const earlyPenaltyDates = stats.EarlyPenaltyDates || [];
 
   const formatTime = (dateStr?: string) => {
     if (!dateStr) return "—";
@@ -329,6 +370,10 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
               <span>LD - Late Deduction</span>
             </div>
             <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-red-500"></div>
+              <span>ED - Early Deduction</span>
+            </div>
+            <div className="flex items-center gap-1.5">
               <div className="w-2 h-2 rounded-full bg-teal-500"></div>
               <span>PL - Paid Leave</span>
             </div>
@@ -404,6 +449,8 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
                               {record.badges.slice(0, 3).map((b: any, i: number) => {
                                 const t = String(b.type || '').toLowerCase();
                                 if (t === 'late' || t === 'late_deduction') return <Clock key={i} className="w-3 h-3 text-orange-500" />;
+                                if (t === 'early_penalty') return <Clock key={i} className="w-3 h-3 text-red-500" />;
+                                if (t === 'overridden') return <User key={i} className="w-3 h-3 text-blue-500" />;
                                 if (t === 'break' || t === 'break_availed') return <Clock key={i} className="w-3 h-3 text-amber-500" />;
                                 if (t === 'outside_work') return <MapPin key={i} className="w-3 h-3 text-cyan-500" />;
                                 if (t === 'overtime') return <TrendingUp key={i} className="w-3 h-3 text-indigo-500" />;
@@ -492,13 +539,53 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
                 <span className="font-semibold text-violet-900">{holiday}</span>
               </div>
 
-              <div className="flex items-center justify-between p-2.5 rounded-lg bg-orange-50/50 border border-orange-200/50">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-orange-500"></div>
-                  <span className="text-sm text-slate-700">Late Deduction</span>
-                </div>
-                <span className="font-semibold text-orange-900">{stats.LateDeduction ?? stats.LateMarks ?? 0}</span>
-              </div>
+              {lateDeductionCount > 0 && (
+                <>
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-orange-50/50 border border-orange-200/50">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-orange-500"></div>
+                      <span className="text-sm text-slate-700">Late Deduction</span>
+                    </div>
+                    <span className="font-semibold text-orange-900">{lateDeductionCount}</span>
+                  </div>
+                  {lateDeductionDates.length > 0 && (
+                    <div className="pl-4 text-xs text-slate-600">
+                      <div className="font-medium mb-1">Dates:</div>
+                      <div className="flex flex-wrap gap-1">
+                        {lateDeductionDates.map((date: string, idx: number) => (
+                          <span key={idx} className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">
+                            {new Date(date).getDate()}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {earlyPenaltyCount > 0 && (
+                <>
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-red-50/50 border border-red-200/50">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                      <span className="text-sm text-slate-700">Early Penalty</span>
+                    </div>
+                    <span className="font-semibold text-red-900">{earlyPenaltyCount}</span>
+                  </div>
+                  {earlyPenaltyDates.length > 0 && (
+                    <div className="pl-4 text-xs text-slate-600">
+                      <div className="font-medium mb-1">Dates:</div>
+                      <div className="flex flex-wrap gap-1">
+                        {earlyPenaltyDates.map((date: string, idx: number) => (
+                          <span key={idx} className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded">
+                            {new Date(date).getDate()}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
 
@@ -509,7 +596,13 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
       {/* Detail Modal */}
       {selectedRecord && (
         <AttendanceDetailsModal
-          record={selectedRecord}
+          record={{
+            ...selectedRecord,
+            employee_id: employeeId, // Add employee_id from props
+          }}
+          salaryDate={summary?.salary_date}
+          isLocked={summary?.salary_date ? new Date() > new Date(summary.salary_date) : false}
+          onUpdate={fetchMonthly}
           onClose={() => setSelectedRecord(null)}
         />
       )}

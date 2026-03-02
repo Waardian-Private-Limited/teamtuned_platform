@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useRef } from "react";
 import { createPortal } from "react-dom";
 import { apiClient } from "@/lib/apiClient";
 import AttendanceCalendar from "@/components/attendance/AttendanceCalendar";
@@ -38,7 +38,9 @@ import {
   Home,
   LogOut,
   ArrowLeft,
-  Layers
+  Layers,
+  Download,
+  Coffee
 } from "lucide-react";
 
 type EmployeeItem = Record<string, any>;
@@ -63,6 +65,10 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
   const [success, setSuccess] = React.useState<string | null>(null);
   const [successTimer, setSuccessTimer] = React.useState<number>(0);
 
+  // Export modal state
+  const [showExportModal, setShowExportModal] = React.useState<boolean>(false);
+  const [exporting, setExporting] = React.useState<boolean>(false);
+
   // Detail views
   const [activeView, setActiveView] = React.useState<"list" | "attendance" | "leaves" | "redeems">("list");
   const [activeEmployee, setActiveEmployee] = React.useState<EmployeeItem | null>(null);
@@ -76,6 +82,8 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
 
   // Filters & UI State
   const [search, setSearch] = React.useState<string>("");
+  const [debouncedSearch, setDebouncedSearch] = React.useState<string>("");
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [department, setDepartment] = React.useState<string>("");
   const [departments, setDepartments] = React.useState<any[]>([]);
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
@@ -251,7 +259,7 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
       if (date) params["date"] = date;
 
       // Filters
-      const s = search.trim();
+      const s = debouncedSearch.trim();
       if (s) params["search"] = s;
       if (department) {
         const dep = departments.find(d => String(d.name) === department);
@@ -272,7 +280,7 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
     } finally {
       setLoading(false);
     }
-  }, [hqMode, selectedSiteId, canHRMode, externalControl, extHq, extSiteId, date, search, department, statusFilter, departments]);
+  }, [hqMode, selectedSiteId, canHRMode, externalControl, extHq, extSiteId, date, debouncedSearch, department, statusFilter, departments]);
 
   React.useEffect(() => {
     fetchList();
@@ -285,6 +293,7 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
 
   const clearFilters = () => {
     setSearch("");
+    setDebouncedSearch("");
     setDepartment("");
     setStatusFilter("all");
     setCurrentPage(1);
@@ -293,6 +302,9 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
 
   const formatStatus = (status: string): string => {
     const s = (status || "").toLowerCase().trim();
+
+    if (s.includes("week off (ot)") || s.includes("week_off (ot)")) return "Week Off (OT)";
+    if (s.includes("holiday (ot)")) return "Holiday (OT)";
 
     if (s.includes("checked-out") || s.includes("completed") || s.includes("finished")) {
       return "Completed";
@@ -456,6 +468,20 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
         border: "border-cyan-200",
       };
     }
+    if (formattedStatus.includes("night ot pending")) {
+      return {
+        text: "text-orange-700",
+        bg: "bg-orange-50",
+        border: "border-orange-200",
+      };
+    }
+    if (formattedStatus.includes("night ot approved")) {
+      return {
+        text: "text-emerald-700",
+        bg: "bg-emerald-50",
+        border: "border-emerald-200",
+      };
+    }
 
     return {
       text: "text-slate-700",
@@ -475,6 +501,8 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
     if (formattedStatus.includes("half day")) return <Clock className="w-3 h-3" />;
     if (formattedStatus.includes("late")) return <Clock className="w-3 h-3" />;
     if (formattedStatus.includes("early")) return <Clock className="w-3 h-3" />;
+    if (formattedStatus.includes("break")) return <Coffee className="w-3 h-3" />;
+    if (formattedStatus.includes("night ot")) return <Clock className="w-3 h-3" />;
     if (formattedStatus.includes("holiday")) return <Gift className="w-3 h-3" />;
     if (formattedStatus.includes("on leave")) return <Leaf className="w-3 h-3" />;
     if (formattedStatus.includes("wfh")) return <Home className="w-3 h-3" />;
@@ -546,13 +574,6 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
                   <span>View Attendance</span>
                 </button>
                 <button
-                  onClick={() => { setActiveEmployee(employee); setActiveView("leaves"); setIsOpen(false); }}
-                  className="flex items-center gap-3 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                >
-                  <Leaf className="w-4 h-4 text-slate-500" />
-                  <span>View Leaves</span>
-                </button>
-                <button
                   onClick={() => { setActiveEmployee(employee); setActiveView("redeems"); setIsOpen(false); }}
                   className="flex items-center gap-3 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
                 >
@@ -568,7 +589,7 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
                   className="flex items-center gap-3 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
                 >
                   <Eye className="w-4 h-4 text-slate-500" />
-                  <span>View Details</span>
+                  <span>Today's Attendance</span>
                 </button>
               </div>
             </div>
@@ -660,8 +681,24 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
     return (
       <div className="min-h-screen bg-white p-6">
         <div className="max-w-7xl mx-auto space-y-5">
+          {/* Header Skeleton */}
+          <div className="space-y-3">
+            <div className="h-6 bg-slate-200 rounded w-64 animate-pulse"></div>
+            <div className="h-4 bg-slate-200 rounded w-96 animate-pulse"></div>
+          </div>
 
+          {/* Filters Skeleton */}
+          <div className="bg-white border border-slate-200 rounded-lg p-4 animate-pulse">
+            <div className="grid grid-cols-12 gap-3">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="col-span-2">
+                  <div className="h-10 bg-slate-100 rounded-lg"></div>
+                </div>
+              ))}
+            </div>
+          </div>
 
+          {/* Table Skeleton */}
           <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
             <div className="bg-slate-50 border-b border-slate-200">
               <div className="grid grid-cols-6 gap-4 px-5 py-3">
@@ -671,7 +708,7 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
               </div>
             </div>
             <div className="divide-y divide-slate-100">
-              {[...Array(8)].map((_, i) => (
+              {[...Array(10)].map((_, i) => (
                 <div key={i} className="grid grid-cols-6 gap-4 px-5 py-3.5 animate-pulse">
                   <div className="space-y-2">
                     <div className="h-3 bg-slate-100 rounded w-32"></div>
@@ -827,13 +864,26 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
               {/* Search */}
               <div className="col-span-12 md:col-span-2">
                 <div className="relative">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Search className="w-4 h-4 text-blue-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
-                    placeholder="Search..."
+                    placeholder="Search by name, email, or phone..."
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full pl-10 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setSearch(value);
+
+                      // Clear existing timeout
+                      if (searchTimeoutRef.current) {
+                        clearTimeout(searchTimeoutRef.current);
+                      }
+
+                      // Set new timeout for 500ms
+                      searchTimeoutRef.current = setTimeout(() => {
+                        setDebouncedSearch(value);
+                      }, 500);
+                    }}
+                    className="w-full pl-10 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-gray-900 font-medium placeholder:text-slate-400 placeholder:font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   />
                 </div>
               </div>
@@ -862,6 +912,13 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
                 <span>Refresh</span>
+              </button>
+              <button
+                onClick={() => setShowExportModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all text-sm"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Export</span>
               </button>
 
               {/* Results Count */}
@@ -933,16 +990,53 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
                 </div>
               ) : (
                 pagedItems.map((employee) => {
-                  const status = employee.attendance?.active_session_type
-                    ? (employee.attendance.active_session_type === 'working' ? 'Present' :
-                      employee.attendance.active_session_type === 'break' ? 'On Break' :
-                        employee.attendance.active_session_type === 'outside_work' ? 'Outside Work' :
-                          formatStatus(employee.current_status))
-                    : formatStatus(employee.current_status);
+                  // Determine clean status - prioritize attendance status over current_status
+                  let status = 'Not Started';
+                  const attendance = employee.attendance;
+                  const currentStatus = (employee.current_status || '').toLowerCase();
+
+                  // Check for leave or week-off first
+                  if (currentStatus.includes('leave') || currentStatus.includes('on_leave')) {
+                    status = 'On Leave';
+                  } else if (currentStatus.includes('week_off') || currentStatus.includes('weekoff')) {
+                    status = 'Week Off';
+                  } else if (attendance) {
+                    // Has attendance record
+                    const attStatus = (attendance.status || '').toLowerCase();
+                    const sessionType = attendance.active_session_type;
+
+                    if (attStatus === 'completed') {
+                      status = 'Completed';
+                    } else if (attendance.was_night_ot) {
+                      if (attendance.night_ot_status === 'Pending') {
+                        status = 'Night OT Pending';
+                      } else if (attendance.night_ot_status === 'Approved') {
+                        status = 'Night OT Approved';
+                      } else {
+                        status = formatStatus(currentStatus);
+                      }
+                    } else if (sessionType === 'break') {
+                      status = 'On Break';
+                    } else if (sessionType === 'outside_work') {
+                      status = 'Outside Work';
+                    } else if (attStatus === 'present' || sessionType === 'working') {
+                      status = 'Present';
+                    } else if (attStatus === 'absent') {
+                      status = 'Absent';
+                    } else {
+                      status = formatStatus(currentStatus);
+                    }
+                  } else if (currentStatus) {
+                    status = formatStatus(currentStatus);
+                  }
 
                   const statusColor = getStatusColor(status);
                   const StatusIcon = getStatusIcon(status);
                   const redeemBadge = (employee.badges || []).find((b: any) => b.type === 'redeem');
+
+                  // Get timeline badge (Full-Day / Half-Day)
+                  const timeline = attendance?.status_timeline || attendance?.timeline;
+                  const showTimeline = timeline && (status === 'Present' || status === 'Completed');
 
                   return (
                     <div key={employee.id} className="grid grid-cols-6 gap-4 px-5 py-3.5 hover:bg-slate-50 transition-colors items-center">
@@ -1010,80 +1104,82 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
                         {employee.department_name || "-"}
                       </div>
 
-                      {/* Status */}
-                      <div className="flex flex-col gap-1.5">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ${statusColor.bg} ${statusColor.text} border ${statusColor.border} w-fit`}>
+                      {/* Status & Badges - Clean Horizontal Layout */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Main Status Badge */}
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ${statusColor.bg} ${statusColor.text} border ${statusColor.border}`}>
                           {StatusIcon}
                           <span>{status}</span>
                         </span>
 
-                        {/* Session Badges */}
-                        {employee.badges?.map((badge: any, idx: number) => {
-                          // Break Requested (Blue)
-                          if (badge.type === 'break_requested') {
-                            return (
-                              <span key={`${badge.type}-${idx}`} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 w-fit">
-                                <Clock className="w-3 h-3" />
-                                {badge.label}
-                              </span>
-                            );
-                          }
-                          // Break Approved (Green)
-                          if (badge.type === 'break_approved') {
-                            return (
-                              <span key={`${badge.type}-${idx}`} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-green-50 text-green-700 border border-green-200 w-fit">
-                                <CheckCircle className="w-3 h-3" />
-                                {badge.label}
-                              </span>
-                            );
-                          }
-                          // On Break (Orange)
+                        {/* Timeline Badge (Full-Day/Half-Day) */}
+                        {showTimeline && timeline && (
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${timeline === 'Full-Day' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                            timeline === 'Half-Day' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                              'bg-slate-50 text-slate-700 border border-slate-200'
+                            }`}>
+                            <Clock className="w-3 h-3" />
+                            {timeline}
+                          </span>
+                        )}
+
+                        {/* Verification Issue Badge */}
+                        {(employee.attendance?.verification_status === 'Pending' ||
+                          employee.attendance?.verification_in_id ||
+                          employee.attendance?.verification_out_id) && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700 border border-red-200">
+                              <AlertCircle className="w-3 h-3" />
+                              Verification Issue
+                            </span>
+                          )}
+
+                        {/* Session Badges (Break, Outside Work, etc.) - Only show most relevant */}
+                        {employee.badges?.slice(0, 2).map((badge: any, idx: number) => {
+                          // Skip redeem badges (shown separately)
+                          if (badge.type === 'redeem') return null;
+
+                          // Determine badge styling based on type
+                          let badgeClass = 'bg-slate-50 text-slate-700 border-slate-200';
+                          let BadgeIcon = Clock;
+
                           if (badge.type === 'on_break' || badge.type === 'break') {
-                            return (
-                              <span key={`${badge.type}-${idx}`} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200 w-fit">
-                                <Clock className="w-3 h-3" />
-                                {badge.label}
-                              </span>
-                            );
+                            badgeClass = 'bg-orange-50 text-orange-700 border-orange-200';
+                            BadgeIcon = Clock;
+                          } else if (badge.type === 'outside_work') {
+                            badgeClass = 'bg-cyan-50 text-cyan-700 border-cyan-200';
+                            BadgeIcon = MapPin;
+                          } else if (badge.type === 'late') {
+                            badgeClass = 'bg-amber-50 text-amber-700 border-amber-200';
+                            BadgeIcon = Clock;
+                          } else if (badge.type === 'overtime') {
+                            badgeClass = 'bg-purple-50 text-purple-700 border-purple-200';
+                            BadgeIcon = Clock;
+                          } else if (badge.type === 'on_leave') {
+                            badgeClass = 'bg-indigo-50 text-indigo-700 border-indigo-200';
+                            BadgeIcon = Leaf;
+                          } else if (badge.type === 'week_off') {
+                            badgeClass = 'bg-slate-50 text-slate-700 border-slate-200';
+                            BadgeIcon = Calendar;
                           }
-                          // Break Availed (Purple)
-                          if (badge.type === 'break_availed') {
-                            return (
-                              <span key={`${badge.type}-${idx}`} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200 w-fit">
-                                <CheckCircle className="w-3 h-3" />
-                                {badge.label}
-                              </span>
-                            );
-                          }
-                          // Outside Work (Cyan)
-                          if (badge.type === 'outside_work') {
-                            return (
-                              <span key={`${badge.type}-${idx}`} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-cyan-50 text-cyan-700 border border-cyan-200 w-fit">
-                                <MapPin className="w-3 h-3" />
-                                {badge.label}
-                              </span>
-                            );
-                          }
-                          // Other badges (Late, Overtime, etc.) - use badge color from backend
-                          if (badge.color) {
-                            const bgColor = badge.color.replace('#', '');
-                            return (
-                              <span
-                                key={`${badge.type}-${idx}`}
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium w-fit"
-                                style={{
-                                  backgroundColor: `${badge.color}15`,
-                                  color: badge.color,
-                                  borderColor: `${badge.color}40`,
-                                  borderWidth: '1px'
-                                }}
-                              >
-                                {badge.label}
-                              </span>
-                            );
-                          }
-                          return null;
+
+                          return (
+                            <span key={`${badge.type}-${idx}`} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${badgeClass}`}>
+                              <BadgeIcon className="w-3 h-3" />
+                              {badge.label}
+                            </span>
+                          );
                         })}
+
+                        {/* Night OT Badge */}
+                        {employee.attendance?.was_night_ot && (
+                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium border ${employee.attendance?.night_ot_status === 'Pending' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                            employee.attendance?.night_ot_status === 'Rejected' ? 'bg-red-50 text-red-700 border-red-200' :
+                              'bg-purple-50 text-purple-700 border-purple-200'
+                            }`}>
+                            <Clock className="w-3 h-3" />
+                            {employee.attendance?.night_ot_duration_minutes ? `Night OT: ${Math.floor(employee.attendance.night_ot_duration_minutes / 60)}h ${employee.attendance.night_ot_duration_minutes % 60}m` : 'Night OT: Active'}
+                          </span>
+                        )}
                       </div>
 
                       {/* Site */}
@@ -1222,32 +1318,383 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
             )}
           </div>
         </div>
-      </div>
+      </div >
 
       {/* Details Modal */}
-      {selectedEmployeeForDetails && (
-        <AttendanceDetailsModal
-          record={{
-            ...selectedEmployeeForDetails,
-            ...(selectedEmployeeForDetails.attendance || {}),
-            // Map IDs
-            attendance_id: selectedEmployeeForDetails.attendance?.id,
-            // Map images from backend format (url) to modal format
-            punch_in_image: selectedEmployeeForDetails.attendance?.punch_in_image_url || selectedEmployeeForDetails.attendance?.punch_in_image,
-            punch_out_image: selectedEmployeeForDetails.attendance?.punch_out_image_url || selectedEmployeeForDetails.attendance?.punch_out_image,
-            // Map status
-            status: selectedEmployeeForDetails.attendance?.status ||
-              (selectedEmployeeForDetails.current_status === 'checked_in' || selectedEmployeeForDetails.current_status === 'checked_out' ? 'Present' :
-                selectedEmployeeForDetails.current_status === 'absent' ? 'Absent' :
-                  selectedEmployeeForDetails.current_status === 'week_off' ? 'Week Off' :
-                    selectedEmployeeForDetails.current_status === 'holiday' ? 'Holiday' :
-                      selectedEmployeeForDetails.current_status),
-            attendance_date: date || selectedEmployeeForDetails.attendance_date, // Ensure date from filter is used
-            sessions: selectedEmployeeForDetails.attendance?.sessions || selectedEmployeeForDetails.sessions || []
+      {
+        selectedEmployeeForDetails && (
+          <AttendanceDetailsModal
+            record={{
+              ...selectedEmployeeForDetails,
+              ...(selectedEmployeeForDetails.attendance || {}),
+              // Map IDs - set AFTER spreads to prevent overwriting
+              attendance_id: selectedEmployeeForDetails.attendance?.id,
+              // Map images from backend format (url) to modal format
+              punch_in_image: selectedEmployeeForDetails.attendance?.punch_in_image_url || selectedEmployeeForDetails.attendance?.punch_in_image,
+              punch_out_image: selectedEmployeeForDetails.attendance?.punch_out_image_url || selectedEmployeeForDetails.attendance?.punch_out_image,
+              // Map status
+              status: selectedEmployeeForDetails.attendance?.status ||
+                (selectedEmployeeForDetails.current_status === 'checked_in' || selectedEmployeeForDetails.current_status === 'checked_out' ? 'Present' :
+                  selectedEmployeeForDetails.current_status === 'absent' ? 'Absent' :
+                    selectedEmployeeForDetails.current_status === 'week_off' ? 'Week Off' :
+                      selectedEmployeeForDetails.current_status === 'holiday' ? 'Holiday' :
+                        selectedEmployeeForDetails.current_status),
+              attendance_date: date || selectedEmployeeForDetails.attendance_date, // Ensure date from filter is used
+              sessions: selectedEmployeeForDetails.attendance?.sessions || selectedEmployeeForDetails.sessions || [],
+              // CRITICAL: Set employee_id LAST to ensure it's not overwritten by spreads
+              employee_id: selectedEmployeeForDetails.employee_id,
+            }}
+            onClose={() => setSelectedEmployeeForDetails(null)}
+          />
+        )
+      }
+
+      {/* Export Modal */}
+      {showExportModal && (
+        <AttendanceExportModal
+          current={{
+            siteId: selectedSiteId,
+            date: date,
+            status: statusFilter,
+            department: department
           }}
-          onClose={() => setSelectedEmployeeForDetails(null)}
+          siteOptions={canHRMode ? allSites : inchargeSites}
+          departments={departments}
+          notify={showNotification}
+          onClose={() => setShowExportModal(false)}
         />
       )}
+    </div >
+  );
+}
+
+// Notification helper function
+function showNotification(message: string, type: 'success' | 'error') {
+  const notificationContainer = document.getElementById('notification-container') || createNotificationContainer();
+  const notification = document.createElement('div');
+  notification.className = `p-4 mb-3 rounded-lg shadow-lg flex items-center space-x-3 ${type === 'success' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+    }`;
+
+  const icon = document.createElement('div');
+  icon.className = `p-2 rounded-full ${type === 'success' ? 'bg-green-100' : 'bg-red-100'}`;
+  icon.innerHTML = type === 'success'
+    ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-600"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>'
+    : '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-600"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>';
+
+  const content = document.createElement('div');
+  content.className = 'flex-1';
+  content.innerHTML = `<p class="${type === 'success' ? 'text-green-800' : 'text-red-800'} font-medium">${message}</p>`;
+
+  notification.appendChild(icon);
+  notification.appendChild(content);
+  notificationContainer.appendChild(notification);
+
+  setTimeout(() => {
+    notification.style.opacity = '0';
+    notification.style.transition = 'opacity 0.5s ease';
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 500);
+  }, 5000);
+}
+
+function createNotificationContainer() {
+  const container = document.createElement('div');
+  container.id = 'notification-container';
+  container.style.position = 'fixed';
+  container.style.top = '20px';
+  container.style.right = '20px';
+  container.style.zIndex = '9999';
+  document.body.appendChild(container);
+  return container;
+}
+
+// Attendance Export Modal Component
+function AttendanceExportModal({
+  current,
+  siteOptions,
+  departments,
+  notify,
+  onClose
+}: {
+  current: { siteId: number | null; date: string; status: string; department: string; };
+  siteOptions: Array<Record<string, any>>;
+  departments: any[];
+  notify: (message: string, type: 'success' | 'error') => void;
+  onClose: () => void;
+}) {
+  const [emailsInput, setEmailsInput] = React.useState<string>("");
+  const [local, setLocal] = React.useState({ ...current });
+  const [exportFormat, setExportFormat] = React.useState<'excel' | 'pdf'>('excel');
+  const [exportType, setExportType] = React.useState<'day' | 'month'>('day');
+  const [submitting, setSubmitting] = React.useState<boolean>(false);
+
+  // Get current month in YYYY-MM format
+  const getCurrentMonth = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
+  };
+  const [month, setMonth] = React.useState<string>(getCurrentMonth());
+
+  const submit = async () => {
+    try {
+      setSubmitting(true);
+      const emails = emailsInput.split(/[,\s]+/).map((e) => e.trim()).filter(Boolean);
+
+      if (emails.length === 0) {
+        notify('Please enter at least one email address', 'error');
+        return;
+      }
+
+      const body: any = {
+        emails,
+        site_id: local.siteId,
+        status: local.status === 'all' ? '' : local.status,
+        department: local.department,
+        export_type: exportType,
+        export_format: exportFormat
+      };
+
+      if (exportType === 'day') {
+        body.date = local.date;
+      } else {
+        body.month = month;
+      }
+
+      await apiClient<any>("/attendance/export", { method: "POST", withAuth: true, body: body });
+      notify("Export requested. You will receive the email shortly.", "success");
+      onClose();
+    } catch (err) {
+      console.error(err);
+      notify("Failed to request export", "error");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const downloadLocal = async () => {
+    try {
+      setSubmitting(true);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3002/api/v1';
+
+      const body: any = {
+        site_id: local.siteId,
+        status: local.status === 'all' ? '' : local.status,
+        department: local.department,
+        export_type: exportType,
+        download_local: true,
+        export_format: exportFormat
+      };
+
+      if (exportType === 'day') {
+        body.date = local.date;
+      } else {
+        body.month = month;
+      }
+
+      const res = await fetch(`${baseUrl}/attendance/export`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) throw new Error('Failed to download export');
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const fileName = exportType === 'day'
+        ? `Attendance_Report_${local.date}_day.${exportFormat === 'pdf' ? 'pdf' : 'xlsx'}`
+        : `Attendance_Report_${month}_month.${exportFormat === 'pdf' ? 'pdf' : 'xlsx'}`;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      notify('Download started successfully', 'success');
+      onClose();
+    } catch (err) {
+      notify('Failed to download export', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="fixed inset-0 bg-opacity-30" onClick={onClose} />
+      <div className="relative bg-white rounded-xl shadow-xl w-full max-w-2xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Export Attendance</h3>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Site */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Site</label>
+            <select
+              value={local.siteId ?? ""}
+              onChange={(e) => setLocal({ ...local, siteId: e.target.value ? Number(e.target.value) : null })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            >
+              <option value="">All Sites</option>
+              {siteOptions.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
+            </select>
+          </div>
+
+          {/* Export Type */}
+          <div className="md:col-span-2">
+            <label className="block text-xs text-gray-500 mb-1">Export Type</label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  value="day"
+                  checked={exportType === 'day'}
+                  onChange={() => setExportType('day')}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span className="text-sm text-gray-700">Daily Report</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  value="month"
+                  checked={exportType === 'month'}
+                  onChange={() => setExportType('month')}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span className="text-sm text-gray-700">Monthly Report (All Dates)</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Date or Month Picker */}
+          {exportType === 'day' ? (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Date</label>
+              <input
+                type="date"
+                value={local.date}
+                onChange={(e) => setLocal({ ...local, date: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Month</label>
+              <input
+                type="month"
+                value={month}
+                onChange={(e) => setMonth(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+          )}
+
+          {/* Status */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Status</label>
+            <select
+              value={local.status}
+              onChange={(e) => setLocal({ ...local, status: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            >
+              <option value="all">All Status</option>
+              <option value="present">Present</option>
+              <option value="completed">Completed</option>
+              <option value="absent">Absent</option>
+              <option value="week_off">Week Off</option>
+              <option value="half_day">Half Day</option>
+              <option value="late">Late</option>
+              <option value="on_leave">On Leave</option>
+            </select>
+          </div>
+
+          {/* Department */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Department</label>
+            <select
+              value={local.department}
+              onChange={(e) => setLocal({ ...local, department: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            >
+              <option value="">All Departments</option>
+              {departments.map((d) => (<option key={d.id} value={d.name}>{d.name}</option>))}
+            </select>
+          </div>
+
+          {/* Export Format */}
+          <div className="md:col-span-2">
+            <label className="block text-xs text-gray-500 mb-1">Export Format</label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="export_format"
+                  value="excel"
+                  checked={exportFormat === 'excel'}
+                  onChange={() => setExportFormat('excel')}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span className="text-sm text-gray-700">Excel (.xlsx)</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="export_format"
+                  value="pdf"
+                  checked={exportFormat === 'pdf'}
+                  onChange={() => setExportFormat('pdf')}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span className="text-sm text-gray-700">PDF (.pdf)</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Emails */}
+          <div className="md:col-span-2">
+            <label className="block text-xs text-gray-500 mb-1">Emails (comma separated)</label>
+            <input
+              type="text"
+              value={emailsInput}
+              onChange={(e) => setEmailsInput(e.target.value)}
+              placeholder="user1@example.com, user2@example.com"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end mt-4 gap-2">
+          <button onClick={onClose} className="px-3 py-2 border border-gray-300 rounded-lg">Cancel</button>
+          <button
+            onClick={downloadLocal}
+            disabled={submitting}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            {submitting ? 'Downloading...' : 'Download Locally'}
+          </button>
+          <button
+            onClick={submit}
+            disabled={submitting}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+          >
+            {submitting ? 'Submitting...' : 'Send to Email'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
