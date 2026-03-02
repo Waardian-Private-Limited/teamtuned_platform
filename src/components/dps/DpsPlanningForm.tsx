@@ -203,7 +203,7 @@ export function DpsPlanningForm({
                     {concretePlanning.map(plan => (
                         <div key={plan.id} className="grid grid-cols-[1.2fr_1.5fr_1.5fr_auto] gap-4 items-center group">
                             {concreteMode === 'Date-wise' ? (
-                                <input type="date" value={plan.date} onChange={e => updateRecord(setConcretePlanning, plan.id, 'date', e.target.value)} className="w-full px-3 py-2 text-xs font-bold text-blue-600 bg-gray-50 border border-gray-200 rounded-sm focus:border-blue-400 outline-none" />
+                                <input type="date" value={plan.date || ''} onChange={e => updateRecord(setConcretePlanning, plan.id, 'date', e.target.value)} className="w-full px-3 py-2 text-xs font-bold text-blue-600 bg-gray-50 border border-gray-200 rounded-sm focus:border-blue-400 outline-none" />
                             ) : (
                                 <input type="text" value={plan.date} onChange={e => updateRecord(setConcretePlanning, plan.id, 'date', e.target.value)} className="w-full px-3 py-2 text-xs font-bold text-gray-700 bg-gray-50 border border-gray-200 rounded-sm focus:border-blue-400 outline-none" placeholder="January 2024" />
                             )}
@@ -214,7 +214,15 @@ export function DpsPlanningForm({
                                     <option key={area.name} value={area.name}>{area.name}</option>
                                 ))}
                             </select>
-                            <input type="number" value={plan.concretePlanned} onChange={e => updateRecord(setConcretePlanning, plan.id, 'concretePlanned', e.target.value)} className="w-full px-3 py-2 text-xs font-bold text-gray-700 bg-gray-50 border border-gray-200 rounded-sm focus:border-blue-400 outline-none" placeholder="CUM" />
+                            <input
+                                type="number"
+                                min="0"
+                                onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                                value={plan.concretePlanned}
+                                onChange={e => updateRecord(setConcretePlanning, plan.id, 'concretePlanned', Math.max(0, parseFloat(e.target.value) || 0))}
+                                className="w-full px-3 py-2 text-xs font-bold text-gray-700 bg-gray-50 border border-gray-200 rounded-sm focus:border-blue-400 outline-none"
+                                placeholder="CUM"
+                            />
                             <button onClick={() => removeRecord(setConcretePlanning, plan.id)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-sm transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={16} /></button>
                         </div>
                     ))}
@@ -277,7 +285,15 @@ export function DpsPlanningForm({
                                 {siteConfig?.towers?.map((t: any, idx: number) => <option key={idx} value={t.name}>{t.name || `Tower ${idx + 1}`}</option>)}
                             </select>
                             <input type="text" value={plan.designation || ''} onChange={e => updateRecord(setStaffPlanning, plan.id, 'designation', e.target.value)} className="w-full px-3 py-2 text-xs font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-sm focus:border-blue-400 outline-none" placeholder="E.g. Site Engineer" />
-                            <input type="number" value={plan.plannedCount || ''} onChange={e => updateRecord(setStaffPlanning, plan.id, 'plannedCount', e.target.value)} className="w-full px-3 py-2 text-xs font-bold text-gray-700 bg-gray-50 border border-gray-200 rounded-sm focus:border-blue-400 outline-none text-center" placeholder="0" />
+                            <input
+                                type="number"
+                                min="0"
+                                onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                                value={plan.plannedCount || ''}
+                                onChange={e => updateRecord(setStaffPlanning, plan.id, 'plannedCount', Math.max(0, parseInt(e.target.value) || 0))}
+                                className="w-full px-3 py-2 text-xs font-bold text-gray-700 bg-gray-50 border border-gray-200 rounded-sm focus:border-blue-400 outline-none text-center"
+                                placeholder="0"
+                            />
                             <button onClick={() => removeRecord(setStaffPlanning, plan.id)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-sm transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={16} /></button>
                         </div>
                     ))}
@@ -345,7 +361,15 @@ export function DpsPlanningForm({
                                     </div>
                                     <input type="text" value={plan.labourName || ''} onChange={e => updateRecord(setLabourPlanning, plan.id, 'labourName', e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-sm focus:border-red-400 outline-none text-xs font-medium" placeholder="Name/Agency..." />
                                     <input type="text" value={plan.type || ''} onChange={e => updateRecord(setLabourPlanning, plan.id, 'type', e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-sm focus:border-red-400 outline-none text-xs font-medium" placeholder="Trade..." />
-                                    <input type="number" value={plan.plannedCount || ''} onChange={e => updateRecord(setLabourPlanning, plan.id, 'plannedCount', e.target.value)} className="w-full px-2 py-2 bg-white border border-gray-200 rounded-sm focus:border-red-400 outline-none text-xs font-bold text-center" placeholder="0" />
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                                        value={plan.plannedCount || ''}
+                                        onChange={e => updateRecord(setLabourPlanning, plan.id, 'plannedCount', Math.max(0, parseInt(e.target.value) || 0))}
+                                        className="w-full px-2 py-2 bg-white border border-gray-200 rounded-sm focus:border-red-400 outline-none text-xs font-bold text-center"
+                                        placeholder="0"
+                                    />
                                     <button onClick={() => removeRecord(setLabourPlanning, plan.id)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-sm transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={14} /></button>
                                 </div>
                             ))}
@@ -432,8 +456,8 @@ export function DpsPlanningForm({
                                             <input type="text" value={sched.customFloor || ''} onChange={e => updateRecord(setMonthlySchedules, sched.id, 'customFloor', e.target.value)} placeholder="..." className="w-full px-2 py-1 bg-white border border-purple-200 rounded-sm outline-none text-[9px] font-medium" />
                                         )}
                                     </div>
-                                    <input type="date" value={sched.target_date || sched.date} onChange={e => updateRecord(setMonthlySchedules, sched.id, 'target_date', e.target.value)} className="w-full px-2 py-2 bg-white border border-gray-200 rounded-sm focus:border-purple-400 outline-none text-[10px] font-bold text-blue-600" />
-                                    <input type="text" value={sched.purpose} onChange={e => updateRecord(setMonthlySchedules, sched.id, 'purpose', e.target.value)} className="w-full px-2 py-2 bg-white border border-gray-200 rounded-sm focus:border-purple-400 outline-none text-[10px] font-medium" placeholder="Activity..." />
+                                    <input type="date" value={sched.target_date || sched.date || ''} onChange={e => updateRecord(setMonthlySchedules, sched.id, 'target_date', e.target.value)} className="w-full px-2 py-2 bg-white border border-gray-200 rounded-sm focus:border-purple-400 outline-none text-[10px] font-bold text-blue-600" />
+                                    <input type="text" value={sched.purpose || ''} onChange={e => updateRecord(setMonthlySchedules, sched.id, 'purpose', e.target.value)} className="w-full px-2 py-2 bg-white border border-gray-200 rounded-sm focus:border-purple-400 outline-none text-[10px] font-medium" placeholder="Activity..." />
                                     <button onClick={() => removeRecord(setMonthlySchedules, sched.id)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-sm transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={14} /></button>
                                 </div>
                             ))}
@@ -472,7 +496,7 @@ export function DpsPlanningForm({
                                 Sync
                             </button>
                             <button
-                                onClick={() => addRecord(setEquipments, { towerId: 'Overall', name: '', required: '', available: '' })}
+                                onClick={() => addRecord(setEquipments, { towerId: 'Overall', name: '', required: '' })}
                                 className="text-blue-600 font-bold text-xs bg-blue-50 px-4 py-2 rounded-sm hover:bg-blue-100 flex items-center gap-2 transition-all shadow-sm active:scale-95"
                             >
                                 <Plus size={14} />
@@ -480,11 +504,11 @@ export function DpsPlanningForm({
                             </button>
                         </div>
                     </div>
-                    <div className="grid grid-cols-[1fr_1fr_1.5fr_1fr_1fr_auto] gap-4 font-bold text-[10px] text-gray-400 uppercase tracking-wider px-2">
-                        <div>{equipmentMode === 'Date-wise' ? 'Date' : 'Month'}</div><div>Select Tower</div><div>Equipment Name</div><div>Required</div><div>Available</div><div></div>
+                    <div className="grid grid-cols-[1fr_1fr_1.5fr_1fr_auto] gap-4 font-bold text-[10px] text-gray-400 uppercase tracking-wider px-2">
+                        <div>{equipmentMode === 'Date-wise' ? 'Date' : 'Month'}</div><div>Select Tower</div><div>Equipment Name</div><div>Required Count</div><div></div>
                     </div>
                     {equipments.map(eq => (
-                        <div key={eq.id} className="grid grid-cols-[1fr_1fr_1.5fr_1fr_1fr_auto] gap-4 items-center group">
+                        <div key={eq.id} className="grid grid-cols-[1fr_1fr_1.5fr_1fr_auto] gap-4 items-center group">
                             {equipmentMode === 'Date-wise' ? (
                                 <input type="date" value={eq.date || ''} onChange={e => updateRecord(setEquipments, eq.id, 'date', e.target.value)} className="w-full px-3 py-2 text-xs font-bold text-blue-600 bg-gray-50 border border-gray-200 rounded-sm focus:border-blue-400 outline-none" />
                             ) : (
@@ -513,8 +537,15 @@ export function DpsPlanningForm({
                                     />
                                 )}
                             </div>
-                            <input type="number" value={eq.required} onChange={e => updateRecord(setEquipments, eq.id, 'required', e.target.value)} className="w-full px-3 py-2 text-xs font-bold text-gray-700 bg-gray-50 border border-gray-200 rounded-sm focus:border-blue-400 outline-none text-center" placeholder="0" />
-                            <input type="number" value={eq.available} onChange={e => updateRecord(setEquipments, eq.id, 'available', e.target.value)} className="w-full px-3 py-2 text-xs font-bold text-gray-700 bg-gray-50 border border-gray-200 rounded-sm focus:border-blue-400 outline-none text-center" placeholder="0" />
+                            <input
+                                type="number"
+                                min="0"
+                                onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                                value={eq.required ?? ''}
+                                onChange={e => updateRecord(setEquipments, eq.id, 'required', Math.max(0, parseInt(e.target.value) || 0))}
+                                className="w-full px-3 py-2 text-xs font-bold text-gray-700 bg-gray-50 border border-gray-200 rounded-sm focus:border-blue-400 outline-none text-center"
+                                placeholder="0"
+                            />
                             <button onClick={() => removeRecord(setEquipments, eq.id)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-sm transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={16} /></button>
                         </div>
                     ))}

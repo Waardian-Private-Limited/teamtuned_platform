@@ -40,16 +40,11 @@ export default function DpsPlannedSchedules({ siteId, unitId, unitName, backPath
         setLoading(true);
         try {
             const [schedRes, siteRes] = await Promise.all([
-                apiClient<any>('/dps-schedule', { method: 'GET', withAuth: true }),
+                apiClient<any>(`/dps-schedule?siteId=${siteId}&unitId=${unitId}&type=${planType}`, { method: 'GET', withAuth: true }),
                 apiClient<any>(`/sites/${siteId}`, { method: 'GET', withAuth: true })
             ]);
 
-            const allSchedules = schedRes.schedules || [];
-            const filtered = allSchedules.filter((s: any) => 
-                String(s.site_id) === String(siteId) && 
-                String(s.unit_id) === String(unitId)
-            );
-            setSchedules(filtered);
+            setSchedules(schedRes.schedules || []);
             if (siteRes?.site) setSiteName(siteRes.site.name);
         } catch {
             toast.error('Failed to load schedules');
@@ -74,7 +69,7 @@ export default function DpsPlannedSchedules({ siteId, unitId, unitName, backPath
                     <ArrowLeft size={18} />
                 </button>
                 <div>
-                    <h1 className="text-lg font-semibold text-gray-900">{unitName} — DPR Schedules</h1>
+                    <h1 className="text-lg font-semibold text-gray-900">{unitName} — {planType === 'cbd' ? 'CBD' : 'Planning'} Schedule History</h1>
                     <p className="text-sm text-gray-500 mt-0.5">{siteName} • Site ID: {siteId}</p>
                 </div>
                 <button
@@ -91,6 +86,7 @@ export default function DpsPlannedSchedules({ siteId, unitId, unitName, backPath
                     <thead>
                         <tr className="bg-gray-50 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
                             <th className="px-6 py-4">Validity Period</th>
+                            <th className="px-6 py-4 text-center">Version</th>
                             <th className="px-6 py-4">Status</th>
                             <th className="px-6 py-4">Last Updated</th>
                             <th className="px-6 py-4 text-right">Actions</th>
@@ -101,6 +97,7 @@ export default function DpsPlannedSchedules({ siteId, unitId, unitName, backPath
                             Array.from({ length: 3 }).map((_, i) => (
                                 <tr key={i}>
                                     <td className="px-6 py-4"><div className="h-4 bg-gray-100 rounded w-48 animate-pulse" /></td>
+                                    <td className="px-6 py-4"><div className="h-5 bg-gray-100 rounded w-12 mx-auto animate-pulse" /></td>
                                     <td className="px-6 py-4"><div className="h-5 bg-gray-100 rounded w-20 animate-pulse" /></td>
                                     <td className="px-6 py-4"><div className="h-4 bg-gray-100 rounded w-32 animate-pulse" /></td>
                                     <td className="px-6 py-4 text-right"><div className="h-8 bg-gray-100 rounded w-24 ml-auto animate-pulse" /></td>
@@ -121,6 +118,11 @@ export default function DpsPlannedSchedules({ siteId, unitId, unitName, backPath
                                                 </div>
                                             </div>
                                         </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-center">
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100 uppercase">
+                                            v{sched.version || 1}
+                                        </span>
                                     </td>
                                     <td className="px-6 py-4">
                                         {sched.status === 'active' ? (

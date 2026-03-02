@@ -272,18 +272,13 @@ export default function PrForm() {
                 formData.append('files', file);
             }
 
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/files/upload`, {
+            const response = await apiClient<any>('/files/org-upload/pr_attachments', {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('session_token')}`
-                },
+                withAuth: true,
                 body: formData
             });
 
-            if (!response.ok) throw new Error('Upload failed');
-
-            const data = await response.json();
-            const uploadedFiles: Attachment[] = (data.files || []).map((f: any) => ({
+            const uploadedFiles: Attachment[] = (response.files || []).map((f: any) => ({
                 file_name: f.originalname || f.file_name,
                 file_url: f.location || f.file_url,
                 file_type: f.mimetype || f.file_type,

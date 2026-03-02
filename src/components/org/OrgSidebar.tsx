@@ -458,24 +458,17 @@ export default function OrgSidebar({
                         </div>
                     )}
 
-                    {/* Form Builder Section */}
-                    <>
-                        <CategoryButton label="Form Builder" isOpen={formBuilderOpen} onClick={() => handleToggle(setFormBuilderOpen, formBuilderOpen)} />
-                        {formBuilderOpen && (
-                            <div className="space-y-1 ml-2">
-                                <Item icon={Upload} label="Upload Template" href="/org-admin/form-builder/upload" active={pathname === "/org-admin/form-builder/upload"} />
-                                <Item icon={Layout} label="Forms Library" href="/org-admin/form-builder/library" active={pathname === "/org-admin/form-builder/library"} />
-                            </div>
-                        )}
-                    </>
+
 
                     {/* DPR Section */}
                     <>
                         <CategoryButton label="DPR" isOpen={dpsOpen} onClick={() => handleToggle(setDpsOpen, dpsOpen)} />
                         {dpsOpen && (
                             <div className="space-y-1 ml-2">
-                                <Item icon={LayoutDashboard} label="Dashboard" href="/org-admin/dps" active={pathname === "/org-admin/dps"} />
-                                <Item icon={ClipboardList} label="Submissions" href="/org-admin/dps/submissions" active={pathname === "/org-admin/dps/submissions"} />
+                                <Item icon={LayoutDashboard} label="Planning Dashboard" href="/org-admin/dps/planning-dashboard" active={pathname === "/org-admin/dps/planning-dashboard"} />
+                                <Item icon={LayoutDashboard} label="CBD Dashboard" href="/org-admin/dps/cbd-dashboard" active={pathname === "/org-admin/dps/cbd-dashboard"} />
+                                <Item icon={ClipboardList} label="Planning Submissions" href="/org-admin/dps/planning-submissions" active={pathname === "/org-admin/dps/planning-submissions"} />
+                                <Item icon={ClipboardList} label="CBD Submissions" href="/org-admin/dps/cbd-submissions" active={pathname === "/org-admin/dps/cbd-submissions"} />
                                 <Item icon={Calendar} label="Schedule" href="/org-admin/dps/schedule" active={pathname === "/org-admin/dps/schedule"} />
                                 <Item icon={UserPlus} label="Assignments" href="/org-admin/dps/assignments" active={pathname === "/org-admin/dps/assignments"} />
                             </div>
