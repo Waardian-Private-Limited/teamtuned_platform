@@ -60,6 +60,10 @@ interface SiteConfig {
     staffList?: Staff[];
     laborTypes?: LaborType[];
     equipments?: Equipment[];
+    cbd_assignees?: StaffEmployee[];
+    cbd_reviewers?: StaffEmployee[];
+    planning_assignees?: StaffEmployee[];
+    planning_reviewers?: StaffEmployee[];
     totalConcretePlanned?: number;
     concreteCumulativeTillDate?: number;
 }
@@ -137,6 +141,17 @@ export function DpsConfigForm({
     const addEquipment = () => { setSiteConfig({ ...siteConfig, equipments: [...(siteConfig.equipments || []), { name: '' }] }); };
     const updateEquipment = (i: number, v: string) => { const e = [...(siteConfig.equipments || [])]; e[i].name = v; setSiteConfig({ ...siteConfig, equipments: e }); };
     const removeEquipment = (i: number) => { setSiteConfig({ ...siteConfig, equipments: (siteConfig.equipments || []).filter((_, idx) => idx !== i) }); };
+
+    // Authority helpers
+    const addAuthority = (type: 'cbd_assignees' | 'cbd_reviewers' | 'planning_assignees' | 'planning_reviewers', emp: StaffEmployee) => {
+        const list = siteConfig[type] || [];
+        if (list.find(e => e.employee_id === emp.employee_id)) return;
+        setSiteConfig({ ...siteConfig, [type]: [...list, emp] });
+    };
+    const removeAuthority = (type: 'cbd_assignees' | 'cbd_reviewers' | 'planning_assignees' | 'planning_reviewers', empId: number) => {
+        const list = siteConfig[type] || [];
+        setSiteConfig({ ...siteConfig, [type]: list.filter(e => e.employee_id !== empId) });
+    };
 
     const populateFromMaster = async (type: 'staff' | 'labor' | 'equipment') => {
         try {
@@ -402,6 +417,52 @@ export function DpsConfigForm({
                                 <button onClick={() => removeStaff(idx)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-all mb-0.5 self-center md:self-end"><Trash2 size={16} /></button>
                             </div>
                         ))}
+                    </section>
+
+                    {/* Schedule Authorities */}
+                    <section className="space-y-4">
+                        <div className="flex items-center justify-between border-b border-gray-200 pb-2">
+                            <div className="flex items-center gap-2">
+                                <Users size={16} className="text-teal-600" />
+                                <h4 className="font-bold text-gray-800">Schedule Authorities</h4>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {([
+                                { key: 'planning_assignees', label: 'Planning Assignees' },
+                                { key: 'planning_reviewers', label: 'Planning Reviewers' },
+                                { key: 'cbd_assignees', label: 'CBD Assignees' },
+                                { key: 'cbd_reviewers', label: 'CBD Reviewers' }
+                            ] as const).map(({ key, label }) => (
+                                <div key={key} className="px-3 py-3 text-sm bg-white rounded border border-gray-200 space-y-3 hover:border-teal-200 transition-all">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{label}</label>
+                                        <EmployeeSelect
+                                            employees={employees}
+                                            onChange={(id, name) => {
+                                                if (id && name) addAuthority(key, { employee_id: id, employee_name: name });
+                                            }}
+                                            placeholder="Add Employee..."
+                                        />
+                                        {siteConfig[key] && siteConfig[key]!.length > 0 && (
+                                            <div className="flex flex-wrap gap-1.5 mt-2">
+                                                {siteConfig[key]!.map(emp => (
+                                                    <div key={emp.employee_id} className="flex items-center gap-1 px-2 py-0.5 bg-teal-50 text-teal-700 border border-teal-100 rounded-full text-xs font-medium">
+                                                        <span>{emp.employee_name}</span>
+                                                        <button
+                                                            onClick={() => removeAuthority(key, emp.employee_id)}
+                                                            className="p-0.5 hover:bg-teal-200 rounded-full transition-colors"
+                                                        >
+                                                            <X size={10} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </section>
 
                     {/* Labor Types */}
