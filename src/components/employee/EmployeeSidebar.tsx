@@ -85,7 +85,6 @@ export default function EmployeeSidebar({
   const [otherOpen, setOtherOpen] = React.useState(false);
   const [laborOpen, setLaborOpen] = React.useState(false);
   const [hrOperationOpen, setHrOperationOpen] = React.useState(true);
-  const [formBuilderOpen, setFormBuilderOpen] = React.useState(true);
   const [dpsOpen, setDpsOpen] = React.useState(true);
   const [reimbursementsOpen, setReimbursementsOpen] = React.useState(false);
   const [isNavigating, setIsNavigating] = React.useState(false);
@@ -215,7 +214,6 @@ export default function EmployeeSidebar({
 
       setTaskOpen(isActive(["/employee/tasks", "/employee/task-assignments", "/employee/task-dashboard"]));
       setDpsOpen(isActive(["/employee/dps"]));
-      setFormBuilderOpen(isActive(["/employee/form-builder"]));
       setLaborOpen(isActive(["/employee/labor-attendance", "/employee/labor/"]));
       setHrOperationOpen(isActive(["/employee/department-mapper", "/employee/hr-operation"]));
       setReimbursementsOpen(isActive([
@@ -236,7 +234,6 @@ export default function EmployeeSidebar({
       setInventoryOpen(isActive(["/employee/inventory", "/employee/rfq", "/employee/pr"]));
       setTaskOpen(isActive(["/employee/tasks", "/employee/task-assignments", "/employee/task-dashboard"]));
       setDpsOpen(isActive(["/employee/dps"]));
-      setFormBuilderOpen(isActive(["/employee/form-builder"]));
       setLaborOpen(isActive(["/employee/labor-attendance", "/employee/labor/"]));
       setHrOperationOpen(isActive(["/employee/department-mapper", "/employee/hr-operation"]));
       setReimbursementsOpen(isActive(["/org/hr-operation/reimbursements", "/org/accounts/reimbursements", "/employee/hr-operation/reimbursements"]));
@@ -253,7 +250,6 @@ export default function EmployeeSidebar({
     setInventoryOpen(false);
     setTaskOpen(false);
     setDpsOpen(false);
-    setFormBuilderOpen(false);
     setLaborOpen(false);
     setHrOperationOpen(false);
     setReimbursementsOpen(false);
@@ -1323,6 +1319,65 @@ export default function EmployeeSidebar({
             </div>
           )
         }
+
+
+
+
+
+        {/* DPR Section */}
+        <div className="mt-2">
+          {!isCollapsed && (
+            <CategoryButton
+              label="DPR"
+              isOpen={dpsOpen}
+              onClick={() => handleToggle(setDpsOpen, dpsOpen)}
+            />
+          )}
+          {dpsOpen && (
+            <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+              <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                <Item
+                  icon={LayoutDashboard}
+                  label="Planning Dashboard"
+                  href="/employee/dps/planning-dashboard"
+                  active={pathname === "/employee/dps/planning-dashboard"}
+                />
+                <Item
+                  icon={LayoutDashboard}
+                  label="CBD Dashboard"
+                  href="/employee/dps/cbd-dashboard"
+                  active={pathname === "/employee/dps/cbd-dashboard"}
+                />
+                <Item
+                  icon={ClipboardList}
+                  label="Planning Submissions"
+                  href="/employee/dps/planning-submissions"
+                  active={pathname === "/employee/dps/planning-submissions"}
+                />
+                <Item
+                  icon={ClipboardList}
+                  label="CBD Submissions"
+                  href="/employee/dps/cbd-submissions"
+                  active={pathname === "/employee/dps/cbd-submissions"}
+                />
+                <Item
+                  icon={Calendar}
+                  label="Schedule"
+                  href="/employee/dps/schedule"
+                  active={pathname === "/employee/dps/schedule"}
+                />
+                <Item
+                  icon={UserPlus}
+                  label="Assignments"
+                  href="/employee/dps/assignments"
+                  active={pathname === "/employee/dps/assignments"}
+                />
+
+              </div>
+            </div>
+          )}
+        </div>
+
 
         {/* Labor Management Section */}
         {

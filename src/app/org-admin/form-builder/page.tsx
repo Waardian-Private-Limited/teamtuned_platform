@@ -20,7 +20,7 @@ export default function FormBuilderPage() {
         templateName={name}
         templateDescription={description}
         onDirtyChange={setDirty}
-        onBack={() => router.push("/org-admin/form-builder/library")}
+        onBack={() => router.push("/org-admin/tasks")}
         customApiUrl={isAnalyzed ? `/form-builder/templates/${id}` : undefined}
         customSaveUrl={isAnalyzed ? `/form-builder/templates/${id}` : undefined}
       />

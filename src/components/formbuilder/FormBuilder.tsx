@@ -36,10 +36,13 @@ import {
   Monitor,
   Copy,
   Layout,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import type { FormField, FieldType, FieldOption, TemplateSnapshot } from "./types";
 import { apiClient } from "@/lib/apiClient";
+import AIBot from "@/components/shared/AIBot";
 
 const WIDGET_GROUPS: { title: string; items: { type: FieldType; label: string; icon: React.ReactNode; description: string }[] }[] = [
   {
@@ -347,12 +350,103 @@ export default function FormBuilder({
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [dirty, setDirty] = React.useState(false);
   const [showConfirm, setShowConfirm] = React.useState(false);
-  const [toast, setToast] = React.useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const [toast, setToast] = React.useState<{ type: "success" | "error" | "info"; msg: string } | null>(null);
   const [showSystemFields, setShowSystemFields] = React.useState(false);
   const [showSaveModal, setShowSaveModal] = React.useState(false);
   const [savePublish, setSavePublish] = React.useState(true);
   const [saveLoading, setSaveLoading] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
+
+  const aiFileInputRef = React.useRef<HTMLInputElement>(null);
+  const [aiAnalyzing, setAiAnalyzing] = React.useState(false);
+
+  const handleAIUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setAiAnalyzing(true);
+    setToast({ type: "info", msg: "AI is analyzing your document..." });
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await apiClient<any>("/form-builder/analyze", {
+        method: "POST",
+        body: formData,
+        withAuth: true,
+      });
+
+      if (res && res.sections) {
+        // Flat logic to extract all fields from analyzed sections
+        const extractedFields: FormField[] = [];
+        let seq = 1;
+
+        res.sections.forEach((sec: any) => {
+          if (sec.type === "section" && sec.fields) {
+            // Add section itself if needed, or just flatten?
+            // Legacy analyzeDocument returns 'Line X' sections. 
+            // We'll flatten them but keep actual named mapping if possible.
+
+            const isLineBlock = /^Line \d+$/.test(sec.section_name?.trim() || "");
+            let sectionId: string | null = null;
+
+            if (!isLineBlock) {
+              sectionId = uuidv4();
+              extractedFields.push({
+                id: sectionId,
+                field_key: sec.field_key || `section_${seq}`,
+                label: sec.section_name || `Section ${seq}`,
+                field_type: "section",
+                sequence: seq++,
+                metadata: {},
+                is_active: true,
+                parent_section_id: null
+              });
+            }
+
+            sec.fields.forEach((f: any) => {
+              extractedFields.push({
+                id: uuidv4(),
+                field_key: f.field_key,
+                label: f.label || "Untitled Field",
+                field_type: f.field_type as FieldType,
+                sequence: seq++,
+                metadata: f.metadata || {},
+                is_active: true,
+                parent_section_id: sectionId,
+                options: f.options
+              });
+            });
+          }
+        });
+
+        if (extractedFields.length > 0) {
+          setFields(ensureSystemFields(extractedFields));
+          setNameInput(res.form_name || file.name.split(".")[0]);
+          setToast({ type: "success", msg: "✅ AI analysis complete! Fields populated." });
+          setDirty(true);
+
+          // If the backend returned a templateId, we might want to track it for updates
+          if (res.templateId) {
+            // This is a bit tricky as customSaveUrl is a prop, not state.
+            // For now, we'll assume customSaveUrl is only set initially or via parent.
+            // If we need to update it based on AI response, it would need to be state.
+            // setCustomSaveUrl(`/form-builder/templates/${res.templateId}`);
+          }
+        } else {
+          setToast({ type: "error", msg: "AI couldn't find any fields in this document." });
+        }
+      }
+    } catch (err: any) {
+      console.error("AI Analysis failed", err);
+      setToast({ type: "error", msg: `Analysis failed: ${err.message || "Unknown error"}` });
+    } finally {
+      setAiAnalyzing(false);
+      if (aiFileInputRef.current) aiFileInputRef.current.value = "";
+    }
+  };
+
   const [nameInput, setNameInput] = React.useState<string>(templateName);
   const [descInput, setDescInput] = React.useState<string>(templateDescription);
   const templateIdNumeric = React.useMemo(() => !!templateId && /^[0-9]+$/.test(String(templateId)), [templateId]);
@@ -969,6 +1063,26 @@ export default function FormBuilder({
           </button>
 
           <button
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-colors border shadow-sm ${aiAnalyzing
+              ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+              : "bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+              }`}
+            onClick={() => aiFileInputRef.current?.click()}
+            disabled={aiAnalyzing}
+          >
+            {aiAnalyzing ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
+            {aiAnalyzing ? "Analyzing..." : "AI Generate"}
+          </button>
+
+          <input
+            type="file"
+            ref={aiFileInputRef}
+            className="hidden"
+            accept=".xlsx,.xls,.pdf,image/*"
+            onChange={handleAIUpload}
+          />
+
+          <button
             className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-colors ${!canSave
               ? "bg-indigo-400 cursor-not-allowed opacity-60 text-white"
               : "bg-indigo-600 hover:bg-indigo-700 text-white"
@@ -1038,6 +1152,9 @@ export default function FormBuilder({
             ))}
           </div>
         </aside>
+
+        {/* AI Assistant */}
+        <AIBot />
 
         {/* Center Canvas */}
         <main className="flex-1 overflow-y-auto p-6">

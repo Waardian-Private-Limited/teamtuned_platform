@@ -42,6 +42,8 @@ export default function DpsSiteSchedule({ siteId, backPath, dailyUpdatePath }: D
     const [labourScope, setLabourScope] = useState<'Tower-wise' | 'Overall'>('Tower-wise');
     const [equipmentMode, setEquipmentMode] = useState<'Date-wise' | 'Monthly'>('Date-wise');
     const [equipmentScope, setEquipmentScope] = useState<'Tower-wise' | 'Overall'>('Tower-wise');
+    const [clientBillTargetDate, setClientBillTargetDate] = useState('');
+    const [contractorBillTargetDate, setContractorBillTargetDate] = useState('');
 
     const [confirmationModal, setConfirmationModal] = useState<{
         isOpen: boolean;
@@ -65,7 +67,7 @@ export default function DpsSiteSchedule({ siteId, backPath, dailyUpdatePath }: D
     const [staffPlanning, setStaffPlanning] = useState([{ id: 1, towerId: 'Overall', designation: '', plannedCount: '' }]);
     const [labourPlanning, setLabourPlanning] = useState([{ id: 1, towerId: 'Overall', date: '', labourName: '', type: '', plannedCount: '' }]);
     const [monthlySchedules, setMonthlySchedules] = useState([{ id: 1, towerId: '', floor: '', customFloor: '', target_date: '', achieved_date: '', date: '', purpose: '', is_achieved: false, client_bill_acheived: false }]);
-    const [equipments, setEquipments] = useState<any[]>([{ id: 1, towerId: 'Overall', name: '', required: '', available: '' }]);
+    const [equipments, setEquipments] = useState<any[]>([{ id: 1, towerId: 'Overall', name: '', required: '' }]);
     const [materials, setMaterials] = useState([{ id: 1, name: '', quantity: '', requiredDate: '' }]);
     const equipmentList = ['Crane', 'Excavator', 'Concrete Mixer', 'Bulldozer', 'Other (Add New)'];
 
@@ -111,6 +113,8 @@ export default function DpsSiteSchedule({ siteId, backPath, dailyUpdatePath }: D
                 const qParams = new URLSearchParams();
                 if (scheduleIdParam) qParams.append('scheduleId', scheduleIdParam);
                 if (unitId) qParams.append('unitId', unitId);
+                const currentType = searchParams.get('type') || planType;
+                if (currentType) qParams.append('type', currentType);
                 if (qParams.toString()) url += `?${qParams.toString()}`;
 
                 const schedRes = await apiClient<any>(url, { method: 'GET', withAuth: true });
@@ -145,6 +149,8 @@ export default function DpsSiteSchedule({ siteId, backPath, dailyUpdatePath }: D
                     if (sched.labour_scope) setLabourScope(sched.labour_scope);
                     if (sched.equipment_mode) setEquipmentMode(sched.equipment_mode);
                     if (sched.equipment_scope) setEquipmentScope(sched.equipment_scope);
+                    if (sched.client_bill_target_date) setClientBillTargetDate(formatDate(sched.client_bill_target_date));
+                    if (sched.contractor_bill_target_date) setContractorBillTargetDate(formatDate(sched.contractor_bill_target_date));
                     setIsEditMode(false);
                 }
             } catch {
@@ -204,7 +210,10 @@ export default function DpsSiteSchedule({ siteId, backPath, dailyUpdatePath }: D
                     labourMode,
                     labourScope,
                     equipmentMode,
-                    equipmentScope
+                    equipmentScope,
+                    client_bill_target_date: clientBillTargetDate,
+                    contractor_bill_target_date: contractorBillTargetDate,
+                    plan_type: planType
                 }
             });
             if (res) {
@@ -519,8 +528,7 @@ export default function DpsSiteSchedule({ siteId, backPath, dailyUpdatePath }: D
                                 date: dateOrMonth,
                                 towerId: s.name || 'Overall',
                                 name: eq.name || '',
-                                required: '',
-                                available: ''
+                                required: eq.required || eq.count || eq.qty || ''
                             });
                         });
                     });
@@ -556,13 +564,12 @@ export default function DpsSiteSchedule({ siteId, backPath, dailyUpdatePath }: D
                 date: equipmentMode === 'Date-wise' ? dateStr : new Date().toLocaleString('default', { month: 'long', year: 'numeric' }),
                 towerId: 'Overall',
                 name: eq.name || '',
-                required: '',
-                available: ''
+                required: eq.required || eq.count || eq.qty || ''
             }));
 
             if (newPlanning.length > 0) {
                 setEquipments(prev => {
-                    const current = prev.filter(p => p.name || p.required || p.available);
+                    const current = prev.filter(p => p.name || p.required);
                     return [...current, ...newPlanning];
                 });
                 toast.success(`Synced ${newPlanning.length} equipments from config.`);
@@ -599,6 +606,10 @@ export default function DpsSiteSchedule({ siteId, backPath, dailyUpdatePath }: D
                         scheduleValidTill={scheduleValidTill}
                         setScheduleValidTill={setScheduleValidTill}
                         getValidityDuration={getValidityDuration}
+                        clientBillTargetDate={clientBillTargetDate}
+                        setClientBillTargetDate={setClientBillTargetDate}
+                        contractorBillTargetDate={contractorBillTargetDate}
+                        setContractorBillTargetDate={setContractorBillTargetDate}
                     />
                 ) : (
                     <DpsPlanningForm
@@ -653,40 +664,6 @@ export default function DpsSiteSchedule({ siteId, backPath, dailyUpdatePath }: D
                 )}
             </div>
 
-            {/* 8. Execution Log */}
-            {!isEditMode && scheduleId && scheduleValidFrom && scheduleValidTill && planType === 'planning' && (
-                <div className="bg-white p-5 rounded-sm border border-gray-200 shadow-sm space-y-5 mb-32">
-                    <div className="border-b border-gray-50 pb-4">
-                        <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-3"><Clock className="text-green-600" size={22} />Site Execution Log</h2>
-                        <p className="text-gray-500 font-medium ml-10 mt-1">A form is ready for every day of your {getValidityDuration()}-day schedule.</p>
-                    </div>
-                    <div className="space-y-3">
-                        {Array.from({ length: getValidityDuration() }).map((_, i) => {
-                            const date = new Date(scheduleValidFrom);
-                            date.setDate(date.getDate() + i);
-                            const dateStr = date.toISOString().split('T')[0];
-                            const isToday = dateStr === new Date().toISOString().split('T')[0];
-                            return (
-                                <div key={dateStr} className={`group flex items-center justify-between px-3 py-2 text-sm rounded-sm border transition-all ${isToday ? 'bg-blue-50/50 border-blue-200' : 'bg-gray-50/30 border-gray-50 hover:border-gray-200'}`}>
-                                    <div className="flex items-center gap-4">
-                                        <div className={`w-10 h-10 rounded-sm flex items-center justify-center font-bold ${isToday ? 'bg-blue-600 text-white' : 'bg-white text-gray-400 border border-gray-200'}`}>{i + 1}</div>
-                                        <div>
-                                            <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                                                {new Date(dateStr).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })}
-                                                {isToday && <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase tracking-widest">Today</span>}
-                                            </h3>
-                                            <p className="text-xs text-gray-400 font-medium">Daily Execution Form — {siteData?.name}</p>
-                                        </div>
-                                    </div>
-                                    <button onClick={() => router.push(`${dailyUpdatePath}?siteId=${siteId}&date=${dateStr}`)} className="px-6 py-2 bg-white border border-gray-200 text-gray-700 font-bold text-sm rounded-sm hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center gap-2">
-                                        View/Record Actuals <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-900 group-hover:translate-x-1 transition-all" />
-                                    </button>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
 
             {/* Action Bar */}
             <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-3 py-2 text-sm flex justify-end gap-4 shadow-sm border-t border-gray-200 z-50">

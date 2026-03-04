@@ -90,7 +90,7 @@ function DailyUpdateContent({ basePath }: DpsDailyUpdateProps) {
 
                 const initialEquip = (s.equipments || [])
                     .filter((eq: any) => !eq.date || eq.date === updateDate)
-                    .map((eq: any) => ({ ...eq, actualAvailable: eq.available, breakdown: '' }));
+                    .map((eq: any) => ({ ...eq, breakdown: '' }));
                 const initialMaterials = (s.materials || []).map((mat: any) => ({ ...mat, status: 'Pending' }));
 
                 // 2. Override with Prior Saved Actuals for this Date (if any)
@@ -258,8 +258,11 @@ function DailyUpdateContent({ basePath }: DpsDailyUpdateProps) {
                             <div key={item.id} className="grid grid-cols-[1fr_1fr_1fr] gap-4 items-center bg-gray-50 p-4 rounded-xl">
                                 <span className="font-medium text-gray-600">Planned: <span className="font-bold text-black">{item.concretePlanned || 0}</span></span>
                                 <input
-                                    type="text" value={item.concreteAchieved}
-                                    onChange={(e) => updateArrayField(setConcreteAchieved, concreteAchieved, item.id, 'concreteAchieved', e.target.value)}
+                                    type="number"
+                                    min="0"
+                                    onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                                    value={item.concreteAchieved}
+                                    onChange={(e) => updateArrayField(setConcreteAchieved, concreteAchieved, item.id, 'concreteAchieved', Math.max(0, parseFloat(e.target.value) || 0))}
                                     className="p-3 border rounded-xl outline-none" placeholder="Actual Achieved"
                                 />
                             </div>
@@ -276,7 +279,14 @@ function DailyUpdateContent({ basePath }: DpsDailyUpdateProps) {
                                     <div key={item.id} className="grid grid-cols-[1fr_100px_100px] gap-2 items-center text-sm py-2 border-b border-gray-100 last:border-0">
                                         <span className="font-bold">{item.designation}</span>
                                         <span className="text-gray-400 text-center">Req: {item.plannedCount}</span>
-                                        <input type="number" placeholder="Actual" value={item.actualCount} onChange={e => updateArrayField(setStaffActual, staffActual, item.id, 'actualCount', e.target.value)} className="p-2 bg-gray-50 border rounded-lg outline-none text-center" />
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                                            placeholder="Actual" value={item.actualCount}
+                                            onChange={e => updateArrayField(setStaffActual, staffActual, item.id, 'actualCount', Math.max(0, parseInt(e.target.value) || 0))}
+                                            className="p-2 bg-gray-50 border rounded-lg outline-none text-center"
+                                        />
                                     </div>
                                 ))}
                             </div>
@@ -286,7 +296,14 @@ function DailyUpdateContent({ basePath }: DpsDailyUpdateProps) {
                                     <div key={item.id} className="grid grid-cols-[1fr_100px_100px] gap-2 items-center text-sm py-2 border-b border-gray-100 last:border-0">
                                         <span className="font-bold">{item.type}</span>
                                         <span className="text-gray-400 text-center">Req: {item.plannedCount}</span>
-                                        <input type="number" placeholder="Actual" value={item.actualCount} onChange={e => updateArrayField(setLabourActual, labourActual, item.id, 'actualCount', e.target.value)} className="p-2 bg-gray-50 border rounded-lg outline-none text-center" />
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
+                                            placeholder="Actual" value={item.actualCount}
+                                            onChange={e => updateArrayField(setLabourActual, labourActual, item.id, 'actualCount', Math.max(0, parseInt(e.target.value) || 0))}
+                                            className="p-2 bg-gray-50 border rounded-lg outline-none text-center"
+                                        />
                                     </div>
                                 ))}
                             </div>
@@ -314,7 +331,7 @@ function DailyUpdateContent({ basePath }: DpsDailyUpdateProps) {
                                 </span>
                                 <span className="text-gray-600 text-sm">{item.purpose}</span>
                                 <span className="text-blue-600 font-bold text-xs">{item.target_date || item.date}</span>
-                                <input type="date" value={item.achieved_date} onChange={e => updateArrayField(setMonthlyAchieved, monthlyAchieved, item.id, 'achieved_date', e.target.value)} className="p-2 bg-white border border-gray-200 rounded-lg outline-none text-xs" />
+                                <input type="date" value={item.achieved_date || ''} onChange={e => updateArrayField(setMonthlyAchieved, monthlyAchieved, item.id, 'achieved_date', e.target.value)} className="p-2 bg-white border border-gray-200 rounded-lg outline-none text-xs" />
                                 <div className="flex justify-center">
                                     <input
                                         type="checkbox"
@@ -341,25 +358,17 @@ function DailyUpdateContent({ basePath }: DpsDailyUpdateProps) {
                             <Wrench size={24} className="text-orange-500" />
                             <h2 className="text-lg font-bold">Equipments Status</h2>
                         </div>
-                        <div className="grid grid-cols-[1.5fr_1fr_100px_100px_1fr] gap-4 font-bold text-xs text-gray-400 uppercase px-4">
+                        <div className="grid grid-cols-[1.5fr_1fr_100px_1fr] gap-4 font-bold text-xs text-gray-400 uppercase px-4">
                             <div>Equipment Name</div>
                             <div>Tower/Area</div>
                             <div className="text-center">Req</div>
-                            <div className="text-center">Actual</div>
                             <div>Breakdown/Remarks</div>
                         </div>
                         {equipmentsActual.map((eq) => (
-                            <div key={eq.id} className="grid grid-cols-[1.5fr_1fr_100px_100px_1fr] gap-4 items-center bg-gray-50 p-4 rounded-xl border border-gray-100">
+                            <div key={eq.id} className="grid grid-cols-[1.5fr_1fr_100px_1fr] gap-4 items-center bg-gray-50 p-4 rounded-xl border border-gray-100">
                                 <div className="font-bold text-gray-900">{eq.name}</div>
                                 <div className="text-sm font-medium text-gray-500">{eq.towerId || 'Overall'}</div>
                                 <div className="text-center font-bold text-blue-600">{eq.required || 0}</div>
-                                <input
-                                    type="number"
-                                    value={eq.actualAvailable ?? ''}
-                                    placeholder="0"
-                                    onChange={e => updateArrayField(setEquipmentsActual, equipmentsActual, eq.id, 'actualAvailable', e.target.value)}
-                                    className="p-2 bg-white border border-gray-200 rounded-lg outline-none text-center font-bold"
-                                />
                                 <input
                                     type="text"
                                     value={eq.breakdown || ''}
