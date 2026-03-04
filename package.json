@@ -11,12 +11,6 @@
     "dev:desktop": "PORT=${PORT:-3000} concurrently -k -n WEB,ELECTRON \"npm run dev\" \"wait-on http://localhost:$PORT && npm run dev:electron\""
   },
   "dependencies": {
-    "@radix-ui/react-dialog": "^1.1.15",
-    "@radix-ui/react-label": "^2.1.8",
-    "@radix-ui/react-select": "^2.2.6",
-    "@radix-ui/react-slot": "^1.2.4",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.23.24",
     "jspdf": "^4.1.0",
@@ -35,7 +29,6 @@
     "react-hot-toast": "^2.6.0",
     "react-select": "^5.10.2",
     "recharts": "^3.4.1",
-    "tailwind-merge": "^3.4.0",
     "uuid": "^13.0.0",
     "xlsx": "^0.18.5",
     "zustand": "^5.0.8"

@@ -895,7 +895,9 @@ function LaborExportModal({
     onClose: () => void;
 }) {
     const [local, setLocal] = useState({ ...current });
+    const [exportType, setExportType] = useState<'daily' | 'month'>('daily');
     const [exportFormat, setExportFormat] = useState<'excel' | 'pdf'>('excel');
+    const [selectedMonth, setSelectedMonth] = useState(format(new Date(), "yyyy-MM"));
     const [submitting, setSubmitting] = useState(false);
     const [subcategories, setSubcategories] = useState<any[]>([]);
 
@@ -925,11 +927,17 @@ function LaborExportModal({
                 contractor_id: local.contractorId,
                 category_id: local.categoryId,
                 subcategory_id: local.subcategoryId,
-                date: local.date,
                 status: local.status === 'all' ? '' : local.status,
                 search: local.search,
-                format: exportFormat
+                format: exportFormat,
+                export_type: exportType
             };
+
+            if (exportType === 'month') {
+                body.month = selectedMonth;
+            } else {
+                body.date = local.date;
+            }
 
             const res = await fetch(`${baseUrl}/labor/attendance/export`, {
                 method: 'POST',
@@ -947,7 +955,8 @@ function LaborExportModal({
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `Labor_Attendance_${local.date}.${exportFormat === 'pdf' ? 'pdf' : 'xlsx'}`;
+            const filename = exportType === 'month' ? `Labor_Monthly_${selectedMonth}` : `Labor_Daily_${local.date}`;
+            a.download = `${filename}.${exportFormat === 'pdf' ? 'pdf' : 'xlsx'}`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -973,6 +982,21 @@ function LaborExportModal({
                     </button>
                 </div>
 
+                <div className="flex gap-4 mb-6 p-1 bg-gray-100 rounded-lg w-fit">
+                    <button
+                        onClick={() => setExportType('daily')}
+                        className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${exportType === 'daily' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Daily Report
+                    </button>
+                    <button
+                        onClick={() => setExportType('month')}
+                        className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${exportType === 'month' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Monthly Report
+                    </button>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {/* Site */}
                     <div>
@@ -987,15 +1011,29 @@ function LaborExportModal({
                         </select>
                     </div>
 
-                    {/* Date */}
+                    {/* Date / Month Picker */}
                     <div>
-                        <label className="block text-xs text-gray-500 mb-1">Date</label>
-                        <input
-                            type="date"
-                            value={local.date}
-                            onChange={(e) => setLocal({ ...local, date: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                        />
+                        {exportType === 'daily' ? (
+                            <>
+                                <label className="block text-xs text-gray-500 mb-1">Date</label>
+                                <input
+                                    type="date"
+                                    value={local.date}
+                                    onChange={(e) => setLocal({ ...local, date: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                />
+                            </>
+                        ) : (
+                            <>
+                                <label className="block text-xs text-gray-500 mb-1">Month</label>
+                                <input
+                                    type="month"
+                                    value={selectedMonth}
+                                    onChange={(e) => setSelectedMonth(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                />
+                            </>
+                        )}
                     </div>
 
                     {/* Contractor */}
@@ -1012,20 +1050,22 @@ function LaborExportModal({
                     </div>
 
                     {/* Status */}
-                    <div>
-                        <label className="block text-xs text-gray-500 mb-1">Status</label>
-                        <select
-                            value={local.status}
-                            onChange={(e) => setLocal({ ...local, status: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                        >
-                            <option value="all">All Status</option>
-                            <option value="present">Present</option>
-                            <option value="active">Currently Active</option>
-                            <option value="completed">Completed Shift</option>
-                            <option value="absent">Absent</option>
-                        </select>
-                    </div>
+                    {exportType === 'daily' && (
+                        <div>
+                            <label className="block text-xs text-gray-500 mb-1">Status</label>
+                            <select
+                                value={local.status}
+                                onChange={(e) => setLocal({ ...local, status: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                            >
+                                <option value="all">All Status</option>
+                                <option value="present">Present</option>
+                                <option value="active">Currently Active</option>
+                                <option value="completed">Completed Shift</option>
+                                <option value="absent">Absent</option>
+                            </select>
+                        </div>
+                    )}
 
                     {/* Category */}
                     <div>

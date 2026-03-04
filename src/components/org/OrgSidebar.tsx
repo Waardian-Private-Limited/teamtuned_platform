@@ -55,13 +55,10 @@ import {
     Link2,
     Award,
     Layout,
-    MessageSquare,
-    Plus,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
 import TeamTunedLoader from "@/components/common/TeamTunedLoader";
-import CreateMeetingForm from "@/components/CreateMeetingForm";
 
 export default function OrgSidebar({
     isCollapsed,
@@ -104,7 +101,6 @@ export default function OrgSidebar({
     const [formBuilderOpen, setFormBuilderOpen] = React.useState(true);
     const [dpsOpen, setDpsOpen] = React.useState(true);
     const [reimbursementsOpen, setReimbursementsOpen] = React.useState(false);
-    const [meetingsOpen, setMeetingsOpen] = React.useState(false);
     const [isNavigating, setIsNavigating] = React.useState(false);
 
     // Auto-collapse on hover state
@@ -481,19 +477,6 @@ export default function OrgSidebar({
                             </div>
                         )}
                     </>
-                    {/* Meetings Section (MoM) */}
-                    {hasFeature("MOM_FEATURE") && (
-                        <>
-                            <CategoryButton label="Meetings" isOpen={meetingsOpen} onClick={() => setMeetingsOpen(!meetingsOpen)} />
-                            {meetingsOpen && (
-                                <div className="space-y-1 ml-2">
-                                    <Item icon={MessageSquare} label="All Meetings" href="/org-admin/meetings" active={pathname === "/org-admin/meetings"} />
-                                    <Item icon={BarChart3} label="Analytics" href="/org-admin/meetings/analytics" active={pathname === "/org-admin/meetings/analytics"} />
-                                    <Item icon={Settings} label="MoM Config" href="/org-admin/meetings/config" active={pathname === "/org-admin/meetings/config"} />
-                                </div>
-                            )}
-                        </>
-                    )}
 
                     {/* Insurance Section */}
                     <>
@@ -591,10 +574,10 @@ export default function OrgSidebar({
                     <div className="space-y-1 ml-2">
                         <Item icon={Cog} label="Organization" href="/org-admin/settings" active={pathname === "/org-admin/settings"} />
                     </div>
-                </div >
+                </div>
 
                 {/* Footer */}
-                < div className="p-4" >
+                <div className="p-4">
                     <button
                         type="button"
                         onClick={onLogout}
@@ -604,12 +587,11 @@ export default function OrgSidebar({
                         <LogOut size={20} className="shrink-0 text-white" />
                         {!isCollapsed && <span className="text-sm font-medium">Logout</span>}
                     </button>
-                </div >
-            </aside >
+                </div>
+            </aside>
 
             {/* Navigation Loader */}
             {isNavigating && <TeamTunedLoader />}
         </>
     );
 }
-
