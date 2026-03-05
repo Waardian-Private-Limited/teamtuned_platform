@@ -446,7 +446,7 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
                                                     </button>
                                                 </div>
                                                 <div className="flex items-center gap-3">
-                                                    <button onClick={() => setEditingPointId(null)} className="text-[10px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors">Cancel</button>
+                                                    <button onClick={() => { setEditingPointId(null); setNewAttachments([]); }} className="text-[10px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors">Cancel</button>
                                                     <button onClick={() => setPointToUpdate(point.id)} className="px-4 py-2 bg-black hover:bg-slate-800 rounded-lg text-white text-[10px] font-black uppercase tracking-widest transition-colors">Update</button>
                                                 </div>
                                             </div>
@@ -467,7 +467,44 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
                                                     </span>
                                                 ))}
                                             </div>
+
+                                            {newAttachments.length > 0 && (
+                                                <div className="flex flex-wrap gap-3 pb-3">
+                                                    {newAttachments.map((f, i) => (
+                                                        <div key={i} className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm transition-all hover:bg-white group cursor-default">
+                                                            <div className="size-6 bg-white rounded flex items-center justify-center border border-slate-100 shrink-0">
+                                                                {f.type.startsWith('image/') ? <ImageIcon size={12} className="text-emerald-600" /> : <Paperclip size={12} className="text-blue-600" />}
+                                                            </div>
+                                                            <span className="text-[10px] font-bold text-slate-600 truncate max-w-[120px]">{f.name}</span>
+                                                            <button onClick={() => setNewAttachments(prev => prev.filter((_, idx) => idx !== i))} className="text-slate-400 hover:text-rose-500 p-0.5 rounded-md hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all">
+                                                                <X size={12} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            <div className="flex items-center gap-5 pt-3 border-t border-slate-50">
+                                                <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 text-blue-600 font-black text-[10px] uppercase tracking-widest hover:bg-blue-50 px-2 py-1 -ml-2 rounded-md transition-colors"><Paperclip size={14} /> Attach Doc</button>
+                                                <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 text-emerald-600 font-black text-[10px] uppercase tracking-widest hover:bg-emerald-50 px-2 py-1 -ml-2 rounded-md transition-colors"><ImageIcon size={14} /> Add Image</button>
+                                            </div>
                                         </div>
+
+                                        {showTagPopover && (
+                                            <div className="absolute top-12 left-0 w-64 bg-white shadow-xl rounded-xl border border-slate-100 z-50 p-2 overflow-hidden overflow-y-auto max-h-64 custom-scrollbar">
+                                                {tagResults.map((item: any) => (
+                                                    <button key={item.id} onClick={() => selectTag(item)} className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-slate-50 transition-colors text-left group">
+                                                        <div className="size-8 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+                                                            {tagType === '@' ? <User size={14} className="text-emerald-600" /> : <Building size={14} className="text-blue-600" />}
+                                                        </div>
+                                                        <div className="flex flex-col overflow-hidden">
+                                                            <span className="text-[11px] font-black uppercase tracking-tight truncate">{item.name || `${item.first_name} ${item.last_name}`}</span>
+                                                            <span className="text-[9px] text-slate-400 font-bold uppercase truncate">{item.designation || 'Participant'}</span>
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 );
 
