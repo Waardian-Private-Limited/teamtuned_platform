@@ -33,6 +33,20 @@ const getRelativeTime = (date: string) => {
     return 'Just now';
 };
 
+const formatDateWithOrdinal = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const day = date.getDate();
+    const month = date.toLocaleString('default', { month: 'long' });
+    const year = date.getFullYear();
+
+    const suffix = (day === 1 || day === 21 || day === 31) ? 'st' :
+        (day === 2 || day === 22) ? 'nd' :
+            (day === 3 || day === 23) ? 'rd' : 'th';
+
+    return `${day}${suffix} ${month} ${year}`;
+};
+
 const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string, initialMeeting?: any }) => {
     const { employee } = useAuth();
     const [meeting, setMeeting] = useState<any>(initialMeeting || null);
@@ -321,7 +335,7 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
                             <div className="space-y-1">
                                 <h1 className="text-3xl font-black text-black tracking-tight leading-none">{meeting.title}</h1>
                                 <div className="flex items-center gap-5 text-slate-500 text-[11px] font-black tracking-widest uppercase">
-                                    <span className="flex items-center gap-1.5"><Calendar size={14} className="text-blue-600" /> {new Date(meeting.meeting_date).toLocaleDateString()}</span>
+                                    <span className="flex items-center gap-1.5"><Calendar size={14} className="text-blue-600" /> {formatDateWithOrdinal(meeting.meeting_date)}</span>
                                     <span className="flex items-center gap-1.5"><Clock size={14} className="text-blue-600" /> {new Date(meeting.meeting_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                     <span className="flex items-center gap-1.5"><Building size={14} className="text-blue-600" /> {meeting.location || 'HQ CONFERENCE'}</span>
                                 </div>
