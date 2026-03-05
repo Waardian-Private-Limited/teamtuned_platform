@@ -75,6 +75,7 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const socketRef = useRef<any>(null);
+    const popoverRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         fetchData();
@@ -109,18 +110,13 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
 
     const fetchData = async () => {
         try {
-            const [detailsRes, employeesRes, deptsRes] = await Promise.all([
-                apiClient.get(`/mom/details/${meetingId}`, { withAuth: true }),
-                apiClient.get('/organization/employees', { withAuth: true }),
-                apiClient.get('/organization/departments', { withAuth: true })
+            const [detailsRes] = await Promise.all([
+                apiClient.get(`/mom/details/${meetingId}`, { withAuth: true })
             ]);
             if (detailsRes.success) {
                 setMeeting(detailsRes.meeting);
                 setPoints(detailsRes.meeting.points || []);
             }
-            // Backend returns { data: [...] } for these usually
-            setEmployeesList(employeesRes.data || employeesRes || []);
-            setDepartmentsList(deptsRes.data || deptsRes || []);
         } catch (err) {
             console.error('Fetch error:', err);
             toast.error('Failed to load meeting data');
@@ -129,29 +125,44 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
         }
     };
 
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+                setShowTagPopover(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     const handleInputTitle = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const value = e.target.value;
         const cursorPos = e.target.selectionStart || 0;
         const lastChar = value[cursorPos - 1];
 
+        if (editingPointId !== null && editingPointId !== -1) setEditText(value);
+        else setNewPoint(value);
+
+        // Live sync assignments - remove if not in text anymore
+        setSelectedAssignments(prev => prev.filter(a => {
+            const pattern = a.type === 'department' ? `#${a.name}` : `@${a.name}`;
+            return value.includes(pattern);
+        }));
+
         // Reset if moving away from mention
-        const words = value.slice(0, cursorPos).split(/\s/);
+        const textBeforeCursor = value.slice(0, cursorPos);
+        const words = textBeforeCursor.split(/\s/);
         const lastWord = words[words.length - 1];
 
         if (lastChar === '@' || lastChar === '#') {
             setTagType(lastChar === '@' ? '@' : '#');
             setTagQuery('');
             setShowTagPopover(true);
-        } else if (showTagPopover) {
-            if (lastWord.startsWith('@') || lastWord.startsWith('#')) {
-                setTagQuery(lastWord.slice(1));
-            } else {
-                setShowTagPopover(false);
-            }
+        } else if (showTagPopover && (lastWord.startsWith('@') || lastWord.startsWith('#'))) {
+            setTagQuery(lastWord.slice(1));
+        } else {
+            setShowTagPopover(false);
         }
-
-        if (editingPointId !== null && editingPointId !== -1) setEditText(value);
-        else setNewPoint(value);
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -172,31 +183,57 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
 
     useEffect(() => {
         if (showTagPopover) {
-            const list = tagType === '@' ? employeesList : departmentsList;
-            const filtered = list.filter((item: any) =>
-                (item.name || `${item.first_name} ${item.last_name}`).toLowerCase().includes(tagQuery.toLowerCase())
-            );
-            setTagResults(filtered.slice(0, 5));
+            const fetchTags = async () => {
+                try {
+                    if (tagType === '@') {
+                        const res = await apiClient.get(`/organization/employees?format=paginated&limit=10&search=${tagQuery}`, { withAuth: true });
+                        const items = (res as any).data || (res as any).items || [];
+                        setTagResults(items);
+                    } else {
+                        const res = await apiClient.get(`/organization/departments?search=${tagQuery}`, { withAuth: true });
+                        let items = (res as any).data || res || [];
+                        if (Array.isArray(items) && tagQuery) {
+                            items = items.filter((d: any) => d.name.toLowerCase().includes(tagQuery.toLowerCase()));
+                        }
+                        setTagResults(items);
+                    }
+                } catch (err) { console.error('Failed to search tags', err); }
+            };
+            const timeoutId = setTimeout(() => fetchTags(), 300);
+            return () => clearTimeout(timeoutId);
         }
-    }, [tagQuery, showTagPopover, tagType, employeesList, departmentsList]);
+    }, [tagQuery, showTagPopover, tagType]);
 
     const selectTag = (item: any) => {
         const type = tagType === '@' ? 'employee' : 'department';
         const name = item.name || `${item.first_name} ${item.last_name}`;
-        if (!selectedAssignments.find(a => a.id === (item.id || item.id_pk) && a.type === type)) {
-            setSelectedAssignments(prev => [...prev, { id: (item.id || item.id_pk), type, name }]);
-        }
+
+        setSelectedAssignments(prev => {
+            if (!prev.find(a => a.id === (item.id || item.id_pk) && a.type === type)) {
+                return [...prev, { id: (item.id || item.id_pk), type, name }];
+            }
+            return prev;
+        });
 
         const isEdit = editingPointId !== null && editingPointId !== -1;
         const currentText = isEdit ? editText : newPoint;
-        const words = currentText.split(' ');
-        words.pop(); // Remove trigger char or partial query
-        const updatedText = words.join(' ') + (words.length > 0 ? ' ' : '') + (tagType === '@' ? '@' : '#') + name + ' ';
 
-        if (isEdit) setEditText(updatedText);
-        else setNewPoint(updatedText);
+        const words = currentText.split(' ');
+        const lastWord = words[words.length - 1];
+
+        let newText = currentText;
+        if (lastWord.startsWith(tagType)) {
+            words[words.length - 1] = `${tagType}${name} `;
+            newText = words.join(' ');
+        } else {
+            newText = currentText + (currentText.endsWith(' ') || currentText === '' ? '' : ' ') + `${tagType}${name} `;
+        }
+
+        if (isEdit) setEditText(newText);
+        else setNewPoint(newText);
 
         setShowTagPopover(false);
+        setTagQuery('');
         setTimeout(() => inputRef.current?.focus(), 10);
     };
 
@@ -412,18 +449,38 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
                                     </div>
 
                                     {showTagPopover && (
-                                        <div className="absolute top-12 left-0 w-64 bg-white shadow-xl rounded-xl border border-slate-100 z-50 p-2 overflow-hidden overflow-y-auto max-h-64 custom-scrollbar">
-                                            {tagResults.map((item: any) => (
-                                                <button key={item.id} onClick={() => selectTag(item)} className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-slate-50 transition-colors text-left group">
-                                                    <div className="size-8 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
-                                                        {tagType === '@' ? <User size={14} className="text-emerald-600" /> : <Building size={14} className="text-blue-600" />}
+                                        <div ref={popoverRef} className="absolute top-12 left-0 w-64 bg-white shadow-xl rounded-xl border border-slate-100 z-50 overflow-hidden flex flex-col max-h-80">
+                                            <div className="p-2 border-b border-slate-100 bg-slate-50">
+                                                <input
+                                                    type="text"
+                                                    placeholder={`Search ${tagType === '@' ? 'employees' : 'departments'}...`}
+                                                    value={tagQuery}
+                                                    onChange={(e) => setTagQuery(e.target.value)}
+                                                    autoFocus
+                                                    className="w-full text-[11px] font-bold p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder-slate-400 text-black"
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Escape') setShowTagPopover(false);
+                                                    }}
+                                                />
+                                            </div>
+                                            <div className="overflow-y-auto p-2 custom-scrollbar">
+                                                {tagResults.length > 0 ? tagResults.map((item: any) => (
+                                                    <button key={item.id} onClick={(e) => { e.preventDefault(); selectTag(item); }} className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-slate-50 transition-colors text-left group">
+                                                        <div className="size-8 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+                                                            {tagType === '@' ? <User size={14} className="text-emerald-600" /> : <Building size={14} className="text-blue-600" />}
+                                                        </div>
+                                                        <div className="flex flex-col overflow-hidden">
+                                                            <span className="text-[11px] font-black uppercase tracking-tight text-slate-900 truncate">{item.name || `${item.first_name} ${item.last_name}`}</span>
+                                                            {tagType === '@' && <span className="text-[9px] text-slate-400 font-bold uppercase truncate">{item.designation || 'Participant'}</span>}
+                                                        </div>
+                                                    </button>
+                                                )) : (
+                                                    <div className="p-4 flex flex-col items-center justify-center text-slate-400 gap-2">
+                                                        <Search size={16} />
+                                                        <span className="text-[10px] font-bold uppercase">No results found</span>
                                                     </div>
-                                                    <div className="flex flex-col overflow-hidden">
-                                                        <span className="text-[11px] font-black uppercase tracking-tight truncate">{item.name || `${item.first_name} ${item.last_name}`}</span>
-                                                        <span className="text-[9px] text-slate-400 font-bold uppercase truncate">{item.designation || 'Participant'}</span>
-                                                    </div>
-                                                </button>
-                                            ))}
+                                                )}
+                                            </div>
                                         </div>
                                     )}
                                 </div>
