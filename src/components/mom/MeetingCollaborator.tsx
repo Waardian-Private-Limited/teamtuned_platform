@@ -458,6 +458,15 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
                                                 onKeyDown={handleKeyDown}
                                                 className="w-full bg-transparent border-none focus:ring-0 text-lg font-bold text-black resize-none min-h-[60px] p-0 focus:outline-none"
                                             />
+
+                                            <div className="flex flex-wrap gap-2 pb-2">
+                                                {selectedAssignments.map((a, i) => (
+                                                    <span key={i} className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-md text-black text-[9px] font-black uppercase flex items-center gap-1">
+                                                        {a.type === 'department' ? <Building size={10} className="text-blue-600" /> : <User size={10} className="text-emerald-600" />}{a.name}
+                                                        <X size={10} className="ml-1 cursor-pointer text-slate-400 hover:text-red-500 transition-colors" onClick={() => setSelectedAssignments(prev => prev.filter((_, idx) => idx !== i))} />
+                                                    </span>
+                                                ))}
+                                            </div>
                                         </div>
                                     </div>
                                 );
@@ -477,7 +486,15 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
                                                     )}
                                                 </div>
                                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button onClick={() => { setEditingPointId(point.id); setEditText(point.point_text); setSelectedAssignments(point.assignments || []); }} className="p-1.5 rounded-md text-blue-600 hover:bg-blue-50 transition-colors"><Edit3 size={15} /></button>
+                                                    <button onClick={() => {
+                                                        setEditingPointId(point.id);
+                                                        setEditText(point.point_text);
+                                                        setSelectedAssignments(point.assignments ? point.assignments.map((a: any) => ({
+                                                            id: a.assignee_id || a.id,
+                                                            type: a.assignee_type || a.type,
+                                                            name: a.assignee_name || a.name
+                                                        })) : []);
+                                                    }} className="p-1.5 rounded-md text-blue-600 hover:bg-blue-50 transition-colors"><Edit3 size={15} /></button>
                                                     <button onClick={() => setPointToDelete(point.id)} className="p-1.5 rounded-md text-red-600 hover:bg-red-50 transition-colors"><Trash2 size={15} /></button>
                                                 </div>
                                             </div>
@@ -514,21 +531,41 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
 
                                             <div className="flex items-center justify-between pt-4 border-t border-slate-50">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="flex -space-x-1">
-                                                        {point.assignments?.map((a: any, i: number) => (
-                                                            <div key={i} title={a.assignee_name} className="size-7 rounded-full bg-slate-50 border border-white flex items-center justify-center text-slate-600 shadow-sm relative z-10 hover:z-20 transition-all hover:scale-110">
-                                                                {a.assignee_type === 'department' ? <Building size={12} className="text-blue-600" /> : <User size={12} className="text-emerald-600" />}
-                                                            </div>
-                                                        ))}
-                                                        {!isAssigned && (
-                                                            <div className="size-7 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 shadow-sm">
-                                                                <AlertCircle size={12} />
+                                                    <div className="flex flex-col gap-1.5 min-h-[28px] justify-center">
+                                                        {isAssigned ? (
+                                                            <>
+                                                                {point.assignments.filter((a: any) => (a.assignee_type || a.type) === 'department').length > 0 && (
+                                                                    <div className="flex items-center gap-2">
+                                                                        <div className="size-5 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shadow-sm shrink-0">
+                                                                            <Building size={10} />
+                                                                        </div>
+                                                                        <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest break-words overflow-hidden line-clamp-1 max-w-[200px]" title={point.assignments.filter((a: any) => (a.assignee_type || a.type) === 'department').map((a: any) => a.assignee_name || a.name).join(', ')}>
+                                                                            {point.assignments.filter((a: any) => (a.assignee_type || a.type) === 'department').map((a: any) => a.assignee_name || a.name).join(', ')}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                                {point.assignments.filter((a: any) => (a.assignee_type || a.type) === 'employee').length > 0 && (
+                                                                    <div className="flex items-center gap-2">
+                                                                        <div className="size-5 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shadow-sm shrink-0">
+                                                                            <User size={10} />
+                                                                        </div>
+                                                                        <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest break-words overflow-hidden line-clamp-1 max-w-[200px]" title={point.assignments.filter((a: any) => (a.assignee_type || a.type) === 'employee').map((a: any) => a.assignee_name || a.name).join(', ')}>
+                                                                            {point.assignments.filter((a: any) => (a.assignee_type || a.type) === 'employee').map((a: any) => a.assignee_name || a.name).join(', ')}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        ) : (
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="size-5 rounded-full bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-500 shadow-sm shrink-0">
+                                                                    <AlertCircle size={10} />
+                                                                </div>
+                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                                    No assignee
+                                                                </span>
                                                             </div>
                                                         )}
                                                     </div>
-                                                    <span className="text-[10px] font-bold text-slate-500">
-                                                        {isAssigned ? `Assigned to ${point.assignments[0].assignee_name}${point.assignments.length > 1 ? ` & ${point.assignments.length - 1} more` : ''}` : 'No assignee'}
-                                                    </span>
                                                 </div>
                                                 <div className="flex items-center gap-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest shrink-0">
                                                     {point.history && point.history.length > 0 && (
