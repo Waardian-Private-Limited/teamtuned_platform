@@ -56,6 +56,7 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
     const [pointToUpdate, setPointToUpdate] = useState<number | null>(null);
     const [isUpdating, setIsUpdating] = useState(false);
     const [expandedHistoryPointId, setExpandedHistoryPointId] = useState<number | null>(null);
+    const [newAttachments, setNewAttachments] = useState<File[]>([]);
 
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -139,6 +140,14 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
         else setNewPoint(value);
     };
 
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files) {
+            setNewAttachments(prev => [...prev, ...Array.from(e.target.files!)]);
+        }
+        // Reset the input value so the same file could be selected again if needed
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && e.shiftKey) {
             e.preventDefault();
@@ -188,6 +197,7 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
             }, { withAuth: true });
             setNewPoint('');
             setSelectedAssignments([]);
+            setNewAttachments([]);
             setEditingPointId(null);
             setPointToUpdate(null);
             toast.success('Point added');
@@ -313,11 +323,11 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
                                 <div className="flex items-center gap-5 text-slate-500 text-[11px] font-black tracking-widest uppercase">
                                     <span className="flex items-center gap-1.5"><Calendar size={14} className="text-blue-600" /> {new Date(meeting.meeting_date).toLocaleDateString()}</span>
                                     <span className="flex items-center gap-1.5"><Clock size={14} className="text-blue-600" /> {new Date(meeting.meeting_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                    <span className="flex items-center gap-1.5"><Building size={14} className="text-blue-600" /> HQ CONFERENCE</span>
+                                    <span className="flex items-center gap-1.5"><Building size={14} className="text-blue-600" /> {meeting.location || 'HQ CONFERENCE'}</span>
                                 </div>
                             </div>
                             <button
-                                onClick={() => { setEditingPointId(-1); setNewPoint(''); setSelectedAssignments([]); }}
+                                onClick={() => { setEditingPointId(-1); setNewPoint(''); setSelectedAssignments([]); setNewAttachments([]); }}
                                 className="px-5 py-3 bg-[#136dec] hover:bg-blue-700 text-white font-black text-[11px] uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-blue-100 rounded-lg active:scale-95 transition-all"
                             >
                                 <Plus size={18} strokeWidth={3} /> Add Point
@@ -364,10 +374,26 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
                                             ))}
                                         </div>
 
+                                        {newAttachments.length > 0 && (
+                                            <div className="flex flex-wrap gap-3 pb-3">
+                                                {newAttachments.map((f, i) => (
+                                                    <div key={i} className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm transition-all hover:bg-white group cursor-default">
+                                                        <div className="size-6 bg-white rounded flex items-center justify-center border border-slate-100 shrink-0">
+                                                            {f.type.startsWith('image/') ? <ImageIcon size={12} className="text-emerald-600" /> : <Paperclip size={12} className="text-blue-600" />}
+                                                        </div>
+                                                        <span className="text-[10px] font-bold text-slate-600 truncate max-w-[120px]">{f.name}</span>
+                                                        <button onClick={() => setNewAttachments(prev => prev.filter((_, idx) => idx !== i))} className="text-slate-400 hover:text-rose-500 p-0.5 rounded-md hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all">
+                                                            <X size={12} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
                                         <div className="flex items-center gap-5 pt-3 border-t border-slate-50">
-                                            <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 text-blue-600 font-black text-[10px] uppercase tracking-widest"><Paperclip size={14} /> Attach Doc</button>
-                                            <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 text-emerald-600 font-black text-[10px] uppercase tracking-widest"><ImageIcon size={14} /> Add Image</button>
-                                            <input type="file" ref={fileInputRef} className="hidden" multiple />
+                                            <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 text-blue-600 font-black text-[10px] uppercase tracking-widest hover:bg-blue-50 px-2 py-1 -ml-2 rounded-md transition-colors"><Paperclip size={14} /> Attach Doc</button>
+                                            <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 text-emerald-600 font-black text-[10px] uppercase tracking-widest hover:bg-emerald-50 px-2 py-1 -ml-2 rounded-md transition-colors"><ImageIcon size={14} /> Add Image</button>
+                                            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" multiple />
                                         </div>
                                     </div>
 
@@ -430,9 +456,11 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
                                                     <div className={`px-2 py-0.5 rounded-md ${isAssigned ? 'bg-blue-50 text-blue-700 font-bold border border-blue-100' : 'bg-rose-50 text-rose-700 font-bold border border-rose-100'} text-[9px] uppercase tracking-widest`}>
                                                         {isAssigned ? 'ASSIGNED' : 'UNASSIGNED'}
                                                     </div>
-                                                    <div className="px-2 py-0.5 rounded-md bg-slate-50 text-slate-600 font-bold border border-slate-100 text-[9px] uppercase tracking-widest">
-                                                        {point.status?.replace('_', ' ').toUpperCase()}
-                                                    </div>
+                                                    {point.status !== 'assigned' && point.status !== 'unassigned' && (
+                                                        <div className="px-2 py-0.5 rounded-md bg-slate-50 text-slate-600 font-bold border border-slate-100 text-[9px] uppercase tracking-widest">
+                                                            {point.status?.replace('_', ' ').toUpperCase()}
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <button onClick={() => { setEditingPointId(point.id); setEditText(point.point_text); setSelectedAssignments(point.assignments || []); }} className="p-1.5 rounded-md text-blue-600 hover:bg-blue-50 transition-colors"><Edit3 size={15} /></button>
