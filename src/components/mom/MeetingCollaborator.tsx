@@ -110,13 +110,15 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
 
     const fetchData = async () => {
         try {
-            const [detailsRes] = await Promise.all([
-                apiClient.get(`/mom/details/${meetingId}`, { withAuth: true })
+            const [detailsRes, deptsRes] = await Promise.all([
+                apiClient.get(`/mom/details/${meetingId}`, { withAuth: true }),
+                apiClient.get('/organization/departments', { withAuth: true })
             ]);
             if (detailsRes.success) {
                 setMeeting(detailsRes.meeting);
                 setPoints(detailsRes.meeting.points || []);
             }
+            setDepartmentsList(deptsRes.data || deptsRes || []);
         } catch (err) {
             console.error('Fetch error:', err);
             toast.error('Failed to load meeting data');
@@ -183,26 +185,21 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
 
     useEffect(() => {
         if (showTagPopover) {
+            if (tagType === '#') {
+                setTagResults(departmentsList);
+                return;
+            }
             const fetchTags = async () => {
                 try {
-                    if (tagType === '@') {
-                        const res = await apiClient.get(`/organization/employees?format=paginated&limit=10&search=${tagQuery}`, { withAuth: true });
-                        const items = (res as any).data || (res as any).items || [];
-                        setTagResults(items);
-                    } else {
-                        const res = await apiClient.get(`/organization/departments?search=${tagQuery}`, { withAuth: true });
-                        let items = (res as any).data || res || [];
-                        if (Array.isArray(items) && tagQuery) {
-                            items = items.filter((d: any) => d.name.toLowerCase().includes(tagQuery.toLowerCase()));
-                        }
-                        setTagResults(items);
-                    }
+                    const res = await apiClient.get(`/organization/employees?format=paginated&limit=10&search=${tagQuery}`, { withAuth: true });
+                    const items = (res as any).data || (res as any).items || [];
+                    setTagResults(items);
                 } catch (err) { console.error('Failed to search tags', err); }
             };
             const timeoutId = setTimeout(() => fetchTags(), 300);
             return () => clearTimeout(timeoutId);
         }
-    }, [tagQuery, showTagPopover, tagType]);
+    }, [tagQuery, showTagPopover, tagType, departmentsList]);
 
     const selectTag = (item: any) => {
         const type = tagType === '@' ? 'employee' : 'department';
@@ -366,7 +363,10 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
                 </header>
 
                 <div className="flex-1 overflow-y-auto px-8 py-8">
-                    <div className="max-w-4xl mx-auto space-y-8">
+                    <div className="max-w-4xl mx-auto space-y-8 relative">
+                        {/* Hidden Inputs */}
+                        <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" multiple />
+
                         {/* Header Section */}
                         <div className="flex items-start justify-between">
                             <div className="space-y-1">
@@ -444,25 +444,26 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
                                         <div className="flex items-center gap-5 pt-3 border-t border-slate-50">
                                             <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 text-blue-600 font-black text-[10px] uppercase tracking-widest hover:bg-blue-50 px-2 py-1 -ml-2 rounded-md transition-colors"><Paperclip size={14} /> Attach Doc</button>
                                             <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 text-emerald-600 font-black text-[10px] uppercase tracking-widest hover:bg-emerald-50 px-2 py-1 -ml-2 rounded-md transition-colors"><ImageIcon size={14} /> Add Image</button>
-                                            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" multiple />
                                         </div>
                                     </div>
 
                                     {showTagPopover && (
                                         <div ref={popoverRef} className="absolute top-12 left-0 w-64 bg-white shadow-xl rounded-xl border border-slate-100 z-50 overflow-hidden flex flex-col max-h-80">
-                                            <div className="p-2 border-b border-slate-100 bg-slate-50">
-                                                <input
-                                                    type="text"
-                                                    placeholder={`Search ${tagType === '@' ? 'employees' : 'departments'}...`}
-                                                    value={tagQuery}
-                                                    onChange={(e) => setTagQuery(e.target.value)}
-                                                    autoFocus
-                                                    className="w-full text-[11px] font-bold p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder-slate-400 text-black"
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Escape') setShowTagPopover(false);
-                                                    }}
-                                                />
-                                            </div>
+                                            {tagType === '@' && (
+                                                <div className="p-2 border-b border-slate-100 bg-slate-50">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Search employees..."
+                                                        value={tagQuery}
+                                                        onChange={(e) => setTagQuery(e.target.value)}
+                                                        autoFocus
+                                                        className="w-full text-[11px] font-bold p-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder-slate-400 text-black"
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Escape') setShowTagPopover(false);
+                                                        }}
+                                                    />
+                                                </div>
+                                            )}
                                             <div className="overflow-y-auto p-2 custom-scrollbar">
                                                 {tagResults.length > 0 ? tagResults.map((item: any) => (
                                                     <button key={item.id} onClick={(e) => { e.preventDefault(); selectTag(item); }} className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-slate-50 transition-colors text-left group">
