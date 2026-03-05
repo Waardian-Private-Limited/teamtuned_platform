@@ -765,11 +765,12 @@ export default function OrgAdminSitesPage() {
                 is_head_office: data.site.is_head_office,
                 latitude: data.site.latitude,
                 longitude: data.site.longitude,
+                radius_meters: data.site.radius_meters,
                 has_expiry: data.site.has_expiry,
                 expiry_date: data.site.expiry_date,
                 has_budget: data.site.has_budget,
                 budget_amount: data.site.budget_amount,
-                budget_used: data.site.budget_used, // Added budget_used
+                budget_used: data.site.budget_used,
             };
             setSites((prev) => prev.map((s) => (s.id === site.id ? updated : s)));
             if (selectedSite?.id === site.id) setSelectedSite(updated);
@@ -819,11 +820,12 @@ export default function OrgAdminSitesPage() {
                 is_head_office: data.site.is_head_office,
                 latitude: data.site.latitude,
                 longitude: data.site.longitude,
+                radius_meters: data.site.radius_meters,
                 has_expiry: data.site.has_expiry,
                 expiry_date: data.site.expiry_date,
                 has_budget: data.site.has_budget,
                 budget_amount: data.site.budget_amount,
-                budget_used: data.site.budget_used, // Added budget_used
+                budget_used: data.site.budget_used,
             };
             setSites((prev) => prev.map((s) => (s.id === selectedSite.id ? updated : s)));
             closeEdit();
