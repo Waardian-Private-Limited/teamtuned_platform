@@ -168,11 +168,10 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files) {
-            setNewAttachments(prev => [...prev, ...Array.from(e.target.files!)]);
+        if (e.target.files && e.target.files.length > 0) {
+            const newFiles = Array.from(e.target.files);
+            setNewAttachments(prev => [...prev, ...newFiles]);
         }
-        // Reset the input value so the same file could be selected again if needed
-        if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -238,11 +237,16 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
         if (!newPoint.trim()) return;
         setIsUpdating(true);
         try {
-            await apiClient.post('/mom/point/add', {
-                meeting_id: meetingId,
-                point_text: newPoint,
-                assignments: selectedAssignments
-            }, { withAuth: true });
+            const formData = new FormData();
+            formData.append('meeting_id', meetingId);
+            formData.append('point_text', newPoint);
+            formData.append('assignments', JSON.stringify(selectedAssignments));
+
+            newAttachments.forEach(file => {
+                formData.append('attachments', file);
+            });
+
+            await apiClient.post('/mom/point/add', formData, { withAuth: true });
             setNewPoint('');
             setSelectedAssignments([]);
             setNewAttachments([]);
@@ -256,16 +260,37 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
     const updatePoint = async (pointId: number) => {
         setIsUpdating(true);
         try {
-            await apiClient.put(`/mom/point/update/${pointId}`, {
-                point_text: editText,
-                assignments: selectedAssignments
-            }, { withAuth: true });
+            const formData = new FormData();
+            formData.append('point_text', editText);
+            formData.append('assignments', JSON.stringify(selectedAssignments));
+
+            newAttachments.forEach(file => {
+                formData.append('attachments', file);
+            });
+
+            await apiClient.put(`/mom/point/update/${pointId}`, formData, { withAuth: true });
             setEditingPointId(null);
             setSelectedAssignments([]);
+            setNewAttachments([]);
             setPointToUpdate(null);
             toast.success('Point updated');
         } catch (err) { toast.error('Failed to update point'); }
         finally { setIsUpdating(false); }
+    };
+
+    const deleteAttachment = async (attachmentId: number, pointId: number) => {
+        try {
+            await apiClient.delete(`/mom/point/attachment/${attachmentId}`, { withAuth: true });
+            toast.success('Attachment removed');
+            setPoints(prev => prev.map(p => {
+                if (p.id === pointId) {
+                    return { ...p, attachments: p.attachments?.filter((a: any) => a.id !== attachmentId) };
+                }
+                return p;
+            }));
+        } catch (err) {
+            toast.error('Failed to remove attachment');
+        }
     };
 
     const confirmDeletePoint = async () => {
@@ -365,7 +390,7 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
                 <div className="flex-1 overflow-y-auto px-8 py-8">
                     <div className="max-w-4xl mx-auto space-y-8 relative">
                         {/* Hidden Inputs */}
-                        <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" multiple />
+                        <input type="file" ref={fileInputRef} onChange={handleFileChange} onClick={(e) => { e.currentTarget.value = ''; }} className="hidden" multiple />
 
                         {/* Header Section */}
                         <div className="flex items-start justify-between">
@@ -442,8 +467,8 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
                                         )}
 
                                         <div className="flex items-center gap-5 pt-3 border-t border-slate-50">
-                                            <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 text-blue-600 font-black text-[10px] uppercase tracking-widest hover:bg-blue-50 px-2 py-1 -ml-2 rounded-md transition-colors"><Paperclip size={14} /> Attach Doc</button>
-                                            <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 text-emerald-600 font-black text-[10px] uppercase tracking-widest hover:bg-emerald-50 px-2 py-1 -ml-2 rounded-md transition-colors"><ImageIcon size={14} /> Add Image</button>
+                                            <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 text-blue-600 font-black text-[10px] uppercase tracking-widest hover:bg-blue-50 px-2 py-1 -ml-2 rounded-md transition-colors"><Paperclip size={14} /> Attach Doc</button>
+                                            <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 text-emerald-600 font-black text-[10px] uppercase tracking-widest hover:bg-emerald-50 px-2 py-1 -ml-2 rounded-md transition-colors"><ImageIcon size={14} /> Add Image</button>
                                         </div>
                                     </div>
 
@@ -526,14 +551,25 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
                                                 ))}
                                             </div>
 
-                                            {newAttachments.length > 0 && (
+                                            {(newAttachments.length > 0 || (point.attachments && point.attachments.length > 0)) && (
                                                 <div className="flex flex-wrap gap-3 pb-3">
+                                                    {point.attachments && point.attachments.map((f: any) => (
+                                                        <div key={f.id} className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm transition-all hover:bg-red-50 hover:border-red-200 group cursor-default">
+                                                            <div className="size-6 bg-white rounded flex items-center justify-center border border-slate-100 shrink-0">
+                                                                {f.file_url.match(/\.(jpeg|jpg|png|gif|webp)$/i) ? <ImageIcon size={12} className="text-emerald-600" /> : <Paperclip size={12} className="text-blue-600" />}
+                                                            </div>
+                                                            <span className="text-[10px] font-bold text-slate-600 truncate max-w-[120px]">{f.file_name || 'Attachment'}</span>
+                                                            <button onClick={() => deleteAttachment(f.id, point.id)} className="text-slate-400 hover:text-red-600 p-0.5 rounded-md hover:bg-red-100 opacity-0 group-hover:opacity-100 transition-all">
+                                                                <X size={12} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
                                                     {newAttachments.map((f, i) => (
-                                                        <div key={i} className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm transition-all hover:bg-white group cursor-default">
+                                                        <div key={`new-${i}`} className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm transition-all hover:bg-white group cursor-default">
                                                             <div className="size-6 bg-white rounded flex items-center justify-center border border-slate-100 shrink-0">
                                                                 {f.type.startsWith('image/') ? <ImageIcon size={12} className="text-emerald-600" /> : <Paperclip size={12} className="text-blue-600" />}
                                                             </div>
-                                                            <span className="text-[10px] font-bold text-slate-600 truncate max-w-[120px]">{f.name}</span>
+                                                            <span className="text-[10px] font-bold text-slate-600 italic truncate max-w-[120px]">{f.name} (New)</span>
                                                             <button onClick={() => setNewAttachments(prev => prev.filter((_, idx) => idx !== i))} className="text-slate-400 hover:text-rose-500 p-0.5 rounded-md hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all">
                                                                 <X size={12} />
                                                             </button>
@@ -543,8 +579,8 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
                                             )}
 
                                             <div className="flex items-center gap-5 pt-3 border-t border-slate-50">
-                                                <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 text-blue-600 font-black text-[10px] uppercase tracking-widest hover:bg-blue-50 px-2 py-1 -ml-2 rounded-md transition-colors"><Paperclip size={14} /> Attach Doc</button>
-                                                <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 text-emerald-600 font-black text-[10px] uppercase tracking-widest hover:bg-emerald-50 px-2 py-1 -ml-2 rounded-md transition-colors"><ImageIcon size={14} /> Add Image</button>
+                                                <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 text-blue-600 font-black text-[10px] uppercase tracking-widest hover:bg-blue-50 px-2 py-1 -ml-2 rounded-md transition-colors"><Paperclip size={14} /> Attach Doc</button>
+                                                <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 text-emerald-600 font-black text-[10px] uppercase tracking-widest hover:bg-emerald-50 px-2 py-1 -ml-2 rounded-md transition-colors"><ImageIcon size={14} /> Add Image</button>
                                             </div>
                                         </div>
 
@@ -597,6 +633,20 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
                                             <p className="text-[15px] font-medium text-slate-900 leading-relaxed tracking-tight break-words">
                                                 {point.point_text}
                                             </p>
+
+                                            {point.attachments && point.attachments.length > 0 && (
+                                                <div className="flex flex-wrap gap-2 pt-2">
+                                                    {point.attachments.map((file: any, i: number) => (
+                                                        <a key={i} href={file.file_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm transition-all hover:bg-white group">
+                                                            <div className="size-6 bg-white rounded flex items-center justify-center border border-slate-100 shrink-0">
+                                                                {file.file_url.match(/\.(jpeg|jpg|png|gif|webp)$/i) ? <ImageIcon size={12} className="text-emerald-600" /> : <Paperclip size={12} className="text-blue-600" />}
+                                                            </div>
+                                                            <span className="text-[10px] font-bold text-slate-600 truncate max-w-[120px]">{file.file_name || 'Attachment'}</span>
+                                                            <Download size={10} className="text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
+                                                        </a>
+                                                    ))}
+                                                </div>
+                                            )}
 
                                             {expandedHistoryPointId === point.id && point.history && point.history.length > 0 && (
                                                 <div className="mt-2 p-4 bg-slate-50/50 rounded-xl border border-slate-100 flex flex-col gap-3 animate-in slide-in-from-top-2 fade-in duration-200">
