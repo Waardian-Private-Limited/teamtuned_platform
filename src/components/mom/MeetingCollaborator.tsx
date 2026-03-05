@@ -111,8 +111,8 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
     const fetchData = async () => {
         try {
             const [detailsRes, deptsRes] = await Promise.all([
-                apiClient.get(`/mom/details/${meetingId}`, { withAuth: true }),
-                apiClient.get('/organization/departments', { withAuth: true })
+                apiClient.get(`/mom/details/${meetingId}`, undefined, { withAuth: true }),
+                apiClient.get('/organization/departments', undefined, { withAuth: true })
             ]);
             if (detailsRes.success) {
                 setMeeting(detailsRes.meeting);
@@ -191,7 +191,7 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
             }
             const fetchTags = async () => {
                 try {
-                    const res = await apiClient.get(`/organization/employees?format=paginated&limit=10&search=${tagQuery}`, { withAuth: true });
+                    const res = await apiClient.get(`/organization/employees?format=paginated&limit=10&search=${tagQuery}`, undefined, { withAuth: true });
                     const items = (res as any).data || (res as any).items || [];
                     setTagResults(items);
                 } catch (err) { console.error('Failed to search tags', err); }
