@@ -85,7 +85,14 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
         if (socket) {
             socket.emit('join_meeting', meetingId);
             socket.on('point_added', (point: any) => setPoints(prev => [point, ...prev]));
-            socket.on('point_updated', (updatedPoint: any) => setPoints(prev => prev.map(p => p.id === updatedPoint.id ? updatedPoint : p)));
+            socket.on('point_updated', (updatedPoint: any) => setPoints(prev => prev.map(p => {
+                const targetId = updatedPoint.id || updatedPoint.point_id;
+                if (p.id === targetId) {
+                    if (updatedPoint.point_text) return updatedPoint; // Full point replacement (edit)
+                    return { ...p, ...updatedPoint }; // Partial update (status, attachments)
+                }
+                return p;
+            })));
             socket.on('point_deleted', (data: any) => setPoints(prev => prev.filter(p => p.id !== data.point_id)));
             socket.on('attendee_updated', (data: any) => {
                 setMeeting((prev: any) => ({
@@ -246,6 +253,11 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
                 formData.append('attachments', file);
             });
 
+            console.log('--- ADD POINT FORMDATA ---');
+            for (let [key, value] of formData.entries()) {
+                console.log(key, value instanceof File ? `File: ${value.name} (${value.size} bytes)` : value);
+            }
+
             await apiClient.post('/mom/point/add', formData, { withAuth: true });
             setNewPoint('');
             setSelectedAssignments([]);
@@ -267,6 +279,11 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
             newAttachments.forEach(file => {
                 formData.append('attachments', file);
             });
+
+            console.log('--- UPDATE POINT FORMDATA ---');
+            for (let [key, value] of formData.entries()) {
+                console.log(key, value instanceof File ? `File: ${value.name} (${value.size} bytes)` : value);
+            }
 
             await apiClient.put(`/mom/point/update/${pointId}`, formData, { withAuth: true });
             setEditingPointId(null);
@@ -316,6 +333,29 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
             toast.success('Attendance marked');
             fetchData();
         } catch (err) { toast.error('Failed to mark attendance'); }
+    };
+
+    const completeMeeting = async () => {
+        if (!confirm('Are you sure you want to complete this meeting? No further points can be added.')) return;
+        try {
+            await apiClient.put(`/mom/submit/${meetingId}`, {}, { withAuth: true });
+            setMeeting((prev: any) => ({ ...prev, status: 'completed' }));
+            toast.success('Meeting setup completed');
+        } catch (err: any) { toast.error(err.message || 'Failed to complete meeting'); }
+    };
+
+    const togglePointStatus = async (pointId: number, currentStatus: string) => {
+        const newStatus = currentStatus === 'closed' ? 'open' : 'closed';
+        try {
+            // Optimistic update
+            setPoints(prev => prev.map(p => p.id === pointId ? { ...p, status: newStatus } : p));
+            await apiClient.post('/mom/discussion/status', { point_id: pointId, status: newStatus }, { withAuth: true });
+            toast.success(`Point marked as ${newStatus}`);
+        } catch (err: any) {
+            // Revert on failure
+            setPoints(prev => prev.map(p => p.id === pointId ? { ...p, status: currentStatus } : p));
+            toast.error(err.message || 'Failed to update point status');
+        }
     };
 
     if (loading) return (
@@ -370,21 +410,31 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
                         <span>Meetings</span> <ChevronRight size={12} />
                         <span className="text-black">Current Session</span>
                     </div>
-                    {!isAttended ? (
-                        <button
-                            onClick={markAttendance}
-                            className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-black uppercase tracking-widest shadow-md rounded-lg flex items-center gap-2 transition-all"
-                        >
-                            <CheckCircle size={14} /> Mark Attendance
-                        </button>
-                    ) : (
-                        <button
-                            onClick={() => window.history.back()}
-                            className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 text-[11px] font-black uppercase tracking-widest rounded-lg flex items-center gap-2 transition-all"
-                        >
-                            <X size={14} /> Leave Meeting
-                        </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                        {!isAttended ? (
+                            <button
+                                onClick={markAttendance}
+                                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-black uppercase tracking-widest shadow-md rounded-lg flex items-center gap-2 transition-all mr-2"
+                            >
+                                <CheckCircle size={14} /> Mark Attendance
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => window.history.back()}
+                                className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 text-[11px] font-black uppercase tracking-widest rounded-lg flex items-center gap-2 transition-all"
+                            >
+                                <X size={14} /> Leave Meeting
+                            </button>
+                        )}
+                        {meeting.status !== 'completed' && (
+                            <button
+                                onClick={completeMeeting}
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-black uppercase tracking-widest shadow-md rounded-lg flex items-center gap-2 transition-all"
+                            >
+                                <CheckCircle size={14} /> Complete Meeting
+                            </button>
+                        )}
+                    </div>
                 </header>
 
                 <div className="flex-1 overflow-y-auto px-8 py-8">
@@ -402,12 +452,14 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
                                     <span className="flex items-center gap-1.5"><Building size={14} className="text-blue-600" /> {meeting.location || 'HQ CONFERENCE'}</span>
                                 </div>
                             </div>
-                            <button
-                                onClick={() => { setEditingPointId(-1); setNewPoint(''); setSelectedAssignments([]); setNewAttachments([]); }}
-                                className="px-5 py-3 bg-[#136dec] hover:bg-blue-700 text-white font-black text-[11px] uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-blue-100 rounded-lg active:scale-95 transition-all"
-                            >
-                                <Plus size={18} strokeWidth={3} /> Add Point
-                            </button>
+                            {meeting.status !== 'completed' && (
+                                <button
+                                    onClick={() => { setEditingPointId(-1); setNewPoint(''); setSelectedAssignments([]); setNewAttachments([]); }}
+                                    className="px-5 py-3 bg-[#136dec] hover:bg-blue-700 text-white font-black text-[11px] uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-blue-100 rounded-lg active:scale-95 transition-all"
+                                >
+                                    <Plus size={18} strokeWidth={3} /> Add Point
+                                </button>
+                            )}
                         </div>
 
                         {/* Composer / Points List */}
@@ -617,6 +669,9 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
                                                     )}
                                                 </div>
                                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button onClick={() => togglePointStatus(point.id, point.status)} className="px-2 py-1 rounded-md text-emerald-600 bg-emerald-50 hover:bg-emerald-100 font-bold text-[9px] uppercase tracking-widest transition-colors flex items-center gap-1 mr-1">
+                                                        <CheckCircle size={12} /> {point.status === 'closed' ? 'Reopen' : 'Close'}
+                                                    </button>
                                                     <button onClick={() => {
                                                         setEditingPointId(point.id);
                                                         setEditText(point.point_text);
@@ -630,7 +685,7 @@ const MeetingCollaborator = ({ meetingId, initialMeeting }: { meetingId: string,
                                                 </div>
                                             </div>
 
-                                            <p className="text-[15px] font-medium text-slate-900 leading-relaxed tracking-tight break-words">
+                                            <p className={`text-[15px] font-medium leading-relaxed tracking-tight break-words ${point.status === 'closed' ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
                                                 {point.point_text}
                                             </p>
 
