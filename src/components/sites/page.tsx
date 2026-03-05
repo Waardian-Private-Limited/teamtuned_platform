@@ -22,6 +22,7 @@ type Site = {
     is_head_office?: boolean;
     latitude?: string | number | null;
     longitude?: string | number | null;
+    radius_meters?: number | null;
     has_expiry: boolean;
     expiry_date?: string | null;
     has_budget: boolean;
@@ -182,7 +183,7 @@ const SiteFormFields = React.memo(({
                 />
             </div>
 
-            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Latitude</label>
                     <input
@@ -203,6 +204,16 @@ const SiteFormFields = React.memo(({
                         value={form.longitude as string || ""}
                         onChange={(e) => onChange("longitude", e.target.value)}
                         placeholder="e.g., 72.8777"
+                    />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Radius (meters)</label>
+                    <input
+                        type="number"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        value={form.radius_meters || ""}
+                        onChange={(e) => onChange("radius_meters", e.target.value)}
+                        placeholder="e.g., 200"
                     />
                 </div>
             </div>
@@ -400,6 +411,7 @@ export default function OrgAdminSitesPage() {
         is_head_office: false,
         latitude: "",
         longitude: "",
+        radius_meters: 200,
         has_expiry: false,
         expiry_date: "",
         has_budget: false,
@@ -515,6 +527,7 @@ export default function OrgAdminSitesPage() {
                 is_head_office: s.is_head_office,
                 latitude: s.latitude,
                 longitude: s.longitude,
+                radius_meters: s.radius_meters,
                 has_expiry: s.has_expiry,
                 expiry_date: s.expiry_date ? s.expiry_date.toString().substring(0, 10) : "",
                 has_budget: s.has_budget,
@@ -603,6 +616,7 @@ export default function OrgAdminSitesPage() {
                 is_head_office: Boolean(form.is_head_office),
                 latitude: form.latitude || null,
                 longitude: form.longitude || null,
+                radius_meters: form.radius_meters ? Number(form.radius_meters) : 200,
                 has_expiry: Boolean(form.has_expiry),
                 expiry_date: form.has_expiry ? (form.expiry_date || null) : null,
                 has_budget: Boolean(form.has_budget),
@@ -623,6 +637,7 @@ export default function OrgAdminSitesPage() {
                 is_head_office: false,
                 latitude: "",
                 longitude: "",
+                radius_meters: 200,
                 has_expiry: false,
                 expiry_date: "",
                 has_budget: false,
@@ -657,6 +672,7 @@ export default function OrgAdminSitesPage() {
             is_head_office: false,
             latitude: "",
             longitude: "",
+            radius_meters: 200,
             has_expiry: false,
             expiry_date: "",
             has_budget: false,
@@ -696,6 +712,7 @@ export default function OrgAdminSitesPage() {
             is_head_office: Boolean(site.is_head_office),
             latitude: site.latitude ? String(site.latitude) : "",
             longitude: site.longitude ? String(site.longitude) : "",
+            radius_meters: site.radius_meters || 200,
             has_expiry: Boolean(site.has_expiry),
             expiry_date: site.expiry_date ? String(site.expiry_date).split('T')[0] : "",
             has_budget: Boolean(site.has_budget),
@@ -780,6 +797,7 @@ export default function OrgAdminSitesPage() {
                 is_head_office: Boolean(form.is_head_office),
                 latitude: form.latitude || null,
                 longitude: form.longitude || null,
+                radius_meters: form.radius_meters ? Number(form.radius_meters) : 200,
                 has_expiry: Boolean(form.has_expiry),
                 expiry_date: form.has_expiry ? (form.expiry_date || null) : null,
                 has_budget: Boolean(form.has_budget),
