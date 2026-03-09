@@ -383,35 +383,31 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
       }
     }
 
-    if (record?.is_paid_leave) {
-      const half = Number(record?.leave_partial || 0) === 0.5;
-      return { color: "text-teal-600", bg: "bg-teal-50", border: "border-teal-200", label: half ? "Paid Leave (Half)" : "Paid Leave", icon: FileText };
-    }
-
-    if (!record) {
-      if (dateStr && isHoliday(dateStr)) return { color: "text-violet-600", bg: "bg-violet-50", border: "border-violet-200", label: "Holiday", icon: CalendarIcon };
-      // Priority: Unpaid > Paid (in case of overlap or data issue)
-      if (dateStr && isUnpaidLeave(dateStr)) return { color: "text-orange-600", bg: "bg-orange-50", border: "border-orange-200", label: "Unpaid Leave", icon: FileText };
-      if (dateStr && isPaidLeave(dateStr)) return { color: "text-teal-600", bg: "bg-teal-50", border: "border-teal-200", label: "Paid Leave", icon: FileText };
-      return { color: "text-slate-400", bg: "bg-slate-50", border: "border-slate-200", label: "—", icon: null };
-    }
-
-
-
-    // Night OT Visual Indicators
-    if (record?.was_night_ot) {
-      if (record?.night_ot_status === 'Pending') {
-        return { color: "text-orange-600", bg: "bg-orange-50", border: "border-orange-200", label: "OT Pending", icon: Clock };
-      } else if (record?.night_ot_status === 'Approved') {
-        return { color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200", label: "OT Approved", icon: CheckCircle2 };
-      }
-    }
-
-    const tl = String(record.status_timeline || record.status_summary || "").toLowerCase();
+    const tl = String(record?.status_timeline || record?.status_summary || "").toLowerCase();
+    const isPL = record?.is_paid_leave || (dateStr && isPaidLeave(dateStr));
+    const plHalf = Number(record?.leave_partial || 0) === 0.5 || (record?.is_paid_leave && tl.includes('half'));
 
     if (statusRaw === "Completed") {
-      if (tl.includes("half")) return { color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200", label: "Half Day", icon: Clock };
-      return { color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200", label: "Present", icon: CheckCircle2 };
+      if (tl.includes("half")) {
+        return {
+          color: isPL ? "text-teal-700" : "text-amber-600",
+          bg: isPL ? "bg-teal-50" : "bg-amber-50",
+          border: isPL ? "border-teal-200" : "border-amber-200",
+          label: isPL ? "Half Day + PL" : "Half Day",
+          icon: isPL ? FileText : Clock
+        };
+      }
+      return {
+        color: isPL ? "text-teal-700" : "text-emerald-600",
+        bg: isPL ? "bg-teal-50" : "bg-emerald-50",
+        border: isPL ? "border-teal-200" : "border-emerald-200",
+        label: isPL ? "Present + PL" : "Present",
+        icon: isPL ? FileText : CheckCircle2
+      };
+    }
+
+    if (isPL) {
+      return { color: "text-teal-600", bg: "bg-teal-50", border: "border-teal-200", label: plHalf ? "Paid Leave (Half)" : "Paid Leave", icon: FileText };
     }
 
     return { color: "text-rose-600", bg: "bg-rose-50", border: "border-rose-200", label: "Absent", icon: XCircle };

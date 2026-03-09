@@ -662,6 +662,18 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
     }
   };
 
+  const handleTriggerScheduler = async () => {
+    try {
+      setActionLoading("trigger_scheduler");
+      const res = await apiClient<any>("/leaves/trigger-scheduler", { method: "POST", withAuth: true });
+      showNotification(res?.message || "Scheduler triggered successfully", "success");
+    } catch (e: any) {
+      showNotification(e?.message || "Failed to trigger scheduler", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const calculateDuration = (start: string, end: string, session: string = 'Full Day'): number => {
     if (!start || !end) return 0;
     const s = new Date(start);
@@ -1869,6 +1881,17 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
               <span>Filters</span>
               {filtersExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
+            {isOrgAdmin && (
+              <button
+                onClick={handleTriggerScheduler}
+                disabled={actionLoading === "trigger_scheduler"}
+                className={`px-3 py-1.5 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors flex items-center space-x-1 text-sm ${actionLoading === "trigger_scheduler" ? "opacity-50 cursor-not-allowed" : ""}`}
+                title="Manually trigger leave balance calculation"
+              >
+                <RefreshCw className={`w-4 h-4 ${actionLoading === "trigger_scheduler" ? "animate-spin" : ""}`} />
+                <span className="hidden sm:inline">Run Scheduler</span>
+              </button>
+            )}
             {canAddLeave && (
               <button
                 onClick={openAddLeaveModal}
