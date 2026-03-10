@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
-import { ArrowRight, Calendar, Clock, MapPin, RefreshCw, Search, Users, User, Phone, Briefcase, FileText, Download, X } from 'lucide-react';
+import { ArrowRight, Calendar, Clock, MapPin, RefreshCw, Search, Users, User, Phone, Briefcase, FileText, Download, X, AlertCircle } from 'lucide-react';
 import { format } from "date-fns";
 
 interface LaborerItem {
@@ -28,6 +28,9 @@ interface LaborerItem {
         total_cost: number;
     }
     active_rate_info?: { type: 'Day' | 'Night' | 'Overtime'; value: number } | null;
+    is_migrated?: number | boolean;
+    primary_site_name?: string;
+    punch_site_name?: string;
 }
 
 export default function LaborAttendanceList() {
@@ -73,6 +76,7 @@ export default function LaborAttendanceList() {
     const [showExportModal, setShowExportModal] = useState(false);
     const [showImageModal, setShowImageModal] = useState(false);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
     // Fetch List
     const fetchList = useCallback(async () => {
@@ -87,27 +91,42 @@ export default function LaborAttendanceList() {
         }
 
         setLoadingList(true);
+        setError(null);
         try {
-            const params: any = { date, page, limit };
-            if (effSite) params.site_id = String(effSite);
-            if (statusFilter !== "all") params.status = statusFilter;
-            if (searchQuery) params.search = searchQuery;
-
-            if (selectedContractorId) params.contractor_id = String(selectedContractorId);
-            if (selectedCategoryId) params.category_id = String(selectedCategoryId);
-            if (selectedSubcategoryId) params.subcategory_id = String(selectedSubcategoryId);
+            const params: any = {
+                date,
+                page,
+                limit,
+                search: searchQuery,
+                status: statusFilter === 'all' ? '' : statusFilter,
+                site_id: selectedSiteId,
+                contractor_id: selectedContractorId,
+                category_id: selectedCategoryId,
+                subcategory_id: selectedSubcategoryId,
+            };
 
             const res = await apiClient<any>("/labor/attendance/daily-list", { params, withAuth: true });
 
             setLaborers(res.items || []);
             setTotalPages(res.pagination?.totalPages || 1);
             setTotalItems(res.pagination?.totalItems || res.items?.length || 0);
-        } catch (error) {
-            console.error(error);
+        } catch (err: any) {
+            console.error(err);
+            setError(err.message || "Failed to fetch attendance logs. Please try again.");
+            setLaborers([]);
+            setTotalItems(0);
         } finally {
             setLoadingList(false);
         }
     }, [date, selectedSiteId, hqMode, canHRMode, statusFilter, searchQuery, page, limit, selectedContractorId, selectedCategoryId, selectedSubcategoryId, canViewAll]);
+
+    // Reset filters when site changes
+    useEffect(() => {
+        setPage(1);
+        setSelectedContractorId(null);
+        setSelectedCategoryId(null);
+        setSelectedSubcategoryId(null);
+    }, [selectedSiteId]);
 
     // Initial Load - Sites
     useEffect(() => {
@@ -396,11 +415,41 @@ export default function LaborAttendanceList() {
                             <tbody className="divide-y divide-gray-100">
                                 {loadingList ? (
                                     <tr>
-                                        <td colSpan={10} className="px-6 py-8 text-center text-gray-500">Loading records...</td>
+                                        <td colSpan={10} className="px-6 py-12 text-center text-gray-500">
+                                            <div className="flex flex-col items-center gap-3">
+                                                <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+                                                <span className="text-sm font-medium">Loading attendance records...</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ) : error ? (
+                                    <tr>
+                                        <td colSpan={10} className="px-6 py-12 text-center text-red-500 bg-red-50/30">
+                                            <div className="flex flex-col items-center gap-3">
+                                                <AlertCircle className="w-10 h-10 text-red-500" />
+                                                <div className="space-y-1">
+                                                    <p className="font-semibold">{error}</p>
+                                                    <button
+                                                        onClick={() => fetchList()}
+                                                        className="text-blue-600 hover:text-blue-700 text-sm font-medium underline underline-offset-4"
+                                                    >
+                                                        Retry Fetch
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </td>
                                     </tr>
                                 ) : laborers.length === 0 ? (
                                     <tr>
-                                        <td colSpan={10} className="px-6 py-8 text-center text-gray-500">No records found matching filters.</td>
+                                        <td colSpan={10} className="px-6 py-16 text-center text-gray-500">
+                                            <div className="flex flex-col items-center gap-3">
+                                                <Users className="w-12 h-12 text-gray-300" />
+                                                <div className="space-y-1">
+                                                    <p className="text-lg font-semibold text-gray-900">No laborers found</p>
+                                                    <p className="text-sm">Try adjusting your filters or search query</p>
+                                                </div>
+                                            </div>
+                                        </td>
                                     </tr>
                                 ) : ( // ... Table rows ...
                                     laborers.map((emp) => {
@@ -419,7 +468,19 @@ export default function LaborAttendanceList() {
                                                             )}
                                                         </div>
                                                         <div>
-                                                            <div className="font-semibold text-gray-900">{emp.name}</div>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="font-semibold text-gray-900">{emp.name}</div>
+                                                                {(emp.is_migrated === 1 || emp.is_migrated === true) && (
+                                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700 border border-amber-200 uppercase tracking-tight">
+                                                                        Migrated
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {(emp.is_migrated === 1 || emp.is_migrated === true) && (
+                                                                <div className="text-[10px] text-amber-600 font-medium mb-0.5">
+                                                                    From: {emp.primary_site_name || 'Primary Site'}
+                                                                </div>
+                                                            )}
                                                             <div className="text-xs text-gray-500">{emp.phone_number}</div>
                                                         </div>
                                                     </div>
