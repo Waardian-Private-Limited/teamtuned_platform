@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Mail, Lock, Smartphone, Building2 } from 'lucide-react';
-import { login, verifyOtp, checkAccounts, loginWithAccount, sendWebOtp, Account } from '@/lib/apiClient';
+import { Mail, Lock, Smartphone, Building2, Eye, EyeOff } from 'lucide-react';
+import { login, verifyOtp, checkAccounts, loginWithAccount, sendWebOtp, Account, sendForgotPasswordOtp, verifyForgotPasswordOtp, resetPassword } from '@/lib/apiClient';
 import { useRouter } from 'next/navigation';
 import { useUserStore } from '@/lib/store/userStore';
 import { useAuth } from '@/context/AuthContext';
 
-type LoginStep = 'email' | 'accounts' | 'password' | 'otp' | 'verify' | 'account-otp' | 'superadmin-password';
+type LoginStep = 'email' | 'accounts' | 'password' | 'otp' | 'verify' | 'account-otp' | 'superadmin-password' | 'forgot-email' | 'forgot-otp' | 'forgot-reset';
 
 export default function LoginFormTabs() {
   const [tab, setTab] = useState<'password' | 'otp'>('password');
@@ -21,6 +21,7 @@ export default function LoginFormTabs() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const router = useRouter();
@@ -40,8 +41,6 @@ export default function LoginFormTabs() {
     setMobile('');
     setError('');
   };
-
-
 
   const resetToStep = () => {
     setStep(tab === 'otp' ? 'otp' : 'email');
@@ -101,22 +100,13 @@ export default function LoginFormTabs() {
         return;
       }
 
-      // Check if there's a single superadmin account - direct login
       if (response.account && (response.account.userType || '').toLowerCase() === 'superadmin') {
         setSelectedAccount(response.account);
-        setStep('superadmin-password'); // Special step for superadmin direct login
+        setStep('superadmin-password');
         setMobile(response.account.phone || response.account.email);
       } else if (response.accounts && response.accounts.length > 1) {
-        // Check if all accounts are superadmin - if so, show account selection
-        const superadminAccounts = response.accounts.filter((acc: any) => (acc.userType || '').toLowerCase() === 'superadmin');
-        if (superadminAccounts.length === response.accounts.length) {
-          setAccounts(response.accounts);
-          setStep('accounts');
-        } else {
-          // Mixed accounts or only societyAdmin accounts
-          setAccounts(response.accounts);
-          setStep('accounts');
-        }
+        setAccounts(response.accounts);
+        setStep('accounts');
       } else if (response.account) {
         setSelectedAccount(response.account);
         setStep(tab === 'password' ? 'password' : 'otp');
@@ -131,14 +121,12 @@ export default function LoginFormTabs() {
     }
   };
 
-  // Select an account for login (password or OTP)
   const handleAccountSelect = (account: Account) => {
     setSelectedAccount(account);
     setStep(tab === 'password' ? 'password' : 'otp');
     setMobile(account.phone || account.email);
   };
 
-  // Select an account and move to account-specific OTP request step
   const handleAccountOtpSelect = (account: Account) => {
     setSelectedAccount(account);
     setStep('account-otp');
@@ -156,7 +144,6 @@ export default function LoginFormTabs() {
       const response = await login({ type: 'password', email, password });
 
       if (response.success && response.user) {
-
         const user = {
           ...response.user,
           id: String(response.user.id),
@@ -166,26 +153,16 @@ export default function LoginFormTabs() {
         };
         setUser(user);
 
-        // Handle Remember Me for SuperAdmin
-        if (rememberMe) {
-          // Construct a dummy account object for superadmin to fit standard flow or just store email
-          // Taking a simpler approach: Just store a flag or generic account structure
-          // Since SuperAdmin login flow is slightly different (direct email/pass step), 
-          // we might skip standard remember-account logic or adapt it.
-          // For now, let's focus on standard account login which is the main target.
+        if (response.token) {
+          localStorage.setItem('token', response.token);
         }
-
+        setAuthState(response);
         const roleRoutes: { [key: string]: string } = {
           superAdmin: '/superadmin',
           OrgAdmin: '/org-admin',
           Employee: '/employee',
           default: '/dashboard',
         };
-        // Refresh auth context
-        if (response.token) {
-          localStorage.setItem('token', response.token);
-        }
-        setAuthState(response);
         router.push(roleRoutes[response.role || 'default'] || roleRoutes.default);
       } else {
         setError(response.message || 'Login failed');
@@ -208,7 +185,6 @@ export default function LoginFormTabs() {
       const response = await loginWithAccount(selectedAccount.id, password);
 
       if (response.success && response.user) {
-        // Save Remember Me
         if (rememberMe) {
           localStorage.setItem('tt_remembered_account', JSON.stringify({
             account: selectedAccount,
@@ -228,17 +204,16 @@ export default function LoginFormTabs() {
         };
         setUser(user);
 
+        if (response.token) {
+          localStorage.setItem('token', response.token);
+        }
+        setAuthState(response);
         const roleRoutes: { [key: string]: string } = {
           superAdmin: '/superadmin',
           OrgAdmin: '/org-admin',
           Employee: '/employee',
           default: '/dashboard',
         };
-        // Refresh auth context
-        if (response.token) {
-          localStorage.setItem('token', response.token);
-        }
-        setAuthState(response);
         router.push(roleRoutes[response.role || 'default'] || roleRoutes.default);
       } else {
         setError(response.message || 'Login failed');
@@ -250,7 +225,6 @@ export default function LoginFormTabs() {
     }
   };
 
-  // Generic OTP request for the 'With OTP' tab
   const handleOtpRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -272,13 +246,10 @@ export default function LoginFormTabs() {
     }
   };
 
-  // Account-specific OTP sender (when an account is chosen)
   const handleAccountOtpRequest = async () => {
     if (!selectedAccount) return;
-
     setIsLoading(true);
     setError('');
-
     try {
       const result = await sendWebOtp(selectedAccount.id);
       if (result.success) {
@@ -313,17 +284,16 @@ export default function LoginFormTabs() {
         };
         setUser(user);
 
+        if (response.token) {
+          localStorage.setItem('token', response.token);
+        }
+        setAuthState(response);
         const roleRoutes: { [key: string]: string } = {
           superAdmin: '/superadmin',
           OrgAdmin: '/org-admin',
           Employee: '/employee',
           default: '/dashboard',
         };
-        // Refresh auth context
-        if (response.token) {
-          localStorage.setItem('token', response.token);
-        }
-        setAuthState(response);
         router.push(roleRoutes[response.role || 'default'] || roleRoutes.default);
       } else if (response.accounts && response.accounts.length > 1) {
         setAccounts(response.accounts);
@@ -341,10 +311,8 @@ export default function LoginFormTabs() {
   const handleResendOtp = async () => {
     setError('');
     setIsLoading(true);
-
     try {
       if (!mobile) throw new Error('Mobile number is required');
-
       const response = await login({ type: 'otp', mobile });
       if (response.success) setError(response.message || 'OTP resent successfully');
       else setError(response.message || 'Failed to resend OTP');
@@ -355,54 +323,94 @@ export default function LoginFormTabs() {
     }
   };
 
+  // ----- Forgot Password Handlers -----
+  const handleForgotEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+    try {
+      if (!email) throw new Error('Please enter your email');
+      const res = await sendForgotPasswordOtp(email);
+      if (res.success) setStep('forgot-otp');
+      else setError(res.message || 'Failed to send OTP');
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  const handleForgotOtpVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+    try {
+      if (!otp) throw new Error('Please enter OTP');
+      const res = await verifyForgotPasswordOtp(email, otp);
+      if (res.success) setStep('forgot-reset');
+      else setError(res.message || 'Invalid OTP');
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  // ----- Render -----
+  const handleForgotReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+    try {
+      if (!password) throw new Error('Please enter new password');
+      const res = await resetPassword({ email, otp, newPassword: password });
+      if (res.success) {
+        setSuccess('Password reset successfully. Please login.');
+        setStep('email');
+      } else {
+        setError(res.message || 'Failed to reset password');
+      }
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="w-full max-w-sm mx-auto px-4">
       {/* Tab Switcher */}
-      <div className="flex justify-center mb-6 bg-gray-100 rounded-xl p-1">
-        <button
-          onClick={() => handleTabSwitch('password')}
-          className={`px-6 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${tab === 'password'
-            ? 'bg-white text-gray-900 shadow-sm'
-            : 'text-gray-500 hover:text-gray-700'
-            }`}
-          disabled={isLoading}
-        >
-          With Password
-        </button>
-        <div className="relative group">
+      {step === 'email' || step === 'otp' || step === 'verify' || step === 'password' || step === 'superadmin-password' ? (
+        <div className="flex justify-center mb-6 bg-gray-100 rounded-xl p-1">
           <button
-            onClick={() => handleTabSwitch('otp')}
-            className="px-6 py-2 rounded-lg text-sm font-medium transition-all duration-200 text-gray-400 cursor-not-allowed opacity-60"
-            disabled={true}
+            onClick={() => handleTabSwitch('password')}
+            className={`px-6 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${tab === 'password' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            disabled={isLoading}
           >
-            With OTP
+            With Password
           </button>
-          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none">
-            Coming Soon
-            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
+          <div className="relative group">
+            <button
+              onClick={() => handleTabSwitch('otp')}
+              className="px-6 py-2 rounded-lg text-sm font-medium transition-all duration-200 text-gray-400 cursor-not-allowed opacity-60"
+              disabled={true}
+            >
+              With OTP
+            </button>
+            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none">
+              Coming Soon
+              <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
+            </div>
           </div>
         </div>
-      </div>
+      ) : null}
 
       {/* Step Content */}
       {step === 'email' && tab === 'password' && (
         <form className="space-y-5" onSubmit={handleEmailSubmit}>
           {error && <ErrorBox message={error} />}
-          <InputWithIcon
-            label="Email"
-            icon={<Mail className="w-5 h-5 text-gray-400" />}
-            type="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            disabled={isLoading}
-          />
-          <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white py-3 rounded-xl">
-            {isLoading ? 'Checking...' : 'Continue'}
-          </button>
+          {success && <SuccessBox message={success} />}
+          <InputWithIcon label="Email" icon={<Mail className="w-5 h-5 text-gray-400" />} type="email" placeholder="you@example.com" value={email} onChange={e => { setEmail(e.target.value); setError(''); setSuccess(''); }} disabled={isLoading} />
+          <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white py-3 rounded-xl">{isLoading ? 'Checking...' : 'Continue'}</button>
         </form>
       )}
 
@@ -415,7 +423,7 @@ export default function LoginFormTabs() {
       )}
 
       {step === 'superadmin-password' && (
-        <SuperadminPasswordStep email={email} password={password} setPassword={setPassword} onSubmit={handleSuperadminLogin} onBack={resetToStep} error={error} isLoading={isLoading} />
+        <SuperadminPasswordStep email={email} password={password} setPassword={setPassword} onSubmit={handleSuperadminLogin} onBack={resetToStep} onForgot={() => setStep('forgot-email')} error={error} isLoading={isLoading} />
       )}
 
       {step === 'password' && selectedAccount && (
@@ -425,6 +433,7 @@ export default function LoginFormTabs() {
           setPassword={setPassword}
           onSubmit={handlePasswordLogin}
           onBack={isRememberedLogin ? handleSwitchAccount : resetToStep}
+          onForgot={() => setStep('forgot-email')}
           error={error}
           isLoading={isLoading}
           rememberMe={rememberMe}
@@ -440,6 +449,36 @@ export default function LoginFormTabs() {
       {step === 'verify' && (
         <OtpVerifyStep otp={otp} setOtp={setOtp} onSubmit={handleOtpVerify} onResend={handleResendOtp} onBack={resetToStep} error={error} isLoading={isLoading} />
       )}
+
+      {step === 'forgot-email' && (
+        <form className="space-y-5" onSubmit={handleForgotEmailSubmit}>
+          <h3 className="text-lg font-semibold text-gray-900 text-center">Reset Password</h3>
+          {error && <ErrorBox message={error} />}
+          <InputWithIcon label="Email" icon={<Mail className="w-5 h-5 text-gray-400" />} type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} disabled={isLoading} />
+          <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white py-3 rounded-xl">{isLoading ? 'Sending...' : 'Send Reset Code'}</button>
+          <button type="button" onClick={() => setStep('email')} className="w-full text-blue-600 py-3 rounded-xl text-sm" disabled={isLoading}>Back to Login</button>
+        </form>
+      )}
+
+      {step === 'forgot-otp' && (
+        <form className="space-y-5" onSubmit={handleForgotOtpVerify}>
+          <h3 className="text-lg font-semibold text-gray-900 text-center">Verify Reset Code</h3>
+          {error && <ErrorBox message={error} />}
+          <InputWithIcon label="OTP" icon={<Smartphone className="w-5 h-5 text-gray-400" />} type="tel" placeholder="Enter 6-digit code sent to your Email" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} disabled={isLoading} />
+          <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white py-3 rounded-xl">{isLoading ? 'Verify' : 'Verify Code'}</button>
+          <button type="button" onClick={() => setStep('forgot-email')} className="w-full text-blue-600 py-3 rounded-xl text-sm" disabled={isLoading}>Back</button>
+        </form>
+      )}
+
+      {step === 'forgot-reset' && (
+        <form className="space-y-5" onSubmit={handleForgotReset}>
+          <h3 className="text-lg font-semibold text-gray-900 text-center">New Password</h3>
+          {error && <ErrorBox message={error} />}
+          <InputWithIcon label="New Password" icon={<Lock className="w-5 h-5 text-gray-400" />} type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} disabled={isLoading} />
+          <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white py-3 rounded-xl">{isLoading ? 'Updating...' : 'Update Password'}</button>
+          <button type="button" onClick={() => setStep('forgot-email')} className="w-full text-blue-600 py-3 rounded-xl text-sm" disabled={isLoading}>Back</button>
+        </form>
+      )}
     </div>
   );
 }
@@ -448,6 +487,10 @@ export default function LoginFormTabs() {
 
 const ErrorBox = ({ message }: { message: string }) => (
   <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm text-center">{message}</div>
+);
+
+const SuccessBox = ({ message }: { message: string }) => (
+  <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm text-center">{message}</div>
 );
 
 const AccountsStep = ({ accounts, error, onSelect, onOtpSelect, onBack, isLoading }: { accounts: Account[], error: string, onSelect: (acc: Account) => void, onOtpSelect: (acc: Account) => void, onBack: () => void, isLoading: boolean }) => (
@@ -474,7 +517,7 @@ const AccountsStep = ({ accounts, error, onSelect, onOtpSelect, onBack, isLoadin
   </div>
 );
 
-const SuperadminPasswordStep = ({ email, password, setPassword, onSubmit, onBack, error, isLoading }: { email: string, password: string, setPassword: (v: string) => void, onSubmit: (e: React.FormEvent) => void, onBack: () => void, error: string, isLoading: boolean }) => (
+const SuperadminPasswordStep = ({ email, password, setPassword, onSubmit, onBack, onForgot, error, isLoading }: { email: string, password: string, setPassword: (v: string) => void, onSubmit: (e: React.FormEvent) => void, onBack: () => void, onForgot: () => void, error: string, isLoading: boolean }) => (
   <form className="space-y-5" onSubmit={onSubmit}>
     {error && <ErrorBox message={error} />}
     <div className="p-4 bg-gray-50 rounded-lg">
@@ -483,49 +526,45 @@ const SuperadminPasswordStep = ({ email, password, setPassword, onSubmit, onBack
     </div>
     <InputWithIcon label="Password" icon={<Lock className="w-5 h-5 text-gray-400" />} type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} disabled={isLoading} />
     <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white py-3 rounded-xl">{isLoading ? 'Logging in...' : 'Login'}</button>
+    <div className="text-right">
+      <button type="button" onClick={onForgot} className="text-sm text-blue-600 hover:text-blue-800">Forgot Password?</button>
+    </div>
     <button type="button" onClick={onBack} className="w-full text-blue-600 py-3 rounded-xl text-sm" disabled={isLoading}>Back</button>
   </form>
 );
 
 const PasswordStep = ({
-  selectedAccount, password, setPassword, onSubmit, onBack, error, isLoading, rememberMe, setRememberMe, isRemembered
+  selectedAccount, password, setPassword, onSubmit, onBack, onForgot, error, isLoading, rememberMe, setRememberMe, isRemembered
 }: {
-  selectedAccount: Account, password: string, setPassword: (v: string) => void, onSubmit: (e: React.FormEvent) => void, onBack: () => void, error: string, isLoading: boolean,
+  selectedAccount: Account, password: string, setPassword: (v: string) => void, onSubmit: (e: React.FormEvent) => void, onBack: () => void, onForgot: () => void, error: string, isLoading: boolean,
   rememberMe: boolean, setRememberMe: (v: boolean) => void, isRemembered: boolean
 }) => (
   <form className="space-y-5" onSubmit={onSubmit}>
     {error && <ErrorBox message={error} />}
-
-    {/* Account Info Card (Especially important if auto-jumped logic) */}
     <div className="p-4 bg-gray-50 rounded-lg flex items-center justify-between">
       <div>
         <p className="font-medium text-gray-900">{selectedAccount.societyName || 'Account'}</p>
         <p className="text-sm text-gray-500">{selectedAccount.username}</p>
       </div>
       {isRemembered && (
-        <button type="button" onClick={onBack} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
-          Switch
-        </button>
+        <button type="button" onClick={onBack} className="text-xs text-blue-600 hover:text-blue-800 font-medium">Switch</button>
       )}
     </div>
-
     <InputWithIcon label="Password" icon={<Lock className="w-5 h-5 text-gray-400" />} type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} disabled={isLoading} />
-
-    <div className="flex items-center">
-      <input
-        id="remember-me"
-        type="checkbox"
-        checked={rememberMe}
-        onChange={(e) => setRememberMe(e.target.checked)}
-        className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-      />
-      <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
-        Remember me
-      </label>
+    <div className="flex items-center justify-between">
+      <div className="flex items-center">
+        <input
+          id="remember-me"
+          type="checkbox"
+          checked={rememberMe}
+          onChange={(e) => setRememberMe(e.target.checked)}
+          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+        />
+        <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">Remember me</label>
+      </div>
+      <button type="button" onClick={onForgot} className="text-sm text-blue-600 hover:text-blue-800">Forgot Password?</button>
     </div>
-
     <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white py-3 rounded-xl">{isLoading ? 'Logging in...' : 'Login'}</button>
-
     {!isRemembered && (
       <button type="button" onClick={onBack} className="w-full text-blue-600 py-3 rounded-xl text-sm" disabled={isLoading}>Back</button>
     )}
@@ -560,46 +599,35 @@ const AccountOtpStep = ({ selectedAccount, onSubmit, onBack, error, isLoading }:
 const OtpVerifyStep = ({ otp, setOtp, onSubmit, onResend, onBack, error, isLoading }: { otp: string, setOtp: (v: string) => void, onSubmit: (e: React.FormEvent) => void, onResend: () => void, onBack: () => void, error: string, isLoading: boolean }) => (
   <form className="space-y-5" onSubmit={onSubmit}>
     <div className="flex justify-center mb-4">
-      <Image
-        src="/assets/LogoBlackText.png"
-        alt="TeamTuned Logo"
-        width={120}
-        height={30}
-        className="h-8 w-auto object-contain"
-        priority
-        quality={100}
-      />
+      <Image src="/assets/LogoBlackText.png" alt="TeamTuned Logo" width={120} height={30} className="h-8 w-auto object-contain" priority quality={100} />
     </div>
     <h3 className="text-lg font-semibold text-gray-900 text-center">Verify OTP</h3>
     {error && <ErrorBox message={error} />}
-    <InputWithIcon label="OTP" icon={<Smartphone className="w-5 h-5 text-gray-400" />} type="tel" placeholder="Enter 6-digit OTP" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} disabled={isLoading} />
+    <InputWithIcon label="OTP" icon={<Smartphone className="w-5 h-5 text-gray-400" />} type="tel" placeholder="Enter 6-digit OTP sent to your Email" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} disabled={isLoading} />
     <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white py-3 rounded-xl">{isLoading ? 'Verifying...' : 'Verify OTP'}</button>
     <button type="button" onClick={onResend} className="w-full text-blue-600 py-3 rounded-xl text-sm" disabled={isLoading}>Resend OTP</button>
     <button type="button" onClick={onBack} className="w-full text-gray-600 py-3 rounded-xl text-sm" disabled={isLoading}>Back</button>
   </form>
 );
 
-// ----- Input With Icon -----
-
-type InputProps = {
-  label: string;
-  icon: React.ReactNode;
-  type: string;
-  placeholder: string;
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  disabled: boolean;
-};
-
-function InputWithIcon({ label, icon, type, placeholder, value, onChange, disabled }: InputProps) {
+function InputWithIcon({ label, icon, type, placeholder, value, onChange, disabled }: { label: string; icon: React.ReactNode; type: string; placeholder: string; value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; disabled: boolean }) {
   const [isFocused, setIsFocused] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const isPassword = type === 'password';
+  const inputType = isPassword ? (showPassword ? 'text' : 'password') : type;
 
   return (
     <div className="space-y-2">
       <label className="text-sm font-medium text-gray-700">{label}</label>
       <div className={`relative flex items-center px-4 py-3 bg-white rounded-lg border transition-all duration-200 ${isFocused ? 'border-blue-500 shadow-lg shadow-blue-500/10' : 'border-gray-200 hover:border-gray-300'} ${disabled ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}>
         <span className={`mr-2.5 transition-colors duration-200 ${isFocused ? 'text-blue-500' : 'text-gray-400'}`}>{icon}</span>
-        <input type={type} placeholder={placeholder} value={value} onChange={onChange} disabled={disabled} onFocus={() => setIsFocused(true)} onBlur={() => setIsFocused(false)} className="flex-1 bg-transparent text-base text-gray-900 placeholder-gray-400 outline-none border-none focus:ring-0 focus:outline-none" />
+        <input type={inputType} placeholder={placeholder} value={value} onChange={onChange} disabled={disabled} onFocus={() => setIsFocused(true)} onBlur={() => setIsFocused(false)} className="flex-1 bg-transparent text-base text-gray-900 placeholder-gray-400 outline-none border-none focus:ring-0 focus:outline-none" />
+        {isPassword && (
+          <button type="button" onClick={() => setShowPassword(!showPassword)} className="p-1 -mr-1 text-gray-400 hover:text-gray-600 transition-colors" disabled={disabled}>
+            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        )}
       </div>
     </div>
   );

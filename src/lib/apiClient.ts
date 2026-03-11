@@ -206,3 +206,25 @@ export async function verifyOtp(mobile: string, otp: string, accountId?: string)
     body: { mobile, otp, accountId },
   });
 }
+
+// Forgot Password Flow
+export async function sendForgotPasswordOtp(email: string): Promise<any> {
+  return apiClient('/auth/forgot-password/send', {
+    method: 'POST',
+    body: { email },
+  });
+}
+
+export async function verifyForgotPasswordOtp(email: string, otp: string): Promise<any> {
+  return apiClient('/auth/forgot-password/verify', {
+    method: 'POST',
+    body: { email, otp },
+  });
+}
+
+export async function resetPassword(payload: { email: string; otp: string; newPassword: string }): Promise<any> {
+  return apiClient('/auth/forgot-password/reset', {
+    method: 'POST',
+    body: payload,
+  });
+}
