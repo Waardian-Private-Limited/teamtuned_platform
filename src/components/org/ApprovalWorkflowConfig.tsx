@@ -554,15 +554,17 @@ export default function ApprovalWorkflowConfig() {
                                                                 {level.approver_employee_ids.map(id => {
                                                                     const emp = employeeCache.get(id);
                                                                     if (!emp) return null;
+                                                                    const isTerminated = emp.status === 'Terminated' || emp.status === 'Deleted';
                                                                     return (
-                                                                        <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[10px] font-medium border border-indigo-100">
+                                                                        <span key={id} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border ${isTerminated ? 'bg-red-50 text-red-700 border-red-100' : 'bg-indigo-50 text-indigo-700 border-indigo-100'}`}>
                                                                             {emp.first_name} {emp.last_name}
+                                                                            {isTerminated && <span className="ml-1 opacity-75">(Terminated)</span>}
                                                                             <button
                                                                                 onClick={() => {
                                                                                     const newIds = level.approver_employee_ids.filter(eid => eid !== id);
                                                                                     updateLevel(index, { approver_employee_ids: newIds });
                                                                                 }}
-                                                                                className="hover:text-indigo-900"
+                                                                                className="hover:opacity-75 transition-opacity"
                                                                             >
                                                                                 <X className="w-3 h-3" />
                                                                             </button>
