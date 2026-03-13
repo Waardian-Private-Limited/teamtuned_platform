@@ -59,6 +59,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
   const [showUpdateModal, setShowUpdateModal] = React.useState(false);
   const [isUpdating, setIsUpdating] = React.useState(false);
   const [updateFile, setUpdateFile] = React.useState<File | null>(null);
+  const [withLateMark, setWithLateMark] = React.useState(false);
 
   // Cycle Navigation (EXACTLY like PayrollCycleCalendar)
   const [now, setNow] = React.useState<Date>(new Date());
@@ -1172,6 +1173,27 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                     </div>
                   )}
                 </div>
+
+                {/* Late Mark Option (OrgAdmin Only) */}
+                {((role || "").toLowerCase() === "orgadmin") && (
+                  <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={withLateMark}
+                        onChange={(e) => setWithLateMark(e.target.checked)}
+                        className="w-4 h-4 text-amber-600 border-slate-300 focus:ring-amber-500 rounded"
+                      />
+                      <span className="text-sm font-medium text-amber-900 flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5" />
+                        Export with Late Marks
+                      </span>
+                    </label>
+                    <p className="text-[10px] text-amber-700 leading-tight">
+                      Applies 0.5-day penalty for every 4th late mark (4, 8, 12...), ignoring overrides/regularizations.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
@@ -1194,7 +1216,8 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                         method: exportMethod,
                         email: exportEmail,
                         month: endKey.split('-')[1],
-                        year: endKey.split('-')[0]
+                        year: endKey.split('-')[0],
+                        withLateMark: withLateMark
                       };
 
                       if (exportMethod === 'download') {
