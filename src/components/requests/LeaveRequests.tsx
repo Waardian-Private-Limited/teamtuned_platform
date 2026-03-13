@@ -940,7 +940,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                   </>
                 )}
 
-                {isOrgAdmin && (
+                {(isOrgAdmin || (statusLower === "pending" && hasPerm("LEAVE_EDIT"))) && (
                   <>
                     <div className="border-t border-gray-100 my-1" />
                     <button
@@ -960,7 +960,12 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                       <Calendar className="w-4 h-4" />
                       <span>Edit Dates</span>
                     </button>
+                  </>
+                )}
 
+                {isOrgAdmin && (
+                  <>
+                    <div className="border-t border-gray-100 my-1" />
                     <button
                       onClick={() => {
                         if (window.confirm("Are you sure you want to PERMANENTLY delete this leave request? This will revert any deducted balances.")) {
