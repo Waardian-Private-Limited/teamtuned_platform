@@ -16,8 +16,11 @@ import {
   Users,
   FileText,
   User,
-  AlertTriangle
+  AlertTriangle,
+  RefreshCw
 } from "lucide-react";
+import ResetAttendanceModal from "./ResetAttendanceModal";
+import { useAuth } from "@/context/AuthContext";
 import AttendanceDetailsModal from "./AttendanceDetailsModal";
 
 type Props = {
@@ -39,6 +42,9 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
   const [summary, setSummary] = React.useState<Record<string, any> | null>(null);
   const [cycleInfo, setCycleInfo] = React.useState<{ start: string; end: string } | null>(null);
   const [selectedRecord, setSelectedRecord] = React.useState<AttendanceRecord | null>(null);
+  const [showResetModal, setShowResetModal] = React.useState<boolean>(false);
+  const { role } = useAuth();
+  const isOrgAdmin = role?.toLowerCase() === 'orgadmin' || role?.toLowerCase() === 'superadmin';
 
   const year = month.getFullYear();
   const mon = month.getMonth() + 1;
@@ -262,6 +268,11 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
   const earlyPenaltyCount = stats.EarlyPenalty ?? 0;
   const lateDeductionDates = stats.LateDeductionDates || [];
   const earlyPenaltyDates = stats.EarlyPenaltyDates || [];
+  
+  const lateRemoved = stats.LateRemoved || 0;
+  const earlyRemoved = stats.EarlyRemoved || 0;
+  const latePenaltyRemoved = stats.LatePenaltyRemoved || 0;
+  const earlyPenaltyRemoved = stats.EarlyPenaltyRemoved || 0;
 
   const formatTime = (dateStr?: string) => {
     if (!dateStr) return "—";
@@ -328,6 +339,18 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
             >
               <ChevronRight className="w-4 h-4 text-slate-700" />
             </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {isOrgAdmin && (
+              <button
+                onClick={() => setShowResetModal(true)}
+                className="inline-flex items-center gap-2 px-3 py-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-all text-sm font-medium shadow-sm"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Reset Month</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -444,21 +467,41 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
                             <div className="text-xs font-semibold">{statusInfo.label}</div>
                           </div>
 
-                          {record && record.badges && Array.isArray(record.badges) && record.badges.length > 0 && (
-                            <div className="flex items-center gap-1 mt-0.5">
-                              {record.badges.slice(0, 3).map((b: any, i: number) => {
-                                const t = String(b.type || '').toLowerCase();
-                                if (t === 'late' || t === 'late_deduction') return <Clock key={i} className="w-3 h-3 text-orange-500" />;
-                                if (t === 'early_penalty') return <Clock key={i} className="w-3 h-3 text-red-500" />;
-                                if (t === 'overridden') return <User key={i} className="w-3 h-3 text-blue-500" />;
-                                if (t === 'break' || t === 'break_availed') return <Clock key={i} className="w-3 h-3 text-amber-500" />;
-                                if (t === 'outside_work') return <MapPin key={i} className="w-3 h-3 text-cyan-500" />;
-                                if (t === 'overtime') return <TrendingUp key={i} className="w-3 h-3 text-indigo-500" />;
-                                if (t === 'paid_leave') return <FileText key={i} className="w-3 h-3 text-teal-500" />;
-                                return null;
-                              })}
-                            </div>
-                          )}
+                          {/* Badge icons from flags */}
+                          <div className="flex items-center gap-0.5 mt-0.5 flex-wrap justify-center">
+                            {/* Late Mark: removed flag shows strikethrough even if mark was cleared */}
+                            {record?.is_late_mark_removed === 1 ? (
+                              <span title="Late Mark (Removed)" className="text-[8px] font-bold text-slate-400 line-through">L</span>
+                            ) : record?.is_late_mark === 1 ? (
+                              <span title="Late Mark" className="text-[8px] font-bold text-orange-500">L</span>
+                            ) : null}
+
+                            {/* Late Penalty: removed flag shows strikethrough even if penalty was cleared */}
+                            {record?.is_late_penalty_removed === 1 ? (
+                              <span title="Late Penalty (Waived)" className="text-[8px] font-bold text-slate-400 line-through">LP</span>
+                            ) : record?.is_latemark_penalty === 1 ? (
+                              <span title="Late Penalty" className="w-2 h-2 rounded-full bg-orange-500 inline-block" />
+                            ) : null}
+
+                            {/* Early Mark */}
+                            {record?.is_early_mark_removed === 1 ? (
+                              <span title="Early Exit (Removed)" className="text-[8px] font-bold text-slate-400 line-through">E</span>
+                            ) : record?.is_early_mark === 1 ? (
+                              <span title="Early Exit" className="text-[8px] font-bold text-red-400">E</span>
+                            ) : null}
+
+                            {/* Early Penalty */}
+                            {record?.is_early_penalty_removed === 1 ? (
+                              <span title="Early Penalty (Waived)" className="text-[8px] font-bold text-slate-400 line-through">EP</span>
+                            ) : record?.is_early_penalty === 1 ? (
+                              <span title="Early Penalty" className="w-2 h-2 rounded-full bg-red-500 inline-block" />
+                            ) : null}
+
+                            {/* Override */}
+                            {record?.is_overridden === 1 && (
+                              <span title="Overridden" className="text-[8px] font-bold text-blue-400">OV</span>
+                            )}
+                          </div>
 
                           {record && record.total_work_minutes > 0 && (
                             <div className="text-[11px] opacity-70 mt-auto pb-0.5 font-semibold">
@@ -565,7 +608,7 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
 
               {earlyPenaltyCount > 0 && (
                 <>
-                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-red-50/50 border border-red-200/50">
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-red-50/50 border border-red-200/50 mt-2">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-red-500"></div>
                       <span className="text-sm text-slate-700">Early Penalty</span>
@@ -586,6 +629,39 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
                   )}
                 </>
               )}
+
+              {/* Removed Penalties Section */}
+              {(lateRemoved > 0 || earlyRemoved > 0 || latePenaltyRemoved > 0 || earlyPenaltyRemoved > 0) && (
+                <div className="pt-3 border-t border-slate-200 mt-2">
+                  <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Adjustments</h4>
+                  <div className="space-y-1.5">
+                    {lateRemoved > 0 && (
+                      <div className="flex items-center justify-between text-xs p-1.5 rounded bg-emerald-50 border border-emerald-100">
+                        <span className="text-slate-600">Late Marks Removed</span>
+                        <span className="font-bold text-emerald-700">{lateRemoved}</span>
+                      </div>
+                    )}
+                    {earlyRemoved > 0 && (
+                      <div className="flex items-center justify-between text-xs p-1.5 rounded bg-emerald-50 border border-emerald-100">
+                        <span className="text-slate-600">Early Exits Removed</span>
+                        <span className="font-bold text-emerald-700">{earlyRemoved}</span>
+                      </div>
+                    )}
+                    {latePenaltyRemoved > 0 && (
+                      <div className="flex items-center justify-between text-xs p-1.5 rounded bg-blue-50 border border-blue-100">
+                        <span className="text-slate-600">Late Pen. Waived</span>
+                        <span className="font-bold text-blue-700">{latePenaltyRemoved}</span>
+                      </div>
+                    )}
+                    {earlyPenaltyRemoved > 0 && (
+                      <div className="flex items-center justify-between text-xs p-1.5 rounded bg-blue-50 border border-blue-100">
+                        <span className="text-slate-600">Early Pen. Waived</span>
+                        <span className="font-bold text-blue-700">{earlyPenaltyRemoved}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
 
@@ -604,6 +680,19 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
           isLocked={summary?.salary_date ? new Date() > new Date(summary.salary_date) : false}
           onUpdate={fetchMonthly}
           onClose={() => setSelectedRecord(null)}
+        />
+      )}
+      {showResetModal && (
+        <ResetAttendanceModal
+          currentSiteId={null}
+          siteOptions={[]}
+          employee_id={employeeId}
+          forcedMonth={`${year}-${String(mon).padStart(2, '0')}`}
+          onClose={() => setShowResetModal(false)}
+          onSuccess={() => {
+            setShowResetModal(false);
+            fetchMonthly();
+          }}
         />
       )}
     </div>

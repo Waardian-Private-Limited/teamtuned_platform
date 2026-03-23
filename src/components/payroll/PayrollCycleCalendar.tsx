@@ -602,6 +602,12 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
               <MetricCard label="Week Off" value={metrics.total_week_offs || 0} color="slate" icon={CalendarIcon} />
               <MetricCard label="Holidays" value={metrics.total_holidays || 0} color="violet" icon={CalendarIcon} />
               <MetricCard label="Sandwich LOP" value={metrics.sandwich_loss_days || 0} color="rose" icon={AlertTriangle} />
+              
+              {/* Penalty Removals */}
+              {metrics.lateRemoved > 0 && <MetricCard label="Late Removed" value={metrics.lateRemoved} color="emerald" icon={CheckCircle2} />}
+              {metrics.earlyRemoved > 0 && <MetricCard label="Early Removed" value={metrics.earlyRemoved} color="emerald" icon={CheckCircle2} />}
+              {metrics.latePenaltyRemoved > 0 && <MetricCard label="Late Penalty Rem" value={metrics.latePenaltyRemoved} color="teal" icon={Award} />}
+              {metrics.earlyPenaltyRemoved > 0 && <MetricCard label="Early Penalty Rem" value={metrics.earlyPenaltyRemoved} color="teal" icon={Award} />}
             </div>
           )}
         </div>
@@ -667,9 +673,37 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
                                               config.label.includes('Half') ? 'HD' :
                                                 config.label.slice(0, 2).toUpperCase()}
                                 </div>
-                                <div className="absolute bottom-0.5 right-0.5 flex gap-0.5 items-center">
-                                  {record.badges && record.badges.some((b: any) => b.type === 'early_penalty') && <Clock className="w-2.5 h-2.5 text-red-500" />}
-                                  {record.badges && record.badges.some((b: any) => b.type === 'overridden') && <User className="w-2.5 h-2.5 text-blue-500" />}
+                                {/* Flag-based badges — read directly from record columns */}
+                                <div className="absolute bottom-0.5 right-0.5 flex gap-0.5 items-center flex-wrap">
+                                  {/* Late Mark */}
+                                  {/* Late Mark: removed flag = strikethrough, even if is_late_mark was cleared */}
+                                  {record?.is_late_mark_removed === 1 ? (
+                                    <span title="Late Mark (Removed)" className="text-[7px] font-bold text-slate-400 line-through leading-none">L</span>
+                                  ) : record?.is_late_mark === 1 ? (
+                                    <span title="Late Mark" className="text-[7px] font-bold text-orange-500 leading-none">L</span>
+                                  ) : null}
+                                  {/* Late Penalty */}
+                                  {record?.is_late_penalty_removed === 1 ? (
+                                    <span title="Late Penalty (Waived)" className="text-[7px] font-bold text-slate-400 line-through leading-none">LP</span>
+                                  ) : record?.is_latemark_penalty === 1 ? (
+                                    <span title="Late Penalty" className="w-2 h-2 rounded-full bg-orange-500 inline-block" />
+                                  ) : null}
+                                  {/* Early Mark */}
+                                  {record?.is_early_mark_removed === 1 ? (
+                                    <span title="Early Exit (Removed)" className="text-[7px] font-bold text-slate-400 line-through leading-none">E</span>
+                                  ) : record?.is_early_mark === 1 ? (
+                                    <span title="Early Exit" className="text-[7px] font-bold text-red-400 leading-none">E</span>
+                                  ) : null}
+                                  {/* Early Penalty */}
+                                  {record?.is_early_penalty_removed === 1 ? (
+                                    <span title="Early Penalty (Waived)" className="text-[7px] font-bold text-slate-400 line-through leading-none">EP</span>
+                                  ) : record?.is_early_penalty === 1 ? (
+                                    <span title="Early Penalty" className="w-2 h-2 rounded-full bg-red-500 inline-block" />
+                                  ) : null}
+                                  {/* Override */}
+                                  {record?.is_overridden === 1 && (
+                                    <span title="Overridden"><User className="w-2.5 h-2.5 text-blue-500" /></span>
+                                  )}
                                 </div>
                               </>
                             )}
@@ -928,6 +962,7 @@ function MetricCard({ label, value, color, icon: Icon }: { label: string; value:
     cyan: "bg-cyan-50 text-cyan-700 border-cyan-100",
     green: "bg-green-50 text-green-700 border-green-100",
     amber: "bg-amber-50 text-amber-700 border-amber-100",
+    violet: "bg-violet-50 text-violet-700 border-violet-100",
     slate: "bg-slate-50 text-slate-700 border-slate-200",
   };
 

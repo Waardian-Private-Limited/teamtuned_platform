@@ -324,13 +324,13 @@ export default function EmployeeSidebar({
           setIsNavigating(true);
         }
       }}
-      className={`group flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-all duration-200 ${active
-        ? "bg-black text-white font-medium shadow-md"
-        : "text-black hover:bg-gray-100"
+      className={`group flex items-center gap-3 w-full px-3 py-2 rounded-lg transition-all duration-200 ${active
+        ? "bg-gray-900 text-white font-medium"
+        : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
         }`}
       title={isCollapsed ? label : undefined}
     >
-      <Icon size={20} className={`shrink-0 transition-colors ${active ? "text-white" : "text-black group-hover:text-gray-700"}`} />
+      <Icon size={18} className={`shrink-0 transition-colors ${active ? "text-white" : "text-gray-500 group-hover:text-gray-700"}`} />
       {!isCollapsed && (
         <span className="text-sm truncate">{label}</span>
       )}
@@ -550,7 +550,7 @@ export default function EmployeeSidebar({
               )}
               {mainOpen && (
                 <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
-                  <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                  <div className={`relative ${isCollapsed ? "" : "pl-3 border-l border-gray-100"}`}>
                     {canViewOrgProfile && (
                       <Item
                         icon={Building2}
@@ -609,44 +609,6 @@ export default function EmployeeSidebar({
                         active={pathname?.startsWith("/employee/roles") || false}
                       />
                     )}
-                    {canViewPolicies && (
-                      <Item
-                        icon={ClipboardList}
-                        label="Policies"
-                        href="/employee/attendance-rules"
-                        active={pathname?.startsWith("/employee/attendance-rules") || false}
-                      />
-                    )}
-                    <Item
-                      icon={Briefcase}
-                      label="Onboarding Status"
-                      href="/hr-operation/onboarding/status"
-                      active={pathname === "/hr-operation/onboarding/status"}
-                    />
-                    {canViewAttendanceConfig && (
-                      <Item
-                        icon={Settings}
-                        label="Configuration"
-                        href="/employee/attendance-config"
-                        active={pathname?.startsWith("/employee/attendance-config") || false}
-                      />
-                    )}
-                    {canViewHoliday && (
-                      <Item
-                        icon={Calendar}
-                        label="Holiday Calendar"
-                        href="/employee/holiday-calendar"
-                        active={pathname?.startsWith("/employee/holiday-calendar") || false}
-                      />
-                    )}
-                    {canViewWorkflows && (
-                      <Item
-                        icon={Settings}
-                        label="Approval Workflows"
-                        href="/employee/approval-workflows"
-                        active={pathname?.startsWith("/employee/approval-workflows") || false}
-                      />
-                    )}
                   </div>
                 </div>
               )}
@@ -666,7 +628,7 @@ export default function EmployeeSidebar({
               )}
               {attendanceOpen && (
                 <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
-                  <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                  <div className={`relative ${isCollapsed ? "" : "pl-3 border-l border-gray-100"}`}>
                     {canViewEmployeeAttendance && (
                       <Item
                         icon={BarChart3}
@@ -680,12 +642,12 @@ export default function EmployeeSidebar({
                         icon={ClipboardList}
                         label="Attendance Logs"
                         href="/employee/attendance"
-                        active={pathname === "/employee/attendance" || (pathname?.startsWith("/employee/attendance") && !pathname?.includes("attendance-dashboard") && !pathname?.includes("sessions")) || false}
+                        active={pathname === "/employee/attendance" || (pathname?.startsWith("/employee/attendance/") && !pathname?.startsWith("/employee/attendance-")) || false}
                       />
                     )}
                     {canViewAttendanceConfig && (
                       <Item
-                        icon={Settings}
+                        icon={Cog}
                         label="Configuration"
                         href="/employee/attendance-config"
                         active={pathname?.startsWith("/employee/attendance-config") || false}
@@ -693,7 +655,7 @@ export default function EmployeeSidebar({
                     )}
                     {canViewPolicies && (
                       <Item
-                        icon={ClipboardList}
+                        icon={Shield}
                         label="Policies"
                         href="/employee/attendance-rules"
                         active={pathname?.startsWith("/employee/attendance-rules") || false}
@@ -799,7 +761,7 @@ export default function EmployeeSidebar({
               )}
               {managementOpen && (
                 <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
-                  <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                  <div className={`relative ${isCollapsed ? "" : "pl-3 border-l border-gray-100"}`}>
                     {canViewOrgProfile && (
                       <Item
                         icon={Building2}
@@ -985,7 +947,7 @@ export default function EmployeeSidebar({
               )}
               {insuranceOpen && (
                 <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
-                  <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                  <div className={`relative ${isCollapsed ? "" : "pl-3 border-l border-gray-100"}`}>
                     {(isOrgAdmin || hasAnyPerm(['INS_POLICY_STATS'])) && (
                       <Item
                         icon={LayoutGrid}
@@ -1054,7 +1016,7 @@ export default function EmployeeSidebar({
               )}
               {salaryAdvanceOpen && (
                 <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
-                  <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                  <div className={`relative ${isCollapsed ? "" : "pl-3 border-l border-gray-100"}`}>
                     {canViewSalAdvRequests && (
                       <Item
                         icon={ClipboardList}
@@ -1124,7 +1086,7 @@ export default function EmployeeSidebar({
               )}
               {otherOpen && (
                 <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
-                  <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                  <div className={`relative ${isCollapsed ? "" : "pl-3 border-l border-gray-100"}`}>
                     {canViewPettyCash && (
                       <Item
                         icon={DollarSign}
@@ -1177,7 +1139,7 @@ export default function EmployeeSidebar({
               )}
               {inventoryOpen && (
                 <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
-                  <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                  <div className={`relative ${isCollapsed ? "" : "pl-3 border-l border-gray-100"}`}>
                     {/* Master Data Submenu */}
                     <div className="mt-1">
                       <button
@@ -1292,7 +1254,7 @@ export default function EmployeeSidebar({
               )}
               {taskOpen && (
                 <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
-                  <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                  <div className={`relative ${isCollapsed ? "" : "pl-3 border-l border-gray-100"}`}>
                     {canViewTaskTemplates && (
                       <Item
                         icon={FileText}
@@ -1337,7 +1299,7 @@ export default function EmployeeSidebar({
               )}
               {laborOpen && (
                 <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
-                  <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                  <div className={`relative ${isCollapsed ? "" : "pl-3 border-l border-gray-100"}`}>
                     <Item
                       icon={LayoutDashboard}
                       label="Attendance Dashboard"
@@ -1503,7 +1465,7 @@ export default function EmployeeSidebar({
               )}
               {reimbursementsOpen && (
                 <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
-                  <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                  <div className={`relative ${isCollapsed ? "" : "pl-3 border-l border-gray-100"}`}>
                     <Item
                       icon={Receipt}
                       label="My Reimbursements"

@@ -13,6 +13,7 @@ export interface RequestOptions {
   params?: Record<string, string | number | boolean | undefined | null>;
   withAuth?: boolean; // Adds Authorization header from localStorage
   responseType?: 'json' | 'blob' | 'text';
+  signal?: AbortSignal;
 }
 
 export async function apiClient<T = any>(
@@ -26,6 +27,7 @@ export async function apiClient<T = any>(
     params,
     withAuth = false,
     responseType = 'json',
+    signal,
   } = options;
 
   let query = '';
@@ -62,6 +64,7 @@ export async function apiClient<T = any>(
     credentials: 'include',
     headers: allHeaders,
     body: isFormData ? body : body ? JSON.stringify(body) : undefined,
+    signal,
   });
 
   if (!res.ok) {
