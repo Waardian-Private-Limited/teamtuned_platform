@@ -173,6 +173,8 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
   const [stats, setStats] = useState<{ pending_overall: number; month_approved: number; month_rejected: number; month_total: number } | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState<string>("");
+  const [total, setTotal] = useState<number>(0);
 
   // UI State
   const [filtersExpanded, setFiltersExpanded] = useState<boolean>(false);
@@ -233,19 +235,12 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
   const approvedCount = useCountUp(stats?.month_approved || 0);
   const rejectedCount = useCountUp(stats?.month_rejected || 0);
   const totalCount = useCountUp(stats?.month_total || 0);
-
-  // Filtered items
-  const visibleItems = React.useMemo(() => {
-    return items.filter((it) => {
-      const s = String(it.status || '').toLowerCase();
-      return s === 'pending' || s === 'approved' || s === 'rejected';
-    });
-  }, [items]);
-
-  const totalEntries = visibleItems.length;
-  const totalPages = Math.max(1, Math.ceil(totalEntries / pageSize));
+  
+  const visibleItems = items;
+  const totalEntries = total;
   const pageStart = (page - 1) * pageSize;
-  const pageSlice = visibleItems.slice(pageStart, pageStart + pageSize);
+  const pageSlice = items; 
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   // Auto-select first site for non-HR/non-OrgAdmin users on first load
   useEffect(() => {
@@ -325,11 +320,17 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
       }
       if (fromDate) params["start"] = fromDate;
       if (toDate) params["end"] = toDate;
+      if (search) params["search"] = search;
+      
+      params["page"] = String(page);
+      params["limit"] = String(pageSize);
 
       const res = await apiClient<any>("/leaves/requests", { method: "GET", params, withAuth: true });
       const list: any[] = Array.isArray(res) ? res : (res?.items || res?.rows || res?.requests || res?.data || []);
+      const totalCount = res?.total || (Array.isArray(res) ? res.length : 0);
+      
       setItems(list.map((e: any) => ({ ...(e || {}) })));
-      setPage(1);
+      setTotal(totalCount);
     } catch (e: any) {
       setError(e?.message || "Failed to load leave requests");
     } finally {
@@ -338,8 +339,11 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
   }, [status, hqMode, selectedSiteId, fromDate, toDate]);
 
   useEffect(() => {
-    fetchList();
-  }, [status, externalControl ? extHq : hqMode, externalControl ? extSiteId : selectedSiteId, fromDate, toDate]);
+    const timer = setTimeout(() => {
+      fetchList();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [status, externalControl ? extHq : hqMode, externalControl ? extSiteId : selectedSiteId, fromDate, toDate, search, page, pageSize]);
 
   useEffect(() => {
     (async () => {
@@ -1991,6 +1995,28 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
             <h1 className="text-xl font-bold text-gray-900">Leave Requests</h1>
           </div>
           <div className="flex items-center space-x-3">
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search employee..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                className="pl-9 pr-4 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm w-64"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
 
 
             {/* Refresh Button */}
