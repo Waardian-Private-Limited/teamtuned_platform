@@ -49,6 +49,7 @@ interface MeetingDetailViewProps {
     meeting: any;
     breadcrumbs: Breadcrumb[];
     onEdit?: () => void;
+    onStatusUpdate?: (pointId: number, newStatus: string) => void;
     currentEmployeeId?: number;
 }
 
@@ -56,6 +57,7 @@ export default function MeetingDetailView({
     meeting: initialMeeting,
     breadcrumbs,
     onEdit,
+    onStatusUpdate,
     currentEmployeeId
 }: MeetingDetailViewProps) {
     const [meeting, setMeeting] = useState<any>(initialMeeting);
@@ -187,6 +189,7 @@ export default function MeetingDetailView({
             if (res.success) {
                 toast.success('Acknowledged');
                 fetchMeetingDetails();
+                onStatusUpdate?.(id, 'acknowledged');
             }
         } catch (e) { toast.error('Error acknowledging point'); }
     };
@@ -197,6 +200,7 @@ export default function MeetingDetailView({
             if (res.success) {
                 toast.success('Marked as done');
                 fetchMeetingDetails();
+                onStatusUpdate?.(id, 'completed');
             }
         } catch (e) { toast.error('Error marking point as done'); }
     };
