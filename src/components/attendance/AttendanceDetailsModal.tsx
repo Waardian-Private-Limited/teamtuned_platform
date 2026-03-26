@@ -361,6 +361,11 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                     Overridden
                                 </span>
                             )}
+                            {!!record.was_post_night_ot && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                    Post N-OT
+                                </span>
+                            )}
                         </div>
                         {/* Status Summary in Header */}
                         {!!record.status_summary && (
@@ -703,22 +708,57 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                 </div>
                             </div>
 
-                            {/* Work Stats */}
-                            {(record.total_work_minutes > 0 || record.late_by_minutes > 0 || record.extra_work_minutes > 0) && (
-                                <div className="grid grid-cols-3 gap-2">
-                                    <div className="bg-emerald-50/50 rounded-lg p-2.5 text-center border border-emerald-200/50">
-                                        <div className="text-xs text-emerald-600 font-medium mb-0.5">Work</div>
-                                        <div className="text-sm font-semibold text-emerald-900">
-                                            {Math.floor((record.total_work_minutes || 0) / 60)}h {(record.total_work_minutes || 0) % 60}m
-                                        </div>
+                            {/* Comp-Off Details */}
+                            {record.compoffs && record.compoffs.length > 0 && (
+                                <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-200">
+                                    <div className="text-xs font-semibold text-indigo-700 uppercase mb-2 flex items-center gap-1.5">
+                                        <TrendingUp className="w-3.5 h-3.5" />
+                                        Comp-Off Generated
                                     </div>
-                                    {(record.late_by_minutes > 0 || record.late_minutes > 0) && (
+                                    <div className="space-y-3">
+                                        {record.compoffs.map((co: any, idx: number) => (
+                                            <div key={idx} className="flex items-center justify-between bg-white/50 p-2 rounded border border-indigo-100">
+                                                <div>
+                                                  <div className="text-sm font-bold text-indigo-900">
+                                                      {co.is_night_ot ? "Night OT Comp-Off" : "Regular Comp-Off"}
+                                                  </div>
+                                                  <div className="text-xs text-indigo-600 font-medium">
+                                                      Earned: {Math.floor(co.total_earned_minutes / 60)}h {co.total_earned_minutes % 60}m
+                                                  </div>
+                                                </div>
+                                                <div className="text-right">
+                                                  <div className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full inline-block ${
+                                                      co.status?.toLowerCase() === 'approved' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
+                                                      co.status?.toLowerCase() === 'rejected' ? 'bg-rose-100 text-rose-700 border border-rose-200' :
+                                                      'bg-amber-100 text-amber-700 border border-amber-200'
+                                                  }`}>
+                                                      {co.status || 'Pending'}
+                                                  </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Work Stats */}
+                            {((record.total_work_minutes || 0) > 0 || (record.late_by_minutes || 0) > 0 || (record.extra_work_minutes || 0) > 0) && (
+                                <div className="grid grid-cols-3 gap-2">
+                                    {(record.total_work_minutes || 0) > 0 && (
+                                        <div className="bg-emerald-50/50 rounded-lg p-2.5 text-center border border-emerald-200/50">
+                                            <div className="text-xs text-emerald-600 font-medium mb-0.5">Work</div>
+                                            <div className="text-sm font-semibold text-emerald-900">
+                                                {Math.floor((record.total_work_minutes || 0) / 60)}h {(record.total_work_minutes || 0) % 60}m
+                                            </div>
+                                        </div>
+                                    )}
+                                    {((record.late_by_minutes || 0) > 0 || (record.late_minutes || 0) > 0) && (
                                         <div className="bg-amber-50/50 rounded-lg p-2.5 text-center border border-amber-200/50">
                                             <div className="text-xs text-amber-600 font-medium mb-0.5">Late</div>
                                             <div className="text-sm font-semibold text-amber-900">{record.late_by_minutes || record.late_minutes}m</div>
                                         </div>
                                     )}
-                                    {record.extra_work_minutes > 0 && (
+                                    {(record.extra_work_minutes || 0) > 0 && (
                                         <div className="bg-indigo-50/50 rounded-lg p-2.5 text-center border border-indigo-200/50">
                                             <div className="text-xs text-indigo-600 font-medium mb-0.5">Extra</div>
                                             <div className="text-sm font-semibold text-indigo-900">{record.extra_work_minutes}m</div>
@@ -827,29 +867,30 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                     <div className="text-xs font-semibold text-slate-600 uppercase">Timeline</div>
                                     <div className="space-y-2">
                                         {record.sessions.map((session: any, idx: number) => {
-                                            const isBreak = session.session_type === 'break';
-                                            const isOutside = session.session_type === 'outside_work';
-                                            const duration = session.duration_minutes || 0;
+                                             const isBreak = session.session_type === 'break';
+                                             const isOutside = session.session_type === 'outside_work';
+                                             const isNightOT = session.session_type === 'night_ot';
+                                             const duration = session.duration_minutes || 0;
 
-                                            return (
-                                                <div key={idx} className={`relative pl-4 border-l-2 ${isBreak ? 'border-amber-200' : 'border-cyan-200'} pb-4 last:pb-0`}>
-                                                    <div className={`absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full ${isBreak ? 'bg-amber-400' : 'bg-cyan-400'}`}></div>
-                                                    <div className="flex items-start justify-between">
-                                                        <div>
-                                                            <div className={`text-sm font-medium ${isBreak ? 'text-amber-900' : 'text-cyan-900'}`}>
-                                                                {isBreak ? 'Break' : 'Outside Work'}
-                                                            </div>
-                                                            <div className="text-xs text-slate-500 mt-0.5">
-                                                                {formatTime(session.start_time)} - {session.end_time ? formatTime(session.end_time) : 'Ongoing'}
-                                                            </div>
-                                                            {!!session.notes && (
-                                                                <div className="text-xs text-slate-600 mt-1 italic">"{session.notes}"</div>
-                                                            )}
-                                                        </div>
-                                                        <div className="text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-1 rounded">
-                                                            {Math.floor(duration / 60)}h {duration % 60}m
-                                                        </div>
-                                                    </div>
+                                             return (
+                                                 <div key={idx} className={`relative pl-4 border-l-2 ${isBreak ? 'border-amber-200' : isNightOT ? 'border-indigo-200' : 'border-cyan-200'} pb-4 last:pb-0`}>
+                                                     <div className={`absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full ${isBreak ? 'bg-amber-400' : isNightOT ? 'bg-indigo-400' : 'bg-cyan-400'}`}></div>
+                                                     <div className="flex items-start justify-between">
+                                                         <div>
+                                                             <div className={`text-sm font-bold ${isBreak ? 'text-amber-900' : isNightOT ? 'text-indigo-900' : 'text-cyan-900'}`}>
+                                                                 {isBreak ? 'Break' : isNightOT ? 'Night OT Session' : 'Outside Work'}
+                                                             </div>
+                                                             <div className="text-xs text-slate-500 mt-0.5">
+                                                                 {formatTime(session.start_time)} - {session.end_time ? formatTime(session.end_time) : 'Ongoing'}
+                                                             </div>
+                                                             {!!session.notes && (
+                                                                 <div className="text-xs text-slate-600 mt-1 italic">"{session.notes}"</div>
+                                                             )}
+                                                         </div>
+                                                         <div className="text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-1 rounded">
+                                                             {Math.floor(duration / 60)}h {duration % 60}m
+                                                         </div>
+                                                     </div>
 
                                                     {/* Outside Work Location Map */}
                                                     {isOutside && session.location_lat && session.location_lng && (

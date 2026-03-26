@@ -1144,6 +1144,14 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
                           <span>{status}</span>
                         </span>
 
+                        {/* Post-Night OT Context Badge */}
+                        {employee.attendance?.was_post_night_ot && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 animate-pulse">
+                            <Clock className="w-3 h-3" />
+                            <span>Post Night OT</span>
+                          </span>
+                        )}
+
                         {/* Timeline Badge (Full-Day/Half-Day) */}
                         {showTimeline && timeline && (
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${timeline === 'Full-Day' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :

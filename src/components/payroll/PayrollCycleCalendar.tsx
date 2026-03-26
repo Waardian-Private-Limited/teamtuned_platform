@@ -410,6 +410,11 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
       return { color: "text-teal-600", bg: "bg-teal-50", border: "border-teal-200", label: plHalf ? "Paid Leave (Half)" : "Paid Leave", icon: FileText };
     }
 
+    // Night OT logic
+    if (record?.was_night_ot) {
+      return { color: "text-indigo-600", bg: "bg-indigo-50", border: "border-indigo-200", label: "N-OT", icon: Clock };
+    }
+
     return { color: "text-rose-600", bg: "bg-rose-50", border: "border-rose-200", label: "Absent", icon: XCircle };
   };
 

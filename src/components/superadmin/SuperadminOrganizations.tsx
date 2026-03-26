@@ -386,9 +386,8 @@ export default function SuperadminOrganizations() {
               <div className="pt-2 flex items-center justify-end gap-2">
                 <button className="px-4 py-2 rounded border text-black" onClick={() => setShowModal(false)}>Cancel</button>
                 <button
-                  className={`px-4 py-2 rounded text-white ${
-                    isValid() && !submitting ? "bg-black hover:bg-gray-800" : "bg-gray-400 cursor-not-allowed"
-                  }`}
+                  className={`px-4 py-2 rounded text-white ${isValid() && !submitting ? "bg-black hover:bg-gray-800" : "bg-gray-400 cursor-not-allowed"
+                    }`}
                   onClick={handleSubmit}
                   disabled={!isValid() || submitting}
                 >

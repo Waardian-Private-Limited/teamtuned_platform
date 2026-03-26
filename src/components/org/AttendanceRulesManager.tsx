@@ -60,6 +60,8 @@ export type AttendancePolicy = {
   compoff_requires_approval: boolean;
   regularization_allowed_days: number;
   regularization_cutoff_time: string;
+  allow_regularization: boolean;
+  regularizations_limit_per_month: number;
 
   // Late check-in rules
   allow_full_day_if_late_checkin: boolean;
@@ -123,6 +125,8 @@ const defaultPolicy: AttendancePolicy = {
   compoff_requires_approval: true,
   regularization_allowed_days: 0,
   regularization_cutoff_time: "13:00:00",
+  allow_regularization: true,
+  regularizations_limit_per_month: 10,
 
   allow_full_day_if_late_checkin: false,
   half_day_threshold_percent: 50,
@@ -390,6 +394,7 @@ export default function AttendanceRulesManager() {
     if (policy.full_day_threshold_percent < 1 || policy.full_day_threshold_percent > 100) errs.full_day_threshold_percent = "Enter a percentage between 1 and 100";
     if (policy.late_threshold_for_halfday_minutes < 0) errs.late_threshold_for_halfday_minutes = "Enter 0 or more";
     if (policy.regularization_allowed_days < 0 || policy.regularization_allowed_days > 31) errs.regularization_allowed_days = "Enter between 0 and 31";
+    if (policy.regularizations_limit_per_month < 0) errs.regularizations_limit_per_month = "Enter 0 or more";
     if (policy.max_sessions_allowed < 1) errs.max_sessions_allowed = "Enter 1 or more";
 
     setFormErrors((prev) => ({ ...prev, ...errs }));
@@ -1751,14 +1756,44 @@ export default function AttendanceRulesManager() {
                         <input
                           type="time"
                           step="1"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           value={policy.regularization_cutoff_time}
                           onChange={(e) => setField("regularization_cutoff_time", e.target.value)}
                         />
-                        <p className="mt-1 text-xs text-gray-500">
-                          Cutoff time on the last allowed day.
-                        </p>
+                        <p className="mt-1 text-xs text-gray-500">Cutoff time on the last allowed day.</p>
                       </div>
+
+                      <div className="flex flex-col">
+                        <label className="flex items-center space-x-2 mb-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            checked={policy.allow_regularization}
+                            onChange={(e) => setField("allow_regularization", e.target.checked)}
+                          />
+                          <span className="text-sm font-medium text-gray-700">Allow Regularization</span>
+                        </label>
+                        <p className="text-xs text-gray-500">General toggle to enable/disable regularization requests.</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Max Regularizations Per Month
+                        </label>
+                        <input
+                          type="number"
+                          disabled={!policy.allow_regularization}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.regularizations_limit_per_month ? 'border-red-500' : 'border-gray-300'}`}
+                          min={0}
+                          value={policy.regularizations_limit_per_month}
+                          onChange={(e) => setField("regularizations_limit_per_month", Number(e.target.value))}
+                        />
+                        {formErrors.regularizations_limit_per_month && (
+                          <p className="mt-1 text-sm text-red-600">{formErrors.regularizations_limit_per_month}</p>
+                        )}
+                        <p className="mt-1 text-xs text-gray-500">Limit of requests an employee can submit per month.</p>
+                      </div>
+
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">

@@ -21,6 +21,7 @@ import {
     ChevronDown,
     ChevronUp,
     Eye,
+    XCircle,
     MapPin,
 } from "lucide-react";
 
@@ -91,6 +92,20 @@ export default function CompOffRequests() {
     const [recheckModalOpen, setRecheckModalOpen] = useState<boolean>(false);
     const [recheckDate, setRecheckDate] = useState<string>("");
     const [recheckLoading, setRecheckLoading] = useState<boolean>(false);
+
+    // Smart Bulk Action state
+    const [smartBulkOpen, setSmartBulkOpen] = useState<boolean>(false);
+    const [smartBulkSiteId, setSmartBulkSiteId] = useState<number | null>(null);
+    const [smartBulkMonth, setSmartBulkMonth] = useState<number>(new Date().getMonth() + 1);
+    const [smartBulkYear, setSmartBulkYear] = useState<number>(new Date().getFullYear());
+    const [smartBulkStatus, setSmartBulkStatus] = useState<string>("Pending");
+    const [smartBulkAction, setSmartBulkAction] = useState<"approved" | "rejected">("approved");
+    const [smartBulkLoading, setSmartBulkLoading] = useState<boolean>(false);
+    const [smartBulkRemarks, setSmartBulkRemarks] = useState<string>("");
+
+    // Bulk Selection States
+    const [selectedIds, setSelectedIds] = useState<number[]>([]);
+    const [confirmRejected, setConfirmRejected] = useState<boolean>(false);
 
     // Stats animation
     const pendingCount = useCountUp(stats?.pending || 0);
@@ -190,6 +205,20 @@ export default function CompOffRequests() {
         }
     }, [status, page, fromDate, toDate, hqMode, selectedSiteId]);
 
+    const toggleSelectAll = () => {
+        if (selectedIds.length === items.length) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(items.map(i => i.id));
+        }
+    };
+
+    const toggleSelect = (id: number) => {
+        setSelectedIds(prev =>
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    };
+
     useEffect(() => {
         if (hasAccess) {
             fetchList();
@@ -224,15 +253,23 @@ export default function CompOffRequests() {
         })();
     }, [items, fromDate, toDate]);
 
-    const approve = async (id: number) => {
+    const approve = async (id?: number) => {
+        const idsToProcess = id ? [id] : selectedIds;
+        if (idsToProcess.length === 0) return;
+
         try {
-            setActionLoading(`approve_${id}`);
-            await apiClient(`/attendance/comp-off/${id}`, {
-                method: "PATCH",
-                body: { status: "approved" },
+            setActionLoading(id ? `approve_${id}` : "bulk_approve");
+            await apiClient("/attendance/approve-compoff", {
+                method: "POST",
+                body: {
+                    ids: idsToProcess,
+                    action: "approved",
+                    confirm_rejected: confirmRejected
+                },
                 withAuth: true
             });
-            showNotification("Comp-off approved successfully", "success");
+            showNotification(`${idsToProcess.length} Comp-off(s) approved successfully`, "success");
+            setSelectedIds([]);
             fetchList();
         } catch (e: any) {
             showNotification(e?.message || "Failed to approve comp-off", "error");
@@ -241,15 +278,24 @@ export default function CompOffRequests() {
         }
     };
 
-    const reject = async (id: number, reason: string) => {
+    const reject = async (id: number | undefined, reason: string) => {
+        const idsToProcess = id ? [id] : selectedIds;
+        if (idsToProcess.length === 0) return;
+
         try {
-            setActionLoading(`reject_${id}`);
-            await apiClient(`/attendance/comp-off/${id}`, {
-                method: "PATCH",
-                body: { status: "rejected", remarks: reason },
+            setActionLoading(id ? `reject_${id}` : "bulk_reject");
+            await apiClient("/attendance/approve-compoff", {
+                method: "POST",
+                body: {
+                    ids: idsToProcess,
+                    action: "rejected",
+                    remarks: reason,
+                    confirm_rejected: confirmRejected
+                },
                 withAuth: true
             });
-            showNotification("Comp-off rejected successfully", "success");
+            showNotification(`${idsToProcess.length} Comp-off(s) rejected successfully`, "success");
+            setSelectedIds([]);
             fetchList();
         } catch (e: any) {
             showNotification(e?.message || "Failed to reject comp-off", "error");
@@ -257,6 +303,7 @@ export default function CompOffRequests() {
             setActionLoading(null);
         }
     };
+
 
     const formatTime = (dateStr?: string) => {
         if (!dateStr) return "—";
@@ -282,16 +329,13 @@ export default function CompOffRequests() {
     };
 
     const confirmModal = async () => {
-        if (!activeItem) return;
-        const id = Number(activeItem.id);
+        if (!activeItem && selectedIds.length === 0) return;
+
         if (modalMode === "approve") {
-            await approve(id);
-            closeModal();
-            return;
+            await approve(activeItem?.id);
+        } else {
+            await reject(activeItem?.id, modalReason.trim());
         }
-        const reason = modalReason.trim();
-        if (!reason) return;
-        await reject(id, reason);
         closeModal();
     };
 
@@ -399,6 +443,39 @@ export default function CompOffRequests() {
         }
     };
 
+    const handleSmartBulk = async () => {
+        if (smartBulkAction === "rejected" && !smartBulkRemarks.trim()) {
+            showNotification("Please provide a reason for bulk rejection", "error");
+            return;
+        }
+
+        setSmartBulkLoading(true);
+        try {
+            const res = await apiClient<any>("/attendance/approve-compoff", {
+                method: "POST",
+                body: {
+                    action: smartBulkAction,
+                    remarks: smartBulkRemarks.trim() || `Smart bulk ${smartBulkAction}`,
+                    confirm_rejected: confirmRejected,
+                    filters: {
+                        site_id: smartBulkSiteId,
+                        month: smartBulkMonth,
+                        year: smartBulkYear,
+                        status: smartBulkStatus
+                    }
+                },
+                withAuth: true
+            });
+            showNotification(`${res.processed || 0} Comp-off(s) processed via smart bulk action`, "success");
+            setSmartBulkOpen(false);
+            fetchList();
+        } catch (e: any) {
+            showNotification(e?.message || "Failed to process smart bulk action", "error");
+        } finally {
+            setSmartBulkLoading(false);
+        }
+    };
+
     const formatDate = (dateStr: string): string => {
         try {
             const dt = new Date(dateStr);
@@ -442,10 +519,10 @@ export default function CompOffRequests() {
 
     // Modal Component - Memoized to prevent re-creation and focus loss
     const ApproveRejectModal = React.useMemo(() => {
-        if (!modalOpen || !activeItem) return null;
+        if (!modalOpen || (!activeItem && selectedIds.length === 0)) return null;
 
         return (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full">
                     <div className="p-6 border-b border-gray-200">
                         <div className="flex items-center justify-between">
@@ -460,24 +537,31 @@ export default function CompOffRequests() {
 
                     <div className="p-6">
                         <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                            <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div>
-                                    <span className="text-gray-600">Employee:</span>
-                                    <p className="font-medium">{`${activeItem.first_name || ""} ${activeItem.last_name || ""}`.trim()}</p>
+                            {activeItem ? (
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <span className="text-gray-600">Employee:</span>
+                                        <p className="font-medium">{`${activeItem.first_name || ""} ${activeItem.last_name || ""}`.trim()}</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-gray-600">Date:</span>
+                                        <p className="font-medium">{formatDate(activeItem.compoff_date || "")}</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-gray-600">Earned Time:</span>
+                                        <p className="font-medium">{formatMinutes(Number(activeItem.total_earned_minutes || 0))}</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-gray-600">Remarks:</span>
+                                        <p className="font-medium">{activeItem.remarks || "—"}</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <span className="text-gray-600">Date:</span>
-                                    <p className="font-medium">{formatDate(activeItem.compoff_date || "")}</p>
+                            ) : (
+                                <div className="text-center py-2">
+                                    <p className="text-sm font-medium text-indigo-700">Processing {selectedIds.length} selected requests</p>
+                                    {confirmRejected && <p className="text-xs text-amber-600 mt-1 font-semibold">Override mode: Including rejected requests</p>}
                                 </div>
-                                <div>
-                                    <span className="text-gray-600">Earned Time:</span>
-                                    <p className="font-medium">{formatMinutes(Number(activeItem.total_earned_minutes || 0))}</p>
-                                </div>
-                                <div>
-                                    <span className="text-gray-600">Remarks:</span>
-                                    <p className="font-medium">{activeItem.remarks || "—"}</p>
-                                </div>
-                            </div>
+                            )}
                         </div>
 
                         {modalMode === "reject" && (
@@ -493,7 +577,7 @@ export default function CompOffRequests() {
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter' && !e.shiftKey) {
                                             e.preventDefault();
-                                            if (modalReason.trim() && !actionLoading?.includes(`reject_${activeItem?.id}`)) {
+                                            if (modalReason.trim() && !actionLoading?.includes(`reject`)) {
                                                 confirmModal();
                                             }
                                         }
@@ -523,7 +607,7 @@ export default function CompOffRequests() {
                 </div>
             </div>
         );
-    }, [modalOpen, activeItem, modalMode, modalReason, actionLoading]);
+    }, [modalOpen, activeItem, modalMode, modalReason, actionLoading, selectedIds, confirmRejected]);
 
     // Action Dropdown Component
     const ActionDropdown = ({ item }: { item: CompOffItem }) => {
@@ -737,14 +821,27 @@ export default function CompOffRequests() {
                             {filtersExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                         </button>
                         {(isOrgAdmin || canHRMode) && (
-                            <button
-                                onClick={() => setRecheckModalOpen(true)}
-                                className="px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors flex items-center space-x-1 text-sm"
-                                title="Recheck for missing comp-offs on a specific date"
-                            >
-                                <RefreshCw className="w-4 h-4" />
-                                <span>Retroactive Check</span>
-                            </button>
+                            <>
+                                <button
+                                    onClick={() => setRecheckModalOpen(true)}
+                                    className="px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors flex items-center space-x-1 text-sm shadow-sm"
+                                    title="Recheck for missing comp-offs on a specific date"
+                                >
+                                    <RefreshCw className="w-4 h-4" />
+                                    <span>Retroactive Check</span>
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setSmartBulkSiteId(selectedSiteId);
+                                        setSmartBulkOpen(true);
+                                    }}
+                                    className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all font-semibold flex items-center space-x-2 text-sm shadow-md"
+                                    title="Smart Bulk Approve/Reject based on filters"
+                                >
+                                    <RefreshCw className="w-4 h-4" />
+                                    <span>Smart Bulk Action</span>
+                                </button>
+                            </>
                         )}
                     </div>
                 </div>
@@ -878,12 +975,71 @@ export default function CompOffRequests() {
                 </div>
             ) : (
                 <>
+                    {/* Bulk Action Bar */}
+                    {/* Bulk Action Bar */}
+                    {selectedIds.length > 0 && (
+                        <div className="mb-4 bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-300">
+                            <div className="flex items-center gap-4">
+                                <div className="text-sm font-semibold text-indigo-900">
+                                    {selectedIds.length} request(s) selected
+                                </div>
+                                <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-lg border border-indigo-200 hover:bg-slate-50 transition-colors">
+                                    <input
+                                        type="checkbox"
+                                        checked={confirmRejected}
+                                        onChange={(e) => setConfirmRejected(e.target.checked)}
+                                        className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                                    />
+                                    <span className="text-xs font-medium text-indigo-700">Confirm Rejected (Override)</span>
+                                </label>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        setModalMode("approve");
+                                        setModalOpen(true);
+                                        setActiveItem(null); // Ensure bulk mode
+                                    }}
+                                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium shadow-sm flex items-center gap-2"
+                                >
+                                    <CheckCircle className="w-4 h-4" />
+                                    Approve Selected
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setModalMode("reject");
+                                        setModalOpen(true);
+                                        setActiveItem(null); // Ensure bulk mode
+                                    }}
+                                    className="px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors text-sm font-medium shadow-sm flex items-center gap-2"
+                                >
+                                    <XCircle className="w-4 h-4" />
+                                    Reject Selected
+                                </button>
+                                <button
+                                    onClick={() => setSelectedIds([])}
+                                    className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors text-sm font-medium"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Table */}
                     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-gray-50">
                                     <tr>
+                                        <th className="px-6 py-3 text-left">
+                                            <input
+                                                type="checkbox"
+                                                checked={items.length > 0 && selectedIds.length === items.length}
+                                                onChange={toggleSelectAll}
+                                                className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                                            />
+                                        </th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                             Employee
                                         </th>
@@ -913,7 +1069,15 @@ export default function CompOffRequests() {
                                         const remarks = item.remarks || "";
 
                                         return (
-                                            <tr key={item.id} className="hover:bg-gray-50">
+                                            <tr key={item.id} className={`${selectedIds.includes(item.id) ? 'bg-indigo-50/50' : 'hover:bg-gray-50'}`}>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedIds.includes(item.id)}
+                                                        onChange={() => toggleSelect(item.id)}
+                                                        className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                                                    />
+                                                </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="text-sm font-medium text-gray-900">{name}</div>
                                                     <div className="text-sm text-gray-500">{item.employee_code || ""}</div>
@@ -989,7 +1153,7 @@ export default function CompOffRequests() {
 
             {/* Details View Modal */}
             {viewOpen && activeItem && (
-                <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-[60] p-4">
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center z-[60] p-4">
                     <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full">
                         <div className="p-6 border-b border-gray-200">
                             <div className="flex items-center justify-between">
@@ -1163,9 +1327,143 @@ export default function CompOffRequests() {
                     </div>
                 </div>
             )}
+            {/* Smart Bulk Action Modal */}
+            {smartBulkOpen && (
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center z-[60] p-4">
+                    <div className="bg-white rounded-xl shadow-xl max-w-lg w-full">
+                        <div className="p-6 border-b border-gray-200">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                                    <ThumbsUp className="w-6 h-6 text-indigo-600" />
+                                    Smart Bulk Action
+                                </h3>
+                                <button onClick={() => setSmartBulkOpen(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                                    <X className="w-5 h-5 text-gray-500" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="p-6 space-y-4">
+                            <p className="text-sm text-slate-600">
+                                This will process all Comp-Off requests matching the filters below. This action is irreversible.
+                            </p>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="col-span-2">
+                                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5 ml-1">Site</label>
+                                    <select
+                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        value={smartBulkSiteId || ""}
+                                        onChange={(e) => setSmartBulkSiteId(e.target.value ? Number(e.target.value) : null)}
+                                    >
+                                        <option value="">All Sites</option>
+                                        {(canHRMode ? allSites : inchargeSites).map((s: any) => (
+                                            <option key={s.id} value={s.id}>{s.site_name || s.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5 ml-1">Month</label>
+                                    <select
+                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        value={smartBulkMonth}
+                                        onChange={(e) => setSmartBulkMonth(Number(e.target.value))}
+                                    >
+                                        {Array.from({ length: 12 }, (_, i) => (
+                                            <option key={i + 1} value={i + 1}>
+                                                {new Date(0, i).toLocaleString('en-US', { month: 'long' })}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5 ml-1">Year</label>
+                                    <select
+                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        value={smartBulkYear}
+                                        onChange={(e) => setSmartBulkYear(Number(e.target.value))}
+                                    >
+                                        {[2024, 2025, 2026].map(y => (
+                                            <option key={y} value={y}>{y}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5 ml-1">Current Status</label>
+                                    <select
+                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        value={smartBulkStatus}
+                                        onChange={(e) => setSmartBulkStatus(e.target.value)}
+                                    >
+                                        <option value="Pending">Pending Only</option>
+                                        <option value="Approved">Approved Only</option>
+                                        <option value="Rejected">Rejected Only</option>
+                                        <option value="">Any Status</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5 ml-1">Action</label>
+                                    <select
+                                        className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 outline-none font-medium ${smartBulkAction === 'approved' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}
+                                        value={smartBulkAction}
+                                        onChange={(e) => setSmartBulkAction(e.target.value as any)}
+                                    >
+                                        <option value="approved">Approve All</option>
+                                        <option value="rejected">Reject All</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {smartBulkAction === 'rejected' && (
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5 ml-1">Rejection Remarks</label>
+                                    <textarea
+                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        rows={3}
+                                        value={smartBulkRemarks}
+                                        onChange={(e) => setSmartBulkRemarks(e.target.value)}
+                                        placeholder="Reason for bulk rejection..."
+                                    />
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-6 border-t border-gray-200 flex justify-end space-x-3 bg-slate-50 rounded-b-xl">
+                            <button
+                                onClick={() => setSmartBulkOpen(false)}
+                                className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSmartBulk}
+                                disabled={smartBulkLoading}
+                                className={`px-6 py-2 text-white rounded-lg transition-all shadow-md flex items-center gap-2 text-sm font-semibold ${smartBulkAction === 'approved' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'} disabled:opacity-50`}
+                            >
+                                {smartBulkLoading ? (
+                                    <>
+                                        <RefreshCw className="w-4 h-4 animate-spin" />
+                                        <span>Processing...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        {smartBulkAction === 'approved' ? <CheckCircle className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                                        <span>Execute Bulk {smartBulkAction === 'approved' ? 'Approval' : 'Rejection'}</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Retroactive Recheck Modal */}
             {recheckModalOpen && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] p-4">
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center z-[70] p-4">
                     <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
                         <div className="p-6 border-b border-gray-200">
                             <div className="flex items-center justify-between">

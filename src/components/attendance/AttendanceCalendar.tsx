@@ -177,21 +177,12 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
 
     // Night OT Visual Indicators
     if (record?.was_night_ot) {
-      if (record?.night_ot_status === 'Pending') {
-        return {
-          color: "bg-orange-100 border-orange-300 text-orange-900",
-          dotColor: "bg-orange-600",
-          label: "OT",
-          type: "pending_ot"
-        };
-      } else if (record?.night_ot_status === 'Approved') {
-        return {
-          color: "bg-emerald-100 border-emerald-300 text-emerald-900",
-          dotColor: "bg-emerald-600",
-          label: "OT",
-          type: "approved_ot"
-        };
-      }
+      return {
+        color: "bg-indigo-50 border-indigo-200 text-indigo-900",
+        dotColor: "bg-indigo-500",
+        label: "N-OT",
+        type: "night_ot"
+      };
     }
 
     // Only if status = "Completed" and status_timeline is Full-Day or Half-Day
@@ -239,6 +230,14 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
 
     // If no attendance_id and not future, it's absent
     if (!record?.attendance_id && !isFuture) {
+      if (record?.was_post_night_ot) {
+        return {
+          color: "bg-indigo-100 border-indigo-300 text-indigo-900",
+          dotColor: "bg-indigo-600",
+          label: "A-N",
+          type: "absent_post_night_ot"
+        };
+      }
       return {
         color: "bg-rose-100 border-rose-300 text-rose-900",
         dotColor: "bg-rose-600",
@@ -386,7 +385,11 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
             </div>
             <div className="flex items-center gap-1.5">
               <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
-              <span>OT - Overtime</span>
+              <span>OT - Overtime / Night OT</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+              <span>🎁 - Comp-Off Generated</span>
             </div>
             <div className="flex items-center gap-1.5">
               <div className="w-2 h-2 rounded-full bg-orange-500"></div>
@@ -503,9 +506,32 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
                             )}
                           </div>
 
-                          {record && record.total_work_minutes > 0 && (
-                            <div className="text-[11px] opacity-70 mt-auto pb-0.5 font-semibold">
-                              {Math.floor(record.total_work_minutes / 60)}h
+                          {record && (
+                            <div className="flex flex-col items-center mt-auto w-full">
+                              {/* Night OT Session Times */}
+                              {record.was_night_ot && record.sessions?.filter((s: any) => s.session_type === 'night_ot').map((s: any, i: number) => (
+                                <div key={i} className="text-[9px] text-indigo-600 font-bold leading-tight flex items-center gap-1">
+                                  <span>🌙</span>
+                                  <span>{s.start_time ? new Date(s.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '??'}</span>
+                                  <span>-</span>
+                                  <span>{s.end_time ? new Date(s.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '??'}</span>
+                                </div>
+                              ))}
+
+                              <div className="flex items-center justify-between w-full px-1">
+                                {record.total_work_minutes > 0 ? (
+                                  <div className="text-[10px] opacity-70 font-semibold">
+                                    {Math.floor(record.total_work_minutes / 60)}h{record.total_work_minutes % 60}m
+                                  </div>
+                                ) : <div />}
+                                
+                                {/* Comp-Off Indicator */}
+                                {record.compoffs && record.compoffs.length > 0 && (
+                                  <div title="Comp-Off Generated" className="text-[10px]">
+                                    🎁
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           )}
                         </button>
