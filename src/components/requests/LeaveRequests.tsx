@@ -336,14 +336,14 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
     } finally {
       setLoading(false);
     }
-  }, [status, hqMode, selectedSiteId, fromDate, toDate]);
+  }, [status, hqMode, selectedSiteId, fromDate, toDate, search, page, pageSize, externalControl, extHq, extSiteId]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchList();
     }, 500);
     return () => clearTimeout(timer);
-  }, [status, externalControl ? extHq : hqMode, externalControl ? extSiteId : selectedSiteId, fromDate, toDate, search, page, pageSize]);
+  }, [fetchList]);
 
   useEffect(() => {
     (async () => {
