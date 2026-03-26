@@ -181,9 +181,11 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
         } else if (statusFilter === "completed") {
           passStatus = status === "checked_out" || status === "completed";
         } else if (statusFilter === "late") {
-          passStatus = status.includes("late") || status === "late_checkin";
+          const isSpecial = it.attendance?.was_night_ot || it.is_holiday || it.is_weekly_off;
+          passStatus = (status.includes("late") || status === "late_checkin") && !isSpecial;
         } else if (statusFilter === "half_day") {
-          passStatus = status === "half_day";
+          const isSpecial = it.attendance?.was_night_ot || it.is_holiday || it.is_weekly_off;
+          passStatus = status === "half_day" && !isSpecial;
         }
       }
 

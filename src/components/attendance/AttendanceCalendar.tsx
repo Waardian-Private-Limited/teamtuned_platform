@@ -472,7 +472,7 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
                             {/* Late Mark: removed flag shows strikethrough even if mark was cleared */}
                             {record?.is_late_mark_removed === 1 ? (
                               <span title="Late Mark (Removed)" className="text-[8px] font-bold text-slate-400 line-through">L</span>
-                            ) : record?.is_late_mark === 1 ? (
+                            ) : (record?.is_late_mark === 1 && !record?.was_night_ot && !record?.is_holiday && !record?.is_weekly_off) ? (
                               <span title="Late Mark" className="text-[8px] font-bold text-orange-500">L</span>
                             ) : null}
 
@@ -486,7 +486,7 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
                             {/* Early Mark */}
                             {record?.is_early_mark_removed === 1 ? (
                               <span title="Early Exit (Removed)" className="text-[8px] font-bold text-slate-400 line-through">E</span>
-                            ) : record?.is_early_mark === 1 ? (
+                            ) : (record?.is_early_mark === 1 && !record?.was_night_ot && !record?.is_holiday && !record?.is_weekly_off) ? (
                               <span title="Early Exit" className="text-[8px] font-bold text-red-400">E</span>
                             ) : null}
 
