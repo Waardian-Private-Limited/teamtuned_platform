@@ -940,27 +940,26 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                   </>
                 )}
 
-                {(isOrgAdmin || (statusLower === "pending" && hasPerm("LEAVE_EDIT"))) && (
-                  <>
-                    <div className="border-t border-gray-100 my-1" />
-                    <button
-                      onClick={() => {
-                        setEditModalOpen(true);
-                        setActiveItem(item);
-                        setEditForm({
-                          start_date: item.start_date?.slice(0, 10) || "",
-                          end_date: item.end_date?.slice(0, 10) || "",
-                          session: item.session || "Full Day",
-                          reason: item.reason || ""
-                        });
-                        setIsOpen(false);
-                      }}
-                      className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-blue-700 hover:bg-blue-50"
-                    >
-                      <Calendar className="w-4 h-4" />
-                      <span>Edit Dates</span>
-                    </button>
-                  </>
+                {(isOrgAdmin || hasPerm("LEAVE_EDIT")) && (<>
+                  <div className="border-t border-gray-100 my-1" />
+                  <button
+                    onClick={() => {
+                      setEditModalOpen(true);
+                      setActiveItem(item);
+                      setEditForm({
+                        start_date: item.start_date?.slice(0, 10) || "",
+                        end_date: item.end_date?.slice(0, 10) || "",
+                        session: item.session || "Full Day",
+                        reason: item.reason || ""
+                      });
+                      setIsOpen(false);
+                    }}
+                    className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-blue-700 hover:bg-blue-50"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    <span>Edit Dates</span>
+                  </button>
+                </>
                 )}
 
                 {isOrgAdmin && (
