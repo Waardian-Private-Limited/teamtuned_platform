@@ -31,6 +31,60 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
     const [showRegularizeAction, setShowRegularizeAction] = React.useState(false);
     const [regularizeAction, setRegularizeAction] = React.useState<'approve' | 'reject'>('approve');
     const [regularizeReason, setRegularizeReason] = React.useState("");
+    const [removeLateMark, setRemoveLateMark] = React.useState(!!record.is_late_mark_removed);
+    const [removeEarlyMark, setRemoveEarlyMark] = React.useState(!!record.is_early_mark_removed);
+    const [removeLatePenalty, setRemoveLatePenalty] = React.useState(!!record.is_late_penalty_removed);
+    const [removeEarlyPenalty, setRemoveEarlyPenalty] = React.useState(!!record.is_early_penalty_removed);
+    const [overrideInTime, setOverrideInTime] = React.useState<string>("");
+    const [overrideOutTime, setOverrideOutTime] = React.useState<string>("");
+    const [initialInTime, setInitialInTime] = React.useState<string>("");
+    const [initialOutTime, setInitialOutTime] = React.useState<string>("");
+    const [violationDetails, setViolationDetails] = React.useState<any>(null);
+
+    React.useEffect(() => {
+        if (showOverride && record) {
+            const inT = record.punch_in_time || record.check_in ? new Date(record.punch_in_time || record.check_in).toTimeString().slice(0, 5) : "";
+            const outT = record.punch_out_time || record.check_out ? new Date(record.punch_out_time || record.check_out).toTimeString().slice(0, 5) : "";
+            setOverrideInTime(inT);
+            setOverrideOutTime(outT);
+            setInitialInTime(inT);
+            setInitialOutTime(outT);
+            setViolationDetails(null);
+        }
+    }, [showOverride, record]);
+
+    // NEW: Real-time violation checking for Override
+    React.useEffect(() => {
+        if (!showOverride || !record) return;
+
+        const controller = new AbortController();
+        const timeout = setTimeout(async () => {
+            try {
+                const res = await apiClient<any>("/attendance/check-violations", {
+                    method: "POST",
+                    body: {
+                        employee_id: record.employee_id,
+                        attendance_date: record.attendance_date || record.date,
+                        punch_in_time: overrideInTime,
+                        punch_out_time: overrideOutTime
+                    },
+                    withAuth: true,
+                    signal: controller.signal
+                });
+                setViolationDetails(res);
+            } catch (e: any) {
+                if (e.name !== 'AbortError') {
+                    console.error("Violation check failed:", e);
+                }
+            }
+        }, 200);
+
+        return () => {
+            clearTimeout(timeout);
+            controller.abort();
+        };
+    }, [showOverride, record, overrideInTime, overrideOutTime]);
+
     const [showManualPunchOut, setShowManualPunchOut] = React.useState(false);
     const [manualOutTime, setManualOutTime] = React.useState("");
     const [manualOutRemarks, setManualOutRemarks] = React.useState("");
@@ -72,7 +126,13 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
             employee_id: record.employee_id,
             attendance_date: record.attendance_date || record.date,
             status: overrideStatus,
-            reason: overrideReason
+            reason: overrideReason,
+            punch_in_time: overrideInTime ? `${(record.attendance_date || record.date).slice(0, 10)} ${overrideInTime}:00` : null,
+            punch_out_time: overrideOutTime ? `${(record.attendance_date || record.date).slice(0, 10)} ${overrideOutTime}:00` : null,
+            remove_late_mark: removeLateMark,
+            remove_early_mark: removeEarlyMark,
+            remove_late_penalty: removeLatePenalty,
+            remove_early_penalty: removeEarlyPenalty
         };
 
         console.log('🔍 Override Debug:');
@@ -214,6 +274,14 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
 
     const statusInfo = getStatusInfo(record);
 
+    const showPenaltyManagement =
+        (record.is_late_mark === 1 && record.is_late_mark_removed !== 1) ||
+        (record.is_early_mark === 1 && record.is_early_mark_removed !== 1) ||
+        (record.is_latemark_penalty === 1 && record.is_late_penalty_removed !== 1) ||
+        (record.is_early_penalty === 1 && record.is_early_penalty_removed !== 1) ||
+        (violationDetails && (violationDetails.is_late_mark || violationDetails.is_early_mark));
+
+
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
             <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -242,24 +310,65 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                         Overtime
                                     </span>
                                 )}
-                            {!!record.is_latemark_penalty && (
+                            {/* Late Mark badge */}
+                            {record.is_late_mark_removed === 1 ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200 line-through">
+                                    Late Mark
+                                </span>
+                            ) : record.is_late_mark === 1 ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-orange-100 text-orange-700 border border-orange-200">
+                                    Late Mark
+                                </span>
+                            ) : null}
+
+                            {/* Late Penalty badge */}
+                            {record.is_late_penalty_removed === 1 ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
+                                    <span className="line-through">Late Deduction</span>
+                                    <span className="text-[9px] no-underline">(Waived)</span>
+                                </span>
+                            ) : record.is_latemark_penalty === 1 ? (
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-orange-100 text-orange-700 border border-orange-200">
                                     Late Deduction
                                 </span>
-                            )}
-                            {!!record.is_early_penalty && (
+                            ) : null}
+
+                            {/* Early Mark badge */}
+                            {record.is_early_mark_removed === 1 ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200 line-through">
+                                    Early Exit
+                                </span>
+                            ) : record.is_early_mark === 1 ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-red-100 text-red-700 border border-red-200">
+                                    Early Exit
+                                </span>
+                            ) : null}
+
+                            {/* Early Penalty badge */}
+                            {record.is_early_penalty_removed === 1 ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
+                                    <span className="line-through">Early Penalty</span>
+                                    <span className="text-[9px] no-underline">(Waived)</span>
+                                </span>
+                            ) : record.is_early_penalty === 1 ? (
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-red-100 text-red-700 border border-red-200">
                                     Early Penalty
                                 </span>
-                            )}
+                            ) : null}
+
                             {!!record.is_overridden && (
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-rose-100 text-rose-700 border border-rose-200">
                                     Overridden
                                 </span>
                             )}
+                            {!!record.was_post_night_ot && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                    Post N-OT
+                                </span>
+                            )}
                         </div>
                         {/* Status Summary in Header */}
-                        {record.status_summary && (
+                        {!!record.status_summary && (
                             <div className="text-xs text-slate-500 mt-1 font-medium">
                                 {record.status_summary}
                             </div>
@@ -362,6 +471,80 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                         />
                                     </div>
                                 </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-medium text-amber-800 mb-1">Adjust In Time</label>
+                                        <input
+                                            type="time"
+                                            value={overrideInTime}
+                                            onChange={(e) => setOverrideInTime(e.target.value)}
+                                            className="w-full text-sm rounded-md border-amber-300 focus:border-amber-500 focus:ring-amber-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-amber-800 mb-1">Adjust Out Time</label>
+                                        <input
+                                            type="time"
+                                            value={overrideOutTime}
+                                            onChange={(e) => setOverrideOutTime(e.target.value)}
+                                            className="w-full text-sm rounded-md border-amber-300 focus:border-amber-500 focus:ring-amber-500"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Dynamic Penalty Management */}
+                                {showPenaltyManagement && (
+                                    <div className="space-y-3 pt-1">
+                                        <div className="flex items-center justify-between">
+                                            <h5 className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">Penalty Management</h5>
+                                            {violationDetails && (violationDetails.is_late_mark || violationDetails.is_early_mark) && (
+                                                <span className="text-[9px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded font-bold animate-pulse">
+                                                    {violationDetails.is_late_penalty || violationDetails.is_early_penalty ? "New Penalty Triggered" : "New Mark Detected"}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 bg-white/50 p-3 rounded-lg border border-amber-200">
+                                            {/* Show Late Mark removal if mark is active */}
+                                            {(record.is_late_mark === 1 || violationDetails?.is_late_mark) && (
+                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                    <input type="checkbox" checked={removeLateMark} onChange={e => setRemoveLateMark(e.target.checked)} className="rounded border-amber-300 text-amber-600 focus:ring-amber-500" />
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[11px] font-medium text-amber-900">Remove Late Mark</span>
+                                                        {violationDetails?.late_by_minutes > 0 && (
+                                                            <span className="text-[9px] text-amber-700 font-bold">{violationDetails.late_by_minutes}m Late</span>
+                                                        )}
+                                                    </div>
+                                                </label>
+                                            )}
+                                            {/* Show Early Mark removal if mark is active */}
+                                            {(record.is_early_mark === 1 || violationDetails?.is_early_mark) && (
+                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                    <input type="checkbox" checked={removeEarlyMark} onChange={e => setRemoveEarlyMark(e.target.checked)} className="rounded border-amber-300 text-amber-600 focus:ring-amber-500" />
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[11px] font-medium text-amber-900">Remove Early Exit</span>
+                                                        {violationDetails?.early_exit_minutes > 0 && (
+                                                            <span className="text-[9px] text-amber-700 font-bold">{violationDetails.early_exit_minutes}m Early</span>
+                                                        )}
+                                                    </div>
+                                                </label>
+                                            )}
+                                            {(record.is_latemark_penalty === 1 || violationDetails?.is_late_penalty) && (
+                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                    <input type="checkbox" checked={removeLatePenalty} onChange={e => setRemoveLatePenalty(e.target.checked)} className="rounded border-amber-300 text-amber-600 focus:ring-amber-500" />
+                                                    <span className="text-[11px] font-medium text-amber-900">Waive Late Pen.</span>
+                                                </label>
+                                            )}
+                                            {(record.is_early_penalty === 1 || violationDetails?.is_early_penalty) && (
+                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                    <input type="checkbox" checked={removeEarlyPenalty} onChange={e => setRemoveEarlyPenalty(e.target.checked)} className="rounded border-amber-300 text-amber-600 focus:ring-amber-500" />
+                                                    <span className="text-[11px] font-medium text-amber-900">Waive Early Pen.</span>
+                                                </label>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="flex items-center gap-2 pt-1">
                                     <button
                                         onClick={handleOverride}
@@ -441,7 +624,7 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                         {/* Left Column */}
                         <div className="space-y-4">
                             {/* Status Summary */}
-                            {record.status_summary && (
+                            {!!record.status_summary && (
                                 <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
                                     <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Status</div>
                                     <div className="text-sm text-slate-900">{record.status_summary}</div>
@@ -467,6 +650,39 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                 </div>
                             )}
 
+                            {/* Penalty Adjustments — shown when HR has removed marks or waived penalties */}
+                            {(record.is_late_mark_removed === 1 || record.is_early_mark_removed === 1 ||
+                              record.is_late_penalty_removed === 1 || record.is_early_penalty_removed === 1) && (
+                                <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-200">
+                                    <div className="text-xs font-semibold text-emerald-700 uppercase mb-2 flex items-center gap-1.5">
+                                        <CheckCircle2 className="w-3.5 h-3.5" />
+                                        Penalty Adjustments by HR
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {record.is_late_mark_removed === 1 && (
+                                            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-white border border-emerald-200 text-emerald-800">
+                                                Late Mark Removed
+                                            </span>
+                                        )}
+                                        {record.is_late_penalty_removed === 1 && (
+                                            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-white border border-emerald-200 text-emerald-800">
+                                                Late Penalty Waived
+                                            </span>
+                                        )}
+                                        {record.is_early_mark_removed === 1 && (
+                                            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-white border border-emerald-200 text-emerald-800">
+                                                Early Exit Removed
+                                            </span>
+                                        )}
+                                        {record.is_early_penalty_removed === 1 && (
+                                            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-white border border-emerald-200 text-emerald-800">
+                                                Early Penalty Waived
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Time Info */}
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="bg-blue-50/50 rounded-lg p-3 border border-blue-200/50">
@@ -475,7 +691,7 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                         <div className="text-xs font-semibold text-blue-700 uppercase">Punch In</div>
                                     </div>
                                     <div className="font-semibold text-blue-900">{formatTime(record.punch_in_time || record.check_in)}</div>
-                                    {record.punch_in_site_name && (
+                                    {!!record.punch_in_site_name && (
                                         <div className="text-xs text-blue-700 mt-1 truncate">{record.punch_in_site_name}</div>
                                     )}
                                 </div>
@@ -486,28 +702,63 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                         <div className="text-xs font-semibold text-purple-700 uppercase">Punch Out</div>
                                     </div>
                                     <div className="font-semibold text-purple-900">{formatTime(record.punch_out_time || record.check_out)}</div>
-                                    {record.punch_out_site_name && (
+                                    {!!record.punch_out_site_name && (
                                         <div className="text-xs text-purple-700 mt-1 truncate">{record.punch_out_site_name}</div>
                                     )}
                                 </div>
                             </div>
 
-                            {/* Work Stats */}
-                            {(record.total_work_minutes > 0 || record.late_by_minutes > 0 || record.extra_work_minutes > 0) && (
-                                <div className="grid grid-cols-3 gap-2">
-                                    <div className="bg-emerald-50/50 rounded-lg p-2.5 text-center border border-emerald-200/50">
-                                        <div className="text-xs text-emerald-600 font-medium mb-0.5">Work</div>
-                                        <div className="text-sm font-semibold text-emerald-900">
-                                            {Math.floor((record.total_work_minutes || 0) / 60)}h {(record.total_work_minutes || 0) % 60}m
-                                        </div>
+                            {/* Comp-Off Details */}
+                            {record.compoffs && record.compoffs.length > 0 && (
+                                <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-200">
+                                    <div className="text-xs font-semibold text-indigo-700 uppercase mb-2 flex items-center gap-1.5">
+                                        <TrendingUp className="w-3.5 h-3.5" />
+                                        Comp-Off Generated
                                     </div>
-                                    {(record.late_by_minutes > 0 || record.late_minutes > 0) && (
+                                    <div className="space-y-3">
+                                        {record.compoffs.map((co: any, idx: number) => (
+                                            <div key={idx} className="flex items-center justify-between bg-white/50 p-2 rounded border border-indigo-100">
+                                                <div>
+                                                  <div className="text-sm font-bold text-indigo-900">
+                                                      {co.is_night_ot ? "Night OT Comp-Off" : "Regular Comp-Off"}
+                                                  </div>
+                                                  <div className="text-xs text-indigo-600 font-medium">
+                                                      Earned: {Math.floor(co.total_earned_minutes / 60)}h {co.total_earned_minutes % 60}m
+                                                  </div>
+                                                </div>
+                                                <div className="text-right">
+                                                  <div className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full inline-block ${
+                                                      co.status?.toLowerCase() === 'approved' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
+                                                      co.status?.toLowerCase() === 'rejected' ? 'bg-rose-100 text-rose-700 border border-rose-200' :
+                                                      'bg-amber-100 text-amber-700 border border-amber-200'
+                                                  }`}>
+                                                      {co.status || 'Pending'}
+                                                  </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Work Stats */}
+                            {((record.total_work_minutes || 0) > 0 || (record.late_by_minutes || 0) > 0 || (record.extra_work_minutes || 0) > 0) && (
+                                <div className="grid grid-cols-3 gap-2">
+                                    {(record.total_work_minutes || 0) > 0 && (
+                                        <div className="bg-emerald-50/50 rounded-lg p-2.5 text-center border border-emerald-200/50">
+                                            <div className="text-xs text-emerald-600 font-medium mb-0.5">Work</div>
+                                            <div className="text-sm font-semibold text-emerald-900">
+                                                {Math.floor((record.total_work_minutes || 0) / 60)}h {(record.total_work_minutes || 0) % 60}m
+                                            </div>
+                                        </div>
+                                    )}
+                                    {((record.late_by_minutes || 0) > 0 || (record.late_minutes || 0) > 0) && (
                                         <div className="bg-amber-50/50 rounded-lg p-2.5 text-center border border-amber-200/50">
                                             <div className="text-xs text-amber-600 font-medium mb-0.5">Late</div>
                                             <div className="text-sm font-semibold text-amber-900">{record.late_by_minutes || record.late_minutes}m</div>
                                         </div>
                                     )}
-                                    {record.extra_work_minutes > 0 && (
+                                    {(record.extra_work_minutes || 0) > 0 && (
                                         <div className="bg-indigo-50/50 rounded-lg p-2.5 text-center border border-indigo-200/50">
                                             <div className="text-xs text-indigo-600 font-medium mb-0.5">Extra</div>
                                             <div className="text-sm font-semibold text-indigo-900">{record.extra_work_minutes}m</div>
@@ -521,7 +772,7 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                 <div className="space-y-2">
                                     <div className="text-xs font-semibold text-slate-600 uppercase">Attendance Photos</div>
                                     <div className="grid grid-cols-2 gap-2">
-                                        {record.punch_in_image && (
+                                        {!!record.punch_in_image && (
                                             <div>
                                                 <div className="text-xs text-slate-500 mb-1">Punch In</div>
                                                 <img
@@ -531,7 +782,7 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                                 />
                                             </div>
                                         )}
-                                        {record.punch_out_image && (
+                                        {!!record.punch_out_image && (
                                             <div>
                                                 <div className="text-xs text-slate-500 mb-1">Punch Out</div>
                                                 <img
@@ -571,18 +822,18 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                         Approval Timeline
                                     </div>
                                     <div className="space-y-2">
-                                        {record.approved_by_name && (
+                                        {!!record.approved_by_name && (
                                             <div className="flex items-start gap-2">
                                                 <div className="text-xs text-slate-500 min-w-[80px]">Approved By:</div>
                                                 <div className="text-sm font-medium text-slate-900">
                                                     {record.approved_by_name}
-                                                    {record.approved_by_role && (
+                                                    {!!record.approved_by_role && (
                                                         <span className="ml-2 text-xs text-slate-500 font-normal">({record.approved_by_role})</span>
                                                     )}
                                                 </div>
                                             </div>
                                         )}
-                                        {record.approved_at && (
+                                        {!!record.approved_at && (
                                             <div className="flex items-start gap-2">
                                                 <div className="text-xs text-slate-500 min-w-[80px]">Approved At:</div>
                                                 <div className="text-sm text-slate-700">
@@ -590,7 +841,7 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                                 </div>
                                             </div>
                                         )}
-                                        {record.regularization_status && (
+                                        {!!record.regularization_status && (
                                             <div className="flex items-start gap-2">
                                                 <div className="text-xs text-slate-500 min-w-[80px]">Status:</div>
                                                 <div className="flex items-center gap-1.5">
@@ -616,29 +867,30 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                     <div className="text-xs font-semibold text-slate-600 uppercase">Timeline</div>
                                     <div className="space-y-2">
                                         {record.sessions.map((session: any, idx: number) => {
-                                            const isBreak = session.session_type === 'break';
-                                            const isOutside = session.session_type === 'outside_work';
-                                            const duration = session.duration_minutes || 0;
+                                             const isBreak = session.session_type === 'break';
+                                             const isOutside = session.session_type === 'outside_work';
+                                             const isNightOT = session.session_type === 'night_ot';
+                                             const duration = session.duration_minutes || 0;
 
-                                            return (
-                                                <div key={idx} className={`relative pl-4 border-l-2 ${isBreak ? 'border-amber-200' : 'border-cyan-200'} pb-4 last:pb-0`}>
-                                                    <div className={`absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full ${isBreak ? 'bg-amber-400' : 'bg-cyan-400'}`}></div>
-                                                    <div className="flex items-start justify-between">
-                                                        <div>
-                                                            <div className={`text-sm font-medium ${isBreak ? 'text-amber-900' : 'text-cyan-900'}`}>
-                                                                {isBreak ? 'Break' : 'Outside Work'}
-                                                            </div>
-                                                            <div className="text-xs text-slate-500 mt-0.5">
-                                                                {formatTime(session.start_time)} - {session.end_time ? formatTime(session.end_time) : 'Ongoing'}
-                                                            </div>
-                                                            {session.notes && (
-                                                                <div className="text-xs text-slate-600 mt-1 italic">"{session.notes}"</div>
-                                                            )}
-                                                        </div>
-                                                        <div className="text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-1 rounded">
-                                                            {Math.floor(duration / 60)}h {duration % 60}m
-                                                        </div>
-                                                    </div>
+                                             return (
+                                                 <div key={idx} className={`relative pl-4 border-l-2 ${isBreak ? 'border-amber-200' : isNightOT ? 'border-indigo-200' : 'border-cyan-200'} pb-4 last:pb-0`}>
+                                                     <div className={`absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full ${isBreak ? 'bg-amber-400' : isNightOT ? 'bg-indigo-400' : 'bg-cyan-400'}`}></div>
+                                                     <div className="flex items-start justify-between">
+                                                         <div>
+                                                             <div className={`text-sm font-bold ${isBreak ? 'text-amber-900' : isNightOT ? 'text-indigo-900' : 'text-cyan-900'}`}>
+                                                                 {isBreak ? 'Break' : isNightOT ? 'Night OT Session' : 'Outside Work'}
+                                                             </div>
+                                                             <div className="text-xs text-slate-500 mt-0.5">
+                                                                 {formatTime(session.start_time)} - {session.end_time ? formatTime(session.end_time) : 'Ongoing'}
+                                                             </div>
+                                                             {!!session.notes && (
+                                                                 <div className="text-xs text-slate-600 mt-1 italic">"{session.notes}"</div>
+                                                             )}
+                                                         </div>
+                                                         <div className="text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-1 rounded">
+                                                             {Math.floor(duration / 60)}h {duration % 60}m
+                                                         </div>
+                                                     </div>
 
                                                     {/* Outside Work Location Map */}
                                                     {isOutside && session.location_lat && session.location_lng && (
@@ -723,7 +975,36 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                     )}
                     {hasEditPerm && !showOverride && !showManualPunchOut && !locked && (
                         <button
-                            onClick={() => setShowOverride(true)}
+                            onClick={() => {
+                                const s = (record.status || "").toLowerCase();
+                                if (s === 'absent') {
+                                    setOverrideStatus("Absent");
+                                } else {
+                                    setOverrideStatus(record.status_timeline === 'Half-Day' ? 'Half-Day' : 'Full-Day');
+                                }
+
+                                const toTimeInput = (s: string) => {
+                                    if (!s) return "";
+                                    try {
+                                        const dt = new Date(s.includes("T") ? s : s.replace(" ", "T"));
+                                        if (isNaN(dt.getTime())) return "";
+                                        return dt.toTimeString().slice(0, 5);
+                                    } catch { return ""; }
+                                };
+
+                                const inT = toTimeInput(record.punch_in_time || record.check_in);
+                                const outT = toTimeInput(record.punch_out_time || record.check_out);
+
+                                setOverrideInTime(inT);
+                                setOverrideOutTime(outT);
+                                setInitialInTime(inT);
+                                setInitialOutTime(outT);
+                                setRemoveLateMark(!!record.is_late_mark_removed);
+                                setRemoveEarlyMark(!!record.is_early_mark_removed);
+                                setRemoveLatePenalty(!!record.is_late_penalty_removed);
+                                setRemoveEarlyPenalty(!!record.is_early_penalty_removed);
+                                setShowOverride(true);
+                            }}
                             className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-2 shadow-sm"
                         >
                             <Edit className="w-4 h-4 text-slate-500" />
@@ -765,7 +1046,7 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                         </>
                     )}
                     {/* Admin Silent Status Update */}
-                    {isOrgAdmin && !locked && (record.attendance_id || record.id) && (
+                    {!!isOrgAdmin && !locked && !!(record.attendance_id || record.id) && (
                         <div className="flex items-center gap-2 mr-auto">
                             <span className="text-xs font-semibold text-slate-500 uppercase">Admin:</span>
                             <button

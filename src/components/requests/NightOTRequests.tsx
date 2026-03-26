@@ -94,6 +94,9 @@ export default function NightOTRequests({ defaultHQ = true, showHQToggle = true,
     const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
     const canHRMode = !isEmployee || hasPerm("HR_MODE");
 
+    // Tab state: 'approvals' | 'compoffs'
+    const [activeTab, setActiveTab] = useState<'approvals' | 'compoffs'>('approvals');
+
     // State
     const [hqMode, setHqMode] = useState<boolean>(extHq ?? defaultHQ);
     const [inchargeSites, setInchargeSites] = useState<Array<Record<string, any>>>([]);
@@ -104,6 +107,7 @@ export default function NightOTRequests({ defaultHQ = true, showHQToggle = true,
     const [fromDate, setFromDate] = useState<string>("");
     const [toDate, setToDate] = useState<string>("");
     const [items, setItems] = useState<RequestItem[]>([]);
+    const [compoffItems, setCompoffItems] = useState<any[]>([]);
     const [stats, setStats] = useState<{ pending: number; approved: number; rejected: number; total: number } | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
@@ -215,8 +219,29 @@ export default function NightOTRequests({ defaultHQ = true, showHQToggle = true,
         }
     }, [status, hqMode, selectedSiteId, externalControl, extHq, extSiteId, isOrgAdmin, canHRMode, fromDate, toDate]);
 
+    // Fetch Night OT comp-off records (is_night_ot=1)
+    const fetchCompoffs = React.useCallback(async () => {
+        try {
+            const effHq = isOrgAdmin || (hqMode && canHRMode);
+            const effSite = externalControl ? (extSiteId ?? selectedSiteId) : selectedSiteId;
+            const params: Record<string, string> = { night_ot: "1", limit: "100" };
+            if (status && status !== "All") params["status"] = status;
+            if (fromDate) params["start"] = fromDate;
+            if (toDate) params["end"] = toDate;
+            if (effHq) { params["hq"] = "1"; }
+            else if (effSite) { params["site_id"] = String(effSite); }
+
+            if (!effHq && (!effSite || Number(effSite) <= 0)) { setCompoffItems([]); return; }
+
+            const res = await apiClient<any>("/attendance/comp-off/requests", { method: "GET", params, withAuth: true });
+            const list: any[] = res?.requests || [];
+            setCompoffItems(list);
+        } catch { setCompoffItems([]); }
+    }, [status, hqMode, selectedSiteId, externalControl, extHq, extSiteId, isOrgAdmin, canHRMode, fromDate, toDate]);
+
     useEffect(() => {
         fetchList();
+        fetchCompoffs();
     }, [status, externalControl ? extHq : hqMode, externalControl ? extSiteId : selectedSiteId, fromDate, toDate]);
 
     // Calculate Stats
@@ -669,8 +694,33 @@ export default function NightOTRequests({ defaultHQ = true, showHQToggle = true,
             {/* Header with Filters */}
             <div className="bg-white rounded-xl border border-gray-200 p-2">
                 <div className="flex items-center justify-between">
-                    <div>
+                    <div className="flex items-center gap-4">
                         <h1 className="text-xl font-bold text-gray-900">Night OT Requests</h1>
+                        {/* Tab switcher */}
+                        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+                            <button
+                                onClick={() => setActiveTab('approvals')}
+                                className={`px-3 py-1.5 font-medium transition-colors ${activeTab === 'approvals' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                            >
+                                OT Approvals
+                                {items.filter(i => String(i.night_ot_status || '').toLowerCase() === 'pending').length > 0 && (
+                                    <span className="ml-1.5 bg-orange-500 text-white text-xs rounded-full px-1.5 py-0.5">
+                                        {items.filter(i => String(i.night_ot_status || '').toLowerCase() === 'pending').length}
+                                    </span>
+                                )}
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('compoffs')}
+                                className={`px-3 py-1.5 font-medium transition-colors ${activeTab === 'compoffs' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                            >
+                                Comp-Offs
+                                {compoffItems.filter(i => String(i.status || '').toLowerCase() === 'pending').length > 0 && (
+                                    <span className="ml-1.5 bg-orange-500 text-white text-xs rounded-full px-1.5 py-0.5">
+                                        {compoffItems.filter(i => String(i.status || '').toLowerCase() === 'pending').length}
+                                    </span>
+                                )}
+                            </button>
+                        </div>
                     </div>
                     <div className="flex items-center space-x-3">
                         {/* Refresh Button */}
@@ -840,7 +890,8 @@ export default function NightOTRequests({ defaultHQ = true, showHQToggle = true,
                 </div>
             )}
 
-            {/* List */}
+            {/* List - Night OT Approvals */}
+            {activeTab === 'approvals' && (
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
@@ -926,9 +977,10 @@ export default function NightOTRequests({ defaultHQ = true, showHQToggle = true,
                     </table>
                 </div>
             </div>
+            )}
 
-            {/* Pagination */}
-            {visibleItems.length > 0 && (
+            {/* Pagination - Night OT Approvals */}
+            {activeTab === 'approvals' && visibleItems.length > 0 && (
                 <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 p-2">
                     <div className="text-xs text-gray-600">
                         Showing <span className="font-medium">{pageStart + 1}</span> to <span className="font-medium">{Math.min(pageStart + pageSize, totalEntries)}</span> of <span className="font-medium">{totalEntries}</span> requests
@@ -958,7 +1010,6 @@ export default function NightOTRequests({ defaultHQ = true, showHQToggle = true,
                             >
                                 <ChevronLeft className="w-3 h-3" />
                             </button>
-                            {/* Simplified Pagination for brevity - match styling logic */}
                             {page > 1 && (
                                 <button onClick={() => setPage(1)} className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50">1</button>
                             )}
@@ -978,6 +1029,60 @@ export default function NightOTRequests({ defaultHQ = true, showHQToggle = true,
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Night OT Comp-Off Table */}
+            {activeTab === 'compoffs' && (
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                        <thead className="bg-indigo-50 border-b border-indigo-100">
+                            <tr>
+                                <th className="px-6 py-3 font-semibold text-indigo-900">Employee</th>
+                                <th className="px-6 py-3 font-semibold text-indigo-900">Comp-Off Date</th>
+                                <th className="px-6 py-3 font-semibold text-indigo-900">Night OT Duration</th>
+                                <th className="px-6 py-3 font-semibold text-indigo-900">Remarks</th>
+                                <th className="px-6 py-3 font-semibold text-indigo-900">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                            {compoffItems.length === 0 ? (
+                                <tr>
+                                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                                        <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <Clock className="w-8 h-8 text-indigo-400" />
+                                        </div>
+                                        <h3 className="text-lg font-medium text-gray-900">No Night OT comp-offs yet</h3>
+                                        <p className="text-sm mt-1 text-gray-500">Night OT sessions automatically generate comp-offs on checkout.</p>
+                                    </td>
+                                </tr>
+                            ) : compoffItems.map((item: any) => (
+                                <tr key={item.id} className="hover:bg-indigo-50/30 transition-colors">
+                                    <td className="px-6 py-4">
+                                        <div>
+                                            <p className="font-medium text-gray-900">{item.first_name} {item.last_name}</p>
+                                            <p className="text-xs text-gray-500">{item.employee_code || `Emp#${item.employee_id}`}</p>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-gray-600">
+                                        {item.compoff_date ? new Date(item.compoff_date).toLocaleDateString() : '-'}
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <span className="font-medium text-indigo-700">{fmtHm(item.total_earned_minutes || 0)}</span>
+                                    </td>
+                                    <td className="px-6 py-4 text-xs text-gray-500">{item.remarks || '-'}</td>
+                                    <td className="px-6 py-4">
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(String(item.status || 'Pending'))}`}>
+                                            {getStatusIcon(String(item.status || 'Pending'))}
+                                            <span className="ml-1.5 capitalize">{String(item.status || 'Pending').toLowerCase()}</span>
+                                        </span>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
             )}
 
             {/* Modal */}

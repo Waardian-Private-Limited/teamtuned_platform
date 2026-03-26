@@ -13,6 +13,7 @@ export interface RequestOptions {
   params?: Record<string, string | number | boolean | undefined | null>;
   withAuth?: boolean; // Adds Authorization header from localStorage
   responseType?: 'json' | 'blob' | 'text';
+  signal?: AbortSignal;
 }
 
 export async function apiClient<T = any>(
@@ -26,6 +27,7 @@ export async function apiClient<T = any>(
     params,
     withAuth = false,
     responseType = 'json',
+    signal,
   } = options;
 
   let query = '';
@@ -67,6 +69,7 @@ export async function apiClient<T = any>(
     credentials: 'include',
     headers: allHeaders,
     body: isFormData ? body : body ? JSON.stringify(body) : undefined,
+    signal,
   });
 
   if (!res.ok) {
@@ -209,5 +212,27 @@ export async function verifyOtp(mobile: string, otp: string, accountId?: string)
   return apiClient<OtpVerificationResponse>('/auth/verify-otp', {
     method: 'POST',
     body: { mobile, otp, accountId },
+  });
+}
+
+// Forgot Password Flow
+export async function sendForgotPasswordOtp(email: string): Promise<any> {
+  return apiClient('/auth/forgot-password/send', {
+    method: 'POST',
+    body: { email },
+  });
+}
+
+export async function verifyForgotPasswordOtp(email: string, otp: string): Promise<any> {
+  return apiClient('/auth/forgot-password/verify', {
+    method: 'POST',
+    body: { email, otp },
+  });
+}
+
+export async function resetPassword(payload: { email: string; otp: string; newPassword: string }): Promise<any> {
+  return apiClient('/auth/forgot-password/reset', {
+    method: 'POST',
+    body: payload,
   });
 }

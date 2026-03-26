@@ -55,8 +55,13 @@ export type AttendancePolicy = {
   redeem_carry_forward_days: number;
   auto_convert_to_compoff: boolean;
   min_extra_work_for_compoff_minutes: number;
+  compoff_halfday_hrs: number;
+  compoff_fullday_hrs: number;
   compoff_requires_approval: boolean;
   regularization_allowed_days: number;
+  regularization_cutoff_time: string;
+  allow_regularization: boolean;
+  regularizations_limit_per_month: number;
 
   // Late check-in rules
   allow_full_day_if_late_checkin: boolean;
@@ -80,6 +85,9 @@ export type AttendancePolicy = {
   night_shift_min_percentage?: number;
   night_shift_full_credit_percentage?: number;
   night_ot_compoff_conversion?: boolean;
+  night_ot_type?: "hours" | "time";
+  night_ot_half_day_time?: string;
+  night_ot_full_day_time?: string;
 
 
   // Display settings
@@ -87,6 +95,7 @@ export type AttendancePolicy = {
   show_late_min?: boolean;
   show_ot_minutes?: boolean;
   adjust_leave_compoff?: boolean;
+  max_sessions_allowed: number;
 };
 
 const defaultPolicy: AttendancePolicy = {
@@ -111,8 +120,13 @@ const defaultPolicy: AttendancePolicy = {
   redeem_carry_forward_days: 1,
   auto_convert_to_compoff: true,
   min_extra_work_for_compoff_minutes: 240,
+  compoff_halfday_hrs: 4,
+  compoff_fullday_hrs: 6,
   compoff_requires_approval: true,
   regularization_allowed_days: 0,
+  regularization_cutoff_time: "13:00:00",
+  allow_regularization: true,
+  regularizations_limit_per_month: 10,
 
   allow_full_day_if_late_checkin: false,
   half_day_threshold_percent: 50,
@@ -132,14 +146,18 @@ const defaultPolicy: AttendancePolicy = {
 
   allow_night_ot: false,
   night_shift_min_percentage: 50,
-  night_shift_full_credit_percentage: 75,
+  night_shift_full_credit_percentage: 100,
   night_ot_compoff_conversion: false,
+  night_ot_type: "hours",
+  night_ot_half_day_time: "00:30:00",
+  night_ot_full_day_time: "02:00:00",
 
 
   show_grace_minutes: true,
   show_late_min: true,
   show_ot_minutes: true,
   adjust_leave_compoff: true,
+  max_sessions_allowed: 1,
 };
 
 export default function AttendanceRulesManager() {
@@ -368,12 +386,16 @@ export default function AttendanceRulesManager() {
     if (policy.late_logout_redeem_minutes < 0) errs.late_logout_redeem_minutes = "Enter 0 or more";
     if (policy.redeem_carry_forward_days < 0) errs.redeem_carry_forward_days = "Enter 0 or more";
     if (policy.min_extra_work_for_compoff_minutes < 0) errs.min_extra_work_for_compoff_minutes = "Enter 0 or more";
+    if (policy.compoff_halfday_hrs < 0) errs.compoff_halfday_hrs = "Enter 0 or more";
+    if (policy.compoff_fullday_hrs < 0) errs.compoff_fullday_hrs = "Enter 0 or more";
     if (policy.allow_early_login && policy.early_login_minutes < 0) errs.early_login_minutes = "Enter 0 or more";
     if (policy.dont_allow_checkin_after_minutes < 0) errs.dont_allow_checkin_after_minutes = "Enter 0 or more";
     if (policy.half_day_threshold_percent < 1 || policy.half_day_threshold_percent > 99) errs.half_day_threshold_percent = "Enter a percentage between 1 and 99";
     if (policy.full_day_threshold_percent < 1 || policy.full_day_threshold_percent > 100) errs.full_day_threshold_percent = "Enter a percentage between 1 and 100";
     if (policy.late_threshold_for_halfday_minutes < 0) errs.late_threshold_for_halfday_minutes = "Enter 0 or more";
     if (policy.regularization_allowed_days < 0 || policy.regularization_allowed_days > 31) errs.regularization_allowed_days = "Enter between 0 and 31";
+    if (policy.regularizations_limit_per_month < 0) errs.regularizations_limit_per_month = "Enter 0 or more";
+    if (policy.max_sessions_allowed < 1) errs.max_sessions_allowed = "Enter 1 or more";
 
     setFormErrors((prev) => ({ ...prev, ...errs }));
     return Object.keys(errs).length === 0;
@@ -742,11 +764,17 @@ export default function AttendanceRulesManager() {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div>
                     <h4 className="text-sm font-medium text-gray-500">Standard Work Hours</h4>
                     <p className="mt-1 text-gray-900">
                       {policy.standard_work_hours} minutes ({formatMinutesToHours(policy.standard_work_hours)})
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500">Max Sessions Allowed</h4>
+                    <p className="mt-1 text-gray-900">
+                      {policy.max_sessions_allowed || 1}
                     </p>
                   </div>
                   <div>
@@ -1351,6 +1379,26 @@ export default function AttendanceRulesManager() {
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Max Sessions Allowed<span className="text-red-500 ml-1">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.max_sessions_allowed ? 'border-red-500' : 'border-gray-300'
+                            }`}
+                          min={1}
+                          value={policy.max_sessions_allowed}
+                          onChange={(e) => setField("max_sessions_allowed", Number(e.target.value))}
+                        />
+                        {formErrors.max_sessions_allowed && (
+                          <p className="mt-1 text-sm text-red-600">{formErrors.max_sessions_allowed}</p>
+                        )}
+                        <p className="mt-1 text-xs text-gray-500">
+                          Number of check-ins/outs allowed per day (Default: 1)
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
                           Grace Period (minutes)
                         </label>
                         <input
@@ -1622,6 +1670,46 @@ export default function AttendanceRulesManager() {
                           Minimum extra minutes required to earn a comp-off day ({formatMinutesToHours(policy.min_extra_work_for_compoff_minutes)})
                         </p>
                       </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Comp-Off Half Day Work (hours)
+                        </label>
+                        <input
+                          type="number"
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.compoff_halfday_hrs ? 'border-red-500' : 'border-gray-300'
+                            }`}
+                          min={0}
+                          value={policy.compoff_halfday_hrs}
+                          onChange={(e) => setField("compoff_halfday_hrs", Number(e.target.value))}
+                        />
+                        {formErrors.compoff_halfday_hrs && (
+                          <p className="mt-1 text-sm text-red-600">{formErrors.compoff_halfday_hrs}</p>
+                        )}
+                        <p className="mt-1 text-xs text-gray-500">
+                          Hours required on WO/Holiday (or Night OT if Hours-wise) for 0.5 comp-off credit
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Comp-Off Full Day Work (hours)
+                        </label>
+                        <input
+                          type="number"
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.compoff_fullday_hrs ? 'border-red-500' : 'border-gray-300'
+                            }`}
+                          min={0}
+                          value={policy.compoff_fullday_hrs}
+                          onChange={(e) => setField("compoff_fullday_hrs", Number(e.target.value))}
+                        />
+                        {formErrors.compoff_fullday_hrs && (
+                          <p className="mt-1 text-sm text-red-600">{formErrors.compoff_fullday_hrs}</p>
+                        )}
+                        <p className="mt-1 text-xs text-gray-500">
+                          Hours required on WO/Holiday (or Night OT if Hours-wise) for 1.0 comp-off credit
+                        </p>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1660,6 +1748,52 @@ export default function AttendanceRulesManager() {
                           Number of days back users can regularize (0-31). 0 means no restriction or immediate only.
                         </p>
                       </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Regularization Cutoff Time
+                        </label>
+                        <input
+                          type="time"
+                          step="1"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          value={policy.regularization_cutoff_time}
+                          onChange={(e) => setField("regularization_cutoff_time", e.target.value)}
+                        />
+                        <p className="mt-1 text-xs text-gray-500">Cutoff time on the last allowed day.</p>
+                      </div>
+
+                      <div className="flex flex-col">
+                        <label className="flex items-center space-x-2 mb-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            checked={policy.allow_regularization}
+                            onChange={(e) => setField("allow_regularization", e.target.checked)}
+                          />
+                          <span className="text-sm font-medium text-gray-700">Allow Regularization</span>
+                        </label>
+                        <p className="text-xs text-gray-500">General toggle to enable/disable regularization requests.</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Max Regularizations Per Month
+                        </label>
+                        <input
+                          type="number"
+                          disabled={!policy.allow_regularization}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.regularizations_limit_per_month ? 'border-red-500' : 'border-gray-300'}`}
+                          min={0}
+                          value={policy.regularizations_limit_per_month}
+                          onChange={(e) => setField("regularizations_limit_per_month", Number(e.target.value))}
+                        />
+                        {formErrors.regularizations_limit_per_month && (
+                          <p className="mt-1 text-sm text-red-600">{formErrors.regularizations_limit_per_month}</p>
+                        )}
+                        <p className="mt-1 text-xs text-gray-500">Limit of requests an employee can submit per month.</p>
+                      </div>
+
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
@@ -1681,7 +1815,7 @@ export default function AttendanceRulesManager() {
                       </div>
                     </div>
 
-                    {/* Night OT Configuration */}
+                      {/* Night OT Configuration */}
                     <div className="border-t pt-6 mt-6">
                       <h5 className="text-md font-semibold text-gray-900 mb-4">Night OT Configuration</h5>
 
@@ -1691,12 +1825,9 @@ export default function AttendanceRulesManager() {
                             Allow Night OT
                           </label>
                           <select
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
                             value={policy.allow_night_ot ? "true" : "false"}
-                            onChange={(e) => {
-                              const yes = e.target.value === "true";
-                              setField("allow_night_ot", yes);
-                            }}
+                            onChange={(e) => setField("allow_night_ot", e.target.value === "true")}
                           >
                             <option value="true">Yes</option>
                             <option value="false">No</option>
@@ -1709,65 +1840,100 @@ export default function AttendanceRulesManager() {
                         {policy.allow_night_ot && (
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Minimum Night Shift Percentage
+                              Calculation Method
                             </label>
-                            <input
-                              type="number"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              min={1}
-                              max={100}
-                              value={policy.night_shift_min_percentage || 50}
-                              onChange={(e) => setField("night_shift_min_percentage", Number(e.target.value))}
-                            />
+                            <select
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                              value={policy.night_ot_type || "hours"}
+                              onChange={(e) => setField("night_ot_type", e.target.value as "hours" | "time")}
+                            >
+                              <option value="hours">Hours Wise (Thresholds)</option>
+                              <option value="time">Time Wise (After Midnight)</option>
+                            </select>
                             <p className="mt-1 text-xs text-gray-500">
-                              Minimum % of standard hours required for valid Night OT (e.g., 50% of 8h = 4h minimum)
+                              Choose how credit is calculated for Night OT
                             </p>
                           </div>
                         )}
                       </div>
 
-                      {/* Additional Night OT Settings */}
                       {policy.allow_night_ot && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Full Credit Percentage
-                            </label>
-                            <input
-                              type="number"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              min={1}
-                              max={100}
-                              value={policy.night_shift_full_credit_percentage || 75}
-                              onChange={(e) => setField("night_shift_full_credit_percentage", Number(e.target.value))}
-                            />
-                            <p className="mt-1 text-xs text-gray-500">
-                              If Night OT hours exceed this % of standard hours, grant full day credit (e.g., 75% = full day)
-                            </p>
+                        <>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                            {policy.night_ot_type === "hours" ? (
+                              <>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Min Night OT Duration %
+                                  </label>
+                                  <input
+                                    type="number"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    min={1}
+                                    max={100}
+                                    value={policy.night_shift_min_percentage || 50}
+                                    onChange={(e) => setField("night_shift_min_percentage", Number(e.target.value))}
+                                  />
+                                  <p className="mt-1 text-xs text-gray-500">
+                                    Minimum % of standard hours required to qualify for ANY credit. (Half-day if &gt;= {policy.compoff_halfday_hrs}h, Full-day if &gt;= {policy.compoff_fullday_hrs}h)
+                                  </p>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Half Day Credit After
+                                  </label>
+                                  <input
+                                    type="time"
+                                    step="1"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                                    value={policy.night_ot_half_day_time || "00:30:00"}
+                                    onChange={(e) => setField("night_ot_half_day_time", e.target.value)}
+                                  />
+                                  <p className="mt-1 text-xs text-gray-500">
+                                    Punch-out after this time grants 0.5 comp-off
+                                  </p>
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Full Day Credit After
+                                  </label>
+                                  <input
+                                    type="time"
+                                    step="1"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                                    value={policy.night_ot_full_day_time || "02:00:00"}
+                                    onChange={(e) => setField("night_ot_full_day_time", e.target.value)}
+                                  />
+                                  <p className="mt-1 text-xs text-gray-500">
+                                    Punch-out after this time grants 1.0 comp-off
+                                  </p>
+                                </div>
+                              </>
+                            )}
                           </div>
 
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Convert to Comp-Off
-                            </label>
-                            <select
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              value={policy.night_ot_compoff_conversion ? "true" : "false"}
-                              onChange={(e) => setField("night_ot_compoff_conversion", e.target.value === "true")}
-                            >
-                              <option value="true">Yes</option>
-                              <option value="false">No</option>
-                            </select>
-                            <p className="mt-1 text-xs text-gray-500">
-                              Automatically convert approved Night OT hours to comp-off days
-                            </p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                            <div className="flex items-center space-x-3">
+                              <input
+                                type="checkbox"
+                                id="night_ot_compoff"
+                                className="w-4 height-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                checked={policy.night_ot_compoff_conversion || false}
+                                onChange={(e) => setField("night_ot_compoff_conversion", e.target.checked)}
+                              />
+                              <label htmlFor="night_ot_compoff" className="text-sm font-medium text-gray-700">
+                                Convert to Comp-Off Automatically
+                              </label>
+                            </div>
                           </div>
-                        </div>
+                        </>
                       )}
                     </div>
 
                     {/* Display Settings */}
-                    <div className="border-t pt-6 mt-6">
                       <h5 className="text-md font-semibold text-gray-900 mb-4">Employee App Display Settings</h5>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div>
@@ -1813,7 +1979,6 @@ export default function AttendanceRulesManager() {
                             <option value="false">Hide</option>
                           </select>
                           <p className="mt-1 text-xs text-gray-500">Show/Hide overtime in app</p>
-                        </div>
                       </div>
                     </div>
                   </>

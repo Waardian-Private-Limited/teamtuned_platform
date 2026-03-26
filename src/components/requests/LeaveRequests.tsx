@@ -173,6 +173,8 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
   const [stats, setStats] = useState<{ pending_overall: number; month_approved: number; month_rejected: number; month_total: number } | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState<string>("");
+  const [total, setTotal] = useState<number>(0);
 
   // UI State
   const [filtersExpanded, setFiltersExpanded] = useState<boolean>(false);
@@ -219,24 +221,26 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
   const [selectedEmployees, setSelectedEmployees] = useState<Array<Record<string, any>>>([]);
   const [leaveBalances, setLeaveBalances] = useState<Record<string, number>>({});
 
+  // Edit Leave Request state
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    start_date: "",
+    end_date: "",
+    session: "Full Day",
+    reason: ""
+  });
+
   // Stats animation
   const pendingCount = useCountUp(stats?.pending_overall || 0);
   const approvedCount = useCountUp(stats?.month_approved || 0);
   const rejectedCount = useCountUp(stats?.month_rejected || 0);
   const totalCount = useCountUp(stats?.month_total || 0);
-
-  // Filtered items
-  const visibleItems = React.useMemo(() => {
-    return items.filter((it) => {
-      const s = String(it.status || '').toLowerCase();
-      return s === 'pending' || s === 'approved' || s === 'rejected';
-    });
-  }, [items]);
-
-  const totalEntries = visibleItems.length;
-  const totalPages = Math.max(1, Math.ceil(totalEntries / pageSize));
+  
+  const visibleItems = items;
+  const totalEntries = total;
   const pageStart = (page - 1) * pageSize;
-  const pageSlice = visibleItems.slice(pageStart, pageStart + pageSize);
+  const pageSlice = items; 
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   // Auto-select first site for non-HR/non-OrgAdmin users on first load
   useEffect(() => {
@@ -316,21 +320,30 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
       }
       if (fromDate) params["start"] = fromDate;
       if (toDate) params["end"] = toDate;
+      if (search) params["search"] = search;
+      
+      params["page"] = String(page);
+      params["limit"] = String(pageSize);
 
       const res = await apiClient<any>("/leaves/requests", { method: "GET", params, withAuth: true });
       const list: any[] = Array.isArray(res) ? res : (res?.items || res?.rows || res?.requests || res?.data || []);
+      const totalCount = res?.total || (Array.isArray(res) ? res.length : 0);
+      
       setItems(list.map((e: any) => ({ ...(e || {}) })));
-      setPage(1);
+      setTotal(totalCount);
     } catch (e: any) {
       setError(e?.message || "Failed to load leave requests");
     } finally {
       setLoading(false);
     }
-  }, [status, hqMode, selectedSiteId, fromDate, toDate]);
+  }, [status, hqMode, selectedSiteId, fromDate, toDate, search, page, pageSize, externalControl, extHq, extSiteId, isOrgAdmin, canHRMode]);
 
   useEffect(() => {
-    fetchList();
-  }, [status, externalControl ? extHq : hqMode, externalControl ? extSiteId : selectedSiteId, fromDate, toDate]);
+    const timer = setTimeout(() => {
+      fetchList();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [fetchList]);
 
   useEffect(() => {
     (async () => {
@@ -482,6 +495,41 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
       setViewError(e?.message || "Failed to load details");
     } finally {
       setViewLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    try {
+      setActionLoading(`delete_${id}`);
+      await apiClient(`/leaves/applications/${id}`, {
+        method: "DELETE",
+        withAuth: true
+      });
+      showNotification("Leave request deleted successfully", "success");
+      fetchList();
+    } catch (e: any) {
+      showNotification(e?.message || "Failed to delete leave request", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleEditSubmit = async () => {
+    if (!activeItem) return;
+    try {
+      setActionLoading("edit_leave");
+      await apiClient(`/leaves/applications/${activeItem.id}/update`, {
+        method: "POST",
+        body: editForm,
+        withAuth: true
+      });
+      showNotification("Leave request updated successfully", "success");
+      setEditModalOpen(false);
+      fetchList();
+    } catch (e: any) {
+      showNotification(e?.message || "Failed to update leave request", "error");
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -657,6 +705,18 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
       fetchList();
     } catch (e: any) {
       showNotification(e?.message || "Failed to add leave", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleTriggerScheduler = async () => {
+    try {
+      setActionLoading("trigger_scheduler");
+      const res = await apiClient<any>("/leaves/trigger-scheduler", { method: "POST", withAuth: true });
+      showNotification(res?.message || "Scheduler triggered successfully", "success");
+    } catch (e: any) {
+      showNotification(e?.message || "Failed to trigger scheduler", "error");
     } finally {
       setActionLoading(null);
     }
@@ -883,6 +943,46 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                     </button>
                   </>
                 )}
+
+                {(isOrgAdmin || hasPerm("LEAVE_EDIT")) && (<>
+                  <div className="border-t border-gray-100 my-1" />
+                  <button
+                    onClick={() => {
+                      setEditModalOpen(true);
+                      setActiveItem(item);
+                      setEditForm({
+                        start_date: item.start_date?.slice(0, 10) || "",
+                        end_date: item.end_date?.slice(0, 10) || "",
+                        session: item.session || "Full Day",
+                        reason: item.reason || ""
+                      });
+                      setIsOpen(false);
+                    }}
+                    className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-blue-700 hover:bg-blue-50"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    <span>Edit Dates</span>
+                  </button>
+                </>
+                )}
+
+                {isOrgAdmin && (
+                  <>
+                    <div className="border-t border-gray-100 my-1" />
+                    <button
+                      onClick={() => {
+                        if (window.confirm("Are you sure you want to PERMANENTLY delete this leave request? This will revert any deducted balances.")) {
+                          handleDelete(item.id);
+                        }
+                        setIsOpen(false);
+                      }}
+                      className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50"
+                    >
+                      <X className="w-4 h-4" />
+                      <span>Delete</span>
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </>
@@ -1074,7 +1174,106 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
         </div>
       </div>
     );
-  }, [modalOpen, activeItem, modalMode, modalReason]);
+  }, [modalOpen, activeItem, modalMode, modalReason, rejectOption]);
+
+  const EditLeaveModal = React.useMemo(() => {
+    if (!editModalOpen || !activeItem) return null;
+
+    const duration = calculateDuration(editForm.start_date, editForm.end_date, editForm.session);
+
+    return (
+      <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-[70] p-4 backdrop-blur-sm">
+        <div className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden">
+          <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+            <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-blue-600" />
+              Edit Leave dates
+            </h3>
+            <button
+              onClick={() => setEditModalOpen(false)}
+              className="p-2 hover:bg-gray-100 rounded-lg"
+            >
+              <X className="w-5 h-5 text-gray-400" />
+            </button>
+          </div>
+
+          <div className="p-6 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                <input
+                  type="date"
+                  value={editForm.start_date}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, start_date: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                <input
+                  type="date"
+                  value={editForm.end_date}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, end_date: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Session</label>
+              <select
+                value={editForm.session}
+                onChange={(e) => setEditForm(prev => ({ ...prev, session: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                <option value="Full Day">Full Day</option>
+                <option value="Morning">Morning (Half Day)</option>
+                <option value="Afternoon">Afternoon (Half Day)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Reason (Optional)</label>
+              <textarea
+                value={editForm.reason}
+                onChange={(e) => setEditForm(prev => ({ ...prev, reason: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                rows={3}
+              />
+            </div>
+
+            <div className="bg-blue-50 p-3 rounded-lg flex justify-between items-center">
+              <span className="text-sm text-blue-700 font-medium">Updated Duration:</span>
+              <span className="text-lg font-bold text-blue-700">{duration} days</span>
+            </div>
+          </div>
+
+          <div className="p-6 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
+            <button
+              onClick={() => setEditModalOpen(false)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleEditSubmit}
+              disabled={actionLoading === "edit_leave"}
+              className="px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              {actionLoading === "edit_leave" ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }, [editModalOpen, activeItem, editForm, actionLoading]);
 
   const DetailsViewModal = () => {
     if (!viewOpen || !activeItem) return null;
@@ -1786,6 +1985,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
       {/* Render modals */}
       {ApproveRejectModal}
       <DetailsViewModal />
+      {EditLeaveModal}
       {AddLeaveModal}
 
       {/* Header */}
@@ -1795,6 +1995,28 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
             <h1 className="text-xl font-bold text-gray-900">Leave Requests</h1>
           </div>
           <div className="flex items-center space-x-3">
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search employee..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                className="pl-9 pr-4 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm w-64"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
 
 
             {/* Refresh Button */}
@@ -1823,7 +2045,10 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
             {/* Status Filter */}
             <select
               value={status}
-              onChange={(e) => setStatus(e.target.value)}
+              onChange={(e) => {
+                setStatus(e.target.value);
+                setPage(1);
+              }}
               className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
             >
               <option value="All">All Status</option>
@@ -1844,6 +2069,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                   }
                   const val = parseInt(raw, 10);
                   setSelectedSiteId(Number.isNaN(val) ? null : val);
+                  setPage(1);
                 }}
               >
                 {(hqMode && canHRMode) || isOrgAdmin ? (
@@ -1869,6 +2095,17 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
               <span>Filters</span>
               {filtersExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
+            {isOrgAdmin && (
+              <button
+                onClick={handleTriggerScheduler}
+                disabled={actionLoading === "trigger_scheduler"}
+                className={`px-3 py-1.5 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors flex items-center space-x-1 text-sm ${actionLoading === "trigger_scheduler" ? "opacity-50 cursor-not-allowed" : ""}`}
+                title="Manually trigger leave balance calculation"
+              >
+                <RefreshCw className={`w-4 h-4 ${actionLoading === "trigger_scheduler" ? "animate-spin" : ""}`} />
+                <span className="hidden sm:inline">Run Scheduler</span>
+              </button>
+            )}
             {canAddLeave && (
               <button
                 onClick={openAddLeaveModal}
@@ -1889,7 +2126,10 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                 type="date"
                 className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
                 value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
+                onChange={(e) => {
+                  setFromDate(e.target.value);
+                  setPage(1);
+                }}
                 placeholder="From Date"
               />
 
@@ -1897,7 +2137,10 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                 type="date"
                 className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
                 value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
+                onChange={(e) => {
+                  setToDate(e.target.value);
+                  setPage(1);
+                }}
                 placeholder="To Date"
               />
 

@@ -270,13 +270,13 @@ export default function OrgSidebar({
                     setIsNavigating(true);
                 }
             }}
-            className={`group flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-all duration-200 ${active
-                ? "bg-black text-white font-medium shadow-md"
-                : "text-black hover:bg-gray-100"
+            className={`group flex items-center gap-3 w-full px-3 py-2 rounded-lg transition-all duration-200 ${active
+                ? "bg-gray-900 text-white font-medium"
+                : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
                 }`}
             title={isCollapsed ? label : undefined}
         >
-            <Icon size={20} className={`shrink-0 transition-colors ${active ? "text-white" : "text-black group-hover:text-gray-700"}`} />
+            <Icon size={18} className={`shrink-0 transition-colors ${active ? "text-white" : "text-gray-500 group-hover:text-gray-700"}`} />
             {!isCollapsed && (
                 <span className="text-sm truncate">{label}</span>
             )}
@@ -357,7 +357,7 @@ export default function OrgSidebar({
                     {/* Main Section */}
                     <CategoryButton label="Main" isOpen={mainOpen} onClick={() => handleToggle(setMainOpen, mainOpen)} />
                     {mainOpen && (
-                        <div className="space-y-1 ml-2">
+                        <div className="space-y-1">
                             <Item icon={Home} label="Dashboard" href="/org-admin" active={pathname === "/org-admin"} />
                         </div>
                     )}
@@ -366,7 +366,7 @@ export default function OrgSidebar({
                     {/* Attendance Section */}
                     <CategoryButton label="Attendance" isOpen={attendanceOpen} onClick={() => handleToggle(setAttendanceOpen, attendanceOpen)} />
                     {attendanceOpen && (
-                        <div className="space-y-1 ml-2">
+                        <div className="space-y-1">
                             <Item icon={LayoutDashboard} label="Dashboard" href="/org-admin/attendance/dashboard" active={pathname === "/org-admin/attendance/dashboard"} />
                             <Item icon={UserCheck} label="Employee Attendance" href="/org-admin/attendance/employee" active={pathname === "/org-admin/attendance/employee"} />
                             <Item icon={Settings} label="Attendance Config" href="/org-admin/attendance-config" active={pathname === "/org-admin/attendance-config"} />
@@ -387,7 +387,7 @@ export default function OrgSidebar({
                     {/* Management Section */}
                     <CategoryButton label="Management" isOpen={managementOpen} onClick={() => handleToggle(setManagementOpen, managementOpen)} />
                     {managementOpen && (
-                        <div className="space-y-1 ml-2">
+                        <div className="space-y-1">
                             <Item icon={Users} label="Employees" href="/org-admin/employees" active={pathname === "/org-admin/employees"} />
                             <Item icon={UserCog} label="Team Mapper" href="/org-admin/assignments" active={pathname === "/org-admin/assignments"} />
                             <Item icon={Shield} label="Policy Mapper" href="/org-admin/policy-mapper" active={pathname === "/org-admin/policy-mapper"} />
@@ -413,7 +413,7 @@ export default function OrgSidebar({
                         <>
                             <CategoryButton label="Wallet" isOpen={walletOpen} onClick={() => handleToggle(setWalletOpen, walletOpen)} />
                             {walletOpen && (
-                                <div className="space-y-1 ml-2">
+                                <div className="space-y-1">
                                     <Item icon={Wallet} label="Wallet Requests" href="/org-admin/wallet/requests" active={pathname === "/org-admin/wallet/requests"} />
                                     <Item icon={Receipt} label="Expense Requests" href="/org-admin/wallet/expenses" active={pathname === "/org-admin/wallet/expenses"} />
                                     <Item icon={DollarSign} label="Transactions" href="/org-admin/wallet/transactions" active={pathname === "/org-admin/wallet/transactions"} />
@@ -440,7 +440,7 @@ export default function OrgSidebar({
                         <>
                             <CategoryButton label="Inventory" isOpen={inventoryOpen} onClick={() => handleToggle(setInventoryOpen, inventoryOpen)} />
                             {inventoryOpen && (
-                                <div className="space-y-1 ml-2">
+                                <div className="space-y-1">
                                     <Item icon={Package} label="Items" href="/org-admin/inventory/items" active={pathname === "/org-admin/inventory/items"} />
                                     <Item icon={FileText} label="Requests" href="/org-admin/inventory/requests" active={pathname === "/org-admin/inventory/requests"} />
                                 </div>
@@ -451,7 +451,7 @@ export default function OrgSidebar({
                     {/* Task Section */}
                     <CategoryButton label="Tasks" isOpen={taskOpen} onClick={() => handleToggle(setTaskOpen, taskOpen)} />
                     {taskOpen && (
-                        <div className="space-y-1 ml-2">
+                        <div className="space-y-1">
                             <Item icon={CheckSquare} label="All Tasks" href="/org-admin/tasks" active={pathname === "/org-admin/tasks"} />
                             <Item icon={ListTodo} label="Task Dashboard" href="/org-admin/task-dashboard" active={pathname === "/org-admin/task-dashboard"} />
                             <Item icon={UserPlus} label="Task Assignments" href="/org-admin/task-assignments" active={pathname === "/org-admin/task-assignments"} />
@@ -478,7 +478,7 @@ export default function OrgSidebar({
                     <>
                         <CategoryButton label="Insurance" isOpen={insuranceOpen} onClick={() => handleToggle(setInsuranceOpen, insuranceOpen)} />
                         {insuranceOpen && (
-                            <div className="space-y-1 ml-2">
+                            <div className="space-y-1">
                                 <Item icon={LayoutGrid} label="Dashboard" href="/org-admin/insurance/dashboard" active={pathname === "/org-admin/insurance/dashboard"} />
                                 <Item icon={Building2} label="Providers" href="/org-admin/insurance/providers" active={pathname === "/org-admin/insurance/providers"} />
                                 <Item icon={Shield} label="Policies" href="/org-admin/insurance/policies" active={pathname === "/org-admin/insurance/policies"} />
@@ -496,7 +496,7 @@ export default function OrgSidebar({
                     <>
                         <CategoryButton label="Petty Cash" isOpen={pettyCashOpen} onClick={() => handleToggle(setPettyCashOpen, pettyCashOpen)} />
                         {pettyCashOpen && (
-                            <div className="space-y-1 ml-2">
+                            <div className="space-y-1">
                                 <Item icon={DollarSign} label="Wallets" href="/org-admin/petty-cash" active={pathname === "/org-admin/petty-cash"} />
                                 <Item icon={Receipt} label="Wallet Expenses" href="/org-admin/wallet-overview" active={pathname === "/org-admin/wallet-overview"} />
                                 <Item icon={Cog} label="Wallet Config" href="/org-admin/wallet-config" active={pathname === "/org-admin/wallet-config"} />
@@ -509,7 +509,7 @@ export default function OrgSidebar({
                     <>
                         <CategoryButton label="Labor Management" isOpen={laborOpen} onClick={() => handleToggle(setLaborOpen, laborOpen)} />
                         {laborOpen && (
-                            <div className="space-y-1 ml-2">
+                            <div className="space-y-1">
                                 <Item icon={LayoutDashboard} label="Attendance Dashboard" href="/org-admin/labor-attendance/dashboard" active={pathname === "/org-admin/labor-attendance/dashboard"} />
                                 <Item icon={BarChart3} label="Contractor Dashboard" href="/org-admin/labor-attendance/contractor-dashboard" active={pathname === "/org-admin/labor-attendance/contractor-dashboard"} />
                                 <Item icon={ClipboardList} label="Attendance Logs" href="/org-admin/labor-attendance/logs" active={pathname === "/org-admin/labor-attendance/logs"} />
@@ -530,7 +530,7 @@ export default function OrgSidebar({
                     <>
                         <CategoryButton label="HR Operation" isOpen={hrOperationOpen} onClick={() => handleToggle(setHrOperationOpen, hrOperationOpen)} />
                         {hrOperationOpen && (
-                            <div className="space-y-1 ml-2">
+                            <div className="space-y-1">
                                 <Item icon={Briefcase} label="Applied Positions" href="/org-admin/hr-operation/applied-positions" active={pathname === "/org-admin/hr-operation/applied-positions"} />
                                 <Item icon={QrCode} label="Interview Management" href="/org-admin/hr-operation/interviews" active={pathname === "/org-admin/hr-operation/interviews"} />
 
@@ -581,7 +581,7 @@ export default function OrgSidebar({
 
                     {/* Settings */}
                     <CategoryButton label="Settings" isOpen={false} onClick={() => { }} />
-                    <div className="space-y-1 ml-2">
+                    <div className="space-y-1">
                         <Item icon={Cog} label="Organization" href="/org-admin/settings" active={pathname === "/org-admin/settings"} />
                     </div>
                 </div>

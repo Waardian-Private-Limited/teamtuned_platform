@@ -127,12 +127,21 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
   const [activeItem, setActiveItem] = useState<RequestItem | null>(null);
   const [markStatus, setMarkStatus] = useState<string>("Present");
   const [statusTimeline, setStatusTimeline] = useState<string>("Full-Day");
+  const [userInTime, setUserInTime] = useState<string>("");
+  const [userOutTime, setUserOutTime] = useState<string>("");
+  const [initialInTime, setInitialInTime] = useState<string>("");
+  const [initialOutTime, setInitialOutTime] = useState<string>("");
+  const [removeLateMark, setRemoveLateMark] = useState<boolean>(false);
+  const [removeEarlyMark, setRemoveEarlyMark] = useState<boolean>(false);
+  const [removeLatePenalty, setRemoveLatePenalty] = useState<boolean>(false);
+  const [removeEarlyPenalty, setRemoveEarlyPenalty] = useState<boolean>(false);
 
   // Details view modal state
   const [viewOpen, setViewOpen] = useState<boolean>(false);
   const [viewLoading, setViewLoading] = useState<boolean>(false);
   const [viewError, setViewError] = useState<string | null>(null);
   const [viewData, setViewData] = useState<Record<string, any> | null>(null);
+  const [violationDetails, setViolationDetails] = useState<any>(null);
 
   // Stats animation
   const pendingCount = useCountUp(stats?.pending || 0);
@@ -285,6 +294,12 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
           status: "approved",
           mark_status: markStatus,
           status_timeline: statusTimeline,
+          user_in_time: userInTime || null,
+          user_out_time: userOutTime || null,
+          remove_late_mark: removeLateMark,
+          remove_early_mark: removeEarlyMark,
+          remove_late_penalty: removeLatePenalty,
+          remove_early_penalty: removeEarlyPenalty,
           remarks, // Send optional remarks
         },
         withAuth: true,
@@ -324,8 +339,41 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
     setActiveItem(item);
     setModalMode(mode);
     setModalReason("");
-    setMarkStatus("Present");
-    setStatusTimeline("Full-Day");
+
+    // Pre-populate status and timeline from item
+    const s = (item.current_status || item.status || "").toLowerCase();
+    if (s === 'absent') {
+      setMarkStatus("Absent");
+      setStatusTimeline("Full-Day");
+    } else {
+      setMarkStatus("Present");
+      setStatusTimeline(item.status_timeline === 'Half-Day' ? 'Half-Day' : 'Full-Day');
+    }
+
+    // Initialize times from activeItem if available
+    const rawIn = item.user_in_time || item.punch_in_time || "";
+    const rawOut = item.user_out_time || item.punch_out_time || "";
+
+    // Format YYYY-MM-DD HH:mm:ss to HH:mm for <input type="time" />
+    const toTimeInput = (s: string) => {
+      if (!s) return "";
+      try {
+        const dt = new Date(s.includes("T") ? s : s.replace(" ", "T"));
+        if (isNaN(dt.getTime())) return "";
+        return dt.toTimeString().slice(0, 5);
+      } catch { return ""; }
+    };
+
+    const tIn = toTimeInput(rawIn);
+    const tOut = toTimeInput(rawOut);
+    setUserInTime(tIn);
+    setUserOutTime(tOut);
+    setInitialInTime(tIn);
+    setInitialOutTime(tOut);
+
+    setRemoveEarlyPenalty(false);
+    setViolationDetails(null);
+
     setModalOpen(true);
   };
 
@@ -408,6 +456,38 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
     }, 5000);
   };
 
+  // NEW: Real-time violation checking
+  useEffect(() => {
+    if (!modalOpen || modalMode !== "approve" || !activeItem) return;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(async () => {
+      try {
+        const res = await apiClient<any>("/attendance/check-violations", {
+          method: "POST",
+          body: {
+            employee_id: activeItem.employee_id,
+            attendance_date: activeItem.attendance_date,
+            punch_in_time: userInTime,
+            punch_out_time: userOutTime
+          },
+          withAuth: true,
+          signal: controller.signal
+        });
+        setViolationDetails(res);
+      } catch (e: any) {
+        if (e.name !== 'AbortError') {
+          console.error("Violation check failed:", e);
+        }
+      }
+    }, 200);
+
+    return () => {
+      clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [modalOpen, modalMode, activeItem, userInTime, userOutTime]);
+
   // Formatting helpers
   const fmtHm = (m: any) => {
     const min = Number(m || 0);
@@ -420,7 +500,7 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
     if (!v) return "";
     try {
       const s = String(v);
-      let dt = new Date(s.includes("T") ? s : s.replace(" ", "T"));
+      let dt = new Date(s.includes("T") ? s : s.replace(" ", "T") + (s.endsWith('Z') ? '' : 'Z'));
       if (isNaN(dt.getTime())) return s;
       const hours = dt.getHours();
       const h = hours % 12 === 0 ? 12 : hours % 12;
@@ -436,7 +516,7 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
     if (!v) return "";
     try {
       const s = String(v);
-      const dt = new Date(s.includes("T") ? s : s.replace(" ", "T"));
+      const dt = new Date(s.includes("T") ? (s.endsWith('Z') || s.includes('+') ? s : s + 'Z') : s.replace(" ", "T") + (s.endsWith('Z') ? '' : 'Z'));
       if (isNaN(dt.getTime())) return s;
       const dateStr = dt.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
       const timeStr = dt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: true });
@@ -599,13 +679,36 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
                     <span className="text-gray-600">Date:</span>
                     <p className="font-medium">{String(activeItem.attendance_date || "-")}</p>
                   </div>
-                  <div>
-                    <span className="text-gray-600">Check-In:</span>
-                    <p className="font-medium">{fmtTime(activeItem.punch_in_time || activeItem.requested_check_in)}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Check-Out:</span>
-                    <p className="font-medium">{fmtTime(activeItem.punch_out_time || activeItem.requested_check_out)}</p>
+                  <div className="col-span-2 grid grid-cols-2 gap-4 mt-2">
+                    {/* Actual Punch Block */}
+                    <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                      <h5 className="text-[10px] font-bold text-blue-800 uppercase tracking-wider mb-2">Actual Punches</h5>
+                      <div className="space-y-2">
+                        <div>
+                          <span className="text-[10px] text-blue-600 font-semibold block uppercase leading-none">Actual In:</span>
+                          <p className="text-sm font-bold text-blue-900 mt-1">{fmtTime(activeItem.punch_in_time) || "No Punch"}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-blue-600 font-semibold block uppercase leading-none">Actual Out:</span>
+                          <p className="text-sm font-bold text-blue-900 mt-1">{fmtTime(activeItem.punch_out_time) || "No Punch"}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Proposed Block */}
+                    <div className="bg-orange-50 p-3 rounded-lg border border-orange-200">
+                      <h5 className="text-[10px] font-bold text-orange-800 uppercase tracking-wider mb-2">Proposed Times</h5>
+                      <div className="space-y-2">
+                        <div>
+                          <span className="text-[10px] text-orange-600 font-semibold block uppercase leading-none">Proposed In:</span>
+                          <p className="text-sm font-bold text-orange-900 mt-1">{fmtTime(activeItem.user_in_time) || "No Change"}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-orange-600 font-semibold block uppercase leading-none">Proposed Out:</span>
+                          <p className="text-sm font-bold text-orange-900 mt-1">{fmtTime(activeItem.user_out_time) || "No Change"}</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <div>
                     <span className="text-gray-600">Work Duration:</span>
@@ -620,47 +723,151 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
                       </span>
                     </div>
                   </div>
+                  {activeItem.reason && (
+                    <div className="col-span-2 mt-4 bg-blue-50 p-4 rounded-lg border border-blue-200">
+                      <div className="flex items-start space-x-2">
+                        <FileText className="w-4 h-4 text-blue-600 mt-0.5" />
+                        <div className="flex-1">
+                          <span className="text-xs font-bold text-blue-800 uppercase tracking-wider">Employee's Reason:</span>
+                          <p className="text-blue-900 font-medium mt-1 leading-relaxed">
+                            "{String(activeItem.reason)}"
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
               {modalMode === "approve" && (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Mark As</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                     <select
-                      value={markStatus}
+                      value={markStatus === "Absent" ? "Absent" : statusTimeline}
                       onChange={(e) => {
-                        setMarkStatus(e.target.value);
-                        if (e.target.value === "Absent") {
+                        const val = e.target.value;
+                        if (val === "Absent") {
+                          setMarkStatus("Absent");
                           setStatusTimeline("Full-Day");
+                        } else {
+                          setMarkStatus("Present");
+                          setStatusTimeline(val);
                         }
                       }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                     >
-                      <option value="Present">Present</option>
+                      <option value="Full-Day">Full-Day</option>
+                      <option value="Half-Day">Half-Day</option>
                       <option value="Absent">Absent</option>
                     </select>
                   </div>
 
-                  {markStatus === "Present" && (
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Timeline</label>
-                      <select
-                        value={statusTimeline}
-                        onChange={(e) => setStatusTimeline(e.target.value)}
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Adjust In Time</label>
+                      <input
+                        type="time"
+                        value={userInTime}
+                        onChange={(e) => setUserInTime(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="Full-Day">Full-Day</option>
-                        <option value="Half-Day">Half-Day</option>
-                      </select>
+                      />
                     </div>
-                  )}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Adjust Out Time</label>
+                      <input
+                        type="time"
+                        value={userOutTime}
+                        onChange={(e) => setUserOutTime(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                  </div>                  {/* Penalty Management — shown when record has active marks or penalties (not yet removed) */}
+                  {(
+                    (activeItem.is_late_mark === 1 && activeItem.is_late_mark_removed !== 1) ||
+                    (activeItem.is_early_mark === 1 && activeItem.is_early_mark_removed !== 1) ||
+                    (activeItem.is_latemark_penalty === 1 && activeItem.is_late_penalty_removed !== 1) ||
+                    (activeItem.is_early_penalty === 1 && activeItem.is_early_penalty_removed !== 1) ||
+                    (violationDetails && (violationDetails.is_late_mark || violationDetails.is_early_mark))
+                  ) && (
+                      <div className="space-y-3 pt-2">
+                        <div className="flex items-center justify-between">
+                          <h5 className="text-sm font-semibold text-gray-900">Penalty Management</h5>
+                          {violationDetails && (violationDetails.is_late_mark || violationDetails.is_early_mark) && (
+                            <span className="text-[10px] bg-red-50 text-red-600 px-2 py-0.5 rounded border border-red-100 animate-pulse">
+                              {violationDetails.is_late_penalty || violationDetails.is_early_penalty ? "New Penalty Triggered" : "New Mark Detected"}
+                            </span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          {/* Show Late Mark removal only if mark is active (not already removed) */}
+                          {(activeItem.is_late_mark === 1 || violationDetails?.is_late_mark) && (
+                            <label className="flex items-center space-x-3 p-3 border border-gray-100 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                              <input
+                                type="checkbox"
+                                checked={removeLateMark}
+                                onChange={(e) => setRemoveLateMark(e.target.checked)}
+                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                              />
+                              <div className="flex flex-col">
+                                <span className="text-sm text-gray-700">Remove Late Mark</span>
+                                {violationDetails?.late_by_minutes > 0 && (
+                                  <span className="text-[10px] text-red-500">{violationDetails.late_by_minutes}m Late</span>
+                                )}
+                              </div>
+                            </label>
+                          )}
+                          {/* Show Early Exit removal only if mark is active */}
+                          {(activeItem.is_early_mark === 1 || violationDetails?.is_early_mark) && (
+                            <label className="flex items-center space-x-3 p-3 border border-gray-100 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                              <input
+                                type="checkbox"
+                                checked={removeEarlyMark}
+                                onChange={(e) => setRemoveEarlyMark(e.target.checked)}
+                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                              />
+                              <div className="flex flex-col">
+                                <span className="text-sm text-gray-700">Remove Early Exit</span>
+                                {violationDetails?.early_exit_minutes > 0 && (
+                                  <span className="text-[10px] text-red-500">{violationDetails.early_exit_minutes}m Early</span>
+                                )}
+                              </div>
+                            </label>
+                          )}
+                          {/* Show Late Penalty removal only if penalty is active (not already waived) */}
+                          {(activeItem.is_latemark_penalty === 1 || violationDetails?.is_late_penalty) && (
+                            <label className="flex items-center space-x-3 p-3 border border-gray-100 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                              <input
+                                type="checkbox"
+                                checked={removeLatePenalty}
+                                onChange={(e) => setRemoveLatePenalty(e.target.checked)}
+                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                              />
+                              <span className="text-sm text-gray-700">Waive Late Pen.</span>
+                            </label>
+                          )}
+                          {/* Show Early Penalty removal only if penalty is active (not already waived) */}
+                          {(activeItem.is_early_penalty === 1 || violationDetails?.is_early_penalty) && (
+                            <label className="flex items-center space-x-3 p-3 border border-gray-100 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                              <input
+                                type="checkbox"
+                                checked={removeEarlyPenalty}
+                                onChange={(e) => setRemoveEarlyPenalty(e.target.checked)}
+                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                              />
+                              <span className="text-sm text-gray-700">Waive Early Pen.</span>
+                            </label>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Remarks (Optional)</label>
                     <textarea
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                      rows={3}
+                      rows={2}
                       value={modalReason}
                       onChange={(e) => setModalReason(e.target.value)}
                       placeholder="Add any comments or notes for this approval (optional)..."
@@ -713,7 +920,7 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
         </div>
       </div>
     );
-  }, [modalOpen, activeItem, modalMode, markStatus, statusTimeline, modalReason, actionLoading]);
+  }, [modalOpen, activeItem, modalMode, markStatus, statusTimeline, modalReason, actionLoading, userInTime, userOutTime, removeLateMark, removeEarlyMark, removeLatePenalty, removeEarlyPenalty]);
 
   // Approval Timeline Component - matching LeaveRequests.tsx style
   const ApprovalTimeline = ({ timeline, workflowName }: { timeline?: ApprovalTimelineEntry[]; workflowName?: string }) => {
@@ -848,6 +1055,31 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
                         <span className="text-sm text-gray-600">Check-Out:</span>
                         <p className="font-medium">{fmtDt(viewData?.punch_out_time || activeItem?.punch_out_time || activeItem?.requested_check_out)}</p>
                       </div>
+                      {(viewData?.user_in_time || activeItem?.user_in_time || viewData?.user_out_time || activeItem?.user_out_time) && (
+                        <div className="col-span-full bg-orange-50 p-4 rounded-lg border border-orange-200 flex items-center shadow-sm">
+                          <div className="bg-orange-100 p-2 rounded-full mr-4">
+                            <Clock className="w-5 h-5 text-orange-700" />
+                          </div>
+                          <div className="flex-1 flex space-x-8">
+                            {(viewData?.user_in_time || activeItem?.user_in_time) && (
+                              <div>
+                                <span className="text-[10px] text-orange-700 font-bold uppercase tracking-tight">Proposed In Time</span>
+                                <p className="text-xl font-black text-orange-800 leading-tight">
+                                  {fmtTime(viewData?.user_in_time || activeItem?.user_in_time)}
+                                </p>
+                              </div>
+                            )}
+                            {(viewData?.user_out_time || activeItem?.user_out_time) && (
+                              <div>
+                                <span className="text-[10px] text-orange-700 font-bold uppercase tracking-tight">Proposed Out Time</span>
+                                <p className="text-xl font-black text-orange-800 leading-tight">
+                                  {fmtTime(viewData?.user_out_time || activeItem?.user_out_time)}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                       <div>
                         <span className="text-sm text-gray-600">Work Duration:</span>
                         <p className="font-medium">{fmtHm(viewData?.total_work_minutes || activeItem?.total_work_minutes)}</p>

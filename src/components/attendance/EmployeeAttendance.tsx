@@ -42,6 +42,7 @@ import {
   Download,
   Coffee
 } from "lucide-react";
+import ResetAttendanceModal from "./ResetAttendanceModal";
 
 type EmployeeItem = Record<string, any>;
 
@@ -68,6 +69,8 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
   // Export modal state
   const [showExportModal, setShowExportModal] = React.useState<boolean>(false);
   const [exporting, setExporting] = React.useState<boolean>(false);
+  const [showResetModal, setShowResetModal] = React.useState<boolean>(false);
+  const [resetting, setResetting] = React.useState<boolean>(false);
 
   // Detail views
   const [activeView, setActiveView] = React.useState<"list" | "attendance" | "leaves" | "redeems">("list");
@@ -107,6 +110,7 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
   const [pageSize, setPageSize] = React.useState<number>(10);
   const [totalPages, setTotalPages] = React.useState<number>(1);
   const [totalItems, setTotalItems] = React.useState<number>(0);
+  const [showTerminated, setShowTerminated] = React.useState<boolean>(false);
 
   React.useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") closeMenu(); };
@@ -177,9 +181,11 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
         } else if (statusFilter === "completed") {
           passStatus = status === "checked_out" || status === "completed";
         } else if (statusFilter === "late") {
-          passStatus = status.includes("late") || status === "late_checkin";
+          const isSpecial = it.attendance?.was_night_ot || it.is_holiday || it.is_weekly_off;
+          passStatus = (status.includes("late") || status === "late_checkin") && !isSpecial;
         } else if (statusFilter === "half_day") {
-          passStatus = status === "half_day";
+          const isSpecial = it.attendance?.was_night_ot || it.is_holiday || it.is_weekly_off;
+          passStatus = status === "half_day" && !isSpecial;
         }
       }
 
@@ -257,6 +263,7 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
       }
 
       if (date) params["date"] = date;
+      if (showTerminated) params["include_terminated"] = "1";
 
       // Filters
       const s = debouncedSearch.trim();
@@ -772,6 +779,21 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
                 </div>
               )}
 
+              {/* Show Terminated Toggle */}
+              {!externalControl && canHRMode && (
+                <div className="col-span-12 sm:col-span-6 md:col-span-2">
+                  <label className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={showTerminated}
+                      onChange={(e) => setShowTerminated(e.target.checked)}
+                      className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-2 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-slate-700">Show Terminated</span>
+                  </label>
+                </div>
+              )}
+
               {/* Site Selection */}
               {!externalControl && (
                 <div className="col-span-12 sm:col-span-6 md:col-span-2">
@@ -920,6 +942,16 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
                 <Download className="w-3.5 h-3.5" />
                 <span>Export</span>
               </button>
+
+              {role?.toLowerCase() === 'orgadmin' && (
+                <button
+                  onClick={() => setShowResetModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-all text-sm"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Reset Attendance</span>
+                </button>
+              )}
 
               {/* Results Count */}
               <div className="ml-auto text-xs text-slate-500">
@@ -1111,6 +1143,14 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
                           {StatusIcon}
                           <span>{status}</span>
                         </span>
+
+                        {/* Post-Night OT Context Badge */}
+                        {employee.attendance?.was_post_night_ot && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 animate-pulse">
+                            <Clock className="w-3 h-3" />
+                            <span>Post Night OT</span>
+                          </span>
+                        )}
 
                         {/* Timeline Badge (Full-Day/Half-Day) */}
                         {showTimeline && timeline && (
@@ -1364,6 +1404,19 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
           onClose={() => setShowExportModal(false)}
         />
       )}
+
+      {showResetModal && (
+        <ResetAttendanceModal
+          currentSiteId={selectedSiteId}
+          siteOptions={canHRMode ? allSites : inchargeSites}
+          onClose={() => setShowResetModal(false)}
+          onSuccess={() => {
+            setShowResetModal(false);
+            fetchList();
+            setSuccess("Attendance reset and re-calculated successfully.");
+          }}
+        />
+      )}
     </div >
   );
 }
@@ -1430,6 +1483,7 @@ function AttendanceExportModal({
   const [exportFormat, setExportFormat] = React.useState<'excel' | 'pdf'>('excel');
   const [exportType, setExportType] = React.useState<'day' | 'month'>('day');
   const [submitting, setSubmitting] = React.useState<boolean>(false);
+  const [includeTerminated, setIncludeTerminated] = React.useState<boolean>(false);
 
   // Get current month in YYYY-MM format
   const getCurrentMonth = () => {
@@ -1454,7 +1508,8 @@ function AttendanceExportModal({
         status: local.status === 'all' ? '' : local.status,
         department: local.department,
         export_type: exportType,
-        export_format: exportFormat
+        export_format: exportFormat,
+        include_terminated: includeTerminated
       };
 
       if (exportType === 'day') {
@@ -1486,7 +1541,8 @@ function AttendanceExportModal({
         department: local.department,
         export_type: exportType,
         download_local: true,
-        export_format: exportFormat
+        export_format: exportFormat,
+        include_terminated: includeTerminated
       };
 
       if (exportType === 'day') {
@@ -1662,6 +1718,19 @@ function AttendanceExportModal({
                 <span className="text-sm text-gray-700">PDF (.pdf)</span>
               </label>
             </div>
+          </div>
+
+          {/* Include Terminated */}
+          <div className="md:col-span-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={includeTerminated}
+                onChange={(e) => setIncludeTerminated(e.target.checked)}
+                className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <span className="text-sm text-gray-700">Include Terminated/Inactive Employees</span>
+            </label>
           </div>
 
           {/* Emails */}
