@@ -336,7 +336,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
     } finally {
       setLoading(false);
     }
-  }, [status, hqMode, selectedSiteId, fromDate, toDate, search, page, pageSize, externalControl, extHq, extSiteId]);
+  }, [status, hqMode, selectedSiteId, fromDate, toDate, search, page, pageSize, externalControl, extHq, extSiteId, isOrgAdmin, canHRMode]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -2045,7 +2045,10 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
             {/* Status Filter */}
             <select
               value={status}
-              onChange={(e) => setStatus(e.target.value)}
+              onChange={(e) => {
+                setStatus(e.target.value);
+                setPage(1);
+              }}
               className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
             >
               <option value="All">All Status</option>
@@ -2066,6 +2069,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                   }
                   const val = parseInt(raw, 10);
                   setSelectedSiteId(Number.isNaN(val) ? null : val);
+                  setPage(1);
                 }}
               >
                 {(hqMode && canHRMode) || isOrgAdmin ? (
@@ -2122,7 +2126,10 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                 type="date"
                 className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
                 value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
+                onChange={(e) => {
+                  setFromDate(e.target.value);
+                  setPage(1);
+                }}
                 placeholder="From Date"
               />
 
@@ -2130,7 +2137,10 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                 type="date"
                 className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
                 value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
+                onChange={(e) => {
+                  setToDate(e.target.value);
+                  setPage(1);
+                }}
                 placeholder="To Date"
               />
 
