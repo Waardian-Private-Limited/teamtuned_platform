@@ -57,6 +57,8 @@ type RequestItem = {
     night_ot_workflow_id?: number;
     night_ot_current_level?: number;
     night_ot_reject_reason?: string;
+    punch_in_time?: string;
+    punch_out_time?: string;
     can_approve?: boolean;
     [key: string]: any;
 };
@@ -374,9 +376,19 @@ export default function NightOTRequests({ defaultHQ = true, showHQToggle = true,
         return `${h}h ${mm}m`;
     };
 
-    const fmtTime = (time: string) => {
-        if (!time) return "-";
-        return time.slice(0, 5);
+    const fmtTime = (time: string | null | undefined) => {
+        if (!time) return "--:--";
+        try {
+            const date = new Date(time);
+            if (isNaN(date.getTime())) {
+                // Try parsing if it's already HH:mm
+                if (/^\d{2}:\d{2}/.test(time)) return time.slice(0, 5);
+                return "--:--";
+            }
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+        } catch (e) {
+            return "--:--";
+        }
     }
 
     const openDetailsView = async (item: RequestItem) => {
@@ -619,17 +631,36 @@ export default function NightOTRequests({ defaultHQ = true, showHQToggle = true,
                                             <span className="text-gray-600">Date:</span>
                                             <p className="font-medium">{new Date(displayItem.attendance_date).toLocaleDateString()}</p>
                                         </div>
-                                        <div>
-                                            <span className="text-gray-600">Duration:</span>
-                                            <p className="font-medium">{fmtHm(displayItem.night_ot_duration_minutes)}</p>
+                                        <div className="col-span-2 border-t pt-4 mt-2">
+                                            <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Night OT Session</h5>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <span className="text-gray-600">OT Start:</span>
+                                                    <p className="font-medium text-indigo-700">{fmtTime(displayItem.night_ot_start_time)}</p>
+                                                </div>
+                                                <div>
+                                                    <span className="text-gray-600">OT End:</span>
+                                                    <p className="font-medium text-indigo-700">{fmtTime(displayItem.night_ot_end_time)}</p>
+                                                </div>
+                                                <div>
+                                                    <span className="text-gray-600">OT Duration:</span>
+                                                    <p className="font-medium text-indigo-900">{fmtHm(displayItem.night_ot_duration_minutes)}</p>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <span className="text-gray-600">Start Time:</span>
-                                            <p className="font-medium">{fmtTime(displayItem.night_ot_start_time)}</p>
-                                        </div>
-                                        <div>
-                                            <span className="text-gray-600">End Time:</span>
-                                            <p className="font-medium">{fmtTime(displayItem.night_ot_end_time)}</p>
+
+                                        <div className="col-span-2 border-t pt-4">
+                                            <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Regular Shift</h5>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <span className="text-gray-600">Punch In:</span>
+                                                    <p className="font-medium">{fmtTime(displayItem.punch_in_time)}</p>
+                                                </div>
+                                                <div>
+                                                    <span className="text-gray-600">Punch Out:</span>
+                                                    <p className="font-medium">{fmtTime(displayItem.punch_out_time)}</p>
+                                                </div>
+                                            </div>
                                         </div>
                                         <div>
                                             <span className="text-gray-600">Department:</span>
@@ -899,8 +930,8 @@ export default function NightOTRequests({ defaultHQ = true, showHQToggle = true,
                             <tr>
                                 <th className="px-6 py-3 font-semibold text-gray-900">Employee</th>
                                 <th className="px-6 py-3 font-semibold text-gray-900">Request Date</th>
-                                <th className="px-6 py-3 font-semibold text-gray-900">Duration</th>
-                                <th className="px-6 py-3 font-semibold text-gray-900">Details</th>
+                                <th className="px-6 py-3 font-semibold text-gray-900">OT Times</th>
+                                <th className="px-6 py-3 font-semibold text-gray-900">Regular Punches</th>
                                 <th className="px-6 py-3 font-semibold text-gray-900">Status</th>
                                 <th className="px-6 py-3 font-semibold text-gray-900 text-right">Actions</th>
                             </tr>
@@ -948,16 +979,16 @@ export default function NightOTRequests({ defaultHQ = true, showHQToggle = true,
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <div className="font-medium text-gray-900">{fmtHm(item.night_ot_duration_minutes)}</div>
-                                            <div className="text-xs text-gray-500">{fmtTime(item.night_ot_start_time)} - {fmtTime(item.night_ot_end_time)}</div>
+                                            <div className="font-medium text-indigo-700">{fmtHm(item.night_ot_duration_minutes)}</div>
+                                            <div className="text-xs text-indigo-500 whitespace-nowrap">{fmtTime(item.night_ot_start_time)} - {fmtTime(item.night_ot_end_time)}</div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <div className="flex flex-col gap-1">
-                                                <span className="text-xs text-gray-600 flex items-center gap-1">
-                                                    <Building className="w-3 h-3" /> {item.department_name || "-"}
-                                                </span>
-                                                <span className="text-xs text-gray-600 flex items-center gap-1">
-                                                    <User className="w-3 h-3" /> {item.designation_name || "-"}
+                                            <div className="text-sm font-medium text-gray-800">
+                                                {item.punch_in_time ? fmtTime(item.punch_in_time) : "--:--"} - {item.punch_out_time ? fmtTime(item.punch_out_time) : "--:--"}
+                                            </div>
+                                            <div className="flex flex-col gap-0.5 mt-1">
+                                                <span className="text-[10px] text-gray-500 flex items-center gap-1">
+                                                    <Building className="w-2.5 h-2.5" /> {item.department_name || "-"}
                                                 </span>
                                             </div>
                                         </td>
