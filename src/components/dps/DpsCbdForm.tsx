@@ -15,6 +15,7 @@ interface DpsCbdFormProps {
     setClientBillTargetDate?: (v: string) => void;
     contractorBillTargetDate?: string;
     setContractorBillTargetDate?: (v: string) => void;
+    readOnly?: boolean;
 }
 
 export function DpsCbdForm({
@@ -28,7 +29,8 @@ export function DpsCbdForm({
     clientBillTargetDate = '',
     setClientBillTargetDate,
     contractorBillTargetDate = '',
-    setContractorBillTargetDate
+    setContractorBillTargetDate,
+    readOnly = false
 }: DpsCbdFormProps) {
     return (
         <div className="space-y-6">
@@ -37,7 +39,7 @@ export function DpsCbdForm({
                 fieldset:disabled input, fieldset:disabled select, fieldset:disabled textarea { background-color: transparent !important; border-color: transparent !important; opacity: 1; -webkit-appearance: none; appearance: none; color: #111; user-select: none; }
             `}</style>
 
-            <fieldset disabled={!isEditMode} className="p-0 m-0 border-none space-y-6 w-full min-w-0">
+            <fieldset disabled={!isEditMode || readOnly} className="p-0 m-0 border-none space-y-6 w-full min-w-0">
                 {/* 1. Schedule Validity */}
                 <div className="bg-white p-6 rounded-sm border border-gray-200 shadow-sm space-y-6">
                     <div className="flex flex-col md:flex-row gap-6 items-start relative">

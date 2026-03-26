@@ -1,7 +1,11 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Calendar, CheckCircle2, Clock, MapPin, Search, UploadCloud, Save, ChevronRight, FileDown } from 'lucide-react';
+import {
+    Calendar, CheckCircle2, Clock, MapPin, Search, UploadCloud, Save,
+    ChevronRight, ChevronLeft, FileDown, Plus, Users, Filter, RefreshCw,
+    AlertCircle, FileText, Check, Eye, MoreVertical, ChevronDown, ChevronUp
+} from 'lucide-react';
 import { FormEvent } from 'react';
 import { apiClient } from '@/lib/apiClient';
 import { useAuth } from '@/context/AuthContext';
@@ -153,30 +157,55 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
     const [formData, setFormData] = useState<any>(null);
     const [submitting, setSubmitting] = useState(false);
 
+    // Filter states
+    const [statusFilter, setStatusFilter] = useState<'All' | 'pending' | 'submitted' | 'reviewed'>('All');
+    const [filtersExpanded, setFiltersExpanded] = useState(false);
+    const [fromDate, setFromDate] = useState('');
+    const [toDate, setToDate] = useState('');
+
     // Generate Form Modal State
     const [showGenerateModal, setShowGenerateModal] = useState(false);
     const [sites, setSites] = useState<any[]>([]);
+    const [selectedSiteId, setSelectedSiteId] = useState<string>('');
     const [genSiteId, setGenSiteId] = useState<string>('');
     const [genDate, setGenDate] = useState(new Date().toISOString().slice(0, 10));
     const [genFormType, setGenFormType] = useState(formType || 'both');
-    const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 10;
+
+    // Pagination state matching LeaveRequests
+    const [activeTab, setActiveTab] = useState<'pending' | 'submitted'>('pending');
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
+    const [totalEntries, setTotalEntries] = useState(0);
 
     useEffect(() => {
         fetchAssignments();
-    }, []);
+    }, [page, pageSize, statusFilter, selectedSiteId, fromDate, toDate, activeTab]);
 
     const fetchAssignments = async () => {
         setLoading(true);
         try {
-            const data = await apiClient<any>(`/dps-schedule/dynamic-assignments${formType ? `?formType=${formType}` : ''}`, {
+            const params = new URLSearchParams({
+                page: page.toString(),
+                limit: pageSize.toString(),
+                activeTab: activeTab,
+            });
+
+            if (formType) params.append('formType', formType);
+            if (statusFilter !== 'All') params.append('status', statusFilter);
+            if (selectedSiteId) params.append('siteId', selectedSiteId);
+            if (fromDate) params.append('dateFrom', fromDate);
+            if (toDate) params.append('dateTo', toDate);
+            if (searchQuery) params.append('search', searchQuery);
+
+            const data = await apiClient<any>(`/dps-schedule/dynamic-assignments?${params.toString()}`, {
                 method: 'GET',
                 withAuth: true
             });
-            const resultData = data?.data || data || [];
-            setAssignments(Array.isArray(resultData) ? resultData : []);
 
-            if (isOrgAdmin) {
+            setAssignments(data?.data || []);
+            setTotalEntries(data?.meta?.total || 0);
+
+            if (sites.length === 0) {
                 const sData = await apiClient<any>('/dps-schedule/sites', {
                     method: 'GET',
                     withAuth: true
@@ -185,6 +214,7 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
             }
         } catch (error) {
             console.error('Failed to fetch dynamic assignments', error);
+            showError('Failed to load assignments');
         } finally {
             setLoading(false);
         }
@@ -229,46 +259,54 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
     const handleSelectForm = (task: DynamicAssignment) => {
         setSelectedForm(task);
         if (task.status === 'pending') {
-            // copy the dynamic schema structure into the submitted data state for bi-directional binding
-            setFormData(JSON.parse(JSON.stringify(task.dynamic_schema)));
+            const data = JSON.parse(JSON.stringify(task.dynamic_schema));
+            if (data.staff && Array.isArray(data.staff)) {
+                data.staff = data.staff.map((s: any) => ({
+                    ...s,
+                    required_wo: (s.required_wo === undefined || s.required_wo === null || s.required_wo === 0) ? (s.planned || 0) : s.required_wo
+                }));
+            }
+            setFormData(data);
         } else {
             // just view existing submission
             setFormData(task.submitted_data);
         }
     };
 
-    const handleFormSubmit = async () => {
+    const handleFormSubmit = async (updatedData?: any) => {
         if (!selectedForm) return;
+
+        const dataToSave = updatedData || formData;
 
         // Validations for Planning
         if (selectedForm.form_type === 'planning') {
-            if (formData?.concrete_planning && (formData.concrete_planning.achieved_total === undefined || formData.concrete_planning.achieved_total === null || formData.concrete_planning.achieved_total === '')) {
-                showError('Concrete Progress: Actual Achieved is required.');
+            if (dataToSave?.concrete_planning && (dataToSave.concrete_planning.achieved_total === undefined || dataToSave.concrete_planning.achieved_total === null || String(dataToSave.concrete_planning.achieved_total).trim() === '')) {
+                showError('Concrete Progress: ACTUAL QTY is required.');
                 return;
             }
-            if (formData?.staff) {
-                for (let i = 0; i < formData.staff.length; i++) {
-                    const val = formData.staff[i].actual;
+            if (dataToSave?.staff) {
+                for (let i = 0; i < dataToSave.staff.length; i++) {
+                    const val = dataToSave.staff[i].actual;
                     if (val === undefined || val === null || val === '') {
-                        showError(`Staff Deployment: Actual is required for ${formData.staff[i].role || formData.staff[i].designation}`);
+                        showError(`Staff Deployment: Actual is required for ${dataToSave.staff[i].role || dataToSave.staff[i].designation}`);
                         return;
                     }
                 }
             }
-            if (formData?.labor) {
-                for (let i = 0; i < formData.labor.length; i++) {
-                    const val = formData.labor[i].actual;
+            if (dataToSave?.labor) {
+                for (let i = 0; i < dataToSave.labor.length; i++) {
+                    const val = dataToSave.labor[i].actual;
                     if (val === undefined || val === null || val === '') {
-                        showError(`Labor Deployment: Actual is required for ${formData.labor[i].type || formData.labor[i].name}`);
+                        showError(`Labor Deployment: Actual is required for ${dataToSave.labor[i].type || dataToSave.labor[i].name}`);
                         return;
                     }
                 }
             }
-            if (formData?.equipments) {
-                for (let i = 0; i < formData.equipments.length; i++) {
-                    const val = formData.equipments[i].actual;
+            if (dataToSave?.equipments) {
+                for (let i = 0; i < dataToSave.equipments.length; i++) {
+                    const val = dataToSave.equipments[i].actual;
                     if (val === undefined || val === null || val === '') {
-                        showError(`Equipment Tracking: Actual is required for ${formData.equipments[i].type || formData.equipments[i].name}`);
+                        showError(`Equipment Tracking: Actual is required for ${dataToSave.equipments[i].type || dataToSave.equipments[i].name}`);
                         return;
                     }
                 }
@@ -277,7 +315,7 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
 
         // Validations for CBD
         if (selectedForm.form_type === 'cbd') {
-            const sr = formData?.steel_reconciliation;
+            const sr = dataToSave?.steel_reconciliation;
             if (sr) {
                 const srFields = ['total_received', 'total_billed', 'wip_steel', 'jmr_total', 'total_stock', 'total_scrap', 'wastage_percent'];
                 const srLabels = ['Total Received Steel', 'Total Billed Steel', 'WIP Steel', 'JMR Total', 'Total Stock', 'Total Scrap', '% Wastage'];
@@ -290,9 +328,9 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
                 }
             }
 
-            if (formData?.concrete_reconciliation) {
-                for (let i = 0; i < formData.concrete_reconciliation.length; i++) {
-                    const cr = formData.concrete_reconciliation[i];
+            if (dataToSave?.concrete_reconciliation) {
+                for (let i = 0; i < dataToSave.concrete_reconciliation.length; i++) {
+                    const cr = dataToSave.concrete_reconciliation[i];
                     const crFields = ['theoretical', 'consumed', 'difference', 'wastage_percent'];
                     const crLabels = ['Theoretical', 'Consumed', 'Difference', '% Wastage'];
                     for (let j = 0; j < crFields.length; j++) {
@@ -305,7 +343,7 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
                 }
             }
 
-            const vendorRegs = formData?.vendor_registrations || [];
+            const vendorRegs = dataToSave?.vendor_registrations || [];
             for (let i = 0; i < vendorRegs.length; i++) {
                 if (!vendorRegs[i].vendor_name || vendorRegs[i].vendor_name.trim() === '') {
                     showError('Vendor Registration: Vendor Name is required.');
@@ -313,7 +351,7 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
                 }
             }
 
-            const reportChecklists = formData?.report_checklist || [];
+            const reportChecklists = dataToSave?.report_checklist || [];
             for (let i = 0; i < reportChecklists.length; i++) {
                 const item = reportChecklists[i];
                 if (!item.status) {
@@ -330,7 +368,7 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
                 }
             }
 
-            const clientDocs = formData?.documents_client_bill || [];
+            const clientDocs = dataToSave?.documents_client_bill || [];
             for (let i = 0; i < clientDocs.length; i++) {
                 const item = clientDocs[i];
                 if (!item.status) {
@@ -354,7 +392,7 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
             await apiClient('/dps-schedule/dynamic-assignments/submit', {
                 method: 'POST',
                 withAuth: true,
-                body: { assignment_id: selectedForm.id, submitted_data: formData, is_draft: false }
+                body: { assignment_id: selectedForm.id, submitted_data: dataToSave, is_draft: false }
             });
             showSuccess('Form submitted successfully!');
             setSelectedForm(null);
@@ -366,15 +404,16 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
         }
     };
 
-    const handleFormSave = async () => {
+    const handleFormSave = async (updatedData?: any) => {
         if (!selectedForm) return;
+        const dataToSave = updatedData || formData;
         setSubmitting(true);
         try {
             const { apiClient } = await import('@/lib/apiClient');
             await apiClient('/dps-schedule/dynamic-assignments/submit', {
                 method: 'POST',
                 withAuth: true,
-                body: { assignment_id: selectedForm.id, submitted_data: formData, is_draft: true }
+                body: { assignment_id: selectedForm.id, submitted_data: dataToSave, is_draft: true }
             });
             showSuccess('Progress saved successfully!');
             setSelectedForm(null);
@@ -386,181 +425,303 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
         }
     };
 
-    const filtered = assignments.filter(a => {
-        const q = searchQuery.toLowerCase();
-        return (
-            a.site_name?.toLowerCase().includes(q) ||
-            a.unit_name?.toLowerCase().includes(q) ||
-            a.form_type?.toLowerCase().includes(q) ||
-            a.status?.toLowerCase().includes(q)
-        );
-    });
-
-    const pending = filtered.filter(a => a.status === 'pending');
-    const history = filtered.filter(a => a.status !== 'pending');
-
-    const totalPages = Math.ceil(history.length / itemsPerPage);
-    const paginatedHistory = history.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [searchQuery]);
-
     return (
-        <div className="max-w-7xl mx-auto p-8 space-y-10">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-                <div className="space-y-2">
-                    <h1 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-4">
-                        {isOrgAdmin ? 'All DPR Forms' : 'DPR Assignments'}
-                    </h1>
-                </div>
-                <div className="flex items-center gap-4 w-full md:w-auto">
-                    <div className="flex-1 md:flex-none max-w-xs relative group">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" size={20} />
-                        <input
-                            type="text"
-                            placeholder="Search by site or unit..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2.5 rounded-2xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium text-sm shadow-sm"
-                        />
+        <div className="min-h-screen bg-white">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {/* Header Section */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                    <div>
+                        <h1 className="text-2xl font-black text-black tracking-tight uppercase">Assignments</h1>
+                        <p className="text-xs text-gray-500 font-bold mt-1 tracking-widest uppercase">Manage and Track Site Reports</p>
                     </div>
-                    {isOrgAdmin && (
-                        <button onClick={() => setShowGenerateModal(true)} className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-2xl transition-all shadow-md active:scale-95 flex items-center gap-2 whitespace-nowrap">
-                            <Clock size={16} /> Generate Forms
+                    <div className="flex items-center gap-3">
+                        {isOrgAdmin && (
+                            <button
+                                onClick={() => setShowGenerateModal(true)}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white text-[10px] font-black uppercase tracking-widest border border-black hover:bg-zinc-800 transition-all active:scale-95"
+                            >
+                                <Plus size={14} /> Generate Forms
+                            </button>
+                        )}
+                        <button
+                            onClick={fetchAssignments}
+                            className="p-2 border border-black hover:bg-gray-50 text-black transition-all"
+                            title="Refresh Data"
+                        >
+                            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
                         </button>
+                    </div>
+                </div>
+
+                {/* Stats Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                    {[
+                        { label: 'Total Tasks', value: totalEntries, icon: FileText, color: 'text-black' },
+                        { label: 'Pending', value: assignments.filter(a => a.status === 'pending').length, icon: Clock, color: 'text-orange-500' },
+                        { label: 'Submitted', value: assignments.filter(a => a.status === 'submitted').length, icon: CheckCircle2, color: 'text-emerald-500' },
+                        { label: 'Reviewed', value: assignments.filter(a => a.status === 'reviewed').length, icon: Check, color: 'text-blue-500' },
+                    ].map((stat, i) => (
+                        <div key={i} className="bg-white border border-black p-4 flex items-center justify-between group">
+                            <div>
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{stat.label}</p>
+                                <p className={`text-2xl font-black ${stat.color}`}>{stat.value}</p>
+                            </div>
+                            <div className={`p-3 border border-black/5 group-hover:border-black transition-colors`}>
+                                <stat.icon size={20} className={stat.color} />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Filters & Tabs Section */}
+                <div className="bg-white border border-black mb-6">
+                    <div className="p-4 border-b border-black flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => { setActiveTab('pending'); setPage(1); }}
+                                className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'pending' ? 'bg-black text-white' : 'text-gray-400 hover:text-black'}`}
+                            >
+                                Pending Assignments
+                            </button>
+                            <button
+                                onClick={() => { setActiveTab('submitted'); setPage(1); }}
+                                className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'submitted' ? 'bg-black text-white' : 'text-gray-400 hover:text-black'}`}
+                            >
+                                Submitted Reports
+                            </button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <div className="relative group flex-1 md:w-64">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                                <input
+                                    type="text"
+                                    placeholder="SEARCH BY SITE, UNIT..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full pl-9 pr-4 py-2 bg-white border border-black text-[10px] font-black uppercase tracking-widest placeholder:text-gray-300 focus:outline-none focus:ring-1 focus:ring-black"
+                                />
+                            </div>
+                            <button
+                                onClick={() => setFiltersExpanded(!filtersExpanded)}
+                                className={`p-2 border border-black transition-all ${filtersExpanded ? 'bg-black text-white' : 'text-black hover:bg-gray-50'}`}
+                            >
+                                <Filter size={16} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Expanded Filters */}
+                    {filtersExpanded && (
+                        <div className="p-4 bg-gray-50 grid grid-cols-1 md:grid-cols-4 gap-4 animate-in slide-in-from-top-2 duration-200">
+                            <div>
+                                <label className="block text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Status</label>
+                                <select
+                                    value={statusFilter}
+                                    onChange={(e) => setStatusFilter(e.target.value as any)}
+                                    className="w-full bg-white border border-black p-2 text-[10px] font-black uppercase tracking-widest focus:outline-none"
+                                >
+                                    <option value="All">All Status</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="submitted">Submitted</option>
+                                    <option value="reviewed">Reviewed</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Site</label>
+                                <select
+                                    value={selectedSiteId}
+                                    onChange={(e) => setSelectedSiteId(e.target.value)}
+                                    className="w-full bg-white border border-black p-2 text-[10px] font-black uppercase tracking-widest focus:outline-none"
+                                >
+                                    <option value="">All Sites</option>
+                                    {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">From Date</label>
+                                <input
+                                    type="date"
+                                    value={fromDate}
+                                    onChange={(e) => setFromDate(e.target.value)}
+                                    className="w-full bg-white border border-black p-2 text-[10px] font-black uppercase focus:outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">To Date</label>
+                                <input
+                                    type="date"
+                                    value={toDate}
+                                    onChange={(e) => setToDate(e.target.value)}
+                                    className="w-full bg-white border border-black p-2 text-[10px] font-black uppercase focus:outline-none"
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Table Section */}
+                    <div className="overflow-x-auto">
+                        <table className="w-full border-collapse text-left">
+                            <thead className="bg-gray-50 border-b border-black">
+                                <tr className="text-[10px] font-black text-black uppercase tracking-widest">
+                                    <th className="p-4">Reference</th>
+                                    <th className="p-4 border-l border-black/5">Site / Unit</th>
+                                    <th className="p-4 border-l border-black/5">Form Type</th>
+                                    <th className="p-4 border-l border-black/5">Current Assignee</th>
+                                    <th className="p-4 border-l border-black/5">Due Date</th>
+                                    <th className="p-4 border-l border-black/5">Status</th>
+                                    <th className="p-4 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-black/5">
+                                {loading ? (
+                                    <tr>
+                                        <td colSpan={7} className="p-12 text-center">
+                                            <div className="flex flex-col items-center gap-3">
+                                                <RefreshCw size={24} className="animate-spin text-gray-300" />
+                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Fetching assignments...</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ) : assignments.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={7} className="p-12 text-center">
+                                            <div className="flex flex-col items-center gap-3">
+                                                <AlertCircle size={24} className="text-gray-200" />
+                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">No assignments found</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ) : assignments.map(task => (
+                                    <tr key={task.id} className="group hover:bg-gray-50 transition-colors">
+                                        <td className="p-4">
+                                            <div className="text-[10px] font-black text-black">#{task.id}</div>
+                                            <div className="text-[8px] text-gray-400 font-bold uppercase tracking-tighter mt-0.5">SR-REF-{task.id}</div>
+                                        </td>
+                                        <td className="p-4 border-l border-black/5">
+                                            <div className="text-[10px] font-black text-black uppercase leading-tight">{task.site_name}</div>
+                                            <div className="text-[9px] text-gray-400 font-bold mt-1 uppercase flex items-center gap-1">
+                                                <MapPin size={8} /> {task.unit_name}
+                                            </div>
+                                        </td>
+                                        <td className="p-4 border-l border-black/5">
+                                            <span className={`inline-flex px-2 py-0.5 border border-black text-[9px] font-black uppercase tracking-widest bg-white ${task.form_type === 'planning' ? 'text-black' : 'text-zinc-600'}`}>
+                                                {task.form_type}
+                                            </span>
+                                        </td>
+                                        <td className="p-4 border-l border-black/5">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-6 h-6 border border-black flex items-center justify-center text-[9px] font-black text-black bg-white group-hover:bg-black group-hover:text-white transition-colors">
+                                                    {(task.first_name?.[0] || 'U').toUpperCase()}
+                                                </div>
+                                                <div className="text-[10px] font-black text-black uppercase">{task.first_name} {task.last_name}</div>
+                                            </div>
+                                        </td>
+                                        <td className="p-4 border-l border-black/5">
+                                            <div className="flex items-center gap-1.5 text-[10px] font-black text-black">
+                                                <Calendar size={12} className="text-gray-400" />
+                                                {formatDate(task.due_date)}
+                                            </div>
+                                        </td>
+                                        <td className="p-4 border-l border-black/5">
+                                            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 border border-black text-[9px] font-black uppercase tracking-widest ${task.status === 'pending' ? 'bg-amber-50 text-amber-600' :
+                                                task.status === 'submitted' ? 'bg-emerald-50 text-emerald-600' :
+                                                    'bg-blue-50 text-blue-600'
+                                                }`}>
+                                                <div className={`w-1.5 h-1.5 ${task.status === 'pending' ? 'bg-amber-500' :
+                                                    task.status === 'submitted' ? 'bg-emerald-500' :
+                                                        'bg-blue-500'
+                                                    }`} />
+                                                {task.status}
+                                            </span>
+                                        </td>
+                                        <td className="p-4 text-right">
+                                            <div className="flex items-center justify-end gap-2">
+                                                {task.status === 'pending' ? (
+                                                    <button
+                                                        onClick={() => handleSelectForm(task)}
+                                                        className="px-4 py-2 bg-black text-white text-[9px] font-black uppercase tracking-widest border border-black hover:bg-zinc-800 transition-all active:scale-95"
+                                                    >
+                                                        Process DPR
+                                                    </button>
+                                                ) : (
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleSelectForm(task)}
+                                                            className="p-2 border border-black hover:bg-gray-100 text-black transition-all"
+                                                        >
+                                                            <Eye size={14} />
+                                                        </button>
+                                                        <DownloadExcelButton taskId={task.id} formType={task.form_type} />
+                                                    </>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Advanced Pagination UI matching LeaveRequests */}
+                    {!loading && totalEntries > 0 && (
+                        <div className="p-4 border-t border-black bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div className="flex items-center gap-4">
+                                <span className="text-[10px] font-black text-black uppercase tracking-widest">
+                                    Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, totalEntries)} of {totalEntries} entries
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Display</span>
+                                    <select
+                                        value={pageSize}
+                                        onChange={(e) => { setPageSize(parseInt(e.target.value)); setPage(1); }}
+                                        className="bg-white border border-black text-[10px] font-black px-2 py-1 focus:outline-none"
+                                    >
+                                        <option value={10}>10</option>
+                                        <option value={25}>25</option>
+                                        <option value={50}>50</option>
+                                        <option value={100}>100</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                                <button
+                                    disabled={page === 1}
+                                    onClick={() => setPage(prev => prev - 1)}
+                                    className="p-2 border border-black text-black hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                                >
+                                    <ChevronLeft size={16} />
+                                </button>
+
+                                {Array.from({ length: Math.ceil(totalEntries / pageSize) }, (_, i) => i + 1)
+                                    .filter(p => p === 1 || p === Math.ceil(totalEntries / pageSize) || Math.abs(p - page) <= 1)
+                                    .map((p, i, arr) => (
+                                        <React.Fragment key={p}>
+                                            {i > 0 && arr[i - 1] !== p - 1 && <span className="px-2 text-gray-400">...</span>}
+                                            <button
+                                                onClick={() => setPage(p)}
+                                                className={`w-8 h-8 flex items-center justify-center text-[10px] font-black border transition-all ${page === p ? 'bg-black text-white border-black' : 'text-black border-transparent hover:border-black'
+                                                    }`}
+                                            >
+                                                {p}
+                                            </button>
+                                        </React.Fragment>
+                                    ))
+                                }
+
+                                <button
+                                    disabled={page === Math.ceil(totalEntries / pageSize)}
+                                    onClick={() => setPage(prev => prev + 1)}
+                                    className="p-2 border border-black text-black hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                                >
+                                    <ChevronRight size={16} />
+                                </button>
+                            </div>
+                        </div>
                     )}
                 </div>
             </div>
-
-            {loading ? (
-                <div className="flex flex-col items-center justify-center p-20 space-y-4">
-                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
-                    <p className="text-gray-400 font-medium">Loading assignments...</p>
-                </div>
-            ) : (
-                <div className="space-y-12">
-                    {/* Pending Tasks Section */}
-                    <section className="space-y-6">
-                        <h2 className="text-xl font-bold flex items-center gap-2 text-gray-800">
-                            <Clock size={20} className="text-orange-500" />
-                            {isOrgAdmin ? 'Pending Forms' : 'Action Required'} <span className="text-sm font-medium bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{pending.length}</span>
-                        </h2>
-
-                        {pending.length === 0 ? (
-                            <div className="p-12 text-center bg-gray-50 rounded-3xl border border-dashed border-gray-200">
-                                <p className="text-gray-500 font-medium">{isOrgAdmin ? 'There are no pending DPR forms.' : 'You have no pending DPR assignments.'}</p>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {pending.map(task => (
-                                    <AssignmentCard key={task.id} task={task} onSelect={handleSelectForm} isOrgAdmin={isOrgAdmin} onChangeAssignee={handleChangeAssignee} />
-                                ))}
-                            </div>
-                        )}
-                    </section>
-
-                    {/* Historical Table */}
-                    <section className="space-y-6">
-                        <div className="flex items-center justify-between pb-4 border-b border-gray-200">
-                            <h2 className="text-xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
-                                <CheckCircle2 className="text-gray-400" /> Submitted Reports
-                            </h2>
-                            <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-bold shadow-sm">{history.length}</span>
-                        </div>
-                        {history.length === 0 ? (
-                            <div className="p-12 text-center bg-gray-50 rounded-3xl border border-dashed border-gray-200">
-                                <p className="text-gray-500 font-medium">No previous submissions found.</p>
-                            </div>
-                        ) : (
-                            <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                <th className="px-4 py-3">Site & Unit</th>
-                                                <th className="px-4 py-3">Form Type</th>
-                                                <th className="px-6 py-4">Assigned To</th>
-                                                <th className="px-4 py-3">Target Date</th>
-                                                <th className="px-4 py-3 text-right">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-100">
-                                            {paginatedHistory.map(task => (
-                                                <tr key={task.id} className="hover:bg-gray-50 transition-colors group">
-                                                    <td className="px-4 py-3">
-                                                        <div className="text-sm font-semibold text-gray-900">{task.site_name}</div>
-                                                        <div className="text-xs text-gray-400 flex items-center gap-1"><MapPin size={10} /> {task.unit_name}</div>
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight ${task.form_type === 'planning' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
-                                                            {task.form_type === 'planning' ? 'Planning' : 'CBD Report'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="w-6 h-6 rounded bg-blue-50 flex items-center justify-center text-[10px] font-bold text-blue-600 border border-blue-100">
-                                                                {(task.first_name?.[0] || 'U').toUpperCase()}
-                                                            </div>
-                                                            <span className="text-sm font-medium text-gray-700">{task.first_name} {task.last_name || ''}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <div className="text-sm text-gray-700">{formatDate(task.due_date)}</div>
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right">
-                                                        <div className="flex items-center justify-end gap-2">
-                                                            <button onClick={() => handleSelectForm(task)} className="px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 transition-all shadow-sm">
-                                                                View Details
-                                                            </button>
-                                                            <DownloadExcelButton taskId={task.id} formType={task.form_type} />
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                {totalPages > 1 && (
-                                    <div className="p-4 border-t border-gray-200 flex items-center justify-between bg-gray-50">
-                                        <div className="text-xs font-medium text-gray-500 uppercase tracking-widest">
-                                            Page <span className="text-gray-900 font-bold">{currentPage}</span> of <span className="text-gray-900 font-bold">{totalPages}</span>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <button
-                                                disabled={currentPage === 1}
-                                                onClick={() => setCurrentPage(prev => prev - 1)}
-                                                className="px-3 py-1.5 rounded border border-gray-200 bg-white text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-all shadow-sm"
-                                            >
-                                                Previous
-                                            </button>
-                                            <div className="flex gap-1">
-                                                {[...Array(totalPages)].map((_, i) => (
-                                                    <button
-                                                        key={i}
-                                                        onClick={() => setCurrentPage(i + 1)}
-                                                        className={`w-8 h-8 rounded text-xs font-bold transition-all ${currentPage === i + 1 ? 'bg-blue-600 text-white shadow-md' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                                                    >
-                                                        {i + 1}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                            <button
-                                                disabled={currentPage === totalPages}
-                                                onClick={() => setCurrentPage(prev => prev + 1)}
-                                                className="px-3 py-1.5 rounded border border-gray-200 bg-white text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-all shadow-sm"
-                                            >
-                                                Next
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </section>
-                </div>
-            )}
 
             {/* Generate Form Modal */}
             {showGenerateModal && (
@@ -613,73 +774,22 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
                 </div>
             )}
 
-            {/* Form Modal Placeholder */}
+            {/* Full-Screen Multi-Step Form */}
             {selectedForm && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] w-full max-w-[90rem] h-[95vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 border border-slate-200/50">
-                        {/* Header */}
-                        <div className="px-6 py-5 border-b border-slate-200 bg-slate-50/80 flex justify-between items-center backdrop-blur-xl">
-                            <div className="space-y-1">
-                                <div className="flex items-center gap-3">
-                                    <div className={`p-2 rounded-lg ${selectedForm.form_type === 'planning' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                        <CheckCircle2 size={24} className="opacity-80" />
-                                    </div>
-                                    <h2 className="text-2xl font-bold tracking-tight text-slate-900">
-                                        {selectedForm.form_type === 'planning' ? 'Execution Plan DPR' : 'Billing Target DPR'}
-                                    </h2>
-                                </div>
-                                <div className="flex items-center gap-4 text-sm font-semibold text-slate-500 ml-12">
-                                    <span className="flex items-center gap-1.5"><MapPin size={14} /> {selectedForm.site_name}</span>
-                                    <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                                    <span className="flex items-center gap-1.5"><Calendar size={14} /> Target Date: <span className="text-slate-700">{formatDate(selectedForm.due_date)}</span></span>
-                                </div>
-                            </div>
-                            <button onClick={() => setSelectedForm(null)} className="p-2.5 text-slate-400 hover:text-slate-800 rounded-xl hover:bg-slate-200/50 transition-colors group">
-                                <span className="font-bold text-xl leading-none group-hover:scale-110 transition-transform block">&times;</span>
-                            </button>
-                        </div>
-
-                        {/* Scrolling Body content */}
-                        <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50 relative">
-                            <div className="max-w-[85rem] mx-auto w-full">
-                                {selectedForm.form_type === 'planning' ? (
-                                    <ExecutionFormBuilder data={formData} setData={setFormData} readonly={selectedForm.status !== 'pending'} />
-                                ) : (
-                                    <CBDFormBuilder data={formData} setData={setFormData} readonly={selectedForm.status !== 'pending'} siteId={selectedForm.site_id} />
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Footer / Actions */}
-                        <div className="px-8 py-5 border-t border-slate-200 bg-white flex justify-end gap-3 z-10 shadow-[0_-10px_40px_rgba(0,0,0,0.03)] items-center relative">
-                            <button onClick={() => setSelectedForm(null)} className="px-6 py-2.5 font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors border border-transparent">
-                                Cancel
-                            </button>
-                            {selectedForm.status === 'pending' && (
-                                <div className="flex gap-3 ml-2">
-                                    <button
-                                        onClick={handleFormSave}
-                                        disabled={submitting}
-                                        className="px-6 py-2.5 bg-white border-2 border-slate-200 hover:border-blue-500/50 hover:bg-blue-50/50 text-slate-700 font-bold rounded-lg shadow-sm transition-all disabled:opacity-50 flex items-center gap-2"
-                                    >
-                                        <Save size={18} className="text-slate-400" /> {submitting ? 'Auto-Saving...' : 'Save Draft'}
-                                    </button>
-                                    <button
-                                        onClick={handleFormSubmit}
-                                        disabled={submitting}
-                                        className="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-md hover:shadow-lg transition-all disabled:opacity-50 ring-2 ring-transparent focus:ring-blue-500/50 flex items-center gap-2"
-                                    >
-                                        {submitting ? 'Submitting...' : 'Submit Form'} <ChevronRight size={18} />
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
+                <DprMultiStepForm
+                    task={selectedForm}
+                    onClose={() => setSelectedForm(null)}
+                    onSave={handleFormSave}
+                    onSubmit={handleFormSubmit}
+                    submitting={submitting}
+                    initialData={formData}
+                    siteId={selectedForm.site_id}
+                    readOnly={selectedForm.status === 'submitted' || selectedForm.status === 'reviewed'}
+                />
             )}
         </div>
     );
 }
 
 
-import { ExecutionFormBuilder, CBDFormBuilder, AssignmentCard } from './DpsFormBuilders';
+import { ExecutionFormBuilder, CBDFormBuilder, AssignmentCard, DprMultiStepForm } from './DpsFormBuilders';
