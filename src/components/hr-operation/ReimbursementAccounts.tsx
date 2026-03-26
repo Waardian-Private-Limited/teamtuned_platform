@@ -22,6 +22,8 @@ interface ReimbursementAccount {
     disbursed_by?: string;
     disbursed_at?: string;
     payment_ref?: string;
+    cheque_number?: string;
+    transaction_number?: string;
     created_at: string;
 }
 
@@ -37,6 +39,8 @@ export default function ReimbursementAccounts() {
     // Disburse modal
     const [disburseModal, setDisburseModal] = useState<ReimbursementAccount | null>(null);
     const [paymentRef, setPaymentRef] = useState("");
+    const [chequeNo, setChequeNo] = useState("");
+    const [transactionNo, setTransactionNo] = useState("");
     const [disburseLoading, setDisburseLoading] = useState<number | null>(null);
 
     const fetchData = useCallback(async () => {
@@ -79,9 +83,15 @@ export default function ReimbursementAccounts() {
         if (!disburseModal) return;
         setDisburseLoading(disburseModal.id);
         try {
-            await apiClient.put(`/reimbursements/${disburseModal.id}/disburse`, { payment_ref: paymentRef }, { withAuth: true });
+            await apiClient.put(`/reimbursements/${disburseModal.id}/disburse`, {
+                payment_ref: paymentRef,
+                cheque_number: chequeNo,
+                transaction_number: transactionNo
+            }, { withAuth: true });
             setDisburseModal(null);
             setPaymentRef("");
+            setChequeNo("");
+            setTransactionNo("");
             fetchData();
         } catch (e: any) {
             alert(e.message || "Failed to mark as disbursed");
@@ -207,9 +217,12 @@ export default function ReimbursementAccounts() {
                                                 <td className="px-4 py-3 text-gray-500">{item.reviewed_by || "—"}</td>
                                                 <td className="px-4 py-3 text-gray-400">{fmtDate(item.reviewed_at)}</td>
                                                 <td className="px-4 py-3">
-                                                    {item.payment_ref
-                                                        ? <span className="font-mono text-[11px] bg-gray-100 px-2 py-0.5 rounded">{item.payment_ref}</span>
-                                                        : <span className="text-gray-300">—</span>}
+                                                    <div className="flex flex-col gap-1">
+                                                        {item.payment_ref && <span className="font-mono text-[10px] bg-gray-100 px-2 py-0.5 rounded w-fit">Ref: {item.payment_ref}</span>}
+                                                        {item.cheque_number && <span className="font-mono text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded w-fit">Chq: {item.cheque_number}</span>}
+                                                        {item.transaction_number && <span className="font-mono text-[10px] bg-violet-50 text-violet-700 px-2 py-0.5 rounded w-fit">Txn: {item.transaction_number}</span>}
+                                                        {!item.payment_ref && !item.cheque_number && !item.transaction_number && <span className="text-gray-300">—</span>}
+                                                    </div>
                                                 </td>
                                                 <td className="px-4 py-3">{paymentBadge(item)}</td>
                                                 <td className="px-4 py-3">
@@ -268,13 +281,33 @@ export default function ReimbursementAccounts() {
                                     <span className="font-black text-gray-900">{fmt(disburseModal.amount)}</span>
                                 </div>
                             </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Cheque No.</label>
+                                    <input
+                                        value={chequeNo}
+                                        onChange={e => setChequeNo(e.target.value)}
+                                        placeholder="Optional"
+                                        className="mt-1 w-full border border-gray-200 rounded-xl text-[12px] px-3 py-2 text-gray-700 placeholder-gray-400 outline-none focus:border-black"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Transaction No.</label>
+                                    <input
+                                        value={transactionNo}
+                                        onChange={e => setTransactionNo(e.target.value)}
+                                        placeholder="Optional"
+                                        className="mt-1 w-full border border-gray-200 rounded-xl text-[12px] px-3 py-2 text-gray-700 placeholder-gray-400 outline-none focus:border-black"
+                                    />
+                                </div>
+                            </div>
                             <div>
-                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Payment Reference (optional)</label>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Payment Reference (Internal)</label>
                                 <input
                                     value={paymentRef}
                                     onChange={e => setPaymentRef(e.target.value)}
-                                    placeholder="UTR / Transaction ID / Cheque No."
-                                    className="mt-1.5 w-full border border-gray-200 rounded-xl text-[12px] px-3 py-2.5 text-gray-700 placeholder-gray-400 outline-none focus:border-black"
+                                    placeholder="UTR / Internal Ref"
+                                    className="mt-1 w-full border border-gray-200 rounded-xl text-[12px] px-3 py-2 text-gray-700 placeholder-gray-400 outline-none focus:border-black"
                                 />
                             </div>
                         </div>

@@ -41,7 +41,12 @@ export async function apiClient<T = any>(
     const qs = searchParams.toString();
     if (qs) query = `?${qs}`;
   }
-  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+  // Robust FormData detection
+  const isFormData = body && (
+    (typeof FormData !== 'undefined' && body instanceof FormData) ||
+    (body.constructor && body.constructor.name === 'FormData') ||
+    (typeof body.append === 'function')
+  );
 
   const allHeaders: Record<string, string> = {
     ...headers,

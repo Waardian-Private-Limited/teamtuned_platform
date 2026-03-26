@@ -37,6 +37,7 @@ import {
   LayoutGrid,
   ArrowUpCircle,
   Receipt,
+  Tag,
   Cog,
   Upload,
   Phone,
@@ -46,6 +47,9 @@ import {
   Award,
   QrCode,
   UserPlus,
+  MessageSquare,
+  List,
+  PlusCircle,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
@@ -85,9 +89,9 @@ export default function EmployeeSidebar({
   const [otherOpen, setOtherOpen] = React.useState(false);
   const [laborOpen, setLaborOpen] = React.useState(false);
   const [hrOperationOpen, setHrOperationOpen] = React.useState(true);
-  const [formBuilderOpen, setFormBuilderOpen] = React.useState(true);
   const [dpsOpen, setDpsOpen] = React.useState(true);
   const [reimbursementsOpen, setReimbursementsOpen] = React.useState(false);
+  const [momOpen, setMomOpen] = React.useState(false);
   const [isNavigating, setIsNavigating] = React.useState(false);
 
   // Auto-collapse on hover state
@@ -215,13 +219,13 @@ export default function EmployeeSidebar({
 
       setTaskOpen(isActive(["/employee/tasks", "/employee/task-assignments", "/employee/task-dashboard"]));
       setDpsOpen(isActive(["/employee/dps"]));
-      setFormBuilderOpen(isActive(["/employee/form-builder"]));
       setLaborOpen(isActive(["/employee/labor-attendance", "/employee/labor/"]));
       setHrOperationOpen(isActive(["/employee/department-mapper", "/employee/hr-operation"]));
       setReimbursementsOpen(isActive([
         "/org/hr-operation/reimbursements",
         "/org/accounts/reimbursements",
-        "/employee/hr-operation/reimbursements"
+        "/employee/hr-operation/reimbursements/my",
+        "/employee/hr-operation/reimbursements/all"
       ]));
     } else {
       // When collapsed, only keep the active category open to follow "check and fix that open only active category"
@@ -236,10 +240,9 @@ export default function EmployeeSidebar({
       setInventoryOpen(isActive(["/employee/inventory", "/employee/rfq", "/employee/pr"]));
       setTaskOpen(isActive(["/employee/tasks", "/employee/task-assignments", "/employee/task-dashboard"]));
       setDpsOpen(isActive(["/employee/dps"]));
-      setFormBuilderOpen(isActive(["/employee/form-builder"]));
       setLaborOpen(isActive(["/employee/labor-attendance", "/employee/labor/"]));
       setHrOperationOpen(isActive(["/employee/department-mapper", "/employee/hr-operation"]));
-      setReimbursementsOpen(isActive(["/org/hr-operation/reimbursements", "/org/accounts/reimbursements", "/employee/hr-operation/reimbursements"]));
+      setReimbursementsOpen(isActive(["/org/hr-operation/reimbursements", "/org/accounts/reimbursements", "/employee/hr-operation/reimbursements/my", "/employee/hr-operation/reimbursements/all"]));
     }
   }, [isCollapsed, pathname]);
 
@@ -253,7 +256,6 @@ export default function EmployeeSidebar({
     setInventoryOpen(false);
     setTaskOpen(false);
     setDpsOpen(false);
-    setFormBuilderOpen(false);
     setLaborOpen(false);
     setHrOperationOpen(false);
     setReimbursementsOpen(false);
@@ -1286,6 +1288,53 @@ export default function EmployeeSidebar({
           )
         }
 
+
+
+
+
+        {/* DPR Section */}
+        <div className="mt-2">
+          {!isCollapsed && (
+            <CategoryButton
+              label="DPR"
+              isOpen={dpsOpen}
+              onClick={() => handleToggle(setDpsOpen, dpsOpen)}
+            />
+          )}
+          {dpsOpen && (
+            <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+              <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                <Item
+                  icon={LayoutDashboard}
+                  label="Planning Dashboard"
+                  href="/employee/dps/planning-dashboard"
+                  active={pathname === "/employee/dps/planning-dashboard"}
+                />
+                <Item
+                  icon={LayoutDashboard}
+                  label="CBD Dashboard"
+                  href="/employee/dps/cbd-dashboard"
+                  active={pathname === "/employee/dps/cbd-dashboard"}
+                />
+                <Item
+                  icon={UserPlus}
+                  label="Assignments"
+                  href="/employee/dps/assignments"
+                  active={pathname === "/employee/dps/assignments"}
+                />
+                <Item
+                  icon={Calendar}
+                  label="Site Config"
+                  href="/employee/dps/schedule"
+                  active={pathname === "/employee/dps/schedule"}
+                />
+
+              </div>
+            </div>
+          )}
+        </div>
+
+
         {/* Labor Management Section */}
         {
           showCoreHR && showLaborManagement && (
@@ -1469,15 +1518,23 @@ export default function EmployeeSidebar({
                     <Item
                       icon={Receipt}
                       label="My Reimbursements"
-                      href="/employee/hr-operation/reimbursements"
-                      active={pathname === "/employee/hr-operation/reimbursements"}
+                      href="/employee/hr-operation/reimbursements/my"
+                      active={pathname === "/employee/hr-operation/reimbursements/my"}
                     />
                     {canViewAllReimbursements && (
                       <Item
+                        icon={Tag}
+                        label="Categories"
+                        href="/employee/hr-operation/reimbursements/categories"
+                        active={pathname === "/employee/hr-operation/reimbursements/categories"}
+                      />
+                    )}
+                    {canViewAllReimbursements && (
+                      <Item
                         icon={Receipt}
-                        label="All Reimbursements"
-                        href="/employee/hr-operation/reimbursement"
-                        active={pathname === "/employee/hr-operation/reimbursement"}
+                        label="Reimbursements"
+                        href="/employee/hr-operation/reimbursements/all"
+                        active={pathname === "/employee/hr-operation/reimbursements/all"}
                       />
                     )}
                     {canDisburseReimbursements && (
@@ -1494,6 +1551,41 @@ export default function EmployeeSidebar({
             </div>
           )
         }
+
+        {/* MoM Section */}
+        <div className="mt-2">
+          {!isCollapsed && (
+            <CategoryButton
+              label="Minutes of Meeting"
+              isOpen={momOpen}
+              onClick={() => handleToggle(setMomOpen, momOpen)}
+            />
+          )}
+          {momOpen && (
+            <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+              <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100 space-y-1"}`}>
+                <Item
+                  icon={LayoutDashboard}
+                  label="Dashboard"
+                  href="/employee/mom"
+                  active={pathname === "/employee/mom"}
+                />
+                <Item
+                  icon={List}
+                  label="Meeting List"
+                  href="/employee/mom/list"
+                  active={pathname === "/employee/mom/list"}
+                />
+                <Item
+                  icon={CheckSquare}
+                  label="My Action Items"
+                  href="/employee/mom/action-items"
+                  active={pathname === "/employee/mom/action-items"}
+                />
+              </div>
+            </div>
+          )}
+        </div>
 
       </div >
 

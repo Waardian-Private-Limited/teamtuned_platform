@@ -14,6 +14,7 @@ interface User {
 
 interface Employee {
     id: number;
+    employee_id?: number;
     employee_code?: string;
     permissions?: string[];
     sites?: Array<{ id: number; name?: string; code?: string }>;
@@ -21,6 +22,8 @@ interface Employee {
     designation_id?: number;
     role_name?: string;
     designation?: string;
+    is_head_office_user?: boolean;
+    allow_punch_from_hq?: boolean;
 }
 
 interface Organization {
@@ -35,6 +38,7 @@ interface AuthContextType {
     role: "superAdmin" | "OrgAdmin" | "Employee" | null;
     permissions: string[];
     employee: Employee | null;
+    employee_id: number | null;
     organization: Organization | null;
     organization_features?: Array<{ id: number; code: string; name: string }>;
     isAuthenticated: boolean;
@@ -50,6 +54,7 @@ interface SessionResponse {
     user?: User;
     permissions?: string[];
     employee?: Employee;
+    employee_id?: number;
     organization?: Organization;
     organization_features?: Array<{ id: number; code: string; name: string }>;
     isAuthenticated?: boolean; // Made optional as it's often derived client-side
@@ -65,6 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [role, setRole] = useState<"superAdmin" | "OrgAdmin" | "Employee" | null>(null);
     const [permissions, setPermissions] = useState<string[]>([]);
     const [employee, setEmployee] = useState<Employee | null>(null);
+    const [employee_id, setEmployeeId] = useState<number | null>(null);
     const [organization, setOrganization] = useState<Organization | null>(null);
     const [loading, setLoading] = useState(true);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -81,6 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 setUser(data.user);
                 setRole(data.role as any);
                 setEmployee(data.employee || null);
+                setEmployeeId(data.employee_id || data.employee?.employee_id || null);
 
                 // Merge features into organization
                 const org = data.organization ? {
@@ -108,6 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         setRole(null);
         setEmployee(null);
+        setEmployeeId(null);
         setOrganization(null);
         setPermissions([]);
         setIsAuthenticated(false);
@@ -143,6 +151,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(data.user);
             setRole(data.role as any);
             setEmployee(data.employee || null);
+            setEmployeeId(data.employee_id || data.employee?.employee_id || null);
 
             // Merge features into organization
             const org = data.organization ? {
@@ -161,6 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role,
         permissions,
         employee,
+        employee_id,
         organization,
         isAuthenticated,
         loading,

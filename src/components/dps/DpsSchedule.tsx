@@ -42,6 +42,10 @@ interface SiteUnit {
     type: string;
     form_type: 'planning' | 'cbd';
     created_at: string;
+    has_active_planning?: number;
+    has_active_cbd?: number;
+    active_planning_version?: number;
+    active_cbd_version?: number;
 }
 
 interface Tower {
@@ -86,6 +90,10 @@ interface SiteConfig {
     staffList?: Staff[];
     laborTypes?: LaborType[];
     equipments?: Equipment[];
+    cbd_assignees?: StaffEmployee[];
+    cbd_reviewers?: StaffEmployee[];
+    planning_assignees?: StaffEmployee[];
+    planning_reviewers?: StaffEmployee[];
     totalConcretePlanned?: number;
     concreteCumulativeTillDate?: number;
 }
@@ -308,6 +316,10 @@ export default function DpsSchedule({ basePath }: DpsScheduleProps) {
                     staffList: cleanStaff,
                     laborTypes: cleanLabor,
                     equipments: cleanEquipments,
+                    cbd_assignees: siteConfig.cbd_assignees || [],
+                    cbd_reviewers: siteConfig.cbd_reviewers || [],
+                    planning_assignees: siteConfig.planning_assignees || [],
+                    planning_reviewers: siteConfig.planning_reviewers || [],
                     totalConcretePlanned: siteConfig.totalConcretePlanned || 0,
                     concreteCumulativeTillDate: siteConfig.concreteCumulativeTillDate || 0
                 },
@@ -415,6 +427,16 @@ export default function DpsSchedule({ basePath }: DpsScheduleProps) {
                                                 <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase font-black tracking-widest ${unit.form_type === 'cbd' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
                                                     {unit.form_type || 'planning'}
                                                 </span>
+                                                {unit.has_active_planning === 1 && (
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded uppercase font-black tracking-widest bg-green-100 text-green-700 border border-green-200">
+                                                        Active Plan {unit.active_planning_version ? `v${unit.active_planning_version}` : ''}
+                                                    </span>
+                                                )}
+                                                {unit.has_active_cbd === 1 && (
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded uppercase font-black tracking-widest bg-orange-100 text-orange-700 border border-orange-200">
+                                                        Active CBD {unit.active_cbd_version ? `v${unit.active_cbd_version}` : ''}
+                                                    </span>
+                                                )}
                                             </div>
                                             <p className="text-xs text-gray-400 mt-0.5">{unit.type}</p>
                                         </div>
@@ -652,7 +674,9 @@ export default function DpsSchedule({ basePath }: DpsScheduleProps) {
                                 <td className="px-4 py-3 text-sm text-gray-700">{site.city || '—'}</td>
                                 <td className="px-4 py-3">
                                     {site.has_active_schedule
-                                        ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-700 uppercase">Active</span>
+                                        ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-700 uppercase">
+                                            Active {site.active_version ? `v${site.active_version}` : ''}
+                                        </span>
                                         : <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-500 uppercase">No Plan</span>
                                     }
                                 </td>

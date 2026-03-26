@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-    ArrowLeft, Building, Calendar, Layers, ShieldCheck, Wrench, AlertCircle, Plus, Trash2, Clock, HardHat, PackageOpen, FileText, RefreshCw, CheckCircle2, ChevronRight
+    ArrowLeft, Building, Calendar, Layers, ShieldCheck, Wrench, AlertCircle, Plus, Trash2, Clock, HardHat, PackageOpen, FileText, RefreshCw, CheckCircle2, ChevronRight, History as HistoryIcon
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DpsPlanningForm } from './DpsPlanningForm';
@@ -42,6 +42,19 @@ export default function DpsSiteSchedule({ siteId, backPath, dailyUpdatePath }: D
     const [labourScope, setLabourScope] = useState<'Tower-wise' | 'Overall'>('Tower-wise');
     const [equipmentMode, setEquipmentMode] = useState<'Date-wise' | 'Monthly'>('Date-wise');
     const [equipmentScope, setEquipmentScope] = useState<'Tower-wise' | 'Overall'>('Tower-wise');
+    const [clientBillTargetDate, setClientBillTargetDate] = useState('');
+    const [contractorBillTargetDate, setContractorBillTargetDate] = useState('');
+    const [observationAction, setObservationAction] = useState<any[]>([]);
+    const [showHistoryModal, setShowHistoryModal] = useState<{ isOpen: boolean, targetId: string | number | null }>({ isOpen: false, targetId: null });
+    const [targetHistory, setTargetHistory] = useState<any[]>([]);
+
+    const [latestStats, setLatestStats] = useState({
+        todayAchieved: 0,
+        monthlyPlanned: 0,
+        monthlyAchieved: 0,
+        totalPlanned: 0,
+        totalAchieved: 0
+    });
 
     const [confirmationModal, setConfirmationModal] = useState<{
         isOpen: boolean;
@@ -65,7 +78,7 @@ export default function DpsSiteSchedule({ siteId, backPath, dailyUpdatePath }: D
     const [staffPlanning, setStaffPlanning] = useState([{ id: 1, towerId: 'Overall', designation: '', plannedCount: '' }]);
     const [labourPlanning, setLabourPlanning] = useState([{ id: 1, towerId: 'Overall', date: '', labourName: '', type: '', plannedCount: '' }]);
     const [monthlySchedules, setMonthlySchedules] = useState([{ id: 1, towerId: '', floor: '', customFloor: '', target_date: '', achieved_date: '', date: '', purpose: '', is_achieved: false, client_bill_acheived: false }]);
-    const [equipments, setEquipments] = useState<any[]>([{ id: 1, towerId: 'Overall', name: '', required: '', available: '' }]);
+    const [equipments, setEquipments] = useState<any[]>([{ id: 1, towerId: 'Overall', name: '', required: '' }]);
     const [materials, setMaterials] = useState([{ id: 1, name: '', quantity: '', requiredDate: '' }]);
     const equipmentList = ['Crane', 'Excavator', 'Concrete Mixer', 'Bulldozer', 'Other (Add New)'];
 
@@ -111,6 +124,8 @@ export default function DpsSiteSchedule({ siteId, backPath, dailyUpdatePath }: D
                 const qParams = new URLSearchParams();
                 if (scheduleIdParam) qParams.append('scheduleId', scheduleIdParam);
                 if (unitId) qParams.append('unitId', unitId);
+                const currentType = searchParams.get('type') || planType;
+                if (currentType) qParams.append('type', currentType);
                 if (qParams.toString()) url += `?${qParams.toString()}`;
 
                 const schedRes = await apiClient<any>(url, { method: 'GET', withAuth: true });
@@ -145,7 +160,78 @@ export default function DpsSiteSchedule({ siteId, backPath, dailyUpdatePath }: D
                     if (sched.labour_scope) setLabourScope(sched.labour_scope);
                     if (sched.equipment_mode) setEquipmentMode(sched.equipment_mode);
                     if (sched.equipment_scope) setEquipmentScope(sched.equipment_scope);
+                    if (sched.client_bill_target_date) setClientBillTargetDate(formatDate(sched.client_bill_target_date));
+                    if (sched.contractor_bill_target_date) setContractorBillTargetDate(formatDate(sched.contractor_bill_target_date));
+                    if (sched.observation_action) setObservationAction(sched.observation_action);
                     setIsEditMode(false);
+
+                    // Fetch Latest Stats for Concrete Card
+                    try {
+                        const today = new Date().toISOString().split('T')[0];
+                        const [dailyRes, submissionsRes] = await Promise.all([
+                            apiClient<any>(`/dps-schedule/${siteId}/daily-update?date=${today}`, { method: 'GET', withAuth: true }),
+                            apiClient<any>(`/dps-schedule/dynamic-assignments?siteId=${siteId}&formType=planning&status=submitted`, { method: 'GET', withAuth: true })
+                        ]);
+
+                        const submissions = submissionsRes?.data || submissionsRes || [];
+                        const latestSub = submissions.length > 0 ? submissions[0] : null;
+
+                        setLatestStats({
+                            todayAchieved: dailyRes?.data?.concreteAchieved?.reduce((a: number, c: any) => a + (Number(c.achieved) || 0), 0) || 0,
+                            monthlyPlanned: Number(latestSub?.submitted_data?.concrete_planning?.planned_total) || 0,
+                            monthlyAchieved: Number(sched?.current_validity_achieved || latestSub?.submitted_data?.concrete_planning?.achieved_total) || 0,
+                            totalPlanned: Number(configRes?.config?.total_concrete_planned) || 0,
+                            totalAchieved: Number(configRes?.config?.current_site_achieved || configRes?.config?.concrete_cumulative_till_date) || 0
+                        });
+
+                        // Fetch MOM / Action Items
+                        const momRes = await apiClient<any>(`/dps-schedule/${siteId}/mom-actions`, { method: 'GET', withAuth: true });
+                        const momData = momRes?.data || [];
+                        setObservationAction(prev => {
+                            const momItems = momData.map((m: any) => ({
+                                ...m,
+                                id: `mom-${m.id}`,
+                                source: 'MOM'
+                            }));
+                            // Keep unique MOM items
+                            const existingIds = prev.map(p => p.id);
+                            const uniqueMom = momItems.filter((m: any) => !existingIds.includes(m.id));
+                            return [...prev, ...uniqueMom];
+                        });
+
+                        // Repopulate Materials, Equipment, Staff and Targets if it's a new form (not editing an existing draft)
+                        if (!scheduleIdParam) {
+                            const actualSiteId = Array.isArray(siteId) ? siteId[0] : siteId;
+                            const latestRes = await apiClient<any>(`/dps-schedule/dynamic-assignments/latest-submission?siteId=${actualSiteId}&scheduleId=${sched?.id || ''}`, { method: 'GET', withAuth: true });
+                            if (latestRes?.data) {
+                                const { materials: prevMaterials, equipments: prevEquipments, staff_planning: prevStaff, monthly_schedules: prevMonthly } = latestRes.data;
+
+                                if (prevMaterials?.length > 0) {
+                                    setMaterials(prevMaterials.map((m: any) => ({ ...m, id: `prev-mat-${Date.now()}-${Math.random()}` })));
+                                }
+                                if (prevEquipments?.length > 0) {
+                                    setEquipments(prevEquipments.map((e: any) => ({ ...e, id: `prev-eq-${Date.now()}-${Math.random()}` })));
+                                }
+                                if (prevStaff?.length > 0) {
+                                    // Map designation to role to ensure consistency in manual rows
+                                    setStaffPlanning(prevStaff.map((s: any) => ({
+                                        ...s,
+                                        role: s.role || s.designation || '',
+                                        id: `prev-staff-${Date.now()}-${Math.random()}`
+                                    })));
+                                }
+                                if (prevMonthly?.length > 0) {
+                                    setMonthlySchedules(prevMonthly.map((m: any) => ({
+                                        ...m,
+                                        id: `prev-month-${Date.now()}-${Math.random()}`
+                                    })));
+                                }
+                            }
+                        }
+
+                    } catch (e) {
+                        console.error('Failed to fetch detailed stats', e);
+                    }
                 }
             } catch {
                 console.log('No existing schedule for this site, starting fresh.');
@@ -178,38 +264,61 @@ export default function DpsSiteSchedule({ siteId, backPath, dailyUpdatePath }: D
         }));
     };
 
+    const fetchTargetHistory = async (targetId: string | number) => {
+        try {
+            const { apiClient } = await import('@/lib/apiClient');
+            const res = await apiClient<any>(`/dps-schedule/${siteId}/target-history/${targetId}`, { method: 'GET', withAuth: true });
+            if (res?.history) {
+                setTargetHistory(res.history);
+                setShowHistoryModal({ isOpen: true, targetId });
+            } else {
+                toast.error('No history found for this target.');
+            }
+        } catch (error) {
+            console.error('Failed to fetch target history', error);
+            toast.error('Failed to fetch target history.');
+        }
+    };
+
     const handleSave = async () => {
         setIsSaving(true);
         try {
             const { apiClient } = await import('@/lib/apiClient');
+            const payload = {
+                id: scheduleId,
+                unit_id: unitId,
+                scheduleValidFrom,
+                scheduleValidTill,
+                towers,
+                concrete_planning: concretePlanning,
+                staff_planning: staffPlanning,
+                labour_planning: labourPlanning,
+                monthly_schedules: monthlySchedules,
+                equipments,
+                materials,
+                concreteMode,
+                concreteScope,
+                staffMode,
+                staffScope,
+                labourMode,
+                labourScope,
+                equipmentMode,
+                equipmentScope,
+                client_bill_target_date: clientBillTargetDate,
+                contractor_bill_target_date: contractorBillTargetDate,
+                plan_type: planType,
+                observationAction,
+                mode: isEditMode ? 'edit' : 'new'
+            };
+
             const res = await apiClient<any>(`/dps-schedule/${siteId}`, {
                 method: 'POST',
                 withAuth: true,
-                body: {
-                    id: scheduleId,
-                    unit_id: unitId,
-                    scheduleValidFrom,
-                    scheduleValidTill,
-                    towers,
-                    concretePlanning,
-                    staffPlanning,
-                    labourPlanning,
-                    monthlySchedules,
-                    equipments,
-                    materials,
-                    concreteMode,
-                    concreteScope,
-                    staffMode,
-                    staffScope,
-                    labourMode,
-                    labourScope,
-                    equipmentMode,
-                    equipmentScope
-                }
+                body: payload
             });
             if (res) {
                 toast.success('DPR Schedule saved successfully!');
-                router.push(`${backPath.includes('org-admin') ? '/org-admin/dps/submissions' : '/employee/dps/submissions'}`);
+                router.push(`${backPath.includes('org-admin') ? '/org-admin/dps/schedule' : '/employee/dps/schedule'}`);
             }
         } catch {
             toast.error('Failed to save schedule.');
@@ -519,8 +628,7 @@ export default function DpsSiteSchedule({ siteId, backPath, dailyUpdatePath }: D
                                 date: dateOrMonth,
                                 towerId: s.name || 'Overall',
                                 name: eq.name || '',
-                                required: '',
-                                available: ''
+                                required: eq.required || eq.count || eq.qty || ''
                             });
                         });
                     });
@@ -556,13 +664,12 @@ export default function DpsSiteSchedule({ siteId, backPath, dailyUpdatePath }: D
                 date: equipmentMode === 'Date-wise' ? dateStr : new Date().toLocaleString('default', { month: 'long', year: 'numeric' }),
                 towerId: 'Overall',
                 name: eq.name || '',
-                required: '',
-                available: ''
+                required: eq.required || eq.count || eq.qty || ''
             }));
 
             if (newPlanning.length > 0) {
                 setEquipments(prev => {
-                    const current = prev.filter(p => p.name || p.required || p.available);
+                    const current = prev.filter(p => p.name || p.required);
                     return [...current, ...newPlanning];
                 });
                 toast.success(`Synced ${newPlanning.length} equipments from config.`);
@@ -599,6 +706,10 @@ export default function DpsSiteSchedule({ siteId, backPath, dailyUpdatePath }: D
                         scheduleValidTill={scheduleValidTill}
                         setScheduleValidTill={setScheduleValidTill}
                         getValidityDuration={getValidityDuration}
+                        clientBillTargetDate={clientBillTargetDate}
+                        setClientBillTargetDate={setClientBillTargetDate}
+                        contractorBillTargetDate={contractorBillTargetDate}
+                        setContractorBillTargetDate={setContractorBillTargetDate}
                     />
                 ) : (
                     <DpsPlanningForm
@@ -638,6 +749,8 @@ export default function DpsSiteSchedule({ siteId, backPath, dailyUpdatePath }: D
                         handleSyncLabor={handleSyncLabor}
                         monthlySchedules={monthlySchedules}
                         setMonthlySchedules={setMonthlySchedules}
+                        observationAction={observationAction}
+                        setObservationAction={setObservationAction}
                         equipments={equipments}
                         setEquipments={setEquipments}
                         equipmentList={(siteConfig?.equipments || []).map((e: any) => e.name)}
@@ -649,44 +762,66 @@ export default function DpsSiteSchedule({ siteId, backPath, dailyUpdatePath }: D
                         handleSyncEquipment={handleSyncEquipment}
                         materials={materials}
                         setMaterials={setMaterials}
+                        latestStats={latestStats}
+                        onViewTargetHistory={fetchTargetHistory}
                     />
                 )}
             </div>
 
-            {/* 8. Execution Log */}
-            {!isEditMode && scheduleId && scheduleValidFrom && scheduleValidTill && planType === 'planning' && (
-                <div className="bg-white p-5 rounded-sm border border-gray-200 shadow-sm space-y-5 mb-32">
-                    <div className="border-b border-gray-50 pb-4">
-                        <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-3"><Clock className="text-green-600" size={22} />Site Execution Log</h2>
-                        <p className="text-gray-500 font-medium ml-10 mt-1">A form is ready for every day of your {getValidityDuration()}-day schedule.</p>
-                    </div>
-                    <div className="space-y-3">
-                        {Array.from({ length: getValidityDuration() }).map((_, i) => {
-                            const date = new Date(scheduleValidFrom);
-                            date.setDate(date.getDate() + i);
-                            const dateStr = date.toISOString().split('T')[0];
-                            const isToday = dateStr === new Date().toISOString().split('T')[0];
-                            return (
-                                <div key={dateStr} className={`group flex items-center justify-between px-3 py-2 text-sm rounded-sm border transition-all ${isToday ? 'bg-blue-50/50 border-blue-200' : 'bg-gray-50/30 border-gray-50 hover:border-gray-200'}`}>
-                                    <div className="flex items-center gap-4">
-                                        <div className={`w-10 h-10 rounded-sm flex items-center justify-center font-bold ${isToday ? 'bg-blue-600 text-white' : 'bg-white text-gray-400 border border-gray-200'}`}>{i + 1}</div>
-                                        <div>
-                                            <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                                                {new Date(dateStr).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })}
-                                                {isToday && <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase tracking-widest">Today</span>}
-                                            </h3>
-                                            <p className="text-xs text-gray-400 font-medium">Daily Execution Form — {siteData?.name}</p>
+            {/* Target History Modal */}
+            {showHistoryModal.isOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[80vh]">
+                        <div className="px-6 py-4 bg-slate-50 border-b border-gray-100 flex justify-between items-center">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                                    <HistoryIcon className="text-indigo-600" /> Target Revision History
+                                </h3>
+                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Track date changes and reasons</p>
+                            </div>
+                            <button onClick={() => setShowHistoryModal({ isOpen: false, targetId: null })} className="text-slate-400 hover:text-slate-600 p-2 hover:bg-white rounded-full transition-all">
+                                <Trash2 size={20} />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                            {targetHistory.length > 0 ? (
+                                <div className="space-y-6">
+                                    {targetHistory.map((h, idx) => (
+                                        <div key={idx} className="relative pl-8 before:absolute before:left-[11px] before:top-2 before:bottom-0 before:w-0.5 before:bg-indigo-100 last:before:hidden">
+                                            <div className="absolute left-0 top-1 w-6 h-6 rounded-full bg-indigo-50 border-2 border-indigo-200 flex items-center justify-center z-10">
+                                                <Clock size={12} className="text-indigo-600" />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-sm font-black text-slate-900">{new Date(h.new_target_date).toLocaleDateString()}</span>
+                                                    <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-bold">Revised On {new Date(h.created_at).toLocaleDateString()}</span>
+                                                </div>
+                                                <div className="p-3 bg-slate-50 border border-slate-100 rounded-sm">
+                                                    <p className="text-xs font-medium text-slate-600 leading-relaxed italic">"{h.reason || 'No reason provided'}"</p>
+                                                </div>
+                                                {h.previous_target_date && (
+                                                    <p className="text-[10px] text-slate-400 font-bold flex items-center gap-1">
+                                                        Previous: <span className="line-through">{new Date(h.previous_target_date).toLocaleDateString()}</span>
+                                                    </p>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                    <button onClick={() => router.push(`${dailyUpdatePath}?siteId=${siteId}&date=${dateStr}`)} className="px-6 py-2 bg-white border border-gray-200 text-gray-700 font-bold text-sm rounded-sm hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center gap-2">
-                                        View/Record Actuals <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-900 group-hover:translate-x-1 transition-all" />
-                                    </button>
+                                    ))}
                                 </div>
-                            );
-                        })}
+                            ) : (
+                                <div className="h-40 flex flex-col items-center justify-center text-slate-400">
+                                    <HistoryIcon size={40} className="mb-2 opacity-20" />
+                                    <p className="text-sm font-medium">No history found for this target.</p>
+                                </div>
+                            )}
+                        </div>
+                        <div className="px-6 py-4 bg-white border-t border-gray-100 flex justify-end">
+                            <button onClick={() => setShowHistoryModal({ isOpen: false, targetId: null })} className="px-6 py-2 bg-slate-900 text-white text-xs font-black rounded-sm uppercase tracking-widest hover:bg-black transition-all">Close</button>
+                        </div>
                     </div>
                 </div>
             )}
+
 
             {/* Action Bar */}
             <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-3 py-2 text-sm flex justify-end gap-4 shadow-sm border-t border-gray-200 z-50">
