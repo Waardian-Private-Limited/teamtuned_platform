@@ -164,7 +164,7 @@ export default function MyActionItems() {
         const s = dbStatus.toLowerCase();
         if (s === 'closed') return 'Closed';
         if (s === 'completed' || s === 'done' || s === 'approved') return 'Done';
-        if (s === 'open' || s === 'unassigned') return 'Planned';
+        if (s === 'open' || s === 'unassigned' || s === 'assigned') return 'Planned';
         if (s === 'acknowledged') return 'Acknowledged';
         if (s === 'rejected') return 'Rejected';
         return 'In Progress';
@@ -540,7 +540,7 @@ export default function MyActionItems() {
                                             )}
                                             <div className="flex items-center gap-2">
                                                 {(() => {
-                                                    const myId = String(user?.id);
+                                                    const myId = String(user?.employeeId || user?.id);
                                                     const assignments = point.assignments || [];
                                                     const isAssignedToMe = assignments.some((a: any) => a.assignee_type === 'employee' && String(a.assignee_id) === myId);
                                                     const isClaimed = assignments.some((a: any) => a.assignee_type === 'employee');

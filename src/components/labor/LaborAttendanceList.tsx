@@ -29,6 +29,7 @@ interface LaborerItem {
     }
     active_rate_info?: { type: 'Day' | 'Night' | 'Overtime'; value: number } | null;
     is_migrated?: number | boolean;
+    registration_status?: string;
     primary_site_name?: string;
     punch_site_name?: string;
 }
@@ -76,6 +77,7 @@ export default function LaborAttendanceList() {
     const [showExportModal, setShowExportModal] = useState(false);
     const [showImageModal, setShowImageModal] = useState(false);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [showTerminated, setShowTerminated] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     // Fetch List
@@ -103,6 +105,7 @@ export default function LaborAttendanceList() {
                 contractor_id: selectedContractorId,
                 category_id: selectedCategoryId,
                 subcategory_id: selectedSubcategoryId,
+                showTerminated: showTerminated ? 'true' : 'false',
             };
 
             const res = await apiClient<any>("/labor/attendance/daily-list", { params, withAuth: true });
@@ -118,7 +121,7 @@ export default function LaborAttendanceList() {
         } finally {
             setLoadingList(false);
         }
-    }, [date, selectedSiteId, hqMode, canHRMode, statusFilter, searchQuery, page, limit, selectedContractorId, selectedCategoryId, selectedSubcategoryId, canViewAll]);
+    }, [date, selectedSiteId, hqMode, canHRMode, statusFilter, searchQuery, page, limit, selectedContractorId, selectedCategoryId, selectedSubcategoryId, canViewAll, showTerminated]);
 
     // Reset filters when site changes
     useEffect(() => {
@@ -299,6 +302,20 @@ export default function LaborAttendanceList() {
                                 />
                             </div>
 
+                            {/* Show Terminated Toggle */}
+                            <div className="flex items-center gap-2 px-2 py-2 bg-gray-50 border border-gray-200 rounded-lg whitespace-nowrap">
+                                <input
+                                    type="checkbox"
+                                    id="showTerminated"
+                                    checked={showTerminated}
+                                    onChange={(e) => setShowTerminated(e.target.checked)}
+                                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                                />
+                                <label htmlFor="showTerminated" className="text-sm font-medium text-gray-700 cursor-pointer select-none">
+                                    Show Terminated
+                                </label>
+                            </div>
+
                             {/* HQ Mode Toggle */}
                             {canHRMode && (
                                 <label className="flex items-center gap-2 cursor-pointer bg-gray-50 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
@@ -445,7 +462,9 @@ export default function LaborAttendanceList() {
                                             <div className="flex flex-col items-center gap-3">
                                                 <Users className="w-12 h-12 text-gray-300" />
                                                 <div className="space-y-1">
-                                                    <p className="text-lg font-semibold text-gray-900">No laborers found</p>
+                                                    <p className="text-lg font-semibold text-gray-900">
+                                                        {showTerminated ? "No terminated laborers found" : "No laborers found"}
+                                                    </p>
                                                     <p className="text-sm">Try adjusting your filters or search query</p>
                                                 </div>
                                             </div>
@@ -470,6 +489,11 @@ export default function LaborAttendanceList() {
                                                         <div>
                                                             <div className="flex items-center gap-2">
                                                                 <div className="font-semibold text-gray-900">{emp.name}</div>
+                                                                {emp.registration_status === 'terminated' && (
+                                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-100 text-gray-600 border border-gray-200 uppercase tracking-tight">
+                                                                        Terminated
+                                                                    </span>
+                                                                )}
                                                                 {(emp.is_migrated === 1 || emp.is_migrated === true) && (
                                                                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700 border border-amber-200 uppercase tracking-tight">
                                                                         Migrated

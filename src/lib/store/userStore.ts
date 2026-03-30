@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 export interface UserInfo {
   id: string;
+  employeeId?: string;
   email: string;
   role: string;
   societyId?: string;

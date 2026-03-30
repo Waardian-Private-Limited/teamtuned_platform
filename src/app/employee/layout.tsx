@@ -17,7 +17,7 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
   const { setUser } = useUserStore();
 
   // Use centralized auth context
-  const { user, role, permissions, employee, organization, isAuthenticated, loading, logout } = useAuth();
+  const { user, role, permissions, employee, employee_id, organization, isAuthenticated, loading, logout } = useAuth();
 
   // Extract organization features
   const features = React.useMemo(() => {
@@ -48,13 +48,14 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
     if (user) {
       setUser({
         id: user.id.toString(),
+        employeeId: employee_id?.toString() || employee?.employee_id?.toString(),
         email: user.email,
         role: role || "",
         name: `${user.first_name || ""} ${user.last_name || ""}`.trim(),
         features,
       });
     }
-  }, [isAuthenticated, role, user, loading, router, setUser, features]);
+  }, [isAuthenticated, role, user, employee_id, loading, router, setUser, features]);
 
   const handleLogout = async () => {
     await logout();

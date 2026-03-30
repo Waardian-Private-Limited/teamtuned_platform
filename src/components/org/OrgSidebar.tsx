@@ -85,6 +85,8 @@ export default function OrgSidebar({
     const pathname = usePathname();
 
     const hasPerm = (code: string) => (permissions || []).some((p: any) => (p || "").toUpperCase() === code.toUpperCase());
+    const isOrgAdmin = (role || "").toLowerCase() === "orgadmin";
+
 
     const [mainOpen, setMainOpen] = React.useState(true);
     const [inventoryOpen, setInventoryOpen] = React.useState(false);
@@ -518,6 +520,11 @@ export default function OrgSidebar({
                                 <Item icon={Briefcase} label="Contractors" href="/org-admin/labor/contractors" active={pathname === "/org-admin/labor/contractors"} />
                                 <Item icon={HardHat} label="Laborers" href="/org-admin/labor/laborers" active={pathname === "/org-admin/labor/laborers"} />
                                 <Item icon={DollarSign} label="Rate Cards" href="/org-admin/labor/rate-cards" active={pathname === "/org-admin/labor/rate-cards"} />
+                                {(isOrgAdmin || hasPerm("LABOR_ADMIN")) && (
+                                    <Item icon={DollarSign} label="Billing Config" href="/org-admin/labor/billing-config" active={pathname === "/org-admin/labor/billing-config"} />
+                                )}
+
+                                <Item icon={Wallet} label="Wallet Ledger" href="/org-admin/labor/wallet-ledger" active={pathname === "/org-admin/labor/wallet-ledger"} />
                                 <Item icon={Shield} label="Site Logins" href="/org-admin/site-logins" active={pathname === "/org-admin/site-logins"} />
                                 <Item icon={Settings} label="Settings" href="/org-admin/labor/settings" active={pathname === "/org-admin/labor/settings"} />
                                 <Item icon={Activity} label="Device Health" href="/org-admin/labor-attendance/temperature-dashboard" active={pathname === "/org-admin/labor-attendance/temperature-dashboard"} />

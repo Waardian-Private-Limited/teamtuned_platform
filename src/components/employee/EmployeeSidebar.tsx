@@ -419,6 +419,8 @@ export default function EmployeeSidebar({
   const canViewLaborRates = isOrgAdmin || hasAnyPerm(["LABOR_RATE_VIEW", "LABOR_RATE_ADD", "LABOR_RATE_EDIT"]);
   const canViewLaborSettings = isOrgAdmin || hasAnyPerm(["LABOR_SETTINGS_VIEW", "LABOR_SETTINGS_EDIT"]);
   const canViewLaborAttendance = isOrgAdmin || hasAnyPerm(["LABOR_ATTEND_VIEW", "LABOR_ATTENDANCE_ADD", "LABOR_ATTENDANCE_EDIT"]);
+  const canViewLaborBillingConfig = isOrgAdmin || hasPerm("LABOR_ADMIN");
+
 
   // Reimbursement Permissions
   const canViewAllReimbursements =
@@ -480,8 +482,10 @@ export default function EmployeeSidebar({
     canViewLaborContractors,
     canViewLaborers,
     canViewLaborRates,
-    canViewLaborSettings
+    canViewLaborSettings,
+    canViewLaborBillingConfig
   ].some(Boolean);
+
 
   return (
     <aside
@@ -1409,6 +1413,15 @@ export default function EmployeeSidebar({
                         active={pathname?.startsWith("/employee/labor/rate-cards") || false}
                       />
                     )}
+                    {canViewLaborBillingConfig && (
+                      <Item
+                        icon={DollarSign}
+                        label="Labor Billing Config"
+                        href="/employee/labor/billing-config"
+                        active={pathname?.startsWith("/employee/labor/billing-config") || false}
+                      />
+                    )}
+
                     {canViewLaborSettings && (
                       <Item
                         icon={Settings}

@@ -636,6 +636,12 @@ export default function LaborersManager() {
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Type
                                 </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Status
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Valid Till
+                                </th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Actions
                                 </th>
@@ -713,6 +719,31 @@ export default function LaborersManager() {
                                                 <span className="text-gray-400">—</span>
                                             )}
                                         </td>
+                                        <td className="px-6 py-4">
+                                            {laborer.registration_status === 'terminated' ? (
+                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-gray-100 text-gray-600 border border-gray-300 uppercase tracking-tighter">
+                                                    Terminated
+                                                </span>
+                                            ) : (
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${laborer.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                    {laborer.is_active ? 'Active' : 'Inactive'}
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            {laborer.subscription_expiry ? (
+                                                <div className="flex flex-col">
+                                                    <span className={`text-sm font-bold ${new Date(laborer.subscription_expiry) < new Date() ? 'text-red-600' : 'text-gray-900'}`}>
+                                                        {new Date(laborer.subscription_expiry).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                    </span>
+                                                    {new Date(laborer.subscription_expiry) < new Date() && (
+                                                        <span className="text-[10px] font-black text-red-500 uppercase tracking-tighter">Expired</span>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <span className="text-gray-400">—</span>
+                                            )}
+                                        </td>
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex items-center justify-end space-x-2">
                                                 <button
@@ -731,13 +762,13 @@ export default function LaborersManager() {
                                                         <Pencil className="w-4 h-4 text-gray-600" />
                                                     </button>
                                                 )}
-                                                {(role !== "Employee" || hasPerm("LABORER_DELETE")) && (
+                                                {(role !== "Employee" || hasPerm("LABORER_DELETE")) && laborer.registration_status !== 'terminated' && (
                                                     <button
                                                         onClick={() => handleDelete(laborer)}
-                                                        className="p-1.5 rounded-lg hover:bg-red-50 transition-colors"
-                                                        title="Delete"
+                                                        className="p-1.5 rounded-lg hover:bg-amber-50 transition-colors"
+                                                        title="Terminate"
                                                     >
-                                                        <Trash2 className="w-4 h-4 text-red-600" />
+                                                        <Trash2 className="w-4 h-4 text-amber-600" />
                                                     </button>
                                                 )}
                                             </div>
@@ -1287,7 +1318,9 @@ export default function LaborersManager() {
                                                 <User size={64} />
                                             </div>
                                         )}
-                                        {selectedLaborer.is_active ? (
+                                        {selectedLaborer.registration_status === 'terminated' ? (
+                                            <span className="absolute bottom-1 right-1 w-5 h-5 bg-gray-500 border-2 border-white rounded-full"></span>
+                                        ) : selectedLaborer.is_active ? (
                                             <span className="absolute bottom-1 right-1 w-5 h-5 bg-green-500 border-2 border-white rounded-full"></span>
                                         ) : (
                                             <span className="absolute bottom-1 right-1 w-5 h-5 bg-red-500 border-2 border-white rounded-full"></span>
@@ -1421,17 +1454,20 @@ export default function LaborersManager() {
                 <div className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
                     <div className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden">
                         <div className="p-6">
-                            <div className="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full mb-4">
-                                <AlertTriangle className="w-6 h-6 text-red-600" />
+                            <div className="flex items-center justify-center w-12 h-12 mx-auto bg-amber-100 rounded-full mb-4">
+                                <AlertTriangle className="w-6 h-6 text-amber-600" />
                             </div>
-                            <h3 className="text-xl font-bold text-center text-gray-900 mb-2">Delete Laborer?</h3>
-                            <p className="text-center text-gray-600 mb-6">
-                                Are you sure you want to delete <strong>{selectedLaborer.name}</strong>?
-                                <br />
-                                <span className="text-sm text-red-500 mt-2 block">
-                                    This action cannot be undone and will permanently remove their profile and face registration data.
-                                </span>
-                            </p>
+                            <h3 className="text-xl font-bold text-center text-gray-900 mb-2">Terminate Laborer?</h3>
+                             <p className="text-center text-gray-600 mb-6">
+                                 Are you sure you want to terminate <strong>{selectedLaborer.name}</strong>?
+                                 <br />
+                                 <span className="text-sm text-amber-600 mt-2 block font-medium">
+                                     Biometric face data will be removed. All attendance and payment records will be preserved for history.
+                                 </span>
+                                 <span className="text-xs text-gray-400 mt-1 block">
+                                     The laborer will no longer be able to punch for attendance.
+                                 </span>
+                             </p>
                             <div className="flex space-x-3">
                                 <button
                                     onClick={() => {
@@ -1445,16 +1481,16 @@ export default function LaborersManager() {
                                 </button>
                                 <button
                                     onClick={confirmDelete}
-                                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex justify-center items-center"
+                                    className="flex-1 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium flex justify-center items-center"
                                     disabled={saving}
                                 >
                                     {saving ? (
                                         <>
                                             <RefreshCw className="w-4 h-4 animate-spin mr-2" />
-                                            Deleting...
+                                            Terminating...
                                         </>
                                     ) : (
-                                        "Delete"
+                                        "Terminate"
                                     )}
                                 </button>
                             </div>
