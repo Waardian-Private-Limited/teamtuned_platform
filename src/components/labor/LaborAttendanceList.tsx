@@ -980,9 +980,11 @@ function LaborExportModal({
     onClose: () => void;
 }) {
     const [local, setLocal] = useState({ ...current });
-    const [exportType, setExportType] = useState<'daily' | 'month'>('daily');
+    const [exportType, setExportType] = useState<'daily' | 'month' | 'date_range'>('daily');
     const [exportFormat, setExportFormat] = useState<'excel' | 'pdf'>('excel');
     const [selectedMonth, setSelectedMonth] = useState(format(new Date(), "yyyy-MM"));
+    const [startDate, setStartDate] = useState(local.date || format(new Date(), "yyyy-MM-dd"));
+    const [endDate, setEndDate] = useState(local.date || format(new Date(), "yyyy-MM-dd"));
     const [submitting, setSubmitting] = useState(false);
     const [subcategories, setSubcategories] = useState<any[]>([]);
 
@@ -1020,6 +1022,9 @@ function LaborExportModal({
 
             if (exportType === 'month') {
                 body.month = selectedMonth;
+            } else if (exportType === 'date_range') {
+                body.start_date = startDate;
+                body.end_date = endDate;
             } else {
                 body.date = local.date;
             }
@@ -1040,7 +1045,9 @@ function LaborExportModal({
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            const filename = exportType === 'month' ? `Labor_Monthly_${selectedMonth}` : `Labor_Daily_${local.date}`;
+            let filename = `Labor_Daily_${local.date}`;
+            if (exportType === 'month') filename = `Labor_Monthly_${selectedMonth}`;
+            if (exportType === 'date_range') filename = `Labor_Range_${startDate}_to_${endDate}`;
             a.download = `${filename}.${exportFormat === 'pdf' ? 'pdf' : 'xlsx'}`;
             document.body.appendChild(a);
             a.click();
@@ -1080,6 +1087,12 @@ function LaborExportModal({
                     >
                         Monthly Report
                     </button>
+                    <button
+                        onClick={() => setExportType('date_range')}
+                        className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${exportType === 'date_range' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Date Range
+                    </button>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1108,7 +1121,7 @@ function LaborExportModal({
                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                                 />
                             </>
-                        ) : (
+                        ) : exportType === 'month' ? (
                             <>
                                 <label className="block text-xs text-gray-500 mb-1">Month</label>
                                 <input
@@ -1118,6 +1131,27 @@ function LaborExportModal({
                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                                 />
                             </>
+                        ) : (
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <label className="block text-xs text-gray-500 mb-1">From Date</label>
+                                    <input
+                                        type="date"
+                                        value={startDate}
+                                        onChange={(e) => setStartDate(e.target.value)}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                    />
+                                </div>
+                                <div className="flex-1">
+                                    <label className="block text-xs text-gray-500 mb-1">Till Date</label>
+                                    <input
+                                        type="date"
+                                        value={endDate}
+                                        onChange={(e) => setEndDate(e.target.value)}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                    />
+                                </div>
+                            </div>
                         )}
                     </div>
 
