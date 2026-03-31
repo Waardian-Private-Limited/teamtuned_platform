@@ -176,7 +176,7 @@ export default function ContractorStandardRateCard({ contractor, subcategories }
         try {
             await apiClient(`/labor/contractors/${contractor.id}/rates/bulk`, {
                 method: "POST",
-                body: JSON.stringify({ rates: ratesToSave })
+                body: { rates: ratesToSave }
             });
             alert(`${contractor.name} rates saved!`);
             fetchData(); // Refresh to get ensuring consistency
