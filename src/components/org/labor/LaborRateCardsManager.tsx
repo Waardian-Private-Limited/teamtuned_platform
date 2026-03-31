@@ -201,20 +201,6 @@ export default function LaborRateCardsManager() {
 
         setSubmitting(true);
         try {
-            await apiClient("/labor/rates/daily/bulk", {
-                method: "POST",
-                body: {
-                    rate_date: selectedDate,
-                    site_id: selectedSite,
-                    contractor_id: null, // Endpoint expects separate call per contractor usually? 
-                    // Wait, bulkUpsertDailyRates originally took contractor_id in body root.
-                    // We need to modify backend bulk upsert OR call it multiple times.
-                    // Let's modify the Loop to calling bulk upsert per contractor locally or modify backend.
-                    // Calling per contractor is safer without changing backend structure too much.
-                    rates: [] // Mock
-                }
-            });
-
             // Actually, let's just group by contractor and call API in parallel
             const ratesByContractor = ratesToSave.reduce((acc, curr) => {
                 if (!acc[curr.contractor_id]) acc[curr.contractor_id] = [];
