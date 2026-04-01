@@ -969,6 +969,19 @@ export default function EmployeeManagement() {
     }
   };
 
+  const handleRegenerateAccess = async (id: number) => {
+    try {
+      setActionLoading(String(id));
+      const res = await apiClient<{ success: boolean; message: string }>(`/organization/employees/${id}/regenerate-access`, { method: "POST" });
+      showNotification(res.message || "Access regenerated successfully", "success");
+      await fetchEmployees();
+    } catch (e: any) {
+      showNotification(e.message || "Failed to regenerate access", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleBulkInvite = async () => {
     try {
       // Get all invited employees
@@ -1217,6 +1230,19 @@ export default function EmployeeManagement() {
                       >
                         <Mail className="w-4 h-4" />
                         <span>Resend Invite</span>
+                      </button>
+                    )}
+
+                    {isOrgAdmin && (
+                      <button
+                        onClick={() => {
+                          handleRegenerateAccess(employee.id);
+                          setIsOpen(false);
+                        }}
+                        className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-purple-700 hover:bg-purple-50"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        <span>Regenerate Access</span>
                       </button>
                     )}
 
