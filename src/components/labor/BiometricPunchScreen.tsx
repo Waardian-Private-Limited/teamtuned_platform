@@ -124,7 +124,8 @@ export default function BiometricPunchScreen({
                 device_temperature: 0
             }, {
                 withAuth: true,
-                tokenKey: 'biometric_token'
+                tokenKey: 'biometric_token',
+                withCredentials: false // Isolate from Admin cookies
             });
 
             if (!isMounted.current) return;

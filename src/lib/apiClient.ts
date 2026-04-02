@@ -13,6 +13,7 @@ export interface RequestOptions {
   params?: Record<string, string | number | boolean | undefined | null>;
   withAuth?: boolean; // Adds Authorization header from localStorage
   tokenKey?: string; // Optional: specify a custom token key (defaults to 'token')
+  withCredentials?: boolean; // Whether to include cookies (defaults to true)
   responseType?: 'json' | 'blob' | 'text';
   signal?: AbortSignal;
 }
@@ -28,6 +29,7 @@ export async function apiClient<T = any>(
     params,
     withAuth = false,
     tokenKey = 'token', // Default to the standard session token
+    withCredentials = true,
     responseType = 'json',
     signal,
   } = options;
@@ -68,7 +70,7 @@ export async function apiClient<T = any>(
 
   const res = await fetch(`${BASE_URL}${path}${query}`, {
     method,
-    credentials: 'include',
+    credentials: withCredentials ? 'include' : 'omit',
     headers: allHeaders,
     body: isFormData ? body : body ? JSON.stringify(body) : undefined,
     signal,

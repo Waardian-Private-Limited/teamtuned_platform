@@ -19,10 +19,10 @@ export default function BiometricPublicPage() {
     useEffect(() => {
         const checkAuth = async () => {
             const token = localStorage.getItem("biometric_token");
-            const isSite = localStorage.getItem("authRole") === "Site";
+            const isSite = localStorage.getItem("biometric_authRole") === "Site";
             if (token && isSite) {
                 try {
-                    const storedSite = localStorage.getItem("siteInfo");
+                    const storedSite = localStorage.getItem("biometric_siteInfo");
                     if (storedSite) {
                         setSiteData(JSON.parse(storedSite));
                         setIsAuthenticated(true);
@@ -44,14 +44,16 @@ export default function BiometricPublicPage() {
         try {
             const res = await apiClient<any>("/auth/site-login", {
                 method: "POST",
-                body: { username, password }
+                body: { username, password },
+                withCredentials: false,
+                tokenKey: "biometric_token"
             });
 
             if (res.success && res.token) {
                 localStorage.setItem("biometric_token", res.token);
-                localStorage.setItem("authRole", "Site");
+                localStorage.setItem("biometric_authRole", "Site");
                 const info = { id: res.user.site_id, name: res.user.site_name || res.user.collection_name };
-                localStorage.setItem("siteInfo", JSON.stringify(info));
+                localStorage.setItem("biometric_siteInfo", JSON.stringify(info));
                 setSiteData(info);
                 setIsAuthenticated(true);
                 toast.success("Kiosk activated");
@@ -67,8 +69,8 @@ export default function BiometricPublicPage() {
 
     const processLogout = () => {
         localStorage.removeItem("biometric_token");
-        localStorage.removeItem("authRole");
-        localStorage.removeItem("siteInfo");
+        localStorage.removeItem("biometric_authRole");
+        localStorage.removeItem("biometric_siteInfo");
         setIsAuthenticated(false);
         setSiteData(null);
     };
