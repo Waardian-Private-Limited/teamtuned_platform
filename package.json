@@ -11,6 +11,7 @@
     "dev:desktop": "PORT=${PORT:-3000} concurrently -k -n WEB,ELECTRON \"npm run dev\" \"wait-on http://localhost:$PORT && npm run dev:electron\""
   },
   "dependencies": {
+    "@mediapipe/face_detection": "^0.4.1646425229",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.23.24",
     "html2canvas": "^1.4.1",
