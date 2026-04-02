@@ -12,6 +12,7 @@ export interface RequestOptions {
   headers?: Record<string, string>;
   params?: Record<string, string | number | boolean | undefined | null>;
   withAuth?: boolean; // Adds Authorization header from localStorage
+  tokenKey?: string; // Optional: specify a custom token key (defaults to 'token')
   responseType?: 'json' | 'blob' | 'text';
   signal?: AbortSignal;
 }
@@ -26,6 +27,7 @@ export async function apiClient<T = any>(
     headers = {},
     params,
     withAuth = false,
+    tokenKey = 'token', // Default to the standard session token
     responseType = 'json',
     signal,
   } = options;
@@ -54,7 +56,7 @@ export async function apiClient<T = any>(
   };
 
   if (withAuth && typeof window !== 'undefined') {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem(tokenKey);
     if (token) {
       allHeaders['Authorization'] = `Bearer ${token}`;
     }
@@ -76,10 +78,12 @@ export async function apiClient<T = any>(
     // Auto logout and redirect on 401
     if (res.status === 401 && typeof window !== 'undefined') {
       try {
-        localStorage.removeItem('token');
+        localStorage.removeItem(tokenKey);
       } catch { }
-      // Redirect to login immediately
-      window.location.href = '/login';
+      // Only redirect to login if we're using the standard session token
+      if (tokenKey === 'token') {
+        window.location.href = '/login';
+      }
     }
     let errorMsg = 'Request failed';
     let errData = null;

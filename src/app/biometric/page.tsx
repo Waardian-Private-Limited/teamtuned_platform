@@ -18,7 +18,7 @@ export default function BiometricPublicPage() {
     // Check if already authenticated via site token
     useEffect(() => {
         const checkAuth = async () => {
-            const token = localStorage.getItem("token");
+            const token = localStorage.getItem("biometric_token");
             const isSite = localStorage.getItem("authRole") === "Site";
             if (token && isSite) {
                 try {
@@ -48,7 +48,7 @@ export default function BiometricPublicPage() {
             });
 
             if (res.success && res.token) {
-                localStorage.setItem("token", res.token);
+                localStorage.setItem("biometric_token", res.token);
                 localStorage.setItem("authRole", "Site");
                 const info = { id: res.user.site_id, name: res.user.site_name || res.user.collection_name };
                 localStorage.setItem("siteInfo", JSON.stringify(info));
@@ -66,7 +66,7 @@ export default function BiometricPublicPage() {
     };
 
     const processLogout = () => {
-        localStorage.removeItem("token");
+        localStorage.removeItem("biometric_token");
         localStorage.removeItem("authRole");
         localStorage.removeItem("siteInfo");
         setIsAuthenticated(false);

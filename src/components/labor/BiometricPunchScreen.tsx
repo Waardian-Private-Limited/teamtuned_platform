@@ -123,7 +123,8 @@ export default function BiometricPunchScreen({
                 site_name: siteName || "Web Portal",
                 device_temperature: 0
             }, {
-                withAuth: true
+                withAuth: true,
+                tokenKey: 'biometric_token'
             });
 
             if (!isMounted.current) return;
@@ -264,7 +265,7 @@ export default function BiometricPunchScreen({
                 }
 
                 const now = Date.now();
-                const STEADY_DURATION = 2000;
+                const STEADY_DURATION = 750; // 0.75 seconds (High-Speed Attendance)
 
                 if (results.detections && results.detections.length === 1) {
                     const detection = results.detections[0];
@@ -469,17 +470,17 @@ export default function BiometricPunchScreen({
                             {/* Scanning Animation */}
                             {status === 'capturing' && (
                                 <>
-                                    <svg className="w-64 h-64 sm:w-80 sm:h-80 md:w-[450px] md:h-[450px] -rotate-90">
+                                    <svg viewBox="0 0 100 100" className="w-64 h-64 sm:w-80 sm:h-80 md:w-[450px] md:h-[450px] -rotate-90">
                                         <circle
-                                            cx="50%"
-                                            cy="50%"
-                                            r="42%"
+                                            cx="50"
+                                            cy="50"
+                                            r="42"
                                             className="fill-none stroke-white/5 stroke-[4]"
                                         />
                                         <circle
-                                            cx="50%"
-                                            cy="50%"
-                                            r="42%"
+                                            cx="50"
+                                            cy="50"
+                                            r="42"
                                             pathLength="100"
                                             className="fill-none stroke-cyan-500 stroke-[6] transition-all duration-200 ease-linear shadow-[0_0_15px_rgba(6,182,212,0.5)]"
                                             strokeDasharray="100"
