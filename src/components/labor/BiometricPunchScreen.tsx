@@ -266,7 +266,7 @@ export default function BiometricPunchScreen({
                 }
 
                 const now = Date.now();
-                const STEADY_DURATION = 750; // 0.75 seconds (High-Speed Attendance)
+                const STEADY_DURATION = 1200; // 1 seconds (High-Speed Attendance)
 
                 if (results.detections && results.detections.length === 1) {
                     const detection = results.detections[0];
@@ -322,7 +322,7 @@ export default function BiometricPunchScreen({
     // 1. Initialize MediaPipe - ONCE on script load
     useEffect(() => {
         if (!isScriptLoaded) return;
-        
+
         let detectorTimer = setTimeout(initMediaPipe, 200);
 
         return () => {
@@ -502,8 +502,8 @@ export default function BiometricPunchScreen({
                             {/* Result Card (Matching py UI) */}
                             {(status === 'success' || status === 'error' || status === 'processing') && (
                                 <div className={`px-8 md:px-12 py-8 md:py-10 bg-[#1B1C1F] rounded-2xl md:rounded-3xl border-4 md:border-[6px] shadow-2xl flex flex-col items-center justify-center gap-3 md:gap-4 transition-all duration-500 transform scale-100 md:scale-110 w-[85%] max-w-md ${status === 'success' ? 'border-green-500' :
-                                        status === 'error' ? 'border-red-500' :
-                                            'border-cyan-500 animate-pulse'
+                                    status === 'error' ? 'border-red-500' :
+                                        'border-cyan-500 animate-pulse'
                                     }`}>
                                     {status === 'success' ? (
                                         <>
