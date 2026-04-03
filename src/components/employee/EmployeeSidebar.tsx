@@ -50,6 +50,7 @@ import {
   MessageSquare,
   List,
   PlusCircle,
+  Camera,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
@@ -426,7 +427,14 @@ export default function EmployeeSidebar({
   const canViewAllReimbursements =
     isOrgAdmin || isDirector || hasAnyPerm(["REIMB_VIEW", "REIMB_APPROVE", "REIMB_REJECT", "REIMB_EXPORT"]);
   const canDisburseReimbursements = isOrgAdmin || hasPerm("REIMB_DISBURSE");
-  const showReimbursements = canViewAllReimbursements || canDisburseReimbursements || true; // Always show for "My Reimbursements"
+  const showReimbursements = canViewAllReimbursements || canDisburseReimbursements; // standard for "My Reimbursements" but guarded category
+ 
+  // New Sensitive Permission Gates
+  const canViewDPR = isOrgAdmin || hasAnyPerm(["DPR_VIEW", "DPR_ADMIN", "DPR_ADD", "DPR_EDIT"]);
+  const canViewMOM = isOrgAdmin || hasAnyPerm(["MOM_VIEW", "MOM_ADD", "MOM_EDIT"]);
+  const canViewHROperation = isOrgAdmin || hasAnyPerm(["HR_VIEW", "RECRUITER_MODE", "HR_MODE", "ONBOARD_VIEW"]);
+  const canViewSalaryConfig = isOrgAdmin || hasAnyPerm(["SALARY_CONFIG_VIEW", "SALARY_CONFIG_ADD", "HR_MODE", "PAYROLL_ADMIN"]);
+  const canViewDebitRules = isOrgAdmin || hasAnyPerm(["DEBIT_RULE_VIEW", "DEBIT_RULE_ADD", "HR_MODE", "PAYROLL_ADMIN"]);
 
   const showOrgMain = [
     canViewOrgProfile,
@@ -651,6 +659,14 @@ export default function EmployeeSidebar({
                         active={pathname === "/employee/attendance" || (pathname?.startsWith("/employee/attendance/") && !pathname?.startsWith("/employee/attendance-")) || false}
                       />
                     )}
+                    {/* {canViewLaborAttendance && (
+                      <Item
+                        icon={Clock}
+                        label="Punch Regularization"
+                        href="/employee/labor-attendance/regularization"
+                        active={pathname === "/employee/labor-attendance/regularization"}
+                      />
+                    )} */}
                     {canViewAttendanceConfig && (
                       <Item
                         icon={Cog}
@@ -888,29 +904,15 @@ export default function EmployeeSidebar({
                         />
                       </>
                     )}
-                    {(isOrgAdmin || hasAnyPerm(['EMP_ADD'])) && (
-                      <>
-                        <Item
-                          icon={Upload}
-                          label="Import Employees"
-                          href="/employee/employees/import"
-                          active={pathname?.startsWith("/employee/employees/import") || false}
-                        />
-                        <Item
-                          icon={Clock}
-                          label="Shift Management"
-                          href="/employee/employees/shifts"
-                          active={pathname?.startsWith("/employee/employees/shifts") || false}
-                        />
-                      </>
+                    {canViewSalaryConfig && (
+                      <Item
+                        icon={Coins}
+                        label="Salary Components"
+                        href="/employee/salary-components"
+                        active={pathname?.startsWith("/employee/salary-components") || false}
+                      />
                     )}
-                    <Item
-                      icon={Coins}
-                      label="Salary Components"
-                      href="/employee/salary-components"
-                      active={pathname?.startsWith("/employee/salary-components") || false}
-                    />
-                    {canViewLaborSettings && (
+                    {(isOrgAdmin || hasPerm('LABOR_ADMIN')) && (
                       <Item
                         icon={Shield}
                         label="Site Logins"
@@ -918,13 +920,15 @@ export default function EmployeeSidebar({
                         active={pathname?.startsWith("/employee/site-logins") || false}
                       />
                     )}
-
-                    <Item
-                      icon={ListChecks}
-                      label="Debit Rules"
-                      href="/employee/debit-rules"
-                      active={pathname?.startsWith("/employee/debit-rules") || false}
-                    />
+ 
+                    {canViewDebitRules && (
+                      <Item
+                        icon={ListChecks}
+                        label="Debit Rules"
+                        href="/employee/debit-rules"
+                        active={pathname?.startsWith("/employee/debit-rules") || false}
+                      />
+                    )}
                     {(isOrgAdmin || hasPerm('EMP_ADD')) && (
                       <Item
                         icon={Upload}
@@ -1297,46 +1301,47 @@ export default function EmployeeSidebar({
 
 
         {/* DPR Section */}
-        <div className="mt-2">
-          {!isCollapsed && (
-            <CategoryButton
-              label="DPR"
-              isOpen={dpsOpen}
-              onClick={() => handleToggle(setDpsOpen, dpsOpen)}
-            />
-          )}
-          {dpsOpen && (
-            <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
-              <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
-                <Item
-                  icon={LayoutDashboard}
-                  label="Planning Dashboard"
-                  href="/employee/dps/planning-dashboard"
-                  active={pathname === "/employee/dps/planning-dashboard"}
-                />
-                <Item
-                  icon={LayoutDashboard}
-                  label="CBD Dashboard"
-                  href="/employee/dps/cbd-dashboard"
-                  active={pathname === "/employee/dps/cbd-dashboard"}
-                />
-                <Item
-                  icon={UserPlus}
-                  label="Assignments"
-                  href="/employee/dps/assignments"
-                  active={pathname === "/employee/dps/assignments"}
-                />
-                <Item
-                  icon={Calendar}
-                  label="Site Config"
-                  href="/employee/dps/schedule"
-                  active={pathname === "/employee/dps/schedule"}
-                />
-
+        {canViewDPR && (
+          <div className="mt-2">
+            {!isCollapsed && (
+              <CategoryButton
+                label="DPR"
+                isOpen={dpsOpen}
+                onClick={() => handleToggle(setDpsOpen, dpsOpen)}
+              />
+            )}
+            {dpsOpen && (
+              <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                  <Item
+                    icon={LayoutDashboard}
+                    label="Planning Dashboard"
+                    href="/employee/dps/planning-dashboard"
+                    active={pathname === "/employee/dps/planning-dashboard"}
+                  />
+                  <Item
+                    icon={LayoutDashboard}
+                    label="CBD Dashboard"
+                    href="/employee/dps/cbd-dashboard"
+                    active={pathname === "/employee/dps/cbd-dashboard"}
+                  />
+                  <Item
+                    icon={UserPlus}
+                    label="Assignments"
+                    href="/employee/dps/assignments"
+                    active={pathname === "/employee/dps/assignments"}
+                  />
+                  <Item
+                    icon={Calendar}
+                    label="Site Config"
+                    href="/employee/dps/schedule"
+                    active={pathname === "/employee/dps/schedule"}
+                  />
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
 
         {/* Labor Management Section */}
@@ -1355,10 +1360,16 @@ export default function EmployeeSidebar({
                   <div className={`relative ${isCollapsed ? "" : "pl-3 border-l border-gray-100"}`}>
                     <Item
                       icon={LayoutDashboard}
-                      label="Attendance Dashboard"
+                      label="Dashboard"
                       href="/employee/labor-attendance/dashboard"
                       active={pathname === "/employee/labor-attendance/dashboard"}
                     />
+                    {/* <Item
+                      icon={Camera}
+                      label="Biometric Punch"
+                      href="/employee/labor-attendance/biometric"
+                      active={pathname === "/employee/labor-attendance/biometric"}
+                    /> */}
                     <Item
                       icon={ClipboardList}
                       label="Attendance Logs"
@@ -1438,81 +1449,75 @@ export default function EmployeeSidebar({
         }
 
         {/* HR Operation Section */}
-        <div className="mt-2">
-          {!isCollapsed && (
-            <CategoryButton
-              label="HR Operation"
-              isOpen={hrOperationOpen}
-              onClick={() => handleToggle(setHrOperationOpen, hrOperationOpen)}
-            />
-          )}
-          {hrOperationOpen && (
-            <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
-              <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
-                <Item
-                  icon={Briefcase}
-                  label="Applied Positions"
-                  href="/employee/hr-operation/applied-positions"
-                  active={pathname === "/employee/hr-operation/applied-positions"}
-                />
-                <Item
-                  icon={QrCode}
-                  label="Interview Management"
-                  href="/employee/hr-operation/interviews"
-                  active={pathname === "/employee/hr-operation/interviews"}
-                />
-
-                <Item
-                  icon={Award}
-                  label="Technical Assessments"
-                  href="/employee/hr-operation/technical-assessments"
-                  active={pathname === "/employee/hr-operation/technical-assessments"}
-                />
-                <Item
-                  icon={FileText}
-                  label="Technical Questions"
-                  href="/employee/hr-operation/technical-questions"
-                  active={pathname === "/employee/hr-operation/technical-questions"}
-                />
-                <Item
-                  icon={UserCheck}
-                  label="Operation / Final Round"
-                  href="/employee/hr-operation/operation-round"
-                  active={
-                    pathname === "/employee/hr-operation/operation-round" ||
-                    pathname === "/employee/hr-operation/final-round"
-                  }
-                />
-                {(isOrgAdmin || hasPerm('HR_MODE')) && (
+        {canViewHROperation && (
+          <div className="mt-2">
+            {!isCollapsed && (
+              <CategoryButton
+                label="HR Operation"
+                isOpen={hrOperationOpen}
+                onClick={() => handleToggle(setHrOperationOpen, hrOperationOpen)}
+              />
+            )}
+            {hrOperationOpen && (
+              <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
+                  <Item
+                    icon={Briefcase}
+                    label="Applied Positions"
+                    href="/employee/hr-operation/applied-positions"
+                    active={pathname === "/employee/hr-operation/applied-positions"}
+                  />
+                  <Item
+                    icon={QrCode}
+                    label="Interview Management"
+                    href="/employee/hr-operation/interviews"
+                    active={pathname === "/employee/hr-operation/interviews"}
+                  />
+ 
+                  <Item
+                    icon={Award}
+                    label="Technical Assessments"
+                    href="/employee/hr-operation/technical-assessments"
+                    active={pathname === "/employee/hr-operation/technical-assessments"}
+                  />
+                  <Item
+                    icon={FileText}
+                    label="Technical Questions"
+                    href="/employee/hr-operation/technical-questions"
+                    active={pathname === "/employee/hr-operation/technical-questions"}
+                  />
                   <Item
                     icon={UserCheck}
-                    label="All Operation Rounds"
-                    href="/org-admin/hr-operation/operation-round"
-                    active={pathname === "/org-admin/hr-operation/operation-round"}
+                    label="Operation / Final Round"
+                    href="/employee/hr-operation/operation-round"
+                    active={
+                      pathname === "/employee/hr-operation/operation-round" ||
+                      pathname === "/employee/hr-operation/final-round"
+                    }
                   />
-                )}
-                <Item
-                  icon={UserPlus}
-                  label="Onboarding"
-                  href="/employee/hr-operation/onboarding"
-                  active={pathname === "/employee/hr-operation/onboarding"}
-                />
-                <Item
-                  icon={Briefcase}
-                  label="Onboarding Status"
-                  href="/employee/hr-operation/onboarding/status"
-                  active={pathname === "/employee/hr-operation/onboarding/status"}
-                />
-                <Item
-                  icon={FileText}
-                  label="Document Center"
-                  href="/employee/hr-operation/document-center"
-                  active={pathname === "/employee/hr-operation/document-center"}
-                />
+                  <Item
+                    icon={UserPlus}
+                    label="Onboarding"
+                    href="/employee/hr-operation/onboarding"
+                    active={pathname === "/employee/hr-operation/onboarding"}
+                  />
+                  <Item
+                    icon={Briefcase}
+                    label="Onboarding Status"
+                    href="/employee/hr-operation/onboarding/status"
+                    active={pathname === "/employee/hr-operation/onboarding/status"}
+                  />
+                  <Item
+                    icon={FileText}
+                    label="Document Center"
+                    href="/employee/hr-operation/document-center"
+                    active={pathname === "/employee/hr-operation/document-center"}
+                  />
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         {/* Reimbursements Section */}
         {
@@ -1566,39 +1571,29 @@ export default function EmployeeSidebar({
         }
 
         {/* MoM Section */}
-        <div className="mt-2">
-          {!isCollapsed && (
-            <CategoryButton
-              label="Minutes of Meeting"
-              isOpen={momOpen}
-              onClick={() => handleToggle(setMomOpen, momOpen)}
-            />
-          )}
-          {momOpen && (
-            <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
-              <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100 space-y-1"}`}>
-                <Item
-                  icon={LayoutDashboard}
-                  label="Dashboard"
-                  href="/employee/mom"
-                  active={pathname === "/employee/mom"}
-                />
-                <Item
-                  icon={List}
-                  label="Meeting List"
-                  href="/employee/mom/list"
-                  active={pathname === "/employee/mom/list"}
-                />
-                <Item
-                  icon={CheckSquare}
-                  label="My Action Items"
-                  href="/employee/mom/action-items"
-                  active={pathname === "/employee/mom/action-items"}
-                />
+        {canViewMOM && (
+          <div className="mt-2">
+            {!isCollapsed && (
+              <CategoryButton
+                label="Minutes of Meeting"
+                isOpen={momOpen}
+                onClick={() => handleToggle(setMomOpen, momOpen)}
+              />
+            )}
+            {momOpen && (
+              <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
+                <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100 space-y-1"}`}>
+                  <Item
+                    icon={LayoutDashboard}
+                    label="Dashboard"
+                    href="/employee/mom"
+                    active={pathname === "/employee/mom"}
+                  />
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
       </div >
 
