@@ -9,7 +9,8 @@ import { apiClient } from '@/lib/apiClient';
 import { Calendar, Thermometer, AlertTriangle, TrendingUp, Activity } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+const COLORS = ['#10B981', '#F59E0B', '#EF4444']; // Safe, Warm, Hot
+const SITE_COLORS = ['#3B82F6', '#8B5CF6', '#EC4899', '#F97316', '#06B6D4'];
 
 export default function DeviceTemperatureDashboard() {
     const [loading, setLoading] = useState(true);
@@ -50,6 +51,10 @@ export default function DeviceTemperatureDashboard() {
             } else if (dateRange === '7days') {
                 const d = new Date();
                 d.setDate(d.getDate() - 7);
+                start_date = d.toISOString().split('T')[0];
+            } else if (dateRange === '30days') {
+                const d = new Date();
+                d.setDate(d.getDate() - 30);
                 start_date = d.toISOString().split('T')[0];
             }
 
@@ -104,12 +109,136 @@ export default function DeviceTemperatureDashboard() {
                     >
                         <option value="24h">Last 24 Hours</option>
                         <option value="7days">Last 7 Days</option>
+                        <option value="30days">Last 30 Days</option>
                     </select>
 
                     <button onClick={fetchStats} className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200">
                         <Activity className="w-5 h-5 text-gray-600" />
                     </button>
                 </div>
+            </div>
+
+            {/* Analytical Row 1: Distribution & Site Comparison */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Health Distribution */}
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                        <Thermometer className="h-5 w-5 text-blue-500" />
+                        Fleet Health Distribution
+                    </h3>
+                    <div className="h-[250px] w-full flex items-center justify-center">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={[
+                                        { name: 'Healthy (<50°C)', value: Number(overall_stats?.cool_readings || 0) },
+                                        { name: 'Warm (50-75°C)', value: Number(overall_stats?.warm_readings || 0) },
+                                        { name: 'Critical (>75°C)', value: Number(overall_stats?.hot_readings || 0) }
+                                    ]}
+                                    innerRadius={60}
+                                    outerRadius={80}
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                >
+                                    <Cell fill="#10B981" />
+                                    <Cell fill="#F59E0B" />
+                                    <Cell fill="#EF4444" />
+                                </Pie>
+                                <Tooltip />
+                                <Legend verticalAlign="bottom" height={36} />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                {/* Site-wise Comparison */}
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm col-span-1 lg:col-span-2">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                        <Activity className="h-5 w-5 text-emerald-500" />
+                        Avg Temperature by Site (°C)
+                    </h3>
+                    <div className="h-[250px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={stats?.site_stats} layout="vertical">
+                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#E5E7EB" />
+                                <XAxis type="number" domain={[0, 80]} stroke="#9CA3AF" fontSize={10} />
+                                <YAxis dataKey="site_name" type="category" stroke="#9CA3AF" fontSize={10} width={100} />
+                                <Tooltip cursor={{ fill: '#F3F4F6' }} />
+                                <Bar dataKey="avg_temp" radius={[0, 4, 4, 0]} barSize={20} name="Avg Temperature">
+                                    {stats?.site_stats?.map((entry: any, index: number) => (
+                                        <Cell key={`cell-${index}`} fill={SITE_COLORS[index % SITE_COLORS.length]} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            </div>
+
+            {/* Analytical Row 2: Peak Heat Profile */}
+            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                        <Activity className="h-5 w-5 text-orange-500" />
+                        24-Hour Temperature Profile
+                        <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full ml-2">Hourly Avg Pattern</span>
+                    </h3>
+                </div>
+                <div className="h-[250px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={Array.from({ length: 24 }).map((_, i) => ({
+                            hour: `${String(i).padStart(2, '0')}:00`,
+                            temp: stats?.scatter_data?.filter((d: any) => d.hour === i).reduce((acc: number, cur: any) => acc + cur.temp, 0) / 
+                                  (stats?.scatter_data?.filter((d: any) => d.hour === i).length || 1)
+                        }))}>
+                            <defs>
+                                <linearGradient id="colorPattern" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#F97316" stopOpacity={0.1} />
+                                    <stop offset="95%" stopColor="#F97316" stopOpacity={0} />
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                            <XAxis dataKey="hour" stroke="#9CA3AF" fontSize={10} />
+                            <YAxis domain={[30, 80]} stroke="#9CA3AF" fontSize={10} unit="°C" />
+                            <Tooltip />
+                            <Area 
+                                type="monotone" 
+                                dataKey="temp" 
+                                stroke="#F97316" 
+                                fillOpacity={1} 
+                                fill="url(#colorPattern)" 
+                                strokeWidth={2}
+                                name="Average"
+                            />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
+
+            {/* Site Status Grid (NEW) */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                {stats?.connectivity_summary?.map((site: any) => {
+                    const isOnline = site.mins_ago < 60;
+                    return (
+                        <div key={site.site_id} className={`p-3 rounded-lg border bg-white shadow-sm flex flex-col justify-between ${isOnline ? 'border-emerald-100' : 'border-gray-100'}`}>
+                            <div className="flex items-start justify-between">
+                                <span className="text-[10px] font-bold text-gray-500 truncate uppercase tracking-tighter" title={site.site_name}>{site.site_name}</span>
+                                <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'}`}></div>
+                            </div>
+                            
+                            <div className="mt-2 flex items-baseline gap-1">
+                                <span className={`text-lg font-black ${isOnline ? 'text-gray-900' : 'text-gray-400'}`}>
+                                    {isOnline ? `${parseFloat(site.current_temp || 0).toFixed(0)}°` : 'OFF'}
+                                </span>
+                                {isOnline && <span className="text-[9px] text-gray-400 font-medium">CPU: {parseFloat(site.current_cpu || 0).toFixed(0)}%</span>}
+                            </div>
+
+                            <div className="mt-1 text-[9px] text-gray-400 truncate italic">
+                                {site.last_seen ? `${site.mins_ago}m ago` : 'Never seen'}
+                            </div>
+                        </div>
+                    );
+                })}
             </div>
 
             {/* Stats Cards */}
@@ -133,10 +262,10 @@ export default function DeviceTemperatureDashboard() {
                     color="bg-green-50 text-green-700 border-green-100"
                 />
                 <StatCard
-                    title="Hot Alerts (>75°C)"
-                    value={overall_stats?.hot_readings || 0}
-                    icon={<Thermometer className="text-orange-500" />}
-                    color="bg-orange-50 text-orange-700 border-orange-100"
+                    title="Devices Active"
+                    value={stats?.connectivity_summary?.filter((s: any) => s.mins_ago < 60).length || 0}
+                    icon={<Activity className="text-emerald-500" />}
+                    color="bg-emerald-50 text-emerald-700 border-emerald-100"
                 />
             </div>
 
@@ -157,7 +286,10 @@ export default function DeviceTemperatureDashboard() {
                                     <stop offset="95%" stopColor="#ff0000" stopOpacity={0} />
                                 </linearGradient>
                             </defs>
-                            <XAxis dataKey="time_bucket" tickFormatter={(v) => v.split(' ')[1].slice(0, 5)} />
+                            <XAxis dataKey="time_bucket" tickFormatter={(v) => {
+                                const parts = v.split(' ');
+                                return parts.length > 1 ? parts[1].slice(0, 5) : v.split('-').slice(1).join('/');
+                            }} />
                             <YAxis domain={[30, 90]} /> // Temp usually 30-80
                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
                             <Tooltip />

@@ -1,11 +1,11 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/apiClient';
-import { Loader2, Thermometer, RefreshCw, Activity, Calendar } from 'lucide-react';
+import { Loader2, Thermometer, RefreshCw, Activity, Calendar, AlertTriangle } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-    AreaChart, Area, BarChart, Bar, ScatterChart, Scatter
+    AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell
 } from 'recharts';
 
 interface DeviceLog {
@@ -172,21 +172,131 @@ export default function DeviceHealthLogs() {
                         </div>
                     </div>
 
-                    {/* Site Distribution */}
-                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Avg Temp by Site</h3>
-                        <div className="h-[300px] w-full">
+                    {/* CPU Usage Trend */}
+                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm col-span-1 md:col-span-2">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                            <Activity className="h-5 w-5 text-emerald-500" />
+                            CPU Utilization (%)
+                        </h3>
+                        <div className="h-[200px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={stats.time_series}>
+                                    <defs>
+                                        <linearGradient id="colorCpu" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#10B981" stopOpacity={0.1} />
+                                            <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                                    <XAxis
+                                        dataKey="time_bucket"
+                                        tickFormatter={(t) => {
+                                            const d = new Date(t);
+                                            return isNaN(d.getTime()) ? t : (dateRange === '30days' ? format(d, 'MM/dd') : format(d, 'HH:mm'));
+                                        }}
+                                        stroke="#9CA3AF"
+                                        fontSize={10}
+                                    />
+                                    <YAxis stroke="#9CA3AF" fontSize={10} unit="%" domain={[0, 100]} />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}
+                                    />
+                                    <Area
+                                        type="monotone"
+                                        dataKey="avg_cpu"
+                                        stroke="#10B981"
+                                        strokeWidth={2}
+                                        fillOpacity={1}
+                                        fill="url(#colorCpu)"
+                                        name="Avg CPU"
+                                    />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                    {/* Connectivity Summary */}
+                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center justify-between">
+                            Device Status
+                            <div className="flex gap-1.5 items-center">
+                                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
+                                <span className="text-xs text-gray-500 font-normal">{stats.connectivity_summary?.filter((s: any) => s.mins_ago < 60).length || 0} Online</span>
+                            </div>
+                        </h3>
+                        <div className="space-y-3 overflow-y-auto max-h-[350px] pr-2 custom-scrollbar">
+                            {stats.connectivity_summary?.map((s: any) => {
+                                const isOnline = s.mins_ago < 60; // Active in last hour
+                                return (
+                                    <div key={s.site_id} className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100">
+                                        <div>
+                                            <p className="font-semibold text-sm text-gray-800">{s.site_name}</p>
+                                            <p className="text-[10px] text-gray-500">
+                                                {s.last_seen ? `Last seen ${s.mins_ago}m ago` : 'No heartbeat recorded'}
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className={`text-xs font-bold ${isOnline ? 'text-emerald-600' : 'text-gray-400'}`}>
+                                                {isOnline ? 'ONLINE' : 'OFFLINE'}
+                                            </div>
+                                            {isOnline && (
+                                                <div className="text-[10px] text-gray-400 flex items-center justify-end gap-1 mt-0.5">
+                                                    <Thermometer className="w-2.5 h-2.5" /> {parseFloat(s.current_temp || 0).toFixed(0)}°C
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* NEW: CPU Load Site Comparison */}
+                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm col-span-1 md:col-span-2">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                            <Activity className="h-5 w-5 text-blue-500" />
+                            Avg CPU Load by Site (%)
+                        </h3>
+                        <div className="h-[250px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={stats.site_stats} layout="vertical">
                                     <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#E5E7EB" />
-                                    <XAxis type="number" stroke="#9CA3AF" fontSize={12} unit="°C" domain={[0, 80]} />
-                                    <YAxis dataKey="site_name" type="category" stroke="#9CA3AF" fontSize={12} width={80} />
-                                    <Tooltip
-                                        cursor={{ fill: '#F3F4F6' }}
-                                        contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}
-                                    />
-                                    <Bar dataKey="avg_temp" fill="#3B82F6" radius={[0, 4, 4, 0]} barSize={20} name="Avg Temp" />
+                                    <XAxis type="number" domain={[0, 100]} stroke="#9CA3AF" fontSize={10} unit="%" />
+                                    <YAxis dataKey="site_name" type="category" stroke="#9CA3AF" fontSize={10} width={100} />
+                                    <Tooltip cursor={{ fill: '#F3F4F6' }} />
+                                    <Bar dataKey="avg_cpu" fill="#3B82F6" radius={[0, 4, 4, 0]} barSize={20} name="Avg CPU Load" />
                                 </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                    {/* NEW: Status Health Distribution */}
+                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                            <AlertTriangle className="h-5 w-5 text-orange-500" />
+                            Health Distribution
+                        </h3>
+                        <div className="h-[250px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={[
+                                            { name: 'Critical', value: Number(stats.overall_stats?.hot_readings || 0) },
+                                            { name: 'Warm', value: Number(stats.overall_stats?.warm_readings || 0) },
+                                            { name: 'Healthy', value: Number(stats.overall_stats?.cool_readings || 0) }
+                                        ]}
+                                        innerRadius={60}
+                                        outerRadius={80}
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                    >
+                                        <Cell fill="#EF4444" />
+                                        <Cell fill="#F59E0B" />
+                                        <Cell fill="#10B981" />
+                                    </Pie>
+                                    <Tooltip />
+                                    <Legend verticalAlign="bottom" height={36} />
+                                </PieChart>
                             </ResponsiveContainer>
                         </div>
                     </div>
