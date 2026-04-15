@@ -13,7 +13,8 @@ export default function LaborBillingConfig() {
     const [saving, setSaving] = useState(false);
     const [config, setConfig] = useState({
         labor_yearly_rate: 0,
-        labor_base_fees: 0
+        labor_base_fees: 0,
+        labor_per_day_fees: 0
     });
 
     const isOrgAdmin = (role || "").toLowerCase() === "orgadmin";
@@ -81,7 +82,7 @@ export default function LaborBillingConfig() {
                     </h3>
                     <ul className="space-y-3 text-sm text-blue-700">
                         <li>• <strong>Base Fees:</strong> Deducted once during labor registration.</li>
-                        <li>• <strong>Daily Rate:</strong> Calculated as (Yearly Rate / 12) / Days in Current Month.</li>
+                        <li>• <strong>Daily Fee:</strong> A fixed amount charged for every day the labor marks attendance.</li>
                         <li>• <strong>Subscriptions:</strong> Base fees grant an active subscription for 1 year.</li>
                         <li>• <strong>Renewals:</strong> If a labor punches with an expired subscription, base fees are charged again to renew for 1 year.</li>
                     </ul>
@@ -115,7 +116,7 @@ export default function LaborBillingConfig() {
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Yearly Rate (Used to calculate daily attendance charge)
+                                    Per Day Fee (Direct amount charged for daily attendance)
                                 </label>
                                 <div className="relative">
                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -123,8 +124,8 @@ export default function LaborBillingConfig() {
                                     </div>
                                     <input
                                         type="number"
-                                        value={config.labor_yearly_rate}
-                                        onChange={(e) => setConfig({ ...config, labor_yearly_rate: parseFloat(e.target.value) || 0 })}
+                                        value={config.labor_per_day_fees}
+                                        onChange={(e) => setConfig({ ...config, labor_per_day_fees: parseFloat(e.target.value) || 0 })}
                                         disabled={isReadOnly}
                                         className="block w-full pl-7 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all disabled:bg-gray-50 disabled:text-gray-500"
                                         placeholder="0.00"
@@ -134,9 +135,18 @@ export default function LaborBillingConfig() {
 
                                 </div>
                                 <p className="mt-2 text-xs text-gray-500 italic">
-                                    Current monthly rate (estimate): ₹{((config.labor_yearly_rate || 0) / 12).toFixed(2)}
+                                    This amount will be deducted from the labor wallet for each day they punch in.
                                 </p>
                             </div>
+
+                            {config.labor_yearly_rate > 0 && (
+                                <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                    <p className="text-xs text-gray-600">
+                                        <strong>Note:</strong> A Yearly Rate of ₹{config.labor_yearly_rate} is also configured. 
+                                        The Per Day Fee takes precedence. If Per Day Fee is 0, the monthly-calculated rate will be used.
+                                    </p>
+                                </div>
+                            )}
                         </div>
 
                         {!isReadOnly && (
