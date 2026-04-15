@@ -25,6 +25,7 @@ export default function CustomInvoices() {
     const [downloadingId, setDownloadingId] = useState<number | null>(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [creating, setCreating] = useState(false);
+    const [editingId, setEditingId] = useState<number | null>(null);
     
     const [pagination, setPagination] = useState({
         page: 1, limit: 10, total: 0, totalPages: 1
@@ -86,27 +87,61 @@ export default function CustomInvoices() {
         e.preventDefault();
         try {
             setCreating(true);
-            const res = await apiClient.post("/superadmin/custom-invoices", formData);
+            const method = editingId ? apiClient.put : apiClient.post;
+            const url = editingId ? `/superadmin/custom-invoices/${editingId}` : "/superadmin/custom-invoices";
+            
+            const res = await method(url, formData);
             if (res.success) {
-                toast.success("Invoice generated successfully");
-                setShowCreateModal(false);
-                setFormData({
-                    client_name: "",
-                    client_address: "",
-                    client_gst: "",
-                    place_of_supply: "27-MAHARASHTRA",
-                    due_date: new Date().toISOString().split('T')[0],
-                    paid_amount: "0",
-                    status: "PENDING",
-                    items: [{ description: "", rate: "", quantity: "1" }]
-                });
+                toast.success(editingId ? "Invoice updated successfully" : "Invoice generated successfully");
+                handleCloseModal();
                 fetchInvoices();
             }
         } catch (error: any) {
-            toast.error(error.message || "Failed to create invoice");
+            toast.error(error.message || "Failed to save invoice");
         } finally {
             setCreating(false);
         }
+    };
+
+    const handleEditClick = async (inv: any) => {
+        try {
+            const res = await apiClient.get(`/superadmin/custom-invoices/${inv.id}`);
+            if (res.success && res.invoice) {
+                setEditingId(inv.id);
+                setFormData({
+                    client_name: res.invoice.client_name,
+                    client_address: res.invoice.client_address,
+                    client_gst: res.invoice.client_gst || "",
+                    place_of_supply: res.invoice.place_of_supply || "27-MAHARASHTRA",
+                    due_date: res.invoice.due_date ? new Date(res.invoice.due_date).toISOString().split('T')[0] : "",
+                    paid_amount: res.invoice.paid_amount?.toString() || "0",
+                    status: res.invoice.status,
+                    items: res.items?.length > 0 ? res.items.map((i: any) => ({
+                        description: i.description,
+                        rate: i.rate?.toString() || "",
+                        quantity: i.quantity?.toString() || "1"
+                    })) : [{ description: "", rate: "", quantity: "1" }]
+                });
+                setShowCreateModal(true);
+            }
+        } catch (error) {
+            toast.error("Failed to fetch invoice details");
+        }
+    };
+
+    const handleCloseModal = () => {
+        setShowCreateModal(false);
+        setEditingId(null);
+        setFormData({
+            client_name: "",
+            client_address: "",
+            client_gst: "",
+            place_of_supply: "27-MAHARASHTRA",
+            due_date: new Date().toISOString().split('T')[0],
+            paid_amount: "0",
+            status: "PENDING",
+            items: [{ description: "", rate: "", quantity: "1" }]
+        });
     };
 
     const handleDownload = async (id: number, invNum: string) => {
@@ -218,6 +253,13 @@ export default function CustomInvoices() {
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex items-center justify-end gap-2">
                                                 <button 
+                                                    onClick={() => handleEditClick(inv)}
+                                                    className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-all border border-blue-100"
+                                                    title="Edit Invoice"
+                                                >
+                                                    <FileText size={16} />
+                                                </button>
+                                                <button 
                                                     onClick={() => handleDownload(inv.id, inv.invoice_number)}
                                                     disabled={downloadingId === inv.id}
                                                     className="p-2 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition-all border border-gray-100"
@@ -270,13 +312,13 @@ export default function CustomInvoices() {
             {/* Create Invoice Modal */}
             {showCreateModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={() => !creating && setShowCreateModal(false)} />
+                    <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={() => !creating && handleCloseModal()} />
                     <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
                         <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-blue-50/30">
                             <h3 className="text-xl font-black text-gray-900 uppercase tracking-tighter flex items-center gap-2">
-                                <Plus className="text-blue-600" /> Generate New Invoice
+                                <Plus className="text-blue-600" /> {editingId ? "Edit Invoice" : "Generate New Invoice"}
                             </h3>
-                            <button onClick={() => !creating && setShowCreateModal(false)} className="p-2 hover:bg-white rounded-full transition-all shadow-sm">
+                            <button onClick={() => !creating && handleCloseModal()} className="p-2 hover:bg-white rounded-full transition-all shadow-sm">
                                 <X size={20} className="text-gray-400" />
                             </button>
                         </div>
@@ -423,7 +465,7 @@ export default function CustomInvoices() {
                                     disabled={creating}
                                     className="w-full sm:w-auto bg-gray-900 hover:bg-black text-white px-10 py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all shadow-xl shadow-gray-200 disabled:opacity-50"
                                 >
-                                    {creating ? <Loader2 className="animate-spin mx-auto" size={20} /> : "Generate & Save Invoice"}
+                                    {creating ? <Loader2 className="animate-spin mx-auto" size={20} /> : (editingId ? "Update Invoice" : "Generate & Save Invoice")}
                                 </button>
                             </div>
                         </form>
