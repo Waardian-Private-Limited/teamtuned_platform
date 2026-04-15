@@ -7,7 +7,8 @@ import {
     Wallet, 
     Search, 
     ChevronLeft, 
-    ChevronRight, 
+    ChevronRight,
+    ChevronDown, 
     Loader2, 
     ArrowUpRight, 
     ArrowDownLeft,
@@ -20,7 +21,9 @@ import {
     CheckCircle2,
     AlertCircle,
     FileText,
-    ExternalLink
+    ExternalLink,
+    Download,
+    Receipt
 } from "lucide-react";
 
 export default function LaborWalletLedger() {
@@ -90,10 +93,11 @@ export default function LaborWalletLedger() {
 
     // Invoices State
     const [invoices, setInvoices] = useState<any[]>([]);
+    const [invLoading, setInvLoading] = useState(false);
+    const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<number | null>(null);
     const [invPagination, setInvPagination] = useState({
         page: 1, limit: 20, total: 0, totalPages: 1
     });
-    const [invLoading, setInvLoading] = useState(false);
 
     // Raise Invoice State
     const [showRaiseModal, setShowRaiseModal] = useState(false);
@@ -319,6 +323,31 @@ export default function LaborWalletLedger() {
         }
     };
 
+    const handleDownloadInvoice = async (inv: any) => {
+        try {
+            setDownloadingInvoiceId(inv.id);
+            const blob = await apiClient.get(`/labor/billing/invoice/${inv.id}/download`, {}, { 
+                responseType: 'blob',
+                withAuth: true 
+            });
+            
+            const url = window.URL.createObjectURL(new Blob([blob as any]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `Invoice-${inv.invoice_number}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+            toast.success("Invoice downloaded successfully");
+        } catch (error: any) {
+            console.error(error);
+            toast.error(error.message || "Failed to download invoice");
+        } finally {
+            setDownloadingInvoiceId(null);
+        }
+    };
+
     const formatDate = (dateStr: string) => {
         // Force IST (UTC + 5.5 hours) for display
         const date = new Date(dateStr);
@@ -345,190 +374,196 @@ export default function LaborWalletLedger() {
     };
 
     return (
-        <div className="p-6 space-y-6">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4 bg-white p-4 rounded-3xl border border-gray-100 shadow-sm">
-                <div className="flex items-center gap-3 shrink-0">
-                    <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
-                        <Wallet className="text-white" size={24} />
-                    </div>
-                    <div>
-                        <h1 className="text-xl font-black text-gray-900 tracking-tight">Wallet Ledger</h1>
-                        <p className="hidden md:block text-[10px] text-gray-500 font-bold uppercase tracking-wider">Credits & Billing</p>
-                    </div>
+        <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
+            {/* Page Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-gray-100">
+                <div>
+                    <h1 className="text-3xl font-black text-black flex items-center gap-3 tracking-tighter">
+                        <Wallet className="text-black" size={32} /> Labor Wallet Ledger
+                    </h1>
+                    <p className="text-black/60 font-medium mt-2">Monitor transactions, manage balances, and track labor attendance billing.</p>
                 </div>
 
-                <div className="flex bg-gray-100 p-1 rounded-xl shrink-0">
-                    <button 
-                        onClick={() => setActiveTab("ledger")}
-                        className={`px-4 py-1.5 rounded-lg font-bold text-xs transition-all ${activeTab === 'ledger' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                        Ledger
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab("invoices")}
-                        className={`px-4 py-1.5 rounded-lg font-bold text-xs transition-all ${activeTab === 'invoices' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                        Invoices
-                    </button>
-                </div>
+                <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex bg-gray-100/80 p-1 rounded-lg shadow-inner mr-2">
+                        <button 
+                            onClick={() => setActiveTab("ledger")}
+                            className={`px-5 py-2 rounded-lg font-bold text-xs transition-all ${activeTab === 'ledger' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Ledger
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab("invoices")}
+                            className={`px-5 py-2 rounded-lg font-bold text-xs transition-all ${activeTab === 'invoices' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Invoices
+                        </button>
+                    </div>
 
-                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap grow lg:justify-end">
                     {activeTab === 'ledger' ? (
-                        <div className="flex items-center gap-2 shrink-0">
+                        <>
                             <button
                                 onClick={() => {
                                     setCreditData({ laborer_id: "", laborer_name: "", amount: "", description: "" });
                                     setShowCreditModal(true);
                                 }}
-                                className="flex items-center justify-center gap-1.5 bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 transition-all font-bold text-[10px] uppercase tracking-wider shadow-lg shadow-green-100"
+                                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-all font-semibold text-sm shadow-sm"
                             >
-                                <Plus size={14} /> Add Balance
-                            </button>
-                            <button
-                                onClick={handleClearLedger}
-                                className="flex items-center justify-center gap-1.5 bg-white border border-red-100 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-all font-bold text-[10px] uppercase tracking-wider shadow-sm"
-                            >
-                                <RefreshCcw size={14} /> Reset
+                                <Plus size={18} /> Add Balance
                             </button>
                             <button
                                 onClick={() => setShowSyncModal(true)}
-                                className="flex items-center justify-center gap-1.5 bg-white border border-gray-100 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-all font-bold text-[10px] uppercase tracking-wider shadow-sm"
+                                className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all font-semibold text-sm shadow-sm"
                             >
-                                <RefreshCcw size={14} className="text-blue-600" /> Sync
+                                <RefreshCcw size={18} className="text-blue-600" /> Sync History
                             </button>
-                        </div>
+                            <button
+                                onClick={handleClearLedger}
+                                className="flex items-center gap-2 bg-white border border-red-100 text-red-600 px-4 py-2 rounded-lg hover:bg-red-50 transition-all font-semibold text-sm shadow-sm"
+                            >
+                                <RefreshCcw size={18} /> Clear Ledger
+                            </button>
+                        </>
                     ) : (
                         <button
                             onClick={() => setShowRaiseModal(true)}
-                            className="flex items-center justify-center gap-1.5 bg-blue-600 text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 transition-all font-bold text-[10px] uppercase tracking-wider shadow-lg shadow-blue-100"
+                            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-all font-semibold text-sm shadow-sm"
                         >
-                            <Plus size={14} /> Raise Invoice
+                            <Plus size={18} /> Raise Invoice
                         </button>
                     )}
-                    
-                    <div className="flex items-center gap-2 grow lg:justify-end max-w-xl">
-                        <div className="relative w-1/2">
-                            <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
-                            <select
-                                value={laborerId}
-                                onChange={(e) => {
-                                    setLaborerId(e.target.value);
-                                    setPagination(prev => ({ ...prev, page: 1 }));
-                                }}
-                                className="w-full pl-9 pr-4 py-1.5 border border-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 bg-gray-50/50 transition-all text-xs font-bold appearance-none outline-none"
-                            >
-                                <option value="">All Laborers</option>
-                                {allLaborers.map(l => (
-                                    <option key={l.id} value={l.id}>
-                                        {l.name} {l.registration_status === 'terminated' ? '(Terminated)' : l.is_active === 0 ? '(Inactive)' : ''}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div className="relative w-1/2">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
-                            <input
-                                type="text"
-                                placeholder="Search desc/name..."
-                                value={search}
-                                onChange={(e) => {
-                                    setSearch(e.target.value);
-                                    setPagination({ ...pagination, page: 1 });
-                                }}
-                                className="w-full pl-9 pr-4 py-1.5 border border-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 bg-gray-50/50 transition-all text-xs font-medium"
-                            />
-                        </div>
-                    </div>
                 </div>
             </div>
 
-            {/* Stats Cards - Standardized fonts */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all group">
-                    <div className="flex items-center justify-between mb-2">
-                        <div className="p-2.5 bg-blue-50 rounded-xl group-hover:scale-110 transition-transform">
-                            <Wallet className="text-blue-600" size={20} />
+            {/* Stats Overview */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm hover:border-blue-200 transition-all group">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="p-3 bg-black rounded-xl text-white">
+                            <Wallet size={24} />
                         </div>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Outstanding</span>
+                        <span className="text-[10px] font-black text-black/40 uppercase tracking-widest">Total Outstanding</span>
                     </div>
-                    <div className="text-xl font-black text-gray-900 tracking-tight">₹{formatCurrency(totalBalance)}</div>
+                    <div className="text-3xl font-black text-black tracking-tighter">₹{formatCurrency(totalBalance)}</div>
                 </div>
 
-                <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all group">
-                    <div className="flex items-center justify-between mb-2">
-                        <div className="p-2.5 bg-red-50 rounded-xl group-hover:scale-110 transition-transform">
-                            <ArrowUpRight className="text-red-600" size={20} />
+                <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm hover:border-red-200 transition-all group">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="p-3 bg-black rounded-xl text-white">
+                            <ArrowUpRight size={24} />
                         </div>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Debits ({new Date().toLocaleString('default', { month: 'short' })})</span>
+                        <span className="text-[10px] font-black text-black/40 uppercase tracking-widest">Monthly Debits</span>
                     </div>
-                    <div className="text-xl font-black text-gray-900 tracking-tight">₹{formatCurrency(monthDebits)}</div>
+                    <div className="text-3xl font-black text-black tracking-tighter">₹{formatCurrency(monthDebits)}</div>
                 </div>
 
-                <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all group">
-                    <div className="flex items-center justify-between mb-2">
-                        <div className="p-2.5 bg-green-50 rounded-xl group-hover:scale-110 transition-transform">
-                            <ArrowDownLeft className="text-green-600" size={20} />
+                <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm hover:border-green-200 transition-all group">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="p-3 bg-black rounded-xl text-white">
+                            <ArrowDownLeft size={24} />
                         </div>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Credits ({new Date().toLocaleString('default', { month: 'short' })})</span>
+                        <span className="text-[10px] font-black text-black/40 uppercase tracking-widest">Monthly Credits</span>
                     </div>
-                    <div className="text-xl font-black text-gray-900 tracking-tight">₹{formatCurrency(monthCredits)}</div>
+                    <div className="text-3xl font-black text-black tracking-tighter">₹{formatCurrency(monthCredits)}</div>
                 </div>
 
-                <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all group">
-                    <div className="flex items-center justify-between mb-2">
-                        <div className="p-2.5 bg-purple-50 rounded-xl group-hover:scale-110 transition-transform">
-                            <Clock className="text-purple-600" size={20} />
+                <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm hover:border-purple-200 transition-all group">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="p-3 bg-black rounded-xl text-white">
+                            <Clock size={24} />
                         </div>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Active Subs</span>
+                        <span className="text-[10px] font-black text-black/40 uppercase tracking-widest">Active Subscriptions</span>
                     </div>
-                    <div className="text-xl font-black text-gray-900 tracking-tight">{activeSubs}</div>
+                    <div className="text-3xl font-black text-black tracking-tighter">{activeSubs}</div>
                 </div>
             </div>
 
-            <div className="bg-white border border-gray-200 rounded-3xl shadow-sm overflow-hidden">
+            {/* Filter Bar */}
+            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm flex flex-col md:flex-row gap-4 items-center">
+                <div className="relative flex-1 w-full">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <input
+                        type="text"
+                        placeholder="Search by laborer name or description..."
+                        value={search}
+                        onChange={(e) => {
+                            setSearch(e.target.value);
+                            setPagination({ ...pagination, page: 1 });
+                        }}
+                        className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-sm font-medium outline-none"
+                    />
+                </div>
+
+                <div className="relative w-full md:w-64">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <select
+                        value={laborerId}
+                        onChange={(e) => {
+                            setLaborerId(e.target.value);
+                            setPagination(prev => ({ ...prev, page: 1 }));
+                        }}
+                        className="w-full pl-10 pr-10 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-sm font-semibold appearance-none outline-none"
+                    >
+                        <option value="">All Laborers</option>
+                        {allLaborers.map(l => (
+                            <option key={l.id} value={l.id}>
+                                {l.name} {l.is_active === 0 ? '(Inactive)' : ''}
+                            </option>
+                        ))}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                </div>
+            </div>
+
+            <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                 {activeTab === 'ledger' ? (
                     <>
                         <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse">
                                 <thead>
-                                    <tr className="bg-gray-50 border-b border-gray-100">
-                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">ID</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Laborer</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Transaction Date</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Description</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Type</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Amount (₹)</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Org Balance</th>
+                                    <tr className="bg-gray-50/50 border-b border-gray-100">
+                                        <th className="px-6 py-5 text-[10px] font-black text-black/40 uppercase tracking-widest">ID</th>
+                                        <th className="px-6 py-5 text-[10px] font-black text-black/40 uppercase tracking-widest">Laborer Details</th>
+                                        <th className="px-6 py-5 text-[10px] font-black text-black/40 uppercase tracking-widest">Transaction Date</th>
+                                        <th className="px-6 py-5 text-[10px] font-black text-black/40 uppercase tracking-widest">Description</th>
+                                        <th className="px-6 py-5 text-[10px] font-black text-black/40 uppercase tracking-widest">Type</th>
+                                        <th className="px-6 py-5 text-[10px] font-black text-black/40 uppercase tracking-widest text-right">Amount (₹)</th>
+                                        <th className="px-6 py-5 text-[10px] font-black text-black/40 uppercase tracking-widest text-right">Running Bal.</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {loading ? (
                                         <tr>
                                             <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
-                                                <div className="flex flex-col items-center gap-2">
-                                                    <Loader2 className="animate-spin text-blue-600" />
-                                                    <span>Loading ledger entries...</span>
+                                                <div className="flex flex-col items-center gap-3">
+                                                    <Loader2 className="animate-spin text-blue-600" size={32} />
+                                                    <span className="text-xs font-medium">Crunching transaction history...</span>
                                                 </div>
                                             </td>
                                         </tr>
                                     ) : ledger.length === 0 ? (
                                         <tr>
-                                            <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
-                                                No transaction history found.
+                                            <td colSpan={7} className="px-6 py-20 text-center text-gray-400">
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <div className="p-4 bg-gray-50 rounded-full mb-2">
+                                                        <FileText size={40} className="text-gray-300" />
+                                                    </div>
+                                                    <p className="font-semibold text-gray-600">No transactions found</p>
+                                                    <p className="text-sm">Try adjusting your filters or search term.</p>
+                                                </div>
                                             </td>
                                         </tr>
                                     ) : (
                                         ledger.map((item) => (
-                                            <tr key={item.id} className="hover:bg-gray-50 transition-colors group border-b border-gray-50 last:border-0">
+                                            <tr key={item.id} className="hover:bg-gray-50/80 transition-colors group">
                                                 <td className="px-6 py-4">
-                                                    <span className="text-xs font-mono font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md">
+                                                    <span className="text-[10px] font-mono font-bold text-gray-400 bg-gray-100/80 px-2 py-1 rounded border border-gray-100">
                                                         #{item.id}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600 font-bold group-hover:scale-110 transition-transform shrink-0">
+                                                        <div className="w-10 h-10 bg-blue-100/50 border border-blue-100 rounded-lg flex items-center justify-center text-blue-600 font-bold group-hover:scale-105 transition-transform shrink-0">
                                                             {item.laborer_name?.charAt(0) || "L"}
                                                         </div>
                                                         <div className="min-w-0">
@@ -539,16 +574,15 @@ export default function LaborWalletLedger() {
                                                 </td>
                                                 <td className="px-6 py-4 text-sm text-gray-600 font-medium">
                                                     <div className="flex items-center gap-2">
-                                                        <Calendar size={14} className="text-gray-400" />
-                                                        {formatDate(item.transaction_date)}
+                                                        <span className="text-gray-900 font-semibold">{formatDate(item.transaction_date)}</span>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 text-sm text-gray-600 font-medium">
+                                                <td className="px-6 py-4 text-sm text-gray-600 font-medium max-w-xs">
                                                     {item.description}
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                                                        item.type === 'DEBIT' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                                                    <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border ${
+                                                        item.type === 'DEBIT' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-green-50 text-green-700 border-green-100'
                                                     }`}>
                                                         {item.type}
                                                     </span>
@@ -556,8 +590,10 @@ export default function LaborWalletLedger() {
                                                 <td className="px-6 py-4 text-sm font-bold text-gray-900 text-right">
                                                     ₹{formatCurrency(item.amount)}
                                                 </td>
-                                                <td className="px-6 py-4 text-sm font-semibold text-gray-900 text-right bg-blue-50/30">
-                                                    ₹{formatCurrency(item.org_wallet_balance || item.wallet_balance)}
+                                                <td className="px-6 py-4 text-right">
+                                                    <div className="inline-block px-3 py-1 bg-gray-50 border border-gray-100 rounded-lg text-sm font-bold text-gray-900">
+                                                        ₹{formatCurrency(item.org_wallet_balance || item.wallet_balance)}
+                                                    </div>
                                                 </td>
                                              </tr>
                                         ))
@@ -565,26 +601,23 @@ export default function LaborWalletLedger() {
                                 </tbody>
                             </table>
                         </div>
-                        {/* Ledger Pagination - Matching LaborAttendanceList pattern */}
+                        {/* Ledger Pagination */}
                         {pagination.total > 0 && (
-                            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between flex-wrap gap-4">
-                                <div className="text-xs text-gray-500">
-                                    Showing <span className="font-semibold text-gray-900">{(pagination.page - 1) * pagination.limit + 1}</span> to{" "}
-                                    <span className="font-semibold text-gray-900">{Math.min(pagination.page * pagination.limit, pagination.total)}</span> of{" "}
-                                    <span className="font-semibold text-gray-900">{pagination.total}</span> transactions
+                            <div className="px-6 py-4 bg-gray-50/50 border-t border-gray-100 flex items-center justify-between flex-wrap gap-4">
+                                <div className="text-xs text-gray-500 font-medium">
+                                    Displaying <span className="text-gray-900 font-bold">{(pagination.page - 1) * pagination.limit + 1}</span> - <span className="text-gray-900 font-bold">{Math.min(pagination.page * pagination.limit, pagination.total)}</span> of <span className="text-gray-900 font-bold">{pagination.total}</span> entries
                                 </div>
                                 
                                 <div className="flex items-center gap-6">
-                                    {/* Rows per page */}
                                     <div className="flex items-center gap-2">
-                                        <span className="text-xs text-gray-500 font-medium">Rows:</span>
+                                        <span className="text-xs text-gray-500 font-bold">Rows:</span>
                                         <select
                                             value={pagination.limit}
                                             onChange={(e) => {
                                                 const newLimit = parseInt(e.target.value);
                                                 setPagination(prev => ({ ...prev, limit: newLimit, page: 1 }));
                                             }}
-                                            className="px-2 py-1 border border-gray-200 rounded-lg text-xs font-semibold bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                            className="px-2 py-1 border border-gray-200 rounded-lg text-xs font-bold bg-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
                                         >
                                             <option value={10}>10</option>
                                             <option value={20}>20</option>
@@ -593,12 +626,11 @@ export default function LaborWalletLedger() {
                                         </select>
                                     </div>
 
-                                    {/* Page navigation with Numbers and Ellipses */}
                                     <div className="flex items-center gap-1">
                                         <button
                                             onClick={() => setPagination(prev => ({ ...prev, page: Math.max(1, prev.page - 1) }))}
                                             disabled={pagination.page === 1 || loading}
-                                            className="p-1.5 border border-gray-200 rounded-lg hover:bg-white disabled:opacity-40 transition-all shadow-sm"
+                                            className="p-1.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-all shadow-sm"
                                         >
                                             <ChevronLeft size={16} />
                                         </button>
@@ -617,7 +649,7 @@ export default function LaborWalletLedger() {
                                                 if (startPage > 1) {
                                                     pages.push(
                                                         <button key={1} onClick={() => setPagination(p => ({ ...p, page: 1 }))}
-                                                            className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${pagination.page === 1 ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "hover:bg-white border border-transparent hover:border-gray-200 text-gray-600"}`}>1</button>
+                                                            className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${pagination.page === 1 ? "bg-blue-600 text-white shadow-md shadow-blue-100" : "hover:bg-gray-100 text-gray-600"}`}>1</button>
                                                     );
                                                     if (startPage > 2) pages.push(<span key="e1" className="text-gray-400 text-xs px-1">...</span>);
                                                 }
@@ -625,7 +657,7 @@ export default function LaborWalletLedger() {
                                                 for (let p = startPage; p <= endPage; p++) {
                                                     pages.push(
                                                         <button key={p} onClick={() => setPagination(prev => ({ ...prev, page: p }))}
-                                                            className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${pagination.page === p ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "hover:bg-white border border-transparent hover:border-gray-200 text-gray-600"}`}>{p}</button>
+                                                            className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${pagination.page === p ? "bg-blue-600 text-white shadow-md shadow-blue-100" : "hover:bg-gray-100 text-gray-600"}`}>{p}</button>
                                                     );
                                                 }
 
@@ -633,7 +665,7 @@ export default function LaborWalletLedger() {
                                                     if (endPage < pagination.totalPages - 1) pages.push(<span key="e2" className="text-gray-400 text-xs px-1">...</span>);
                                                     pages.push(
                                                         <button key={pagination.totalPages} onClick={() => setPagination(p => ({ ...p, page: p.totalPages }))}
-                                                            className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${pagination.page === pagination.totalPages ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "hover:bg-white border border-transparent hover:border-gray-200 text-gray-600"}`}>{pagination.totalPages}</button>
+                                                            className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${pagination.page === pagination.totalPages ? "bg-blue-600 text-white shadow-md shadow-blue-100" : "hover:bg-gray-100 text-gray-600"}`}>{pagination.totalPages}</button>
                                                     );
                                                 }
                                                 return pages;
@@ -643,9 +675,9 @@ export default function LaborWalletLedger() {
                                         <button
                                             onClick={() => setPagination(prev => ({ ...prev, page: Math.min(pagination.totalPages, prev.page + 1) }))}
                                             disabled={pagination.page === pagination.totalPages || loading}
-                                            className="p-1.5 border border-gray-200 rounded-lg hover:bg-white disabled:opacity-40 transition-all shadow-sm"
+                                            className="p-1.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-all shadow-sm"
                                         >
-                                            <ChevronLeft size={16} className="rotate-180" />
+                                            <ChevronRight size={16} />
                                         </button>
                                     </div>
                                 </div>
@@ -657,83 +689,93 @@ export default function LaborWalletLedger() {
                         <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse">
                                 <thead>
-                                    <tr className="bg-gray-50 border-b border-gray-100">
-                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Invoice #</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Range</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Stats</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Amount</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Status</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Action</th>
+                                    <tr className="bg-gray-50/50 border-b border-gray-100">
+                                        <th className="px-6 py-5 text-[10px] font-black text-black/40 uppercase tracking-widest">Invoice Ref</th>
+                                        <th className="px-6 py-5 text-[10px] font-black text-black/40 uppercase tracking-widest">Billing Cycle</th>
+                                        <th className="px-6 py-5 text-[10px] font-black text-black/40 uppercase tracking-widest">Breakdown</th>
+                                        <th className="px-6 py-5 text-[10px] font-black text-black/40 uppercase tracking-widest text-right">Final Amount</th>
+                                        <th className="px-6 py-5 text-[10px] font-black text-black/40 uppercase tracking-widest text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {invLoading ? (
                                         <tr>
                                             <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
-                                                <div className="flex flex-col items-center gap-2">
-                                                    <Loader2 className="animate-spin text-blue-600" />
-                                                    <span>Loading invoices...</span>
+                                                <div className="flex flex-col items-center gap-3">
+                                                    <Loader2 className="animate-spin text-blue-600" size={32} />
+                                                    <span className="text-xs font-medium">Loading invoices...</span>
                                                 </div>
                                             </td>
                                         </tr>
                                     ) : invoices.length === 0 ? (
                                         <tr>
-                                            <td colSpan={6} className="px-6 py-12 text-center text-gray-400 font-bold">
-                                                No invoices raised yet.
+                                            <td colSpan={6} className="px-6 py-20 text-center text-gray-400">
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <div className="p-4 bg-gray-50 rounded-full mb-2">
+                                                        <FileText size={40} className="text-gray-300" />
+                                                    </div>
+                                                    <p className="font-semibold text-gray-600">No invoices yet</p>
+                                                    <p className="text-sm">Generate your first invoice to get started.</p>
+                                                </div>
                                             </td>
                                         </tr>
                                     ) : (
                                         invoices.map((inv) => (
-                                            <tr key={inv.id} className="hover:bg-gray-50 transition-all border-b border-gray-50 group">
+                                            <tr key={inv.id} className="hover:bg-gray-50/80 transition-all border-b border-gray-50 group">
                                                 <td className="px-6 py-4">
-                                                    <div className="flex items-center gap-2">
-                                                        <FileText className="text-gray-400 group-hover:text-blue-500 transition-colors" size={16} />
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="p-2 bg-gray-100 rounded-lg group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
+                                                            <FileText size={20} />
+                                                        </div>
                                                         <div className="flex flex-col">
                                                             <span className="font-bold text-gray-900">{inv.invoice_number}</span>
-                                                            <span className="text-[10px] text-gray-400 font-medium uppercase tracking-tighter">Raised: {new Date(inv.created_at).toLocaleDateString()}</span>
+                                                            <span className="text-[10px] text-gray-500 font-bold uppercase">Raised: {new Date(inv.created_at).toLocaleDateString()}</span>
                                                         </div>
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <div className="text-[11px] font-bold text-gray-900 bg-gray-100 px-3 py-1 rounded-full inline-block">
+                                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-lg text-xs font-bold text-gray-700">
+                                                        <Calendar size={12} />
                                                         {new Date(inv.from_date).toLocaleDateString()} - {new Date(inv.to_date).toLocaleDateString()}
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex flex-col gap-1">
-                                                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Subs: {inv.subscription_count} (₹{formatCurrency(inv.subscription_total)})</span>
-                                                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Attendance: {inv.punch_count} (₹{formatCurrency(inv.attendance_total)})</span>
+                                                        <span className="text-[10px] font-semibold text-gray-500 uppercase">Subs: {inv.subscription_count}</span>
+                                                        <span className="text-[10px] font-semibold text-gray-500 uppercase">Attendance: {inv.punch_count}</span>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 text-right text-sm font-black text-blue-600">
+                                                <td className="px-6 py-4 text-right text-sm font-bold text-gray-900">
                                                     ₹{formatCurrency(inv.total_amount)}
                                                 </td>
-                                                <td className="px-6 py-4 text-center">
-                                                    <span className={`px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase border ${
-                                                        inv.status === 'PAID' 
-                                                            ? 'bg-green-50 text-green-700 border-green-100' 
-                                                            : 'bg-amber-50 text-amber-700 border-amber-100 animate-pulse'
-                                                    }`}>
-                                                        {inv.status}
-                                                    </span>
-                                                </td>
                                                 <td className="px-6 py-4 text-right">
-                                                    {inv.status === 'PENDING' ? (
-                                                        <button 
-                                                            onClick={() => {
-                                                                setSelectedInvoice(inv);
-                                                                setShowPaidModal(true);
-                                                            }}
-                                                            className="text-white bg-blue-600 hover:bg-blue-700 font-bold text-[10px] uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all shadow-md shadow-blue-100"
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <button
+                                                            onClick={() => handleDownloadInvoice(inv)}
+                                                            disabled={downloadingInvoiceId === inv.id}
+                                                            className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-all border border-blue-100 flex items-center gap-2 font-bold text-[10px] uppercase"
                                                         >
-                                                            Mark Paid
+                                                            {downloadingInvoiceId === inv.id ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                                                            Download
                                                         </button>
-                                                    ) : (
-                                                        <div className="flex flex-col items-end">
-                                                            <span className="text-[10px] font-bold text-green-600 uppercase">Paid on {new Date(inv.paid_at).toLocaleDateString()}</span>
-                                                            <span className="text-[10px] text-gray-400 font-medium">{inv.payment_mode} | {inv.transaction_id}</span>
-                                                        </div>
-                                                    )}
+                                                        {inv.status === 'PENDING' && (
+                                                            <button 
+                                                                onClick={() => {
+                                                                    setSelectedInvoice(inv);
+                                                                    setShowPaidModal(true);
+                                                                }}
+                                                                className="text-white bg-blue-600 hover:bg-blue-700 font-bold text-[10px] uppercase tracking-wider px-4 py-2 rounded-lg transition-all shadow-sm"
+                                                            >
+                                                                Mark Paid
+                                                            </button>
+                                                        )}
+                                                        {inv.status === 'PAID' && (
+                                                            <div className="flex flex-col items-end">
+                                                                <span className="text-[10px] font-bold text-green-600 uppercase italic">Paid on {new Date(inv.paid_at).toLocaleDateString()}</span>
+                                                                <span className="text-[9px] text-gray-400 font-medium">{inv.payment_mode} | {inv.transaction_id}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))
@@ -742,19 +784,17 @@ export default function LaborWalletLedger() {
                             </table>
                         </div>
 
-                        {/* Invoice Pagination - Refined patterns */}
+                        {/* Invoice Pagination */}
                         {invPagination.total > 0 && (
-                            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between flex-wrap gap-4">
-                                <div className="text-xs text-gray-500">
-                                    Showing <span className="font-semibold text-gray-900">{(invPagination.page - 1) * invPagination.limit + 1}</span> to{" "}
-                                    <span className="font-semibold text-gray-900">{Math.min(invPagination.page * invPagination.limit, invPagination.total)}</span> of{" "}
-                                    <span className="font-semibold text-gray-900">{invPagination.total}</span> invoices
+                            <div className="px-6 py-4 bg-gray-50/50 border-t border-gray-100 flex items-center justify-between flex-wrap gap-4">
+                                <div className="text-xs text-gray-500 font-medium">
+                                    Displaying <span className="text-gray-900 font-bold">{(invPagination.page - 1) * invPagination.limit + 1}</span> - <span className="text-gray-900 font-bold">{Math.min(invPagination.page * invPagination.limit, invPagination.total)}</span> of <span className="text-gray-900 font-bold">{invPagination.total}</span> invoices
                                 </div>
                                 <div className="flex items-center gap-1">
                                     <button
                                         onClick={() => setInvPagination(prev => ({ ...prev, page: Math.max(1, prev.page - 1) }))}
                                         disabled={invPagination.page === 1 || invLoading}
-                                        className="p-1.5 border border-gray-200 rounded-lg hover:bg-white disabled:opacity-40 transition-all shadow-sm"
+                                        className="p-1.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-all shadow-sm"
                                     >
                                         <ChevronLeft size={16} />
                                     </button>
@@ -763,7 +803,7 @@ export default function LaborWalletLedger() {
                                             <button
                                                 key={i + 1}
                                                 onClick={() => setInvPagination(prev => ({ ...prev, page: i + 1 }))}
-                                                className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${invPagination.page === i + 1 ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "hover:bg-white border border-transparent hover:border-gray-200 text-gray-600"}`}
+                                                className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${invPagination.page === i + 1 ? "bg-blue-600 text-white shadow-md shadow-blue-100" : "hover:bg-gray-100 text-gray-600"}`}
                                             >
                                                 {i + 1}
                                             </button>
@@ -772,9 +812,9 @@ export default function LaborWalletLedger() {
                                     <button
                                         onClick={() => setInvPagination(prev => ({ ...prev, page: Math.min(prev.totalPages, prev.page + 1) }))}
                                         disabled={invPagination.page === invPagination.totalPages || invLoading}
-                                        className="p-1.5 border border-gray-200 rounded-lg hover:bg-white disabled:opacity-40 transition-all shadow-sm"
+                                        className="p-1.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-all shadow-sm"
                                     >
-                                        <ChevronLeft size={16} className="rotate-180" />
+                                        <ChevronRight size={16} />
                                     </button>
                                 </div>
                             </div>
@@ -790,7 +830,7 @@ export default function LaborWalletLedger() {
                         className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm transition-opacity"
                         onClick={() => !syncing && setShowSyncModal(false)}
                     />
-                    <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all animate-in fade-in zoom-in duration-200">
+                    <div className="relative bg-white rounded-lg shadow-2xl w-full max-w-md overflow-hidden transform transition-all animate-in fade-in zoom-in duration-200">
                         <div className="p-6 border-b border-gray-100 flex items-center justify-between">
                             <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                                 <RefreshCcw className="text-blue-600" size={20} /> Sync Historical Billing
@@ -815,7 +855,7 @@ export default function LaborWalletLedger() {
                                         type="date"
                                         value={syncDates.fromDate}
                                         onChange={(e) => setSyncDates({...syncDates, fromDate: e.target.value})}
-                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all"
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all"
                                     />
                                 </div>
                                 <div>
@@ -824,7 +864,7 @@ export default function LaborWalletLedger() {
                                         type="date"
                                         value={syncDates.toDate}
                                         onChange={(e) => setSyncDates({...syncDates, toDate: e.target.value})}
-                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all"
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all"
                                     />
                                 </div>
                             </div>
@@ -832,7 +872,7 @@ export default function LaborWalletLedger() {
                             <button
                                 onClick={handleSync}
                                 disabled={syncing}
-                                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-200 disabled:opacity-50 transition-all cursor-pointer"
+                                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-lg shadow-lg shadow-blue-200 disabled:opacity-50 transition-all cursor-pointer"
                             >
                                 {syncing ? <><Loader2 className="animate-spin" size={20} /> Processing...</> : "Start Historical Sync"}
                             </button>
@@ -847,7 +887,7 @@ export default function LaborWalletLedger() {
                         className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm transition-opacity"
                         onClick={() => !crediting && setShowCreditModal(false)}
                     />
-                    <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all animate-in fade-in zoom-in duration-200">
+                    <div className="relative bg-white rounded-lg shadow-2xl w-full max-w-md overflow-hidden transform transition-all animate-in fade-in zoom-in duration-200">
                         <div className="p-6 border-b border-gray-100 flex items-center justify-between">
                             <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                                 <Wallet className="text-green-600" size={20} /> Add Balance
@@ -874,7 +914,7 @@ export default function LaborWalletLedger() {
                                             laborer_name: lab ? lab.name : ""
                                         });
                                     }}
-                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 transition-all font-bold text-sm outline-none"
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 transition-all font-bold text-sm outline-none"
                                 >
                                     <option value="">Choose Laborer...</option>
                                     {allLaborers.map(l => (
@@ -895,7 +935,7 @@ export default function LaborWalletLedger() {
                                         value={creditData.amount}
                                         onChange={(e) => setCreditData({...creditData, amount: e.target.value})}
                                         placeholder="e.g. 500"
-                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 transition-all font-bold text-lg"
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 transition-all font-bold text-lg"
                                     />
                                 </div>
                                 <div>
@@ -905,7 +945,7 @@ export default function LaborWalletLedger() {
                                         value={creditData.description}
                                         onChange={(e) => setCreditData({...creditData, description: e.target.value})}
                                         placeholder="Manual Recharge, etc."
-                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 transition-all"
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 transition-all"
                                     />
                                 </div>
                             </div>
@@ -913,7 +953,7 @@ export default function LaborWalletLedger() {
                             <button
                                 type="submit"
                                 disabled={crediting}
-                                className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-green-200 disabled:opacity-50 transition-all cursor-pointer"
+                                className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-lg shadow-lg shadow-green-200 disabled:opacity-50 transition-all cursor-pointer"
                             >
                                 {crediting ? <><Loader2 className="animate-spin" size={20} /> Processing...</> : "Add Balance Now"}
                             </button>
@@ -928,7 +968,7 @@ export default function LaborWalletLedger() {
                         className="absolute inset-0 bg-gray-900/60 backdrop-blur-md transition-opacity"
                         onClick={() => !raising && setShowRaiseModal(false)}
                     />
-                    <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-3xl overflow-hidden transform transition-all animate-in fade-in zoom-in duration-200 border border-gray-200">
+                    <div className="relative bg-white rounded-lg shadow-2xl w-full max-w-3xl overflow-hidden transform transition-all animate-in fade-in zoom-in duration-200 border border-gray-200">
                         <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 bg-blue-600 rounded-lg">
@@ -986,7 +1026,7 @@ export default function LaborWalletLedger() {
 
                             <div className="flex flex-col h-full">
                                 <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] mb-6">02. Invoice Summary</h4>
-                                <div className="flex-grow bg-gray-50 rounded-xl p-6 border border-gray-200/60 space-y-5 relative">
+                                <div className="flex-grow bg-gray-50 rounded-lg p-6 border border-gray-200/60 space-y-5 relative">
                                     {invoiceSummary ? (
                                         <div className="space-y-4">
                                             <div className="bg-white p-4 border border-gray-100 shadow-sm rounded-lg flex justify-between items-center group hover:border-blue-200 transition-colors">
@@ -1032,7 +1072,7 @@ export default function LaborWalletLedger() {
                                         </div>
                                     ) : (
                                         <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 gap-3">
-                                            <div className="p-3 bg-white rounded-xl shadow-sm border border-gray-100">
+                                            <div className="p-3 bg-white rounded-lg shadow-sm border border-gray-100">
                                                 <Loader2 className="animate-spin text-blue-600" size={24} />
                                             </div>
                                             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Calculating...</span>
@@ -1052,7 +1092,7 @@ export default function LaborWalletLedger() {
                         className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm transition-opacity"
                         onClick={() => !raising && setShowPaidModal(false)}
                     />
-                    <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all animate-in fade-in zoom-in duration-200">
+                    <div className="relative bg-white rounded-lg shadow-2xl w-full max-w-md overflow-hidden transform transition-all animate-in fade-in zoom-in duration-200">
                         <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-green-50/50">
                             <h3 className="text-xl font-extrabold text-gray-900 flex items-center gap-2">
                                 <CheckCircle2 className="text-green-600" size={24} /> Mark as Paid
@@ -1066,7 +1106,7 @@ export default function LaborWalletLedger() {
                         </div>
                         
                         <form onSubmit={handleMarkPaid} className="p-8 space-y-6">
-                            <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 flex justify-between items-center">
+                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-100 flex justify-between items-center">
                                 <div>
                                     <p className="text-xs font-bold text-gray-400 uppercase">{selectedInvoice.invoice_number}</p>
                                     <p className="text-sm font-black text-gray-900">Final Amount</p>
@@ -1080,7 +1120,7 @@ export default function LaborWalletLedger() {
                                     <select 
                                         value={paidData.payment_mode}
                                         onChange={(e) => setPaidData({...paidData, payment_mode: e.target.value})}
-                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 transition-all font-bold"
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 transition-all font-bold"
                                     >
                                         <option value="UPI">UPI / GPay / PhonePe</option>
                                         <option value="BANK_TRANSFER">Bank Transfer (NEFT/RTGS)</option>
@@ -1097,7 +1137,7 @@ export default function LaborWalletLedger() {
                                         value={paidData.transaction_id}
                                         onChange={(e) => setPaidData({...paidData, transaction_id: e.target.value})}
                                         placeholder="e.g. 1234567890"
-                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 transition-all"
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 transition-all"
                                     />
                                 </div>
                                 <div>
@@ -1107,7 +1147,7 @@ export default function LaborWalletLedger() {
                                         required
                                         value={paidData.payment_date}
                                         onChange={(e) => setPaidData({...paidData, payment_date: e.target.value})}
-                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 transition-all font-bold"
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 transition-all font-bold"
                                     />
                                 </div>
                             </div>
@@ -1115,7 +1155,7 @@ export default function LaborWalletLedger() {
                             <button
                                 type="submit"
                                 disabled={raising}
-                                className="w-full bg-green-600 hover:bg-green-700 text-white font-black py-4 rounded-2xl shadow-xl shadow-green-100 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                                className="w-full bg-green-600 hover:bg-green-700 text-white font-black py-4 rounded-lg shadow-xl shadow-green-100 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                             >
                                 {raising ? <Loader2 className="animate-spin" size={20} /> : "Confirm Payment Received"}
                             </button>

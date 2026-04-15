@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Building2, ChevronDown, ChevronRight, LogOut, Menu, Settings, BarChart2, Smartphone } from "lucide-react";
+import { Home, Building2, ChevronDown, ChevronRight, LogOut, Menu, Settings, BarChart2, Smartphone, CreditCard, User, FileText } from "lucide-react";
 
 export default function SuperadminSidebar({
   isCollapsed,
@@ -17,6 +17,7 @@ export default function SuperadminSidebar({
   const pathname = usePathname();
   const [mainOpen, setMainOpen] = React.useState(true);
   const [featuresOpen, setFeaturesOpen] = React.useState(true);
+  const [billingOpen, setBillingOpen] = React.useState(true);
 
   const Item = ({
     icon: Icon,
@@ -111,6 +112,32 @@ export default function SuperadminSidebar({
               <Item icon={Settings} label="Feature Categories" href="/superadmin/feature-categories" active={pathname === "/superadmin/feature-categories"} />
               <Item icon={Settings} label="Permissions" href="/superadmin/permissions" active={pathname === "/superadmin/permissions"} />
               <Item icon={Settings} label="Org Features" href="/superadmin/org-features" active={pathname === "/superadmin/org-features"} />
+            </div>
+          )}
+        </div>
+
+        {/* Billing Category */}
+        <div className="p-3">
+          <button
+            type="button"
+            onClick={() => setBillingOpen(!billingOpen)}
+            className="flex items-center justify-between w-full px-2 py-2 rounded-md hover:bg-gray-100"
+            aria-expanded={billingOpen}
+          >
+            <span className="flex items-center gap-2 text-sm font-semibold text-black">
+              {billingOpen ? (
+                <ChevronDown size={18} className="text-black" />
+              ) : (
+                <ChevronRight size={18} className="text-black" />
+              )}
+              {!isCollapsed && "Billing"}
+            </span>
+          </button>
+
+          {billingOpen && (
+            <div className="mt-2 space-y-1">
+              <Item icon={User} label="Billing Profile" href="/superadmin/billing-profile" active={pathname === "/superadmin/billing-profile"} />
+              <Item icon={FileText} label="Custom Invoices" href="/superadmin/custom-invoices" active={pathname === "/superadmin/custom-invoices"} />
             </div>
           )}
         </div>

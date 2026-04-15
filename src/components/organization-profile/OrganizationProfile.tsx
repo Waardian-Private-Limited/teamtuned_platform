@@ -29,6 +29,7 @@ type OrgProfile = {
   country?: string;
   type?: string;
   logo_url?: string;
+  gst_number?: string;
   database_name?: string;
 };
 
@@ -300,6 +301,13 @@ export default function OrganizationProfile() {
                 onChange={(v) => setForm((f) => ({ ...(f as OrgProfile), type: v }))}
                 editable={isEditing}
                 icon={<Globe size={14} />}
+              />
+              <EditableField
+                label="GST Number"
+                value={form?.gst_number}
+                onChange={(v) => setForm((f) => ({ ...(f as OrgProfile), gst_number: v }))}
+                editable={isEditing}
+                icon={<FileText size={14} />}
               />
             </div>
           </div>

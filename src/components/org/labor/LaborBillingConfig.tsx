@@ -76,7 +76,7 @@ export default function LaborBillingConfig() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Info Card */}
-                <div className="md:col-span-1 bg-blue-50 border border-blue-100 rounded-2xl p-6 h-fit">
+                <div className="md:col-span-1 bg-blue-50 border border-blue-100 rounded-lg p-6 h-fit">
                     <h3 className="text-blue-800 font-semibold flex items-center gap-2 mb-4">
                         <Info size={18} /> How it works
                     </h3>
@@ -89,7 +89,7 @@ export default function LaborBillingConfig() {
                 </div>
 
                 {/* Form Card */}
-                <div className="md:col-span-2 bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                <div className="md:col-span-2 bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                     <form onSubmit={handleSave} className="p-8 space-y-6">
                         <div className="space-y-4">
                             <div>
@@ -105,7 +105,7 @@ export default function LaborBillingConfig() {
                                         value={config.labor_base_fees}
                                         onChange={(e) => setConfig({ ...config, labor_base_fees: parseFloat(e.target.value) || 0 })}
                                         disabled={isReadOnly}
-                                        className="block w-full pl-7 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all disabled:bg-gray-50 disabled:text-gray-500"
+                                        className="block w-full pl-7 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all disabled:bg-gray-50 disabled:text-gray-500"
                                         placeholder="0.00"
                                         step="0.01"
                                         min="0"
@@ -127,7 +127,7 @@ export default function LaborBillingConfig() {
                                         value={config.labor_per_day_fees}
                                         onChange={(e) => setConfig({ ...config, labor_per_day_fees: parseFloat(e.target.value) || 0 })}
                                         disabled={isReadOnly}
-                                        className="block w-full pl-7 pr-12 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all disabled:bg-gray-50 disabled:text-gray-500"
+                                        className="block w-full pl-7 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all disabled:bg-gray-50 disabled:text-gray-500"
                                         placeholder="0.00"
                                         step="0.01"
                                         min="0"
@@ -140,7 +140,7 @@ export default function LaborBillingConfig() {
                             </div>
 
                             {config.labor_yearly_rate > 0 && (
-                                <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
                                     <p className="text-xs text-gray-600">
                                         <strong>Note:</strong> A Yearly Rate of ₹{config.labor_yearly_rate} is also configured. 
                                         The Per Day Fee takes precedence. If Per Day Fee is 0, the monthly-calculated rate will be used.
@@ -154,7 +154,7 @@ export default function LaborBillingConfig() {
                                 <button
                                     type="submit"
                                     disabled={saving}
-                                    className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                    className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                                 >
                                     {saving ? (
                                         <>
@@ -171,7 +171,7 @@ export default function LaborBillingConfig() {
 
                         {isReadOnly && (
                             <div className="pt-4">
-                                <div className="w-full flex items-center justify-center gap-2 bg-gray-100 text-gray-500 font-semibold py-3 px-6 rounded-xl border border-gray-200">
+                                <div className="w-full flex items-center justify-center gap-2 bg-gray-100 text-gray-500 font-semibold py-3 px-6 rounded-lg border border-gray-200">
                                     <Lock size={18} /> View Only Mode
                                 </div>
                             </div>
