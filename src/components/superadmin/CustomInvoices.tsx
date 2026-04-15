@@ -34,6 +34,9 @@ export default function CustomInvoices() {
         client_name: "",
         client_address: "",
         client_gst: "",
+        place_of_supply: "27-MAHARASHTRA",
+        due_date: new Date().toISOString().split('T')[0],
+        paid_amount: "0",
         status: "PENDING",
         items: [{ description: "", rate: "", quantity: "1" }]
     });
@@ -91,6 +94,9 @@ export default function CustomInvoices() {
                     client_name: "",
                     client_address: "",
                     client_gst: "",
+                    place_of_supply: "27-MAHARASHTRA",
+                    due_date: new Date().toISOString().split('T')[0],
+                    paid_amount: "0",
                     status: "PENDING",
                     items: [{ description: "", rate: "", quantity: "1" }]
                 });
@@ -161,7 +167,9 @@ export default function CustomInvoices() {
                             <tr className="bg-gray-50/50 border-b border-gray-100">
                                 <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Invoice Ref</th>
                                 <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Client Name</th>
+                                <th className="px-6 py-5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Due Date</th>
                                 <th className="px-6 py-5 text-[10px] font-black text-black/40 uppercase tracking-widest text-right">Amount</th>
+                                <th className="px-6 py-5 text-[10px] font-black text-black/40 uppercase tracking-widest text-right">Balance</th>
                                 <th className="px-6 py-5 text-[10px] font-black text-black/40 uppercase tracking-widest text-right">Actions</th>
                             </tr>
                         </thead>
@@ -194,9 +202,18 @@ export default function CustomInvoices() {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 font-bold text-gray-700">{inv.client_name}</td>
+                                        <td className="px-6 py-4">
+                                            <div className="text-xs font-bold text-gray-600">{inv.due_date ? new Date(inv.due_date).toLocaleDateString() : 'N/A'}</div>
+                                        </td>
                                         <td className="px-6 py-4 text-right">
                                             <div className="font-black text-gray-900">₹{parseFloat(inv.total_amount).toLocaleString()}</div>
                                             <div className="text-[9px] text-gray-400 font-bold uppercase">Incl. GST ({inv.tax_rate}%)</div>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <div className={`font-black ${parseFloat(inv.total_amount) - parseFloat(inv.paid_amount) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                                ₹{(parseFloat(inv.total_amount) - parseFloat(inv.paid_amount)).toLocaleString()}
+                                            </div>
+                                            <div className="text-[9px] text-gray-400 font-bold uppercase">Paid: ₹{parseFloat(inv.paid_amount).toLocaleString()}</div>
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex items-center justify-end gap-2">
@@ -274,7 +291,7 @@ export default function CustomInvoices() {
                                         type="text"
                                         value={formData.client_name}
                                         onChange={(e) => setFormData({...formData, client_name: e.target.value})}
-                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-bold"
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-bold text-black"
                                         placeholder="Enter client name..."
                                     />
                                 </div>
@@ -284,7 +301,7 @@ export default function CustomInvoices() {
                                         required
                                         value={formData.client_address}
                                         onChange={(e) => setFormData({...formData, client_address: e.target.value})}
-                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-medium text-black"
                                         placeholder="Enter full billing address..."
                                         rows={2}
                                     />
@@ -295,7 +312,7 @@ export default function CustomInvoices() {
                                         type="text"
                                         value={formData.client_gst}
                                         onChange={(e) => setFormData({...formData, client_gst: e.target.value})}
-                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-bold uppercase"
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-bold text-black uppercase"
                                         placeholder="Optional (e.g. 27XXXXX)"
                                     />
                                 </div>
@@ -304,11 +321,40 @@ export default function CustomInvoices() {
                                     <select 
                                         value={formData.status}
                                         onChange={(e) => setFormData({...formData, status: e.target.value})}
-                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-bold"
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-bold text-black"
                                     >
                                         <option value="PENDING">Pending (Unpaid)</option>
                                         <option value="PAID">Already Paid</option>
                                     </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Due Date</label>
+                                    <input 
+                                        type="date"
+                                        value={formData.due_date}
+                                        onChange={(e) => setFormData({...formData, due_date: e.target.value})}
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-bold text-black"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Paid Amount (₹)</label>
+                                    <input 
+                                        type="number"
+                                        value={formData.paid_amount}
+                                        onChange={(e) => setFormData({...formData, paid_amount: e.target.value})}
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-bold text-black"
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Place of Supply</label>
+                                    <input 
+                                        type="text"
+                                        value={formData.place_of_supply}
+                                        onChange={(e) => setFormData({...formData, place_of_supply: e.target.value})}
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-bold text-black uppercase"
+                                        placeholder="e.g. 27-MAHARASHTRA"
+                                    />
                                 </div>
                             </div>
 
@@ -334,7 +380,7 @@ export default function CustomInvoices() {
                                                 type="text"
                                                 value={item.description}
                                                 onChange={(e) => handleItemChange(index, 'description', e.target.value)}
-                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-bold"
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-bold text-black"
                                                 placeholder="Service name..."
                                             />
                                         </div>
@@ -345,7 +391,7 @@ export default function CustomInvoices() {
                                                 type="number"
                                                 value={item.rate}
                                                 onChange={(e) => handleItemChange(index, 'rate', e.target.value)}
-                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-bold"
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-bold text-black"
                                             />
                                         </div>
                                         <div className="col-span-2">
@@ -355,7 +401,7 @@ export default function CustomInvoices() {
                                                 type="number"
                                                 value={item.quantity}
                                                 onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
-                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-bold"
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-bold text-black"
                                             />
                                         </div>
                                         <div className="col-span-2 flex justify-end">
