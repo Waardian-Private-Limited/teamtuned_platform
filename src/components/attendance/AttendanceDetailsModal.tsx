@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/apiClient";
-import MovementMap from "./MovementMap";
+// import MovementMap from "./MovementMap"; // Phase 2: Movement Tracking
 
 type Props = {
     record: any;
@@ -648,9 +648,9 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                                 By: {record.override_by_first ? `${record.override_by_first} ${record.override_by_last || ''}`.trim() : `ID: ${record.overridden_by}`}
                                                 {record.override_by_role && <span className="text-rose-500 font-normal"> ({record.override_by_role})</span>}
                                             </div>
-                                            {record.updated_at && (
+                                            {(record.overridden_at || record.updated_at) && (
                                                 <div className="text-[10px] text-rose-500/80 font-medium mt-0.5">
-                                                    At: {new Date(record.updated_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                    At: {new Date(record.overridden_at || record.updated_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                                 </div>
                                             )}
                                         </div>
@@ -966,15 +966,15 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                         </div>
                                     )}
 
-                                    {/* Movement Route Map (Breadcrumbs) */}
-                                    {(record.attendance_id || record.id) && (
+                                    {/* Movement Route Map (Breadcrumbs) - Phase 2 */}
+                                    {/* {(record.attendance_id || record.id) && (
                                         <div className="pt-4 border-t border-slate-100">
                                             <MovementMap 
                                                 attendanceId={record.attendance_id || record.id} 
                                                 employeeName={record.employee_name} 
                                             />
                                         </div>
-                                    )}
+                                    )} */}
                                 </div>
                             )}
                     </div>
