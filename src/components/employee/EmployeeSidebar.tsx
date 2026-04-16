@@ -1432,6 +1432,14 @@ export default function EmployeeSidebar({
                         active={pathname?.startsWith("/employee/labor/billing-config") || false}
                       />
                     )}
+                    {canViewLaborBillingConfig && (
+                      <Item
+                        icon={Wallet}
+                        label="Wallet Ledger"
+                        href="/employee/labor/wallet-ledger"
+                        active={pathname?.startsWith("/employee/labor/wallet-ledger") || false}
+                      />
+                    )}
 
                     {canViewLaborSettings && (
                       <Item

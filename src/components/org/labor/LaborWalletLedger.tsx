@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { apiClient } from "@/lib/apiClient";
 import { toast } from "react-hot-toast";
+import { useAuth } from "@/context/AuthContext";
 import { 
     Wallet, 
     Search, 
@@ -37,6 +38,8 @@ export default function LaborWalletLedger() {
     });
     const [search, setSearch] = useState("");
     const [laborerId, setLaborerId] = useState("");
+    const { role } = useAuth();
+    const isOrgAdmin = role?.toLowerCase() === 'orgadmin';
 
     // Sync Modal State
     const [showSyncModal, setShowSyncModal] = useState(false);
@@ -402,27 +405,31 @@ export default function LaborWalletLedger() {
 
                     {activeTab === 'ledger' ? (
                         <>
-                            <button
-                                onClick={() => {
-                                    setCreditData({ laborer_id: "", laborer_name: "", amount: "", description: "" });
-                                    setShowCreditModal(true);
-                                }}
-                                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-all font-semibold text-sm shadow-sm"
-                            >
-                                <Plus size={18} /> Add Balance
-                            </button>
-                            <button
-                                onClick={() => setShowSyncModal(true)}
-                                className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all font-semibold text-sm shadow-sm"
-                            >
-                                <RefreshCcw size={18} className="text-blue-600" /> Sync History
-                            </button>
-                            <button
-                                onClick={handleClearLedger}
-                                className="flex items-center gap-2 bg-white border border-red-100 text-red-600 px-4 py-2 rounded-lg hover:bg-red-50 transition-all font-semibold text-sm shadow-sm"
-                            >
-                                <RefreshCcw size={18} /> Clear Ledger
-                            </button>
+                            {isOrgAdmin && (
+                                <>
+                                    <button
+                                        onClick={() => {
+                                            setCreditData({ laborer_id: "", laborer_name: "", amount: "", description: "" });
+                                            setShowCreditModal(true);
+                                        }}
+                                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-all font-semibold text-sm shadow-sm"
+                                    >
+                                        <Plus size={18} /> Add Balance
+                                    </button>
+                                    <button
+                                        onClick={() => setShowSyncModal(true)}
+                                        className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all font-semibold text-sm shadow-sm"
+                                    >
+                                        <RefreshCcw size={18} className="text-blue-600" /> Sync History
+                                    </button>
+                                    <button
+                                        onClick={handleClearLedger}
+                                        className="flex items-center gap-2 bg-white border border-red-100 text-red-600 px-4 py-2 rounded-lg hover:bg-red-50 transition-all font-semibold text-sm shadow-sm"
+                                    >
+                                        <RefreshCcw size={18} /> Clear Ledger
+                                    </button>
+                                </>
+                            )}
                         </>
                     ) : (
                         <button
@@ -758,7 +765,7 @@ export default function LaborWalletLedger() {
                                                             {downloadingInvoiceId === inv.id ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
                                                             Download
                                                         </button>
-                                                        {inv.status === 'PENDING' && (
+                                                        {inv.status === 'PENDING' && isOrgAdmin && (
                                                             <button 
                                                                 onClick={() => {
                                                                     setSelectedInvoice(inv);
