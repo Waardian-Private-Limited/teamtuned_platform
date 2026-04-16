@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/apiClient";
+import MovementMap from "./MovementMap";
 
 type Props = {
     record: any;
@@ -642,9 +643,16 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                         "{record.override_reason}"
                                     </div>
                                     {(record.override_by_first || record.overridden_by) && (
-                                        <div className="text-xs text-rose-600 mt-1 font-medium">
-                                            By: {record.override_by_first ? `${record.override_by_first} ${record.override_by_last || ''}`.trim() : `ID: ${record.overridden_by}`}
-                                            {record.override_by_role && <span className="text-rose-500 font-normal"> ({record.override_by_role})</span>}
+                                        <div className="mt-1">
+                                            <div className="text-xs text-rose-600 font-medium">
+                                                By: {record.override_by_first ? `${record.override_by_first} ${record.override_by_last || ''}`.trim() : `ID: ${record.overridden_by}`}
+                                                {record.override_by_role && <span className="text-rose-500 font-normal"> ({record.override_by_role})</span>}
+                                            </div>
+                                            {record.updated_at && (
+                                                <div className="text-[10px] text-rose-500/80 font-medium mt-0.5">
+                                                    At: {new Date(record.updated_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -955,6 +963,16 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                             <div className="text-xs text-slate-500">
                                                 {record.punch_out_lat}, {record.punch_out_lng}
                                             </div>
+                                        </div>
+                                    )}
+
+                                    {/* Movement Route Map (Breadcrumbs) */}
+                                    {(record.attendance_id || record.id) && (
+                                        <div className="pt-4 border-t border-slate-100">
+                                            <MovementMap 
+                                                attendanceId={record.attendance_id || record.id} 
+                                                employeeName={record.employee_name} 
+                                            />
                                         </div>
                                     )}
                                 </div>

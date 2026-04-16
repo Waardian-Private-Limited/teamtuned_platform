@@ -411,8 +411,8 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
       <div className="flex-1 overflow-hidden flex">
         {/* Calendar Section */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1">
-            <div className="max-w-6xl mx-auto p-2">
+          <div className="flex-1 flex flex-col">
+            <div className="max-w-6xl mx-auto w-full p-2 h-full flex flex-col">
               {loading && (
                 <div className="text-center py-20 text-slate-500">
                   <div className="inline-block w-8 h-8 border-3 border-slate-300 border-t-slate-600 rounded-full animate-spin mb-2"></div>
@@ -427,21 +427,21 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
               )}
 
               {!loading && !error && (
-                <div className="bg-white rounded-lg border border-slate-200 max-h-[520px] overflow-auto">
-                  {/* Weekday Header - Sticky */}
-                  <div className="sticky top-0 z-10 grid grid-cols-7 gap-px bg-slate-200 border-b border-slate-200">
+                <div className="bg-white rounded-lg border border-slate-200 flex-1 flex flex-col overflow-hidden h-full">
+                  {/* Weekday Header */}
+                  <div className="grid grid-cols-7 gap-px bg-slate-200 border-b border-slate-200 shrink-0">
                     {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                      <div key={day} className="bg-slate-50 py-2 text-center">
-                        <div className="text-xs font-semibold text-slate-600 uppercase tracking-wider">{day}</div>
+                      <div key={day} className="bg-slate-50 py-1.5 sm:py-2 text-center">
+                        <div className="text-[9px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wider">{day}</div>
                       </div>
                     ))}
                   </div>
 
                   {/* Calendar Grid */}
-                  <div className="grid grid-cols-7 gap-px bg-slate-200">
+                  <div className="flex-1 grid grid-cols-7 gap-px bg-slate-200 min-h-0" style={{ gridAutoRows: 'minmax(0, 1fr)' }}>
                     {daysInMonth.map((date, index) => {
                       if (!date) {
-                        return <div key={`empty-${index}`} className="bg-slate-50/30 aspect-square min-h-[52px]" />;
+                        return <div key={`empty-${index}`} className="bg-slate-50/30 w-full h-full" />;
                       }
 
                       const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -456,7 +456,7 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
                         <button
                           key={dateKey}
                           onClick={() => record && setSelectedRecord(record)}
-                          className={`aspect-square min-h-[52px] p-1 flex flex-col items-center justify-start pt-1 transition-all relative group ${statusInfo.color} ${isToday ? "ring-2 ring-inset ring-blue-500" : ""
+                          className={`w-full h-full p-0.5 sm:p-1 flex flex-col items-center justify-start pt-1 transition-all relative group overflow-hidden ${statusInfo.color} ${isToday ? "ring-2 ring-inset ring-blue-500 z-10" : ""
                             } ${record ? "hover:shadow-md cursor-pointer" : "cursor-default"}`}
                         >
                           {isToday && (
