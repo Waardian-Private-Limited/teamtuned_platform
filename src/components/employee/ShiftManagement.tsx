@@ -64,6 +64,12 @@ export default function ShiftManagement() {
     const [departments, setDepartments] = useState<any[]>([]);
     const [selectedDept, setSelectedDept] = useState<number | null>(null);
     const [filtersExpanded, setFiltersExpanded] = useState(false);
+    
+    // Shift Time Filters
+    const [shiftStartAfter, setShiftStartAfter] = useState('');
+    const [shiftStartBefore, setShiftStartBefore] = useState('');
+    const [shiftEndAfter, setShiftEndAfter] = useState('');
+    const [shiftEndBefore, setShiftEndBefore] = useState('');
 
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
@@ -131,6 +137,10 @@ export default function ShiftManagement() {
             };
             if (selectedDept) params.department_id = selectedDept;
             if (searchTerm) params.search = searchTerm;
+            if (shiftStartAfter) params.shift_start_after = shiftStartAfter;
+            if (shiftStartBefore) params.shift_start_before = shiftStartBefore;
+            if (shiftEndAfter) params.shift_end_after = shiftEndAfter;
+            if (shiftEndBefore) params.shift_end_before = shiftEndBefore;
 
             const data = await apiClient<any>('/organization/employees/shifts', {
                 method: 'GET',
@@ -434,7 +444,7 @@ export default function ShiftManagement() {
                     {/* Collapsible Filters */}
                     {filtersExpanded && (
                         <div className="mt-4 pt-4 border-t border-gray-200">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
                                     <select
@@ -448,12 +458,77 @@ export default function ShiftManagement() {
                                         ))}
                                     </select>
                                 </div>
-                                <div className="flex items-end">
+                                <div className="space-y-1">
+                                    <label className="block text-sm font-medium text-gray-700">Shift Start</label>
+                                    <div className="flex gap-2">
+                                        <div className="flex-1">
+                                            <span className="text-[10px] text-gray-500 uppercase font-bold">After</span>
+                                            <input
+                                                type="time"
+                                                value={shiftStartAfter}
+                                                onChange={(e) => setShiftStartAfter(e.target.value)}
+                                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            />
+                                        </div>
+                                        <div className="flex-1">
+                                            <span className="text-[10px] text-gray-500 uppercase font-bold">Before</span>
+                                            <input
+                                                type="time"
+                                                value={shiftStartBefore}
+                                                onChange={(e) => setShiftStartBefore(e.target.value)}
+                                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="block text-sm font-medium text-gray-700">Shift End</label>
+                                    <div className="flex gap-2">
+                                        <div className="flex-1">
+                                            <span className="text-[10px] text-gray-500 uppercase font-bold">After</span>
+                                            <input
+                                                type="time"
+                                                value={shiftEndAfter}
+                                                onChange={(e) => setShiftEndAfter(e.target.value)}
+                                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            />
+                                        </div>
+                                        <div className="flex-1">
+                                            <span className="text-[10px] text-gray-500 uppercase font-bold">Before</span>
+                                            <input
+                                                type="time"
+                                                value={shiftEndBefore}
+                                                onChange={(e) => setShiftEndBefore(e.target.value)}
+                                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex items-end gap-2">
                                     <button
                                         onClick={fetchEmployees}
-                                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                        className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
                                     >
-                                        Apply Filters
+                                        <Filter size={16} />
+                                        Apply
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setSelectedDept(null);
+                                            setSearchTerm('');
+                                            setShiftStartAfter('');
+                                            setShiftStartBefore('');
+                                            setShiftEndAfter('');
+                                            setShiftEndBefore('');
+                                            setCurrentPage(1);
+                                            setTimeout(() => {
+                                                fetchEmployees();
+                                            }, 0);
+                                        }}
+                                        className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                                        title="Clear All Filters"
+                                    >
+                                        <X size={18} />
                                     </button>
                                 </div>
                             </div>
