@@ -67,6 +67,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
   const [selectedIds, setSelectedIds] = React.useState<Set<number>>(new Set());
   const [isLocking, setIsLocking] = React.useState(false);
   const [showLockConfirm, setShowLockConfirm] = React.useState(false);
+  const [showUnlockConfirm, setShowUnlockConfirm] = React.useState(false);
   const [includeInactive, setIncludeInactive] = React.useState(false);
 
   const computeCycle = React.useCallback((ref: Date, startDay: number, endDay: number) => {
@@ -368,6 +369,30 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
     setShowLockConfirm(true);
   };
 
+  const executeUnlockAll = async () => {
+    try {
+      setIsLocking(true);
+      setShowUnlockConfirm(false);
+      const payload = {
+        unlock_all: true,
+        month: endKey.split('-')[1],
+        year: endKey.split('-')[0],
+        include_inactive: includeInactive
+      };
+      await apiClient("/attendance/payroll-unlock", { method: "POST", body: payload, withAuth: true });
+      toast.success("Payroll unlocked for all active employees");
+      fetchList();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to unlock all payroll");
+    } finally {
+      setIsLocking(false);
+    }
+  };
+
+  const handleUnlockAll = () => {
+    setShowUnlockConfirm(true);
+  };
+
   const [isGenerating, setIsGenerating] = React.useState(false);
   const handleGenerateSlips = async (ids: number[]) => {
     try {
@@ -642,15 +667,22 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
               </div>
             ) : (
               <>
-                <div className="lg:col-span-1">
-                  <label className="block text-xs font-medium text-slate-500 mb-1">&nbsp;</label>
+                <div className="lg:col-span-2 flex items-center gap-2">
                   <button
                     disabled={isLocking}
                     onClick={handleLockAll}
-                    className="w-full px-3 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-medium hover:bg-rose-700 transition-all flex items-center justify-center gap-2"
+                    className="flex-1 px-3 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-medium hover:bg-rose-700 transition-all flex items-center justify-center gap-2"
                   >
                     <Lock className="w-3.5 h-3.5" />
                     Lock All
+                  </button>
+                  <button
+                    disabled={isLocking}
+                    onClick={handleUnlockAll}
+                    className="flex-1 px-3 py-1.5 bg-slate-600 text-white rounded-lg text-xs font-medium hover:bg-slate-700 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Unlock className="w-3.5 h-3.5" />
+                    Unlock All
                   </button>
                 </div>
                 <div className="lg:col-span-1">
@@ -1035,12 +1067,12 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                 <div className="flex items-center justify-center gap-2 mb-6">
                   <input
                     type="checkbox"
-                    id="includeInactive"
+                    id="includeInactiveLock"
                     checked={includeInactive}
                     onChange={(e) => setIncludeInactive(e.target.checked)}
                     className="rounded border-gray-300 text-rose-600 focus:ring-rose-500"
                   />
-                  <label htmlFor="includeInactive" className="text-sm text-slate-600">
+                  <label htmlFor="includeInactiveLock" className="text-sm text-slate-600">
                     Include Inactive Employees
                   </label>
                 </div>
@@ -1056,6 +1088,52 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                     className="flex-1 px-4 py-2 bg-rose-600 text-white font-medium rounded-lg hover:bg-rose-700 transition-colors shadow-sm"
                   >
                     Yes, Lock All
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Unlock Confirmation Modal */}
+      {
+        showUnlockConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden scale-100 animate-in zoom-in-95 duration-200">
+              <div className="p-6 text-center">
+                <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Unlock className="w-6 h-6 text-slate-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">Unlock All Payroll?</h3>
+                <p className="text-sm text-slate-500 mb-4">
+                  Are you sure you want to unlock payroll for <span className="font-medium text-slate-900">ALL {includeInactive ? '' : 'active'} employees</span> for this period? <br />This will allow editing of attendance and metrics.
+                </p>
+
+                <div className="flex items-center justify-center gap-2 mb-6">
+                  <input
+                    type="checkbox"
+                    id="includeInactiveUnlock"
+                    checked={includeInactive}
+                    onChange={(e) => setIncludeInactive(e.target.checked)}
+                    className="rounded border-gray-300 text-slate-600 focus:ring-slate-500"
+                  />
+                  <label htmlFor="includeInactiveUnlock" className="text-sm text-slate-600">
+                    Include Inactive Employees
+                  </label>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowUnlockConfirm(false)}
+                    className="flex-1 px-4 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={executeUnlockAll}
+                    className="flex-1 px-4 py-2 bg-slate-600 text-white font-medium rounded-lg hover:bg-slate-700 transition-colors shadow-sm"
+                  >
+                    Yes, Unlock All
                   </button>
                 </div>
               </div>
