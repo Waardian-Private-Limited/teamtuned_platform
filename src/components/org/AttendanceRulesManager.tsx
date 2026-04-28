@@ -43,7 +43,10 @@ export type AttendancePolicy = {
   payment_cycle_end?: number;
 
   // Attendance rules
+  grace_period_type: "minutes" | "specific_time";
   grace_period_minutes: number;
+  grace_period_specific_time_late?: string;
+  grace_period_specific_time_early?: string;
   max_late_marks_per_month: number;
   late_mark_penalty: "none" | "half_day" | "full_day";
   standard_work_hours: number;
@@ -108,7 +111,10 @@ const defaultPolicy: AttendancePolicy = {
   payment_cycle_start: undefined,
   payment_cycle_end: undefined,
 
+  grace_period_type: "minutes",
   grace_period_minutes: 10,
+  grace_period_specific_time_late: "09:30:00",
+  grace_period_specific_time_early: "18:00:00",
   max_late_marks_per_month: 3,
   late_mark_penalty: "none",
   standard_work_hours: 480,
@@ -381,7 +387,14 @@ export default function AttendanceRulesManager() {
   const validateStep3 = () => {
     const errs: Partial<Record<keyof AttendancePolicy, string>> = {};
     if (!(policy.standard_work_hours > 0)) errs.standard_work_hours = "Enter a positive number";
-    if (policy.grace_period_minutes < 0) errs.grace_period_minutes = "Enter 0 or more";
+    
+    if (policy.grace_period_type === "minutes") {
+      if (policy.grace_period_minutes < 0) errs.grace_period_minutes = "Enter 0 or more";
+    } else {
+      if (!policy.grace_period_specific_time_late) errs.grace_period_specific_time_late = "Late time is required";
+      if (!policy.grace_period_specific_time_early) errs.grace_period_specific_time_early = "Early time is required";
+    }
+
     if (policy.max_late_marks_per_month < 0) errs.max_late_marks_per_month = "Enter 0 or more";
     if (policy.late_logout_redeem_minutes < 0) errs.late_logout_redeem_minutes = "Enter 0 or more";
     if (policy.redeem_carry_forward_days < 0) errs.redeem_carry_forward_days = "Enter 0 or more";
@@ -779,9 +792,16 @@ export default function AttendanceRulesManager() {
                   </div>
                   <div>
                     <h4 className="text-sm font-medium text-gray-500">Grace Period</h4>
-                    <p className="mt-1 text-gray-900">
-                      {policy.grace_period_minutes} minutes
-                    </p>
+                    {policy.grace_period_type === "specific_time" ? (
+                      <p className="mt-1 text-gray-900">
+                        Late after: {policy.grace_period_specific_time_late} <br />
+                        Early before: {policy.grace_period_specific_time_early}
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-gray-900">
+                        {policy.grace_period_minutes} minutes
+                      </p>
+                    )}
                   </div>
                   <div>
                     <h4 className="text-sm font-medium text-gray-500">Max Late Marks / Month</h4>
@@ -1397,24 +1417,87 @@ export default function AttendanceRulesManager() {
                         </p>
                       </div>
 
-                      <div>
+                      <div className="col-span-1 md:col-span-2">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Grace Period (minutes)
+                          Grace Period Type
                         </label>
-                        <input
-                          type="number"
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.grace_period_minutes ? 'border-red-500' : 'border-gray-300'
-                            }`}
-                          min={0}
-                          value={policy.grace_period_minutes}
-                          onChange={(e) => setField("grace_period_minutes", Number(e.target.value))}
-                        />
-                        {formErrors.grace_period_minutes && (
-                          <p className="mt-1 text-sm text-red-600">{formErrors.grace_period_minutes}</p>
+                        <div className="flex gap-4 mb-4">
+                          <label className="flex items-center">
+                            <input
+                              type="radio"
+                              className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                              checked={policy.grace_period_type === "minutes"}
+                              onChange={() => setField("grace_period_type", "minutes")}
+                            />
+                            <span className="ml-2 text-sm text-gray-700">Minutes</span>
+                          </label>
+                          <label className="flex items-center">
+                            <input
+                              type="radio"
+                              className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                              checked={policy.grace_period_type === "specific_time"}
+                              onChange={() => setField("grace_period_type", "specific_time")}
+                            />
+                            <span className="ml-2 text-sm text-gray-700">Specific Time</span>
+                          </label>
+                        </div>
+                        
+                        {policy.grace_period_type === "minutes" ? (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Grace Period (minutes)
+                            </label>
+                            <input
+                              type="number"
+                              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.grace_period_minutes ? 'border-red-500' : 'border-gray-300'
+                                }`}
+                              min={0}
+                              value={policy.grace_period_minutes}
+                              onChange={(e) => setField("grace_period_minutes", Number(e.target.value))}
+                            />
+                            {formErrors.grace_period_minutes && (
+                              <p className="mt-1 text-sm text-red-600">{formErrors.grace_period_minutes}</p>
+                            )}
+                            <p className="mt-1 text-xs text-gray-500">
+                              Window before a late mark is recorded ({formatMinutesToHours(policy.grace_period_minutes)})
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Late Mark After Time
+                              </label>
+                              <input
+                                type="time"
+                                step="1"
+                                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.grace_period_specific_time_late ? 'border-red-500' : 'border-gray-300'
+                                  }`}
+                                value={policy.grace_period_specific_time_late || ""}
+                                onChange={(e) => setField("grace_period_specific_time_late", e.target.value)}
+                              />
+                              {formErrors.grace_period_specific_time_late && (
+                                <p className="mt-1 text-sm text-red-600">{formErrors.grace_period_specific_time_late}</p>
+                              )}
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Early Leave Before Time
+                              </label>
+                              <input
+                                type="time"
+                                step="1"
+                                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.grace_period_specific_time_early ? 'border-red-500' : 'border-gray-300'
+                                  }`}
+                                value={policy.grace_period_specific_time_early || ""}
+                                onChange={(e) => setField("grace_period_specific_time_early", e.target.value)}
+                              />
+                              {formErrors.grace_period_specific_time_early && (
+                                <p className="mt-1 text-sm text-red-600">{formErrors.grace_period_specific_time_early}</p>
+                              )}
+                            </div>
+                          </div>
                         )}
-                        <p className="mt-1 text-xs text-gray-500">
-                          Window before a late mark is recorded ({formatMinutesToHours(policy.grace_period_minutes)})
-                        </p>
                       </div>
                     </div>
 
