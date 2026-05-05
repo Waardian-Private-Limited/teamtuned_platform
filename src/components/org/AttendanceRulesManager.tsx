@@ -71,6 +71,9 @@ export type AttendancePolicy = {
   half_day_threshold_percent: number;
   full_day_threshold_percent: number;
   late_threshold_for_halfday_minutes: number;
+  use_time_thresholds: boolean;
+  halfday_late_threshold_time: string;
+  fullday_early_threshold_time: string;
 
   // Leave policy
   total_annual_leaves: number;
@@ -138,6 +141,9 @@ const defaultPolicy: AttendancePolicy = {
   half_day_threshold_percent: 50,
   full_day_threshold_percent: 75,
   late_threshold_for_halfday_minutes: 48,
+  use_time_thresholds: false,
+  halfday_late_threshold_time: "11:00:00",
+  fullday_early_threshold_time: "16:00:00",
 
   total_annual_leaves: 18,
   max_leave_per_month: 2,
@@ -802,6 +808,18 @@ export default function AttendanceRulesManager() {
                         {policy.grace_period_minutes} minutes
                       </p>
                     )}
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500">Time Thresholds</h4>
+                    <p className="mt-1 text-gray-900">
+                      {policy.use_time_thresholds ? (
+                        <>
+                          Enabled <br />
+                          HD if Late &gt; {policy.halfday_late_threshold_time} <br />
+                          HD if Early &lt; {policy.fullday_early_threshold_time}
+                        </>
+                      ) : "Disabled (Using Percentages)"}
+                    </p>
                   </div>
                   <div>
                     <h4 className="text-sm font-medium text-gray-500">Max Late Marks / Month</h4>
@@ -1715,6 +1733,58 @@ export default function AttendanceRulesManager() {
                         <p className="mt-1 text-xs text-gray-500">
                           Example: For 8-hour workday, 10% = 48 minutes. If user checks in after 48 minutes, it will be considered half-day.
                         </p>
+                      </div>
+                    </div>
+
+                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-6">
+                      <div className="flex items-center space-x-2 mb-4">
+                        <Clock className="w-5 h-5 text-blue-600" />
+                        <h5 className="font-semibold text-blue-900">Absolute Time Thresholds</h5>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="flex items-center space-x-3 md:col-span-2">
+                          <input
+                            type="checkbox"
+                            id="use_time_thresholds"
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            checked={policy.use_time_thresholds}
+                            onChange={(e) => setField("use_time_thresholds", e.target.checked)}
+                          />
+                          <label htmlFor="use_time_thresholds" className="text-sm font-medium text-gray-700">
+                            Use Absolute Time Thresholds (Override Percentages)
+                          </label>
+                        </div>
+
+                        {policy.use_time_thresholds && (
+                          <>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Half-Day if Check-in After
+                              </label>
+                              <input
+                                type="time"
+                                step="1"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                value={policy.halfday_late_threshold_time}
+                                onChange={(e) => setField("halfday_late_threshold_time", e.target.value)}
+                              />
+                              <p className="mt-1 text-xs text-gray-500">Punches after this time automatically become Half-Day. No late mark will be applied.</p>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Half-Day if Check-out Before
+                              </label>
+                              <input
+                                type="time"
+                                step="1"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                value={policy.fullday_early_threshold_time}
+                                onChange={(e) => setField("fullday_early_threshold_time", e.target.value)}
+                              />
+                              <p className="mt-1 text-xs text-gray-500">Punches out before this time automatically become Half-Day.</p>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
 
