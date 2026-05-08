@@ -1250,8 +1250,8 @@ export default function EmployeeManagement() {
                       </button>
                     )}
 
-                    {/* Toggle Active/Inactive */}
-                    {employee.status?.toLowerCase() !== 'invited' && employee.status?.toLowerCase() !== 'terminated' && (
+                    {/* Toggle Active/Inactive / Reactivate Terminated */}
+                    {employee.status?.toLowerCase() !== 'invited' && (
                       <button
                         onClick={() => {
                           handleToggleStatus(employee.id, employee.status || 'Active');
