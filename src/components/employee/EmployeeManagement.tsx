@@ -79,6 +79,8 @@ export type Employee = {
   created_at?: string;
   work_type?: string;
   face_image_url?: string | null;
+  updated_by_name?: string | null;
+  shift_updated_by_name?: string | null;
 };
 
 const weeklyDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -275,6 +277,7 @@ export default function EmployeeManagement() {
   const [filterSiteId, setFilterSiteId] = useState<number | "">("");
   const [filterGender, setFilterGender] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [showTerminated, setShowTerminated] = useState<boolean>(false);
   const [filtersExpanded, setFiltersExpanded] = useState<boolean>(false);
 
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -691,6 +694,7 @@ export default function EmployeeManagement() {
       if (typeof filterRoleId === "number") params.set("role_id", String(filterRoleId));
       if (filterGender !== "all") params.set("gender", filterGender);
       if (statusFilter !== "all") params.set("status", statusFilter);
+      if (showTerminated) params.set("include_terminated", "true");
 
 
       const data = await apiClient<{ data: Employee[]; total: number; page: number; limit: number; hasNext: boolean }>(`/organization/employees?${params.toString()}`, { method: "GET" });
@@ -1344,6 +1348,13 @@ export default function EmployeeManagement() {
                           <p className="text-sm text-gray-500">Phone</p>
                         </div>
                       </div>
+                      <div className="flex items-center space-x-3 pt-2 border-t border-gray-50">
+                        <RefreshCw className="w-4 h-4 text-gray-400" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{viewData?.updated_by_name || "System"}</p>
+                          <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Last Updated By</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -1844,6 +1855,19 @@ export default function EmployeeManagement() {
                 <option value="Female">Female</option>
                 <option value="Other">Other</option>
               </select>
+
+              <div className="flex items-center space-x-2 px-1">
+                <input
+                  id="showTerminated"
+                  type="checkbox"
+                  checked={showTerminated}
+                  onChange={(e) => { setShowTerminated(e.target.checked); setPage(1); }}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <label htmlFor="showTerminated" className="text-sm font-medium text-gray-700 cursor-pointer">
+                  Show Terminated
+                </label>
+              </div>
             </div>
 
             <div className="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-0">
@@ -1872,6 +1896,7 @@ export default function EmployeeManagement() {
                     setFilterSiteId("");
                     setSearchQuery("");
                     setStatusFilter("all");
+                    setShowTerminated(false);
                     setPage(1);
                   }}
                   className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm flex-1"
@@ -1960,6 +1985,9 @@ export default function EmployeeManagement() {
                   Status
                 </th>
                 <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Modified By
+                </th>
+                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
@@ -2015,6 +2043,12 @@ export default function EmployeeManagement() {
                             return st;
                           })()}
                         </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5 min-w-[120px]">
+                        <User size={12} className="text-gray-400 flex-shrink-0" />
+                        <span className="text-xs text-gray-600 truncate">{employee.updated_by_name || "-"}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3">
