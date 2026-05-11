@@ -58,6 +58,7 @@ import {
     Layout,
     List,
     MessageSquare,
+    Camera,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
@@ -380,6 +381,7 @@ export default function OrgSidebar({
                             <Item icon={Clock} label="Regularization" href="/org-admin/requests/regularization" active={pathname === "/org-admin/requests/regularization"} />
                             <Item icon={Clock} label="Night OT Requests" href="/org-admin/requests/night-ot" active={pathname === "/org-admin/requests/night-ot"} />
                             <Item icon={AlertCircle} label="Verification Issues" href="/org-admin/requests/verification" active={pathname === "/org-admin/requests/verification"} />
+                            <Item icon={Activity} label="AI Face Results" href="/org-admin/attendance/liveness" active={pathname === "/org-admin/attendance/liveness"} />
                             <Item icon={ListChecks} label="Session Requests" href="/org-admin/requests/sessions" active={pathname === "/org-admin/requests/sessions"} />
                             <Item icon={ListChecks} label="Payroll" href="/org-admin/payroll" active={pathname === "/org-admin/payroll"} />
                             <Item icon={FileText} label="Salary Slips" href="/org-admin/salary-slips" active={pathname === "/org-admin/salary-slips"} />
@@ -515,6 +517,7 @@ export default function OrgSidebar({
                                 <Item icon={LayoutDashboard} label="Attendance Dashboard" href="/org-admin/labor-attendance/dashboard" active={pathname === "/org-admin/labor-attendance/dashboard"} />
                                 <Item icon={BarChart3} label="Contractor Dashboard" href="/org-admin/labor-attendance/contractor-dashboard" active={pathname === "/org-admin/labor-attendance/contractor-dashboard"} />
                                 <Item icon={ClipboardList} label="Attendance Logs" href="/org-admin/labor-attendance/logs" active={pathname === "/org-admin/labor-attendance/logs"} />
+                                <Item icon={Clock} label="Punch Regularization" href="/org-admin/labor-attendance/regularization" active={pathname === "/org-admin/labor-attendance/regularization"} />
                                 <Item icon={LayoutGrid} label="Categories" href="/org-admin/labor/categories" active={pathname === "/org-admin/labor/categories"} />
                                 <Item icon={Layers} label="Subcategories" href="/org-admin/labor/subcategories" active={pathname === "/org-admin/labor/subcategories"} />
                                 <Item icon={Briefcase} label="Contractors" href="/org-admin/labor/contractors" active={pathname === "/org-admin/labor/contractors"} />
@@ -529,6 +532,7 @@ export default function OrgSidebar({
                                 <Item icon={Settings} label="Settings" href="/org-admin/labor/settings" active={pathname === "/org-admin/labor/settings"} />
                                 <Item icon={Activity} label="Device Health" href="/org-admin/labor-attendance/temperature-dashboard" active={pathname === "/org-admin/labor-attendance/temperature-dashboard"} />
                                 <Item icon={Thermometer} label="Device Logs" href="/org-admin/labor-attendance/device-logs" active={pathname === "/org-admin/labor-attendance/device-logs"} />
+                                <Item icon={Camera} label="Biometric Punch" href="/org-admin/labor-attendance/biometric" active={pathname === "/org-admin/labor-attendance/biometric"} />
                             </div>
                         )}
                     </>
