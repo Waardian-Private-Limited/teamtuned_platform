@@ -264,8 +264,8 @@ export default function LaborAttendanceList() {
     };
 
     const handleMigrateSubmit = async () => {
-        if (!migrateForm.site_id || !migrateForm.contractor_id || !migrateForm.category_id) {
-            alert("Site, Contractor, and Category are mandatory");
+        if (!migrateForm.site_id || !migrateForm.contractor_id || !migrateForm.category_id || !migrateForm.subcategory_id) {
+            alert("Site, Contractor, Category, and Subcategory are mandatory");
             return;
         }
 
@@ -659,14 +659,16 @@ export default function LaborAttendanceList() {
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
                                                     <div className="flex items-center justify-end gap-2">
-                                                        <button
-                                                            onClick={() => openMigrateModal(emp)}
-                                                            className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100 hover:bg-blue-100 transition-colors"
-                                                            title="Migrate / Reassign Laborer"
-                                                        >
-                                                            <RefreshCw className="w-3 h-3" />
-                                                            Migrate
-                                                        </button>
+                                                        {(emp.is_migrated === 1 || emp.is_migrated === true) && (
+                                                            <button
+                                                                onClick={() => openMigrateModal(emp)}
+                                                                className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100 hover:bg-blue-100 transition-colors"
+                                                                title="Migrate / Reassign Laborer"
+                                                            >
+                                                                <RefreshCw className="w-3 h-3" />
+                                                                Migrate
+                                                            </button>
+                                                        )}
                                                         {isPresent && (
                                                             <button
                                                                 onClick={() => openSessionsModal(emp)}
@@ -1109,14 +1111,15 @@ export default function LaborAttendanceList() {
 
                             {/* Subcategory */}
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">New Subcategory</label>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">New Subcategory *</label>
                                 <select
                                     value={migrateForm.subcategory_id}
                                     onChange={(e) => setMigrateForm({ ...migrateForm, subcategory_id: e.target.value })}
                                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                                     disabled={!migrateForm.category_id}
+                                    required
                                 >
-                                    <option value="">Select Subcategory (Optional)</option>
+                                    <option value="">Select Subcategory</option>
                                     {migrateSubcategories.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
                                 </select>
                             </div>
@@ -1131,7 +1134,7 @@ export default function LaborAttendanceList() {
                             </button>
                             <button
                                 onClick={handleMigrateSubmit}
-                                disabled={submittingMigration || !migrateForm.site_id || !migrateForm.contractor_id || !migrateForm.category_id}
+                                disabled={submittingMigration || !migrateForm.site_id || !migrateForm.contractor_id || !migrateForm.category_id || !migrateForm.subcategory_id}
                                 className="flex-[2] bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2"
                             >
                                 {submittingMigration ? (
