@@ -276,6 +276,27 @@ export default function LaborersManager() {
         setPage(1);
     }, [searchTerm, categoryFilter, contractorFilter, siteFilter]);
 
+    // Dependent Dropdowns Logic (for both Create and Edit)
+    React.useEffect(() => {
+        if (showCreateModal || showEditModal) {
+            if (form.contractor_id) {
+                fetchContractorCategories(form.contractor_id);
+            } else {
+                setContractorCategories([]);
+            }
+        }
+    }, [form.contractor_id, showCreateModal, showEditModal]);
+
+    React.useEffect(() => {
+        if (showCreateModal || showEditModal) {
+            if (form.category_id) {
+                fetchSubcategories(form.category_id);
+            } else {
+                setSubcategories([]);
+            }
+        }
+    }, [form.category_id, showCreateModal, showEditModal]);
+
     const handleCreate = async (isOverride: boolean = false) => {
         if (!form.name.trim() || !form.contractor_id || !form.category_id) {
             setError("Name, contractor, and category are required");
@@ -516,20 +537,14 @@ export default function LaborersManager() {
             );
             const lab = data.laborer;
             
-            // First fetch dependencies to ensure dropdowns have options
-            const catPromise = lab.contractor_id ? fetchContractorCategories(String(lab.contractor_id)) : Promise.resolve();
-            const subPromise = lab.category_id ? fetchSubcategories(String(lab.category_id)) : Promise.resolve();
-            
-            await Promise.all([catPromise, subPromise]);
-
             setSelectedLaborer(lab);
             setForm({
-                contractor_id: String(lab.contractor_id || ""),
-                category_id: String(lab.category_id || ""),
-                subcategory_id: String(lab.subcategory_id || ""),
-                labor_type_id: String(lab.labor_type_id || ""),
+                contractor_id: lab.contractor_id ? String(lab.contractor_id) : "",
+                category_id: lab.category_id ? String(lab.category_id) : "",
+                subcategory_id: lab.subcategory_id ? String(lab.subcategory_id) : "",
+                labor_type_id: lab.labor_type_id ? String(lab.labor_type_id) : "",
                 site_id: lab.site_id ? String(lab.site_id) : "",
-                name: lab.name,
+                name: lab.name || "",
                 phone: lab.phone || "",
                 email: lab.email || "",
                 address: lab.address || "",
@@ -939,7 +954,7 @@ export default function LaborersManager() {
                                         >
                                             <option value="">Select Site</option>
                                             {(hasHrAccess ? (allSites.length > 0 ? allSites : sites) : sites).map((s) => (
-                                                <option key={s.id} value={s.id}>{s.name}</option>
+                                                <option key={s.id} value={String(s.id)}>{s.name}</option>
                                             ))}
                                         </select>
                                     </div>
@@ -951,13 +966,12 @@ export default function LaborersManager() {
                                             value={form.contractor_id}
                                             onChange={(e) => {
                                                 setForm({ ...form, contractor_id: e.target.value, category_id: "", subcategory_id: "" });
-                                                fetchContractorCategories(e.target.value);
                                             }}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                         >
                                             <option value="">Select Contractor</option>
                                             {contractors.map((c) => (
-                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                                <option key={c.id} value={String(c.id)}>{c.name}</option>
                                             ))}
                                         </select>
                                     </div>
@@ -997,7 +1011,7 @@ export default function LaborersManager() {
                                         >
                                             <option value="">Select Category</option>
                                             {contractorCategories.map((c) => (
-                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                                <option key={c.id} value={String(c.id)}>{c.name}</option>
                                             ))}
                                         </select>
                                         {!form.contractor_id && (
@@ -1021,7 +1035,7 @@ export default function LaborersManager() {
                                     >
                                         <option value="">Select Subcategory (Optional)</option>
                                         {subcategories.map((sub) => (
-                                            <option key={sub.id} value={sub.id}>{sub.name}</option>
+                                            <option key={sub.id} value={String(sub.id)}>{sub.name}</option>
                                         ))}
                                     </select>
                                     {!form.category_id && (
@@ -1040,7 +1054,7 @@ export default function LaborersManager() {
                                     >
                                         <option value="">Select Labor Type (Optional)</option>
                                         {laborTypes.map((type) => (
-                                            <option key={type.id} value={type.id}>{type.name}</option>
+                                            <option key={type.id} value={String(type.id)}>{type.name}</option>
                                         ))}
                                     </select>
                                 </div>
