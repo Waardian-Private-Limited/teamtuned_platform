@@ -43,6 +43,7 @@ export default function LaborersManager() {
     const [categoryFilter, setCategoryFilter] = React.useState("");
     const [contractorFilter, setContractorFilter] = React.useState("");
     const [siteFilter, setSiteFilter] = React.useState("");
+    const [laborTypes, setLaborTypes] = React.useState<any[]>([]);
 
     // Pagination
     const [page, setPage] = React.useState(1);
@@ -163,6 +164,18 @@ export default function LaborersManager() {
         }
     };
 
+    const fetchLaborTypes = async () => {
+        try {
+            const data = await apiClient<{ success: boolean; types: any[] }>(
+                "/labor/types",
+                { method: "GET" }
+            );
+            setLaborTypes(data.types || []);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
     const fetchContractors = async () => {
         try {
             const data = await apiClient<{ success: boolean; contractors: any[] }>(
@@ -234,6 +247,7 @@ export default function LaborersManager() {
         fetchCategories();
         fetchContractors();
         fetchUserSites();
+        fetchLaborTypes();
         if (hasHrAccess) {
             fetchAllSites();
         }
@@ -501,6 +515,13 @@ export default function LaborersManager() {
                 { method: "GET" }
             );
             const lab = data.laborer;
+            
+            // First fetch dependencies to ensure dropdowns have options
+            const catPromise = lab.contractor_id ? fetchContractorCategories(String(lab.contractor_id)) : Promise.resolve();
+            const subPromise = lab.category_id ? fetchSubcategories(String(lab.category_id)) : Promise.resolve();
+            
+            await Promise.all([catPromise, subPromise]);
+
             setSelectedLaborer(lab);
             setForm({
                 contractor_id: String(lab.contractor_id || ""),
@@ -515,14 +536,7 @@ export default function LaborersManager() {
                 id_proof_type: lab.id_proof_type || "",
                 id_proof_number: lab.id_proof_number || "",
             });
-            // Fetch categories for the contractor
-            if (lab.contractor_id) {
-                fetchContractorCategories(String(lab.contractor_id));
-            }
-            // Fetch subcategories for the laborer's category
-            if (lab.category_id) {
-                fetchSubcategories(String(lab.category_id));
-            }
+            
             setShowEditModal(true);
         } catch (e: any) {
             setError(e?.message || "Failed to load laborer details");
@@ -1013,6 +1027,22 @@ export default function LaborersManager() {
                                     {!form.category_id && (
                                         <p className="text-xs text-gray-500 mt-1">Select a category first</p>
                                     )}
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Labor Type
+                                    </label>
+                                    <select
+                                        value={form.labor_type_id}
+                                        onChange={(e) => setForm({ ...form, labor_type_id: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    >
+                                        <option value="">Select Labor Type (Optional)</option>
+                                        {laborTypes.map((type) => (
+                                            <option key={type.id} value={type.id}>{type.name}</option>
+                                        ))}
+                                    </select>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4">
