@@ -23,6 +23,7 @@ import {
     AlertTriangle,
     ChevronLeft,
     ChevronRight,
+    PowerOff,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
@@ -444,6 +445,22 @@ export default function LaborersManager() {
         setShowDeleteModal(true);
     };
 
+    const handleToggleStatus = async (laborer: any) => {
+        if (!window.confirm(`Are you sure you want to mark ${laborer.name} as ${laborer.is_active ? 'Inactive' : 'Active'}?`)) return;
+        setSaving(true);
+        try {
+            await apiClient(`/labor/laborers/${laborer.id}/status`, {
+                method: "PATCH",
+                body: { is_active: !laborer.is_active }
+            });
+            fetchLaborers();
+        } catch (e: any) {
+            setError(e?.message || "Failed to toggle status");
+        } finally {
+            setSaving(false);
+        }
+    };
+
     const confirmDelete = async () => {
         if (!selectedLaborer) return;
 
@@ -477,26 +494,39 @@ export default function LaborersManager() {
         }
     };
 
-    const openEdit = (laborer: any) => {
-        setSelectedLaborer(laborer);
-        setForm({
-            contractor_id: String(laborer.contractor_id || ""),
-            category_id: String(laborer.category_id || ""),
-            subcategory_id: String(laborer.subcategory_id || ""),
-            labor_type_id: String(laborer.labor_type_id || ""),
-            site_id: laborer.site_id ? String(laborer.site_id) : "",
-            name: laborer.name,
-            phone: laborer.phone || "",
-            email: laborer.email || "",
-            address: laborer.address || "",
-            id_proof_type: laborer.id_proof_type || "",
-            id_proof_number: laborer.id_proof_number || "",
-        });
-        // Fetch subcategories for the laborer's category
-        if (laborer.category_id) {
-            fetchSubcategories(String(laborer.category_id));
+    const openEdit = async (laborer: any) => {
+        try {
+            const data = await apiClient<{ success: boolean; laborer: any }>(
+                `/labor/laborers/${laborer.id}`,
+                { method: "GET" }
+            );
+            const lab = data.laborer;
+            setSelectedLaborer(lab);
+            setForm({
+                contractor_id: String(lab.contractor_id || ""),
+                category_id: String(lab.category_id || ""),
+                subcategory_id: String(lab.subcategory_id || ""),
+                labor_type_id: String(lab.labor_type_id || ""),
+                site_id: lab.site_id ? String(lab.site_id) : "",
+                name: lab.name,
+                phone: lab.phone || "",
+                email: lab.email || "",
+                address: lab.address || "",
+                id_proof_type: lab.id_proof_type || "",
+                id_proof_number: lab.id_proof_number || "",
+            });
+            // Fetch categories for the contractor
+            if (lab.contractor_id) {
+                fetchContractorCategories(String(lab.contractor_id));
+            }
+            // Fetch subcategories for the laborer's category
+            if (lab.category_id) {
+                fetchSubcategories(String(lab.category_id));
+            }
+            setShowEditModal(true);
+        } catch (e: any) {
+            setError(e?.message || "Failed to load laborer details");
         }
-        setShowEditModal(true);
     };
 
     if (loading && laborers.length === 0) {
@@ -762,13 +792,22 @@ export default function LaborersManager() {
                                                         <Pencil className="w-4 h-4 text-gray-600" />
                                                     </button>
                                                 )}
+                                                {(role !== "Employee" || hasPerm("LABORER_EDIT")) && laborer.registration_status !== 'terminated' && (
+                                                    <button
+                                                        onClick={() => handleToggleStatus(laborer)}
+                                                        className={`p-1.5 rounded-lg transition-colors ${laborer.is_active ? 'hover:bg-amber-50 text-amber-600' : 'hover:bg-green-50 text-green-600'}`}
+                                                        title={laborer.is_active ? "Mark Inactive" : "Mark Active"}
+                                                    >
+                                                        <PowerOff className="w-4 h-4" />
+                                                    </button>
+                                                )}
                                                 {(role !== "Employee" || hasPerm("LABORER_DELETE")) && laborer.registration_status !== 'terminated' && (
                                                     <button
                                                         onClick={() => handleDelete(laborer)}
-                                                        className="p-1.5 rounded-lg hover:bg-amber-50 transition-colors"
-                                                        title="Terminate"
+                                                        className="p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                                                        title="Terminate (Soft Delete)"
                                                     >
-                                                        <Trash2 className="w-4 h-4 text-amber-600" />
+                                                        <Trash2 className="w-4 h-4 text-red-600" />
                                                     </button>
                                                 )}
                                             </div>
