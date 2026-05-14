@@ -80,6 +80,19 @@ export default function LaborAttendanceList() {
     const [showTerminated, setShowTerminated] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    // Migration Modal
+    const [showMigrateModal, setShowMigrateModal] = useState(false);
+    const [migratingLaborer, setMigratingLaborer] = useState<any>(null);
+    const [migrateForm, setMigrateForm] = useState({
+        site_id: "",
+        contractor_id: "",
+        category_id: "",
+        subcategory_id: ""
+    });
+    const [migrateContractors, setMigrateContractors] = useState<any[]>([]);
+    const [migrateSubcategories, setMigrateSubcategories] = useState<any[]>([]);
+    const [submittingMigration, setSubmittingMigration] = useState(false);
+
     // Fetch List
     const fetchList = useCallback(async () => {
         const effHq = hqMode && canHRMode;
@@ -238,6 +251,69 @@ export default function LaborAttendanceList() {
             setLoadingSessions(false);
         }
     };
+
+    const openMigrateModal = async (laborer: any) => {
+        setMigratingLaborer(laborer);
+        setMigrateForm({
+            site_id: laborer.site_id ? String(laborer.site_id) : "",
+            contractor_id: laborer.contractor_id ? String(laborer.contractor_id) : "",
+            category_id: laborer.category_id ? String(laborer.category_id) : "",
+            subcategory_id: laborer.subcategory_id ? String(laborer.subcategory_id) : ""
+        });
+        setShowMigrateModal(true);
+    };
+
+    const handleMigrateSubmit = async () => {
+        if (!migrateForm.site_id || !migrateForm.contractor_id || !migrateForm.category_id) {
+            alert("Site, Contractor, and Category are mandatory");
+            return;
+        }
+
+        setSubmittingMigration(true);
+        try {
+            await apiClient("/labor/attendance/reassign", {
+                method: "POST",
+                body: {
+                    laborer_id: migratingLaborer.id,
+                    date,
+                    site_id: Number(migrateForm.site_id),
+                    contractor_id: Number(migrateForm.contractor_id),
+                    category_id: Number(migrateForm.category_id),
+                    subcategory_id: migrateForm.subcategory_id ? Number(migrateForm.subcategory_id) : null
+                }
+            });
+            setShowMigrateModal(false);
+            fetchList(); // Refresh
+        } catch (err: any) {
+            alert(err.message || "Failed to migrate laborer");
+        } finally {
+            setSubmittingMigration(false);
+        }
+    };
+
+    // Fetch Contractors for Migration Modal
+    useEffect(() => {
+        if (showMigrateModal && migrateForm.site_id) {
+            (async () => {
+                try {
+                    const res = await apiClient<any>("/labor/contractors", { withAuth: true, params: { site_id: migrateForm.site_id } });
+                    setMigrateContractors(res.contractors || []);
+                } catch { setMigrateContractors([]); }
+            })();
+        }
+    }, [showMigrateModal, migrateForm.site_id]);
+
+    // Fetch Subcategories for Migration Modal
+    useEffect(() => {
+        if (showMigrateModal && migrateForm.category_id) {
+            (async () => {
+                try {
+                    const res = await apiClient<any>(`/labor/categories/${migrateForm.category_id}/subcategories`, { withAuth: true });
+                    setMigrateSubcategories(res.subcategories || []);
+                } catch { setMigrateSubcategories([]); }
+            })();
+        }
+    }, [showMigrateModal, migrateForm.category_id]);
 
 
 
@@ -582,16 +658,26 @@ export default function LaborAttendanceList() {
                                                     {emp.earned_amount ? `₹${emp.earned_amount}` : '-'}
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
-                                                    {isPresent && (
+                                                    <div className="flex items-center justify-end gap-2">
                                                         <button
-                                                            onClick={() => openSessionsModal(emp)}
-                                                            className="p-1.5 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-600"
+                                                            onClick={() => openMigrateModal(emp)}
+                                                            className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100 hover:bg-blue-100 transition-colors"
+                                                            title="Migrate / Reassign Laborer"
                                                         >
-                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                                                            </svg>
+                                                            <RefreshCw className="w-3 h-3" />
+                                                            Migrate
                                                         </button>
-                                                    )}
+                                                        {isPresent && (
+                                                            <button
+                                                                onClick={() => openSessionsModal(emp)}
+                                                                className="p-1.5 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-600"
+                                                            >
+                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                                                                </svg>
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );
@@ -951,6 +1037,119 @@ export default function LaborAttendanceList() {
             )}
 
 
+            {/* Migrate Modal */}
+            {showMigrateModal && migratingLaborer && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden border border-gray-100">
+                        <div className="p-6 bg-gradient-to-r from-blue-600 to-blue-700 text-white flex justify-between items-center">
+                            <div>
+                                <h3 className="text-xl font-bold">Migrate Laborer</h3>
+                                <p className="text-blue-100 text-xs mt-1">
+                                    Reassigning {migratingLaborer.name} for {date}
+                                </p>
+                            </div>
+                            <button 
+                                onClick={() => setShowMigrateModal(false)}
+                                className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        
+                        <div className="p-6 space-y-4">
+                            <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 flex items-start gap-3">
+                                <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                                <p className="text-[11px] text-blue-800 leading-relaxed">
+                                    This will update the laborer's profile <strong>and</strong> today's attendance records to reflect the new contractor and category.
+                                </p>
+                            </div>
+
+                            {/* Site */}
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">Target Site *</label>
+                                <select
+                                    value={migrateForm.site_id}
+                                    onChange={(e) => setMigrateForm({ ...migrateForm, site_id: e.target.value, contractor_id: "", category_id: "", subcategory_id: "" })}
+                                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                >
+                                    <option value="">Select Site</option>
+                                    {(canViewAll ? allSites : inchargeSites).map((s) => (
+                                        <option key={s.id} value={String(s.id)}>{s.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Contractor */}
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">New Contractor *</label>
+                                <select
+                                    value={migrateForm.contractor_id}
+                                    onChange={(e) => setMigrateForm({ ...migrateForm, contractor_id: e.target.value, category_id: "", subcategory_id: "" })}
+                                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                    disabled={!migrateForm.site_id}
+                                >
+                                    <option value="">Select Contractor</option>
+                                    {migrateContractors.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
+                                </select>
+                            </div>
+
+                            {/* Category */}
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">New Category *</label>
+                                <select
+                                    value={migrateForm.category_id}
+                                    onChange={(e) => setMigrateForm({ ...migrateForm, category_id: e.target.value, subcategory_id: "" })}
+                                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                    disabled={!migrateForm.contractor_id}
+                                >
+                                    <option value="">Select Category</option>
+                                    {categories.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
+                                </select>
+                            </div>
+
+                            {/* Subcategory */}
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">New Subcategory</label>
+                                <select
+                                    value={migrateForm.subcategory_id}
+                                    onChange={(e) => setMigrateForm({ ...migrateForm, subcategory_id: e.target.value })}
+                                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                    disabled={!migrateForm.category_id}
+                                >
+                                    <option value="">Select Subcategory (Optional)</option>
+                                    {migrateSubcategories.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-gray-50 border-t border-gray-100 flex gap-3">
+                            <button
+                                onClick={() => setShowMigrateModal(false)}
+                                className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-white transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleMigrateSubmit}
+                                disabled={submittingMigration || !migrateForm.site_id || !migrateForm.contractor_id || !migrateForm.category_id}
+                                className="flex-[2] bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2"
+                            >
+                                {submittingMigration ? (
+                                    <>
+                                        <RefreshCw className="w-4 h-4 animate-spin" />
+                                        Migrating...
+                                    </>
+                                ) : (
+                                    <>
+                                        <RefreshCw className="w-4 h-4" />
+                                        Confirm Migration
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
