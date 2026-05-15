@@ -595,6 +595,67 @@ export default function EmployeeManagement() {
     setPolicyId("");
   };
 
+  const [importing, setImporting] = useState(false);
+
+  const handleDownloadTemplate = async () => {
+    try {
+      setActionLoading("template");
+      const blob = await apiClient("/organization/employees/import/template", {
+        method: "GET",
+        responseType: "blob",
+        withAuth: true
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'employee_import_template.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      showNotification("Template downloaded successfully", "success");
+    } catch (e: any) {
+      showNotification(e.message || "Failed to download template", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    setActionLoading("import");
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await apiClient<{ success: boolean; imported: number; failed: number; errors: any[]; message?: string }>("/organization/employees/import", {
+        method: "POST",
+        body: formData,
+        withAuth: true
+      });
+
+      if (res.imported > 0 || res.success) {
+        showNotification(`Successfully imported ${res.imported} employees.`, "success");
+        if (res.failed > 0) {
+          setError(`Import completed with ${res.failed} failures. Check console for details.`);
+          console.error('Import errors:', res.errors);
+        }
+        fetchEmployees();
+      } else {
+        showNotification(res.message || "Import failed", "error");
+      }
+    } catch (e: any) {
+      showNotification(e.message || "Import failed", "error");
+    } finally {
+      setImporting(false);
+      setActionLoading(null);
+      e.target.value = '';
+    }
+  };
+
   const openEdit = async (id: number) => {
     if (!hasPerm("EMP_EDIT")) {
       setError("Not authorized to edit employees");
@@ -1727,22 +1788,19 @@ export default function EmployeeManagement() {
             {(isOrgAdmin || hasPerm("EMP_ADD")) && (
               <>
                 <button
-                  onClick={() => {
-                    const link = document.createElement('a');
-                    link.href = '/api/v1/organization/employees/import/template';
-                    link.download = 'employee_import_template.xlsx';
-                    link.click();
-                  }}
-                  className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-1 text-sm"
+                  onClick={handleDownloadTemplate}
+                  disabled={actionLoading === "template"}
+                  className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-1 text-sm disabled:opacity-50"
                 >
-                  <Download className="w-4 h-4" />
+                  {actionLoading === "template" ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                   <span className="hidden sm:inline">Template</span>
                 </button>
                 <button
                   onClick={() => document.getElementById('import-file-input')?.click()}
-                  className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center space-x-1 text-sm"
+                  disabled={actionLoading === "import"}
+                  className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center space-x-1 text-sm disabled:opacity-50"
                 >
-                  <Upload className="w-4 h-4" />
+                  {actionLoading === "import" ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                   <span className="hidden sm:inline">Import</span>
                 </button>
                 <button
@@ -2814,6 +2872,15 @@ export default function EmployeeManagement() {
           }}
         />
       )}
+
+      {/* Hidden File Input for Import */}
+      <input
+        type="file"
+        id="import-file-input"
+        className="hidden"
+        accept=".xlsx,.xls"
+        onChange={handleImport}
+      />
     </div >
   );
 }
