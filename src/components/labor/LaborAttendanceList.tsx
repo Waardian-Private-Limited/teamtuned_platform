@@ -447,7 +447,7 @@ export default function LaborAttendanceList() {
                                     className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                 >
                                     <option value="">All Contractors</option>
-                                    {contractors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    {contractors.map(c => <option key={c.id} value={c.id}>{c.name}{c.site_name ? ` (${c.site_name})` : ""}</option>)}
                                 </select>
                             </div>
 
@@ -1051,14 +1051,14 @@ export default function LaborAttendanceList() {
                                     Reassigning {migratingLaborer.name} for {date}
                                 </p>
                             </div>
-                            <button 
+                            <button
                                 onClick={() => setShowMigrateModal(false)}
                                 className="p-2 hover:bg-white/10 rounded-full transition-colors"
                             >
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
-                        
+
                         <div className="p-6 space-y-4">
                             <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 flex items-start gap-3">
                                 <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
@@ -1092,7 +1092,7 @@ export default function LaborAttendanceList() {
                                     disabled={!migrateForm.site_id}
                                 >
                                     <option value="">Select Contractor</option>
-                                    {migrateContractors.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
+                                     {migrateContractors.map(c => <option key={c.id} value={String(c.id)}>{c.name}{c.site_name ? ` (${c.site_name})` : ""}</option>)}
                                 </select>
                             </div>
 

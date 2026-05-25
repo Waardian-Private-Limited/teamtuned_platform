@@ -17,6 +17,7 @@ import TeamTunedLoader from "@/components/common/TeamTunedLoader";
 interface ContractorStats {
     contractor_id: number;
     contractor_name: string;
+    site_name?: string;
     total_laborers: number;
     present_count: number;
     active_count: number;
@@ -116,7 +117,7 @@ export default function ContractorAttendanceDashboard() {
                         <h3 className="text-lg font-bold text-gray-900 line-clamp-1" title={item.contractor_name}>
                             {item.contractor_name}
                         </h3>
-                        <p className="text-xs text-gray-500 font-medium">Contractor</p>
+                        <p className="text-xs text-gray-500 font-medium">Contractor{item.site_name ? ` (${item.site_name})` : ""}</p>
                     </div>
                     <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
                         <Briefcase size={20} />
