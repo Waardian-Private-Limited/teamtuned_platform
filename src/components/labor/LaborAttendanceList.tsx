@@ -191,12 +191,13 @@ export default function LaborAttendanceList() {
         })();
     }, []);
 
-    // Fetch Contractors (Filtered by Site)
+    // Fetch Contractors (Filtered by Site and Date)
     useEffect(() => {
         (async () => {
             try {
                 const params: any = {};
                 if (selectedSiteId) params.site_id = selectedSiteId;
+                if (date) params.date = date;
 
                 const res = await apiClient<any>("/labor/contractors", { withAuth: true, params });
                 setContractors(res.contractors || []);
@@ -204,7 +205,7 @@ export default function LaborAttendanceList() {
                 console.error("Failed to fetch contractors", error);
             }
         })();
-    }, [selectedSiteId]);
+    }, [selectedSiteId, date]);
 
     // Fetch Subcategories
     useEffect(() => {
