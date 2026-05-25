@@ -50,7 +50,7 @@ export default function LaborAttendanceList() {
     const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
     const [hqMode, setHqMode] = useState(false);
     const [selectedSiteId, setSelectedSiteId] = useState<number | null>(null);
-    const [selectedContractorId, setSelectedContractorId] = useState<number | null>(null);
+    const [selectedContractorId, setSelectedContractorId] = useState<number | string | null>(null);
     const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
     const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<number | null>(null);
 
@@ -443,11 +443,13 @@ export default function LaborAttendanceList() {
                                 <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">Contractor</label>
                                 <select
                                     value={selectedContractorId || ""}
-                                    onChange={(e) => setSelectedContractorId(e.target.value ? Number(e.target.value) : null)}
+                                    onChange={(e) => setSelectedContractorId(e.target.value || null)}
                                     className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                 >
                                     <option value="">All Contractors</option>
-                                    {contractors.map(c => <option key={c.id} value={c.id}>{c.name}{c.site_name ? ` (${c.site_name})` : ""}</option>)}
+                                    {Array.from(new Set(contractors.map(c => c.name).filter(Boolean))).map(name => (
+                                        <option key={name} value={name}>{name}</option>
+                                    ))}
                                 </select>
                             </div>
 
@@ -1092,7 +1094,7 @@ export default function LaborAttendanceList() {
                                     disabled={!migrateForm.site_id}
                                 >
                                     <option value="">Select Contractor</option>
-                                     {migrateContractors.map(c => <option key={c.id} value={String(c.id)}>{c.name}{c.site_name ? ` (${c.site_name})` : ""}</option>)}
+                                     {migrateContractors.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
                                 </select>
                             </div>
 
@@ -1169,7 +1171,7 @@ function LaborExportModal({
 }: {
     current: {
         siteId: number | null;
-        contractorId: number | null;
+        contractorId: number | string | null;
         categoryId: number | null;
         subcategoryId: number | null;
         date: string;
@@ -1363,11 +1365,13 @@ function LaborExportModal({
                         <label className="block text-xs text-gray-500 mb-1">Contractor</label>
                         <select
                             value={local.contractorId ?? ""}
-                            onChange={(e) => setLocal({ ...local, contractorId: e.target.value ? Number(e.target.value) : null })}
+                            onChange={(e) => setLocal({ ...local, contractorId: e.target.value || null })}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                         >
                             <option value="">All Contractors</option>
-                            {contractors.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
+                            {Array.from(new Set(contractors.map(c => c.name).filter(Boolean))).map((name) => (
+                                <option key={name} value={name}>{name}</option>
+                            ))}
                         </select>
                     </div>
 
