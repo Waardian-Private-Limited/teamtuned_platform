@@ -498,6 +498,49 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
     }
   };
 
+  const handleApproveAll = async () => {
+    const pendingIds = rows
+      .filter(r => 
+        r.can_approve_level != null && 
+        r.current_approval_level != null && 
+        r.can_approve_level === r.current_approval_level && 
+        r.status.toLowerCase() !== 'approved' && 
+        r.status.toLowerCase() !== 'rejected'
+      )
+      .map(r => r.id);
+
+    if (pendingIds.length === 0) {
+      showNotification('No pending expenses at your level to approve.', 'error');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to approve all ${pendingIds.length} expenses currently shown at your level?`)) {
+      return;
+    }
+
+    try {
+      setActionLoading('bulk');
+      const res = await apiClient<any>(`/expenses/bulk-approve`, {
+        method: "POST",
+        body: { ids: pendingIds },
+        withAuth: true
+      });
+
+      if (res.success) {
+        showNotification(`Successfully approved ${res.approved_count} expenses.`, 'success');
+        if (res.error_count > 0) {
+          showNotification(`${res.error_count} expenses could not be approved.`, 'error');
+        }
+      }
+      await loadData();
+    } catch (e: any) {
+      console.error('Failed bulk approval:', e);
+      showNotification(e?.message || 'Bulk approval failed', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleReject = async (expenseId: number) => {
     if (!confirm('Are you sure you want to reject this expense?')) return;
     try {
@@ -830,6 +873,16 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
         <span className="text-xs text-gray-500">
           {myLevel ? "Showing only expenses pending your approval." : "Filter to see only expenses requiring your approval."}
         </span>
+        {myLevel && rows.some(r => (r.can_approve_level != null) && r.status.toLowerCase() !== 'approved' && r.status.toLowerCase() !== 'rejected') && (
+          <button
+            onClick={handleApproveAll}
+            disabled={actionLoading === 'bulk'}
+            className="ml-auto flex items-center gap-1.5 px-3 py-1 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700 transition-colors shadow-sm disabled:opacity-50"
+          >
+            {actionLoading === 'bulk' ? <RefreshCw className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+            Approve All At My Level
+          </button>
+        )}
       </div>
 
       {/* Balance Summary Bar */}
