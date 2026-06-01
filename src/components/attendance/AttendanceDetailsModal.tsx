@@ -699,9 +699,14 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                         <div className="text-xs font-semibold text-blue-700 uppercase">Punch In</div>
                                     </div>
                                     <div className="font-semibold text-blue-900">{formatTime(record.punch_in_time || record.check_in)}</div>
-                                    {!!record.punch_in_site_name && (
+                                    {record.punch_in_other_location_name ? (
+                                        <div className="text-xs text-blue-700 mt-1 truncate flex items-center gap-1">
+                                            <span className="font-bold px-1 py-0.25 bg-amber-100 text-amber-800 rounded text-[9px] uppercase tracking-wider">Other</span>
+                                            {record.punch_in_other_location_name}
+                                        </div>
+                                    ) : !!record.punch_in_site_name ? (
                                         <div className="text-xs text-blue-700 mt-1 truncate">{record.punch_in_site_name}</div>
-                                    )}
+                                    ) : null}
                                 </div>
 
                                 <div className="bg-purple-50/50 rounded-lg p-3 border border-purple-200/50">
@@ -710,9 +715,14 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                         <div className="text-xs font-semibold text-purple-700 uppercase">Punch Out</div>
                                     </div>
                                     <div className="font-semibold text-purple-900">{formatTime(record.punch_out_time || record.check_out)}</div>
-                                    {!!record.punch_out_site_name && (
+                                    {record.punch_out_other_location_name ? (
+                                        <div className="text-xs text-purple-700 mt-1 truncate flex items-center gap-1">
+                                            <span className="font-bold px-1 py-0.25 bg-amber-100 text-amber-800 rounded text-[9px] uppercase tracking-wider">Other</span>
+                                            {record.punch_out_other_location_name}
+                                        </div>
+                                    ) : !!record.punch_out_site_name ? (
                                         <div className="text-xs text-purple-700 mt-1 truncate">{record.punch_out_site_name}</div>
-                                    )}
+                                    ) : null}
                                 </div>
                             </div>
 

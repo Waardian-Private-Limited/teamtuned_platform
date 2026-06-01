@@ -60,6 +60,8 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
   const [inchargeSites, setInchargeSites] = React.useState<Array<Record<string, any>>>([]);
   const [allSites, setAllSites] = React.useState<Array<Record<string, any>>>([]);
   const [selectedSiteId, setSelectedSiteId] = React.useState<number | null>(extSiteId ?? null);
+  const [otherLocations, setOtherLocations] = React.useState<any[]>([]);
+  const [selectedOtherLocationId, setSelectedOtherLocationId] = React.useState<number | null>(null);
   const [items, setItems] = React.useState<EmployeeItem[]>([]);
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -127,6 +129,19 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
         setDepartments(list);
       } catch (e) {
         console.error("Failed to fetch departments", e);
+      }
+    })();
+  }, []);
+
+  // Fetch Other Locations
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res = await apiClient<any>("/organization/employees/other-locations", { method: "GET", withAuth: true });
+        const list = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+        setOtherLocations(list);
+      } catch (e) {
+        console.error("Failed to fetch other locations", e);
       }
     })();
   }, []);
@@ -250,16 +265,20 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
       const effHq = (externalControl ? (extHq ?? hqMode) : hqMode) && canHRMode;
       const effSite = externalControl ? (extSiteId ?? selectedSiteId) : selectedSiteId;
 
-      if (!effHq && (!effSite || Number(effSite) <= 0)) {
+      if (selectedOtherLocationId) {
+        params["other_location_id"] = String(selectedOtherLocationId);
+      } else if (!effHq && (!effSite || Number(effSite) <= 0)) {
         setItems([]);
         throw new Error("Select a site or enable HR mode to view employees");
       }
 
-      if (effHq) {
-        params["hq"] = "1";
-        if (effSite) params["site_id"] = String(effSite);
-      } else if (effSite) {
-        params["site_id"] = String(effSite);
+      if (!selectedOtherLocationId) {
+        if (effHq) {
+          params["hq"] = "1";
+          if (effSite) params["site_id"] = String(effSite);
+        } else if (effSite) {
+          params["site_id"] = String(effSite);
+        }
       }
 
       if (date) params["date"] = date;
@@ -287,7 +306,7 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
     } finally {
       setLoading(false);
     }
-  }, [hqMode, selectedSiteId, canHRMode, externalControl, extHq, extSiteId, date, debouncedSearch, department, statusFilter, departments]);
+  }, [hqMode, selectedSiteId, selectedOtherLocationId, canHRMode, externalControl, extHq, extSiteId, date, debouncedSearch, department, statusFilter, departments]);
 
   React.useEffect(() => {
     fetchList();
@@ -800,29 +819,49 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
                   <div className="relative">
                     <Layers className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <select
-                      value={selectedSiteId == null ? "" : String(selectedSiteId)}
+                      value={selectedOtherLocationId ? `other_${selectedOtherLocationId}` : (selectedSiteId == null ? "" : `site_${selectedSiteId}`)}
                       onChange={(e) => {
                         const raw = e.target.value;
                         if (raw === "") {
                           setSelectedSiteId(null);
+                          setSelectedOtherLocationId(null);
                           return;
                         }
-                        const val = parseInt(raw, 10);
-                        setSelectedSiteId(Number.isNaN(val) ? null : val);
+                        if (raw.startsWith("other_")) {
+                          const val = parseInt(raw.replace("other_", ""), 10);
+                          setSelectedOtherLocationId(Number.isNaN(val) ? null : val);
+                          setSelectedSiteId(null);
+                        } else {
+                          const val = parseInt(raw.replace("site_", ""), 10);
+                          setSelectedSiteId(Number.isNaN(val) ? null : val);
+                          setSelectedOtherLocationId(null);
+                        }
                       }}
                       className="w-full pl-10 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none"
                     >
                       {hqMode && canHRMode ? (
-                        <option value="">All Sites</option>
+                        <option value="">All Sites & Locations</option>
                       ) : (
-                        <option value="">Select Site</option>
+                        <option value="">Select Location</option>
                       )}
-                      {(canHRMode ? allSites : inchargeSites).length === 0 && <option value="">No sites</option>}
-                      {(canHRMode ? allSites : inchargeSites).map((s) => (
-                        <option key={String(s.id)} value={String(s.id)}>
-                          {String(s.name || s.site_name || s.id)}
-                        </option>
-                      ))}
+
+                      <optgroup label="Primary Sites">
+                        {(canHRMode ? allSites : inchargeSites).map((s) => (
+                          <option key={`site_${s.id}`} value={`site_${s.id}`}>
+                            {String(s.name || s.site_name || s.id)}
+                          </option>
+                        ))}
+                      </optgroup>
+
+                      {otherLocations.length > 0 && (
+                        <optgroup label="Other Locations">
+                          {otherLocations.map((loc) => (
+                            <option key={`other_${loc.id}`} value={`other_${loc.id}`}>
+                              📍 {String(loc.location_name || loc.name || loc.id)}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
                     </select>
                     <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   </div>
@@ -1224,7 +1263,12 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
 
                       {/* Site */}
                       <div className="text-sm text-slate-700 truncate">
-                        {employee.attendance?.punch_in_site_name || "-"}
+                        {employee.attendance?.punch_in_other_location_name ? (
+                          <span className="flex items-center gap-1">
+                            <span className="px-1 py-0.25 bg-amber-100 text-amber-800 rounded text-[9px] font-semibold uppercase tracking-wider">Other</span>
+                            {employee.attendance.punch_in_other_location_name}
+                          </span>
+                        ) : employee.attendance?.punch_in_site_name || "-"}
                       </div>
 
                       {/* Actions */}
