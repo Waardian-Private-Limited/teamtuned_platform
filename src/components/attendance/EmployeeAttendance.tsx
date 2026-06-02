@@ -1263,12 +1263,7 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
 
                       {/* Site */}
                       <div className="text-sm text-slate-700 truncate">
-                        {employee.attendance?.punch_in_other_location_name ? (
-                          <span className="flex items-center gap-1">
-                            <span className="px-1 py-0.25 bg-amber-100 text-amber-800 rounded text-[9px] font-semibold uppercase tracking-wider">Other</span>
-                            {employee.attendance.punch_in_other_location_name}
-                          </span>
-                        ) : employee.attendance?.punch_in_site_name || "-"}
+                        {employee.attendance?.punch_in_other_location_name || employee.attendance?.punch_in_site_name || "-"}
                       </div>
 
                       {/* Actions */}
