@@ -1421,7 +1421,7 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
               attendance_date: date || selectedEmployeeForDetails.attendance_date, // Ensure date from filter is used
               sessions: selectedEmployeeForDetails.attendance?.sessions || selectedEmployeeForDetails.sessions || [],
               // CRITICAL: Set employee_id LAST to ensure it's not overwritten by spreads
-              employee_id: selectedEmployeeForDetails.employee_id,
+              employee_id: selectedEmployeeForDetails.employee_id || selectedEmployeeForDetails.id,
             }}
             onClose={() => setSelectedEmployeeForDetails(null)}
           />
