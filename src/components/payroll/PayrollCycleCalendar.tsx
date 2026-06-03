@@ -657,7 +657,11 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
                           <button
                             key={i}
                             onClick={() => {
-                              setDetailRecord({ ...record, attendance_date: dKey } as any);
+                              setDetailRecord({
+                                ...record,
+                                attendance_date: dKey,
+                                employee_id: employeeId || record?.employee_id || employee?.id
+                              } as any);
                               setDetailOpen(true);
                             }}
                             className={`aspect-square rounded-lg flex flex-col items-center justify-center relative border transition-all ${!inCycle ? 'opacity-40 grayscale' : 'hover:scale-105 hover:shadow-md z-0 hover:z-10'
