@@ -138,6 +138,7 @@ export default function SuperadminSidebar({
             <div className="mt-2 space-y-1">
               <Item icon={User} label="Billing Profile" href="/superadmin/billing-profile" active={pathname === "/superadmin/billing-profile"} />
               <Item icon={FileText} label="Custom Invoices" href="/superadmin/custom-invoices" active={pathname === "/superadmin/custom-invoices"} />
+              <Item icon={CreditCard} label="TDS Deductions" href="/superadmin/tds-deductions" active={pathname === "/superadmin/tds-deductions"} />
             </div>
           )}
         </div>

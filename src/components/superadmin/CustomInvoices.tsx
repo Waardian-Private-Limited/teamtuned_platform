@@ -39,6 +39,7 @@ export default function CustomInvoices() {
         due_date: new Date().toISOString().split('T')[0],
         paid_amount: "0",
         status: "PENDING",
+        without_gst: false,
         items: [{ description: "", rate: "", quantity: "1" }]
     });
 
@@ -116,6 +117,7 @@ export default function CustomInvoices() {
                     due_date: res.invoice.due_date ? new Date(res.invoice.due_date).toISOString().split('T')[0] : "",
                     paid_amount: res.invoice.paid_amount?.toString() || "0",
                     status: res.invoice.status,
+                    without_gst: !!res.invoice.without_gst,
                     items: res.items?.length > 0 ? res.items.map((i: any) => ({
                         description: i.description,
                         rate: i.rate?.toString() || "",
@@ -140,6 +142,7 @@ export default function CustomInvoices() {
             due_date: new Date().toISOString().split('T')[0],
             paid_amount: "0",
             status: "PENDING",
+            without_gst: false,
             items: [{ description: "", rate: "", quantity: "1" }]
         });
     };
@@ -352,10 +355,11 @@ export default function CustomInvoices() {
                                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Client GST Number</label>
                                     <input 
                                         type="text"
+                                        disabled={formData.without_gst}
                                         value={formData.client_gst}
                                         onChange={(e) => setFormData({...formData, client_gst: e.target.value})}
-                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-bold text-black uppercase"
-                                        placeholder="Optional (e.g. 27XXXXX)"
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-bold text-black uppercase disabled:opacity-50 disabled:bg-gray-50"
+                                        placeholder={formData.without_gst ? "GST numbers disabled" : "Optional (e.g. 27XXXXX)"}
                                     />
                                 </div>
                                 <div>
@@ -397,6 +401,22 @@ export default function CustomInvoices() {
                                         className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-bold text-black uppercase"
                                         placeholder="e.g. 27-MAHARASHTRA"
                                     />
+                                </div>
+                                <div className="flex items-center gap-3 pt-6 md:col-span-2">
+                                    <input
+                                        type="checkbox"
+                                        id="without_gst"
+                                        checked={formData.without_gst}
+                                        onChange={(e) => setFormData({
+                                            ...formData, 
+                                            without_gst: e.target.checked,
+                                            client_gst: e.target.checked ? "" : formData.client_gst
+                                        })}
+                                        className="w-5 h-5 rounded-md border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                    />
+                                    <label htmlFor="without_gst" className="text-xs font-black text-gray-700 uppercase tracking-wider select-none cursor-pointer">
+                                        Generate Invoice without GST (Exempt/Unregistered - Omit GSTINs & tax calculations)
+                                    </label>
                                 </div>
                             </div>
 
