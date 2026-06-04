@@ -1,7 +1,10 @@
-"use client";
-
+import RouteGuard from '@/components/auth/RouteGuard';
 import DpsAssignments from '@/components/dps/DpsAssignments';
 
 export default function EmployeeDpsAssignmentsPage() {
-    return <DpsAssignments />;
+    return (
+        <RouteGuard requiredPermissions={["DPR_VIEW", "DPR_ADMIN", "DPR_ADD", "DPR_EDIT"]} requireAny>
+            <DpsAssignments />
+        </RouteGuard>
+    );
 }

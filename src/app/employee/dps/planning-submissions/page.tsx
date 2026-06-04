@@ -1,6 +1,10 @@
-import React from 'react';
+import RouteGuard from '@/components/auth/RouteGuard';
 import DpsSubmissionsList from '@/components/dps/DpsSubmissionsList';
 
 export default function PlanningSubmissionsPage() {
-    return <DpsSubmissionsList formType="planning" />;
+    return (
+        <RouteGuard requiredPermissions={["DPR_VIEW", "DPR_ADMIN", "DPR_ADD", "DPR_EDIT"]} requireAny>
+            <DpsSubmissionsList formType="planning" />
+        </RouteGuard>
+    );
 }

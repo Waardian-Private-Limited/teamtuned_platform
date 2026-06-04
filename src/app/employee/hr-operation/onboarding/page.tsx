@@ -1,4 +1,4 @@
-import React from 'react';
+import RouteGuard from '@/components/auth/RouteGuard';
 import OnboardingManagement from '@/components/hr-operation/OnboardingManagement';
 
 export const metadata = {
@@ -7,8 +7,10 @@ export const metadata = {
 
 export default function EmployeeOnboardingPage() {
     return (
-        <div className="min-h-screen bg-gray-50/50">
-            <OnboardingManagement />
-        </div>
+        <RouteGuard requiredPermissions={["HR_VIEW", "RECRUITER_MODE", "HR_MODE"]} requireAny>
+            <div className="min-h-screen bg-gray-50/50">
+                <OnboardingManagement />
+            </div>
+        </RouteGuard>
     );
 }

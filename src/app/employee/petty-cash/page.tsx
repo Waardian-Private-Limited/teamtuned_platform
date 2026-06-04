@@ -6,7 +6,7 @@ import RouteGuard from "@/components/auth/RouteGuard";
 
 export default function EmployeePettyCashPage() {
   return (
-    <RouteGuard requiredPermissions={["WALLET_ADMIN", "WALLET_VIEW", "WALLET_ADD"]} requireAny>
+    <RouteGuard requiredPermissions={["PETTY_CASH_ADMIN", "PETTY_CASH_VIEW", "PETTY_CASH_ADD"]} requireAny>
       <PettyCash />
     </RouteGuard>
   );

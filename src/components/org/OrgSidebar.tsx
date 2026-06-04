@@ -372,6 +372,7 @@ export default function OrgSidebar({
                         <div className="space-y-1">
                             <Item icon={LayoutDashboard} label="Dashboard" href="/org-admin/attendance/dashboard" active={pathname === "/org-admin/attendance/dashboard"} />
                             <Item icon={UserCheck} label="Employee Attendance" href="/org-admin/attendance/employee" active={pathname === "/org-admin/attendance/employee"} />
+                            <Item icon={MapPin} label="Employee GPS Tracking" href="/org-admin/employee-tracking" active={pathname === "/org-admin/employee-tracking"} />
                             <Item icon={Settings} label="Attendance Config" href="/org-admin/attendance-config" active={pathname === "/org-admin/attendance-config"} />
                             <Item icon={Settings} label="Attendance Rules" href="/org-admin/attendance-rules" active={pathname === "/org-admin/attendance-rules"} />
                             <Item icon={Calendar} label="Holiday Calendar" href="/org-admin/holiday-calendar" active={pathname === "/org-admin/holiday-calendar"} />

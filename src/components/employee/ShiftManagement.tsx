@@ -19,6 +19,7 @@ interface Employee {
     shift_end_time: string | null;
     week_off_days: string[];
     site_names: string[];
+    shift_updated_by_name: string | null;
 }
 
 const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -637,19 +638,20 @@ export default function ShiftManagement() {
                                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Shift Start</th>
                                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Shift End</th>
                                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Week Off</th>
+                                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Last Updated By</th>
                                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
                                 {loading ? (
                                     <tr>
-                                        <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                                        <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                                             Loading...
                                         </td>
                                     </tr>
                                 ) : filteredEmployees.length === 0 ? (
                                     <tr>
-                                        <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                                        <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                                             No employees found
                                         </td>
                                     </tr>
@@ -691,6 +693,14 @@ export default function ShiftManagement() {
                                                 ) : (
                                                     <span className="text-sm text-gray-500">-</span>
                                                 )}
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-gray-500">
+                                                {emp.shift_updated_by_name ? (
+                                                    <div className="flex items-center gap-1.5">
+                                                        <User size={14} className="text-gray-400" />
+                                                        <span>{emp.shift_updated_by_name}</span>
+                                                    </div>
+                                                ) : '-'}
                                             </td>
                                             <td className="px-4 py-3">
                                                 <button

@@ -1,12 +1,12 @@
-"use client";
-
-import React from "react";
+import RouteGuard from "@/components/auth/RouteGuard";
 import LaborCategoriesManager from "@/components/org/labor/LaborCategoriesManager";
 
 export default function LaborCategoriesPage() {
     return (
-        <div>
-            <LaborCategoriesManager />
-        </div>
+        <RouteGuard requiredPermissions={["LABOR_CAT_VIEW", "LABOR_CAT_ADD", "LABOR_CAT_EDIT", "LABOR_CAT_DELETE"]} requireAny>
+            <div>
+                <LaborCategoriesManager />
+            </div>
+        </RouteGuard>
     );
 }

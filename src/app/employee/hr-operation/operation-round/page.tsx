@@ -1,4 +1,4 @@
-import React from 'react';
+import RouteGuard from '@/components/auth/RouteGuard';
 import OperationManagement from '@/components/hr-operation/OperationManagement';
 
 export const metadata = {
@@ -8,8 +8,10 @@ export const metadata = {
 
 export default function EmployeeOperationRoundPage() {
     return (
-        <div className="min-h-screen bg-gray-50/50">
-            <OperationManagement myOnly={true} />
-        </div>
+        <RouteGuard requiredPermissions={["HR_VIEW", "RECRUITER_MODE", "HR_MODE"]} requireAny>
+            <div className="min-h-screen bg-gray-50/50">
+                <OperationManagement myOnly={true} />
+            </div>
+        </RouteGuard>
     );
 }

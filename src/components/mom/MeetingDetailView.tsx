@@ -38,6 +38,7 @@ import MeetingCollaborator from './MeetingCollaborator';
 import { apiClient } from '@/lib/apiClient';
 import toast from 'react-hot-toast';
 import ActionItemChat from './ActionItemChat';
+import { useUserStore } from '@/lib/store/userStore';
 
 export interface Breadcrumb {
     label: string;
@@ -60,6 +61,7 @@ export default function MeetingDetailView({
     onStatusUpdate,
     currentEmployeeId
 }: MeetingDetailViewProps) {
+    const { user: storeUser } = useUserStore();
     const [meeting, setMeeting] = useState<any>(initialMeeting);
     const [activeTab, setActiveTab] = useState('points');
     const [isCollaborating, setIsCollaborating] = useState(false);
@@ -136,6 +138,17 @@ export default function MeetingDetailView({
             return () => clearTimeout(timeoutId);
         }
     }, [tagQuery, showAssignPopover, assignType, departmentsList]);
+
+    const getUiStatus = (dbStatus: string) => {
+        if (!dbStatus) return 'Planned';
+        const s = dbStatus.toLowerCase();
+        if (s === 'closed') return 'Closed';
+        if (s === 'completed' || s === 'done' || s === 'approved') return 'Done';
+        if (s === 'open' || s === 'unassigned' || s === 'assigned') return 'Planned';
+        if (s === 'acknowledged') return 'Acknowledged';
+        if (s === 'rejected') return 'Rejected';
+        return 'In Progress';
+    };
 
     const handleDirectAssign = async (item: any) => {
         if (!showAssignPopover) return;
@@ -558,22 +571,64 @@ export default function MeetingDetailView({
 
                                                         {/* Action buttons */}
                                                         <div className="flex items-center gap-2 mt-4">
-                                                            {(point.status === 'open' || point.status === 'unassigned' || point.status === 'rejected') && (
-                                                                <button
-                                                                    onClick={() => handleAcknowledge(point.id)}
-                                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-[10px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95"
-                                                                >
-                                                                    <Check size={12} /> Acknowledge
-                                                                </button>
-                                                            )}
-                                                            {(point.status === 'acknowledged' || point.status === 'in_progress' || point.status === 'open') && (
-                                                                <button
-                                                                    onClick={() => handleMarkDone(point.id)}
-                                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[10px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95"
-                                                                >
-                                                                    <CheckCircle2 size={12} /> Mark Done
-                                                                </button>
-                                                            )}
+                                                            {(() => {
+                                                                const uiStatus = getUiStatus(point.status);
+                                                                const assignments = point.assignments || [];
+                                                                const onlyDeptAssigned = assignments.length > 0 && assignments.every((a: any) => {
+                                                                    const t = (a.type || a.assignee_type || '').toLowerCase();
+                                                                    return t === 'department' || t === 'dept';
+                                                                });
+
+                                                                const ackSiteIds = meeting.acknowledging_site_ids || [];
+                                                                const normalizedAckSites = Array.isArray(ackSiteIds) ? ackSiteIds : (ackSiteIds ? [ackSiteIds] : []);
+                                                                const isMyDeptAssigned = assignments.some((a: any) => {
+                                                                    const t = (a.type || a.assignee_type || '').toLowerCase();
+                                                                    const aId = Number(a.assignee_id || a.id);
+                                                                    const uDeptId = Number(storeUser?.departmentId || 0);
+                                                                    return t === 'department' && aId === uDeptId && uDeptId !== 0;
+                                                                });
+
+                                                                const mySiteId = Number(storeUser?.siteId || 0);
+                                                                const isMySiteAck = normalizedAckSites.map(Number).includes(mySiteId) && mySiteId !== 0;
+
+                                                                if (uiStatus === 'Planned') {
+                                                                    console.log(`DetailView Point ${point.id} Visibility Debug:`, {
+                                                                        uiStatus,
+                                                                        onlyDeptAssigned,
+                                                                        isMySiteAck,
+                                                                        isMyDeptAssigned,
+                                                                        ackSiteIds,
+                                                                        normalizedAckSites,
+                                                                        mySiteId,
+                                                                        storeUserDeptId: storeUser?.departmentId,
+                                                                        assignments: assignments.map((a: any) => ({ type: a.assignee_type, id: a.assignee_id }))
+                                                                    });
+                                                                }
+
+                                                                const myId = String(storeUser?.employeeId || storeUser?.id);
+                                                                const isAssignedToMe = assignments.some((a: any) => (a.type === 'employee' || a.assignee_type === 'employee') && String(a.assignee_id || a.id) === myId);
+
+                                                                return (
+                                                                    <>
+                                                                        {uiStatus === 'Planned' && onlyDeptAssigned && isMySiteAck && isMyDeptAssigned && (
+                                                                            <button
+                                                                                onClick={() => handleAcknowledge(point.id)}
+                                                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-[10px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95"
+                                                                            >
+                                                                                <Check size={12} /> Acknowledge
+                                                                            </button>
+                                                                        )}
+                                                                        {(uiStatus === 'Acknowledged' || uiStatus === 'In Progress' || uiStatus === 'Rejected') && isAssignedToMe && (
+                                                                            <button
+                                                                                onClick={() => handleMarkDone(point.id)}
+                                                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[10px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95"
+                                                                            >
+                                                                                <CheckCircle2 size={12} /> Mark Done
+                                                                            </button>
+                                                                        )}
+                                                                    </>
+                                                                );
+                                                            })()}
                                                             <button
                                                                 onClick={() => openChat(point.id)}
                                                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"

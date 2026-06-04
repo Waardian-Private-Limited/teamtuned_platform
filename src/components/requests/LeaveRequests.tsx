@@ -61,95 +61,6 @@ function useCountUp(target: number, duration = 800) {
   return v;
 }
 
-// Countdown hook for timeline
-function useCountdown(levelStartedAt: string | null, timelineHours: number | null, timelineDueAt?: string | null) {
-  const [timeLeft, setTimeLeft] = useState<{ hours: number, minutes: number, seconds: number, expired: boolean } | null>(null);
-
-  useEffect(() => {
-    // If we have a direct due date, use it
-    if (timelineDueAt) {
-      const calculateTimeLeft = () => {
-        try {
-          const dateStr = timelineDueAt.includes('Z') ? timelineDueAt : timelineDueAt + 'Z';
-          const deadline = new Date(dateStr).getTime();
-
-          if (isNaN(deadline)) {
-            return { hours: 0, minutes: 0, seconds: 0, expired: true };
-          }
-
-          const now = Date.now();
-          const diff = deadline - now;
-
-          if (diff <= 0) {
-            return { hours: 0, minutes: 0, seconds: 0, expired: true };
-          }
-
-          const hours = Math.floor(diff / (1000 * 60 * 60));
-          const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-          const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-          return { hours, minutes, seconds, expired: false };
-        } catch (error) {
-          console.error('Error calculating countdown:', error);
-          return { hours: 0, minutes: 0, seconds: 0, expired: true };
-        }
-      };
-
-      setTimeLeft(calculateTimeLeft());
-      const interval = setInterval(() => {
-        setTimeLeft(calculateTimeLeft());
-      }, 1000);
-
-      return () => clearInterval(interval);
-    }
-
-    // Fallback: calculate from level_started_at + timeline_hours
-    if (!levelStartedAt || !timelineHours || timelineHours <= 0) {
-      setTimeLeft(null);
-      return;
-    }
-
-    const calculateTimeLeft = () => {
-      try {
-        // Parse the UTC timestamp and keep it in UTC
-        const dateStr = levelStartedAt.includes('Z') ? levelStartedAt : levelStartedAt + 'Z';
-        const start = new Date(dateStr).getTime();
-
-        // Validate the parsed date
-        if (isNaN(start)) {
-          return { hours: 0, minutes: 0, seconds: 0, expired: true };
-        }
-
-        const deadline = start + (timelineHours * 60 * 60 * 1000);
-        const now = Date.now(); // Current time in UTC milliseconds
-
-        const diff = deadline - now;
-
-        if (diff <= 0) {
-          return { hours: 0, minutes: 0, seconds: 0, expired: true };
-        }
-
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-        return { hours, minutes, seconds, expired: false };
-      } catch (error) {
-        console.error('Error calculating countdown:', error);
-        return { hours: 0, minutes: 0, seconds: 0, expired: true };
-      }
-    };
-
-    setTimeLeft(calculateTimeLeft());
-    const interval = setInterval(() => {
-      setTimeLeft(calculateTimeLeft());
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [levelStartedAt, timelineHours, timelineDueAt]);
-
-  return timeLeft;
-}
 
 export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, externalControl = false, hqMode: extHq, selectedSiteId: extSiteId }: Props) {
   const { role, permissions, user, employee } = useAuth();
@@ -230,16 +141,159 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
     reason: ""
   });
 
+  // Leave Balances Tab state variables
+  const [activeTab, setActiveTab] = useState<"requests" | "balances">("requests");
+  const [balanceEmployees, setBalanceEmployees] = useState<Array<Record<string, any>>>([]);
+  const [balanceEmployeeSearch, setBalanceEmployeeSearch] = useState("");
+  const [balanceEmployeesLoading, setBalanceEmployeesLoading] = useState(false);
+  const [balanceEmployeePage, setBalanceEmployeePage] = useState(1);
+  const [balanceEmployeePageSize] = useState(10);
+  const [balanceEmployeesTotal, setBalanceEmployeesTotal] = useState(0);
+  const [selectedBalanceEmployee, setSelectedBalanceEmployee] = useState<Record<string, any> | null>(null);
+  const [selectedEmployeeBalances, setSelectedEmployeeBalances] = useState<Array<Record<string, any>>>([]);
+  const [selectedEmployeeBalancesLoading, setSelectedEmployeeBalancesLoading] = useState(false);
+  const [editingBalances, setEditingBalances] = useState<Record<string, { balance: string; used: string }>>({});
+
+  const canManageBalances = isOrgAdmin || canHRMode;
+
+  // Fetch employees for Leave Balances tab
+  const fetchBalanceEmployees = async () => {
+    try {
+      setBalanceEmployeesLoading(true);
+      const params: Record<string, string> = {
+        page: String(balanceEmployeePage),
+        limit: String(balanceEmployeePageSize),
+      };
+      if (balanceEmployeeSearch) params.search = balanceEmployeeSearch;
+
+      const res = await apiClient<any>("/organization/employees", {
+        method: "GET",
+        withAuth: true,
+        params
+      });
+
+      const list = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []);
+      setBalanceEmployees(list);
+      setBalanceEmployeesTotal(res?.total || list.length);
+    } catch (e) {
+      console.error("Failed to fetch balance employees", e);
+      setBalanceEmployees([]);
+    } finally {
+      setBalanceEmployeesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== "balances") return;
+    const timer = setTimeout(() => {
+      fetchBalanceEmployees();
+    }, balanceEmployeeSearch ? 500 : 0);
+    return () => clearTimeout(timer);
+  }, [balanceEmployeeSearch, balanceEmployeePage, activeTab]);
+
+  const fetchSelectedEmployeeBalances = async (employeeId: number) => {
+    try {
+      setSelectedEmployeeBalancesLoading(true);
+      const res = await apiClient<any>(`/leaves/balances`, {
+        method: "GET",
+        params: { employee_id: String(employeeId) },
+        withAuth: true
+      });
+      const balances = Array.isArray(res?.balances) ? res.balances : [];
+      setSelectedEmployeeBalances(balances);
+
+      // Initialize edit form state for each balance
+      const editMap: Record<string, { balance: string; used: string }> = {};
+      balances.forEach((b: any) => {
+        const curBal = Number(b.total_allocated || 0) - Number(b.used || 0);
+        editMap[b.leave_type] = {
+          balance: String(curBal),
+          used: String(b.used || 0)
+        };
+      });
+
+      // Also ensure we have default inputs for any leave types that don't have records yet
+      const currentTypes = balances.map((b: any) => b.leave_type);
+      leaveTypes.forEach((lt: any) => {
+        if (!currentTypes.includes(lt.name)) {
+          editMap[lt.name] = { balance: "0", used: "0" };
+        }
+      });
+
+      setEditingBalances(editMap);
+    } catch (e) {
+      console.error("Failed to fetch selected employee balances", e);
+      showNotification("Failed to fetch employee leave balances", "error");
+    } finally {
+      setSelectedEmployeeBalancesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "balances" && leaveTypes.length === 0) {
+      (async () => {
+        try {
+          const res = await apiClient<any>("/leaves/types", { method: "GET", withAuth: true });
+          const types = Array.isArray(res?.types) ? res.types : [];
+          setLeaveTypes(types.length > 0 ? types : [
+            { id: 1, name: "Casual Leave" },
+            { id: 2, name: "Sick Leave" },
+            { id: 3, name: "Earned Leave" },
+            { id: 4, name: "Comp-off" },
+            { id: 5, name: "Unpaid Leave" }
+          ]);
+        } catch (e) {
+          setLeaveTypes([
+            { id: 1, name: "Casual Leave" },
+            { id: 2, name: "Sick Leave" },
+            { id: 3, name: "Earned Leave" },
+            { id: 4, name: "Comp-off" },
+            { id: 5, name: "Unpaid Leave" }
+          ]);
+        }
+      })();
+    }
+  }, [activeTab, leaveTypes]);
+
+  const handleSaveLeaveBalance = async (leaveType: string) => {
+    if (!selectedBalanceEmployee) return;
+    const empId = Number(selectedBalanceEmployee.id);
+    const editData = editingBalances[leaveType];
+    if (!editData) return;
+
+    try {
+      setActionLoading(`save_balance_${leaveType}`);
+      await apiClient("/leaves/balances", {
+        method: "PUT",
+        body: {
+          employee_id: empId,
+          leave_type: leaveType,
+          balance: Number(editData.balance || 0),
+          used: Number(editData.used || 0),
+          period_year: new Date().getFullYear()
+        },
+        withAuth: true
+      });
+
+      showNotification(`${leaveType} balance updated successfully`, "success");
+      await fetchSelectedEmployeeBalances(empId);
+    } catch (e: any) {
+      showNotification(e?.message || `Failed to update ${leaveType} balance`, "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   // Stats animation
   const pendingCount = useCountUp(stats?.pending_overall || 0);
   const approvedCount = useCountUp(stats?.month_approved || 0);
   const rejectedCount = useCountUp(stats?.month_rejected || 0);
   const totalCount = useCountUp(stats?.month_total || 0);
-  
+
   const visibleItems = items;
   const totalEntries = total;
   const pageStart = (page - 1) * pageSize;
-  const pageSlice = items; 
+  const pageSlice = items;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   // Auto-select first site for non-HR/non-OrgAdmin users on first load
@@ -321,14 +375,14 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
       if (fromDate) params["start"] = fromDate;
       if (toDate) params["end"] = toDate;
       if (search) params["search"] = search;
-      
+
       params["page"] = String(page);
       params["limit"] = String(pageSize);
 
       const res = await apiClient<any>("/leaves/requests", { method: "GET", params, withAuth: true });
       const list: any[] = Array.isArray(res) ? res : (res?.items || res?.rows || res?.requests || res?.data || []);
       const totalCount = res?.total || (Array.isArray(res) ? res.length : 0);
-      
+
       setItems(list.map((e: any) => ({ ...(e || {}) })));
       setTotal(totalCount);
     } catch (e: any) {
@@ -438,7 +492,8 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
         body: {
           status: "rejected",
           reject_reason: reason,
-          remarks: reason
+          remarks: reason,
+          reject_option: option
         },
         withAuth: true
       });
@@ -820,34 +875,6 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
     }
   };
 
-  // Timeline Countdown Component
-  const TimelineCountdown = ({ item }: { item: LeaveItem }) => {
-    // Use timeline_due_at if available, otherwise calculate from level_started_at + timeline_hours
-    const countdown = useCountdown(item.level_started_at, item.timeline_hours, item.timeline_due_at);
-
-    if (!item.is_timeline_required || !countdown || !item.timeline_hours) return null;
-
-    const isUrgent = countdown.hours === 0 && countdown.minutes < 30;
-    const isExpired = countdown.expired;
-
-    return (
-      <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md font-semibold text-sm ${isExpired
-        ? 'bg-red-100 text-red-700 border border-red-300'
-        : isUrgent
-          ? 'bg-orange-100 text-orange-700 border border-orange-300'
-          : 'bg-blue-100 text-blue-700 border border-blue-300'
-        }`}>
-        <Clock className="w-4 h-4 flex-shrink-0" />
-        {isExpired ? (
-          <span>⚠️ Expired</span>
-        ) : (
-          <span className="font-mono">
-            {countdown.hours.toString().padStart(2, '0')}:{countdown.minutes.toString().padStart(2, '0')}:{countdown.seconds.toString().padStart(2, '0')}
-          </span>
-        )}
-      </div>
-    );
-  };
 
   // Action Dropdown Component
   const ActionDropdown = ({ item }: { item: LeaveItem }) => {
@@ -917,7 +944,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                 </button>
 
                 {/* Only show approve/reject if backend says user can approve OR if OrgAdmin wants to override a Rejection */}
-                {((statusLower === "pending" && item.can_approve === true) || (isOrgAdmin && statusLower === "rejected")) && (
+                {((["pending", "expired"].includes(statusLower) && (item.can_approve === true || isOrgAdmin || canHRMode)) || (isOrgAdmin && statusLower === "rejected")) && (
                   <>
                     <div className="border-t border-gray-100 my-1" />
                     <button
@@ -1379,50 +1406,22 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                       {activeItem.workflow_id && (
                         <div className="mt-4 pt-4 border-t border-gray-200">
                           <span className="text-sm font-medium text-gray-700 mb-2 block">Workflow Status:</span>
-                          {activeItem.workflow_status === 'in_progress' ? (
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                              <div className="flex items-start justify-between mb-2">
-                                <div className="flex-1">
-                                  <div className="font-semibold text-blue-900 mb-1">
-                                    Current Level: {activeItem.current_level || 1}
-                                  </div>
-                                  <div className="text-sm text-blue-700 mb-2">
-                                    Approvers: {activeItem.current_approver_names || 'Pending assignment'}
-                                  </div>
-                                  {activeItem.is_timeline_required && activeItem.timeline_due_at && (
-                                    <div className="text-xs text-blue-600 bg-blue-100 rounded px-2 py-1 inline-block">
-                                      ⏰ Due: {new Date(activeItem.timeline_due_at).toLocaleDateString()} at {new Date(activeItem.timeline_due_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              {activeItem.is_timeline_required && (
-                                <div className="mt-2">
-                                  <TimelineCountdown item={activeItem} />
-                                </div>
-                              )}
+                          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm font-bold text-slate-700 uppercase tracking-wider">Current Level: {activeItem.current_level || 1}</span>
+                              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-tight shadow-sm ${activeItem.workflow_status === 'approved' ? 'bg-emerald-500 text-white' :
+                                activeItem.workflow_status === 'rejected' ? 'bg-rose-500 text-white' :
+                                  activeItem.workflow_status === 'expired' ? 'bg-amber-500 text-white' :
+                                    activeItem.workflow_status === 'cancelled' ? 'bg-slate-500 text-white' :
+                                      'bg-indigo-500 text-white'
+                                }`}>
+                                {String(activeItem.workflow_status || 'Pending')}
+                              </span>
                             </div>
-                          ) : activeItem.workflow_status === 'approved' ? (
-                            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                              <span className="text-sm text-green-700 font-medium">✓ Workflow Completed - All levels approved</span>
+                            <div className="text-sm text-slate-600 font-medium">
+                              Approvers: <span className="text-slate-900">{activeItem.current_approver_names || 'Pending assignment'}</span>
                             </div>
-                          ) : activeItem.workflow_status === 'rejected' ? (
-                            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                              <span className="text-sm text-red-700 font-medium">✗ Workflow Rejected</span>
-                            </div>
-                          ) : activeItem.workflow_status === 'cancelled' ? (
-                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                              <span className="text-sm text-gray-700 font-medium">Workflow Cancelled</span>
-                            </div>
-                          ) : activeItem.workflow_status === 'expired' ? (
-                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-                              <span className="text-sm text-orange-700 font-medium">⏱ Timeline Expired</span>
-                            </div>
-                          ) : (
-                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                              <span className="text-sm text-gray-600">Status: {activeItem.workflow_status || 'Pending'}</span>
-                            </div>
-                          )}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1960,6 +1959,230 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
     );
   }
 
+  const LeaveBalancesTabContent = (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-4">
+      {/* Left Pane: Searchable Employee Grid */}
+      <div className="lg:col-span-1 bg-white rounded-xl border border-gray-200 p-4 space-y-4 shadow-sm">
+        <div>
+          <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
+            <Users className="w-5 h-5 text-blue-600" />
+            <span>Select Employee</span>
+          </h2>
+          <p className="text-xs text-gray-500">Pick an employee to adjust their leave balances.</p>
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search employee..."
+            value={balanceEmployeeSearch}
+            onChange={(e) => {
+              setBalanceEmployeeSearch(e.target.value);
+              setBalanceEmployeePage(1);
+            }}
+            className="pl-9 pr-8 py-2 w-full border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+          />
+          {balanceEmployeeSearch && (
+            <button
+              onClick={() => setBalanceEmployeeSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* List of employees */}
+        <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+          {balanceEmployeesLoading ? (
+            <div className="text-center py-8">
+              <RefreshCw className="w-6 h-6 animate-spin text-gray-400 mx-auto mb-2" />
+              <p className="text-xs text-gray-500">Loading employees...</p>
+            </div>
+          ) : balanceEmployees.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <User className="w-8 h-8 mx-auto text-gray-300 mb-2" />
+              <p className="text-sm">No employees found</p>
+            </div>
+          ) : (
+            balanceEmployees.map((emp) => {
+              const empName = `${emp.first_name || ""} ${emp.last_name || ""}`.trim() || emp.email || `Employee #${emp.id}`;
+              const isSelected = selectedBalanceEmployee?.id === emp.id;
+              return (
+                <button
+                  key={String(emp.id)}
+                  onClick={() => {
+                    setSelectedBalanceEmployee(emp);
+                    fetchSelectedEmployeeBalances(emp.id);
+                  }}
+                  className={`w-full text-left p-3 rounded-lg border transition-all flex items-center space-x-3 ${isSelected
+                      ? "border-blue-500 bg-blue-50/50 shadow-sm"
+                      : "border-gray-200 hover:bg-gray-50 bg-white"
+                    }`}
+                >
+                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm">
+                    {String(emp.first_name || "E")[0].toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{empName}</p>
+                    <p className="text-xs text-gray-500 truncate">#{emp.id} • {emp.designation || "Employee"}</p>
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+
+        {/* Pagination */}
+        {balanceEmployeesTotal > balanceEmployeePageSize && (
+          <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs">
+            <span className="text-gray-500">Page {balanceEmployeePage} of {Math.ceil(balanceEmployeesTotal / balanceEmployeePageSize)}</span>
+            <div className="flex items-center space-x-1">
+              <button
+                disabled={balanceEmployeePage <= 1}
+                onClick={() => setBalanceEmployeePage(p => p - 1)}
+                className="p-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <button
+                disabled={balanceEmployeePage >= Math.ceil(balanceEmployeesTotal / balanceEmployeePageSize)}
+                onClick={() => setBalanceEmployeePage(p => p + 1)}
+                className="p-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Right Pane: Balance Details / Editor */}
+      <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-6 space-y-6 shadow-sm">
+        {!selectedBalanceEmployee ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center text-gray-500">
+            <Settings className="w-16 h-16 text-gray-200 mb-4 animate-pulse" />
+            <h3 className="text-lg font-bold text-gray-800 mb-1">No Employee Selected</h3>
+            <p className="text-sm max-w-sm">Select an employee from the left panel to manage and adjust their leave balances.</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Selected Employee Info */}
+            <div className="flex items-center space-x-4 pb-4 border-b border-gray-100">
+              <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xl shadow-sm">
+                {String(selectedBalanceEmployee.first_name || "E")[0].toUpperCase()}
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">
+                  {`${selectedBalanceEmployee.first_name || ""} ${selectedBalanceEmployee.last_name || ""}`.trim() || selectedBalanceEmployee.email}
+                </h3>
+                <p className="text-sm text-gray-500">
+                  ID: #{selectedBalanceEmployee.id} • Dept: {selectedBalanceEmployee.department_name || "N/A"} • Shift: {selectedBalanceEmployee.shift_name || "Standard Shift"}
+                </p>
+              </div>
+            </div>
+
+            {/* Balances Adjustment list */}
+            <div>
+              <h4 className="text-sm font-bold text-gray-850 uppercase tracking-wider mb-4">Adjust Leave Balances</h4>
+
+              {selectedEmployeeBalancesLoading ? (
+                <div className="text-center py-12">
+                  <RefreshCw className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-3" />
+                  <p className="text-sm text-gray-500">Fetching leave balances...</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {leaveTypes.map((type) => {
+                    const balanceRecord = selectedEmployeeBalances.find((b) => b.leave_type === type.name);
+                    const currentBalanceVal = balanceRecord ? (Number(balanceRecord.total_allocated || 0) - Number(balanceRecord.used || 0)).toFixed(1) : "0.0";
+                    const usedVal = balanceRecord ? Number(balanceRecord.used || 0).toFixed(1) : "0.0";
+
+                    const editState = editingBalances[type.name] || { balance: "0", used: "0" };
+                    const isSaving = actionLoading === `save_balance_${type.name}`;
+
+                    return (
+                      <div key={type.name} className="p-4 rounded-xl border border-gray-100 bg-gray-50/50 hover:bg-gray-50 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="space-y-1">
+                          <p className="text-sm font-bold text-gray-800">{type.name}</p>
+                          <div className="flex items-center space-x-2 text-xs">
+                            <span className="bg-gray-200/80 px-2 py-0.5 rounded text-gray-700">
+                              Current Balance: <strong className="text-gray-900">{currentBalanceVal}</strong>
+                            </span>
+                            <span className="bg-gray-200/80 px-2 py-0.5 rounded text-gray-700">
+                              Used: <strong className="text-gray-900">{usedVal}</strong>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Editors */}
+                        <div className="flex flex-wrap items-center gap-3">
+                          <div className="flex items-center space-x-1.5">
+                            <span className="text-xs text-gray-500 font-medium">Current Bal:</span>
+                            <input
+                              type="number"
+                              step="0.5"
+                              value={editState.balance}
+                              onChange={(e) => {
+                                setEditingBalances(prev => ({
+                                  ...prev,
+                                  [type.name]: {
+                                    ...editState,
+                                    balance: e.target.value
+                                  }
+                                }));
+                              }}
+                              className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                            />
+                          </div>
+
+                          <div className="flex items-center space-x-1.5">
+                            <span className="text-xs text-gray-500 font-medium">Used:</span>
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0"
+                              value={editState.used}
+                              onChange={(e) => {
+                                setEditingBalances(prev => ({
+                                  ...prev,
+                                  [type.name]: {
+                                    ...editState,
+                                    used: e.target.value
+                                  }
+                                }));
+                              }}
+                              className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                            />
+                          </div>
+
+                          <button
+                            onClick={() => handleSaveLeaveBalance(type.name)}
+                            disabled={isSaving}
+                            className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
+                          >
+                            {isSaving ? (
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Check className="w-3.5 h-3.5" />
+                            )}
+                            <span>Save</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   // Permission Denied
   if (isEmployee && !hasAnyLeaveAccess) {
     return (
@@ -1988,138 +2211,179 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
       {EditLeaveModal}
       {AddLeaveModal}
 
-      {/* Header */}
-      <div className="bg-white rounded-xl border border-gray-200 p-2">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">Leave Requests</h1>
-          </div>
-          <div className="flex items-center space-x-3">
-            {/* Search Input */}
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search employee..."
-                value={search}
+      {/* Unified Header & Filter Bar */}
+      <div className="bg-white rounded-xl border border-gray-200 p-2 shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 p-1">
+          {/* Left Side: Dynamic Tab Pill Selector or Static Heading */}
+          {canManageBalances ? (
+            <div className="flex items-center space-x-1 bg-gray-100 p-1 rounded-xl w-fit">
+              <button
+                onClick={() => setActiveTab("requests")}
+                className={`flex items-center space-x-2 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 ${activeTab === "requests"
+                    ? "bg-white text-gray-900 shadow-sm scale-[1.02]"
+                    : "text-gray-500 hover:text-gray-900 hover:bg-gray-50/50"
+                  }`}
+              >
+                <FileText className={`w-3.5 h-3.5 transition-colors ${activeTab === "requests" ? "text-blue-600" : "text-gray-400"}`} />
+                <span>Leave Requests</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab("balances");
+                  setSelectedBalanceEmployee(null);
+                  setSelectedEmployeeBalances([]);
+                }}
+                className={`flex items-center space-x-2 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 ${activeTab === "balances"
+                    ? "bg-white text-gray-900 shadow-sm scale-[1.02]"
+                    : "text-gray-500 hover:text-gray-900 hover:bg-gray-50/50"
+                  }`}
+              >
+                <Users className={`w-3.5 h-3.5 transition-colors ${activeTab === "balances" ? "text-blue-600" : "text-gray-400"}`} />
+                <span>Leave Balances</span>
+              </button>
+            </div>
+          ) : (
+            <div>
+              <h1 className="text-lg font-bold text-gray-900 px-2 py-1">Leave Requests</h1>
+            </div>
+          )}
+
+          {/* Right Side: Render actions based on activeTab */}
+          {activeTab === "requests" ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Search Input */}
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search employee..."
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1);
+                  }}
+                  className="pl-9 pr-4 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm w-48 sm:w-64"
+                />
+                {search && (
+                  <button
+                    onClick={() => setSearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+
+              {/* Refresh Button */}
+              <button
+                onClick={fetchList}
+                disabled={loading}
+                className="flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium text-gray-700"
+              >
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Refresh</span>
+              </button>
+
+              {!externalControl && showHQToggle && canHRMode && !isOrgAdmin && (
+                <label className="inline-flex items-center gap-2 text-sm text-gray-700 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
+                  <input
+                    type="checkbox"
+                    checked={hqMode && canHRMode}
+                    onChange={(e) => setHqMode(e.target.checked)}
+                    disabled={!canHRMode}
+                    className="rounded border-gray-300"
+                  />
+                  <span>HR Mode</span>
+                </label>
+              )}
+
+              {/* Status Filter */}
+              <select
+                value={status}
                 onChange={(e) => {
-                  setSearch(e.target.value);
+                  setStatus(e.target.value);
                   setPage(1);
                 }}
-                className="pl-9 pr-4 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm w-64"
-              />
-              {search && (
-                <button
-                  onClick={() => setSearch("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+              >
+                <option value="All">All Status</option>
+                <option value="Pending">Pending</option>
+                <option value="Approved">Approved</option>
+                <option value="Rejected">Rejected</option>
+              </select>
+
+              {!externalControl && (
+                <select
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  value={selectedSiteId == null ? "" : String(selectedSiteId)}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === "") {
+                      setSelectedSiteId(null);
+                      return;
+                    }
+                    const val = parseInt(raw, 10);
+                    setSelectedSiteId(Number.isNaN(val) ? null : val);
+                    setPage(1);
+                  }}
                 >
-                  <X className="w-3 h-3" />
+                  {(hqMode && canHRMode) || isOrgAdmin ? (
+                    <option value="">All Sites</option>
+                  ) : (
+                    <option value="">Select Site</option>
+                  )}
+                  {(((hqMode && canHRMode) || isOrgAdmin) ? allSites : inchargeSites).length === 0 && (
+                    <option value="">No sites</option>
+                  )}
+                  {(((hqMode && canHRMode) || isOrgAdmin) ? allSites : inchargeSites).map((s) => (
+                    <option key={String(s.id)} value={String(s.id)}>
+                      {String(s.name || s.site_name || s.id)}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              <button
+                onClick={() => setFiltersExpanded(!filtersExpanded)}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-1 text-sm font-medium text-gray-700"
+              >
+                <Filter className="w-4 h-4" />
+                <span>Filters</span>
+                {filtersExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+
+              {isOrgAdmin && (
+                <button
+                  onClick={handleTriggerScheduler}
+                  disabled={actionLoading === "trigger_scheduler"}
+                  className={`px-3 py-1.5 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors flex items-center space-x-1 text-sm ${actionLoading === "trigger_scheduler" ? "opacity-50 cursor-not-allowed" : ""}`}
+                  title="Manually trigger leave balance calculation"
+                >
+                  <RefreshCw className={`w-4 h-4 ${actionLoading === "trigger_scheduler" ? "animate-spin" : ""}`} />
+                  <span className="hidden sm:inline">Run Scheduler</span>
+                </button>
+              )}
+
+              {canAddLeave && (
+                <button
+                  onClick={openAddLeaveModal}
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-1 text-sm font-semibold"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span className="hidden sm:inline">Add Leave</span>
                 </button>
               )}
             </div>
-
-
-            {/* Refresh Button */}
-            <button
-              onClick={fetchList}
-              disabled={loading}
-              className="flex items-center gap-2 px-4 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium text-gray-700"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              <span>Refresh</span>
-            </button>
-
-            {!externalControl && showHQToggle && canHRMode && !isOrgAdmin && (
-              <label className="inline-flex items-center gap-2 text-sm text-gray-700 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
-                <input
-                  type="checkbox"
-                  checked={hqMode && canHRMode}
-                  onChange={(e) => setHqMode(e.target.checked)}
-                  disabled={!canHRMode}
-                  className="rounded border-gray-300"
-                />
-                <span>HR Mode</span>
-              </label>
-            )}
-
-            {/* Status Filter */}
-            <select
-              value={status}
-              onChange={(e) => {
-                setStatus(e.target.value);
-                setPage(1);
-              }}
-              className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
-            >
-              <option value="All">All Status</option>
-              <option value="Pending">Pending</option>
-              <option value="Approved">Approved</option>
-              <option value="Rejected">Rejected</option>
-            </select>
-
-            {!externalControl && (
-              <select
-                className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                value={selectedSiteId == null ? "" : String(selectedSiteId)}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  if (raw === "") {
-                    setSelectedSiteId(null);
-                    return;
-                  }
-                  const val = parseInt(raw, 10);
-                  setSelectedSiteId(Number.isNaN(val) ? null : val);
-                  setPage(1);
-                }}
-              >
-                {(hqMode && canHRMode) || isOrgAdmin ? (
-                  <option value="">All Sites</option>
-                ) : (
-                  <option value="">Select Site</option>
-                )}
-                {(((hqMode && canHRMode) || isOrgAdmin) ? allSites : inchargeSites).length === 0 && (
-                  <option value="">No sites</option>
-                )}
-                {(((hqMode && canHRMode) || isOrgAdmin) ? allSites : inchargeSites).map((s) => (
-                  <option key={String(s.id)} value={String(s.id)}>
-                    {String(s.name || s.site_name || s.id)}
-                  </option>
-                ))}
-              </select>
-            )}
-            <button
-              onClick={() => setFiltersExpanded(!filtersExpanded)}
-              className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-1 text-sm"
-            >
-              <Filter className="w-4 h-4" />
-              <span>Filters</span>
-              {filtersExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </button>
-            {isOrgAdmin && (
-              <button
-                onClick={handleTriggerScheduler}
-                disabled={actionLoading === "trigger_scheduler"}
-                className={`px-3 py-1.5 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors flex items-center space-x-1 text-sm ${actionLoading === "trigger_scheduler" ? "opacity-50 cursor-not-allowed" : ""}`}
-                title="Manually trigger leave balance calculation"
-              >
-                <RefreshCw className={`w-4 h-4 ${actionLoading === "trigger_scheduler" ? "animate-spin" : ""}`} />
-                <span className="hidden sm:inline">Run Scheduler</span>
-              </button>
-            )}
-            {canAddLeave && (
-              <button
-                onClick={openAddLeaveModal}
-                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-1 text-sm"
-              >
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">Add Leave</span>
-              </button>
-            )}
-          </div>
+          ) : (
+            <div className="hidden lg:flex items-center space-x-2 text-xs text-gray-500 font-medium bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
+              <Building className="w-3.5 h-3.5 text-gray-400" />
+              <span>Leave Management Workspace</span>
+            </div>
+          )}
         </div>
 
         {/* Collapsible Filters */}
-        {filtersExpanded && (
+        {activeTab === "requests" && filtersExpanded && (
           <div className="mt-4 pt-4 border-t border-gray-200">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-3">
               <input
@@ -2176,316 +2440,318 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
         )}
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-orange-50 rounded-xl p-4 border border-orange-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-orange-600 uppercase tracking-wider">Pending (Overall)</p>
-              <p className="text-2xl font-bold text-orange-900 mt-1">{pendingCount}</p>
-            </div>
-            <div className="p-2 bg-white rounded-lg shadow-sm">
-              <Clock className="w-5 h-5 text-orange-600" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-green-50 rounded-xl p-4 border border-green-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-green-600 uppercase tracking-wider">This Month Approved</p>
-              <p className="text-2xl font-bold text-green-900 mt-1">{approvedCount}</p>
-            </div>
-            <div className="p-2 bg-white rounded-lg shadow-sm">
-              <CheckCircle className="w-5 h-5 text-green-600" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-red-50 rounded-xl p-4 border border-red-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-red-600 uppercase tracking-wider">This Month Rejected</p>
-              <p className="text-2xl font-bold text-red-900 mt-1">{rejectedCount}</p>
-            </div>
-            <div className="p-2 bg-white rounded-lg shadow-sm">
-              <AlertCircle className="w-5 h-5 text-red-600" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-violet-50 rounded-xl p-4 border border-violet-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-violet-600 uppercase tracking-wider">This Month Total</p>
-              <p className="text-2xl font-bold text-violet-900 mt-1">{totalCount}</p>
-            </div>
-            <div className="p-2 bg-white rounded-lg shadow-sm">
-              <Users className="w-5 h-5 text-violet-600" />
-            </div>
-          </div>
-        </div>
-      </div>
+      {activeTab === "balances" ? (
+        LeaveBalancesTabContent
+      ) : (
+        <>
 
-      {/* Error Alert */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          <div className="flex items-center">
-            <AlertCircle className="w-5 h-5 mr-2" />
-            <span>{error}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Leave Requests Table */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="overflow-y-auto max-h-[400px] overflow-x-auto relative">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr>
-                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Employee
-                </th>
-                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
-                </th>
-                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Period
-                </th>
-                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Days
-                </th>
-                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Workflow/Timeline
-                </th>
-                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Reason
-                </th>
-                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Applied
-                </th>
-                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {pageSlice.map((item) => {
-                const name = String(item.employee_name || item.employee || `Employee #${item.employee_id || "-"}`);
-                const type = String(item.type || item.leave_type || "");
-                const statusRaw = String(item.status || "Pending");
-                const statusLower = statusRaw.toLowerCase();
-                const start = formatDateHuman(item.start_date || item.from || "");
-                const end = formatDateHuman(item.end_date || item.to || "");
-                const reason = String(item.reason || item.rejection_reason || item.reject_reason || "");
-                const days = Number(item.duration_days || item.days || 0);
-
-                return (
-                  <tr key={String(item.id)} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {name}
-                        </div>
-                        <div className="text-sm text-gray-500">#{String(item.employee_id || "-")}</div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{type}</td>
-                    <td className="px-4 py-3">
-                      <div className="text-sm text-gray-900">{start}</div>
-                      <div className="text-xs text-gray-500">to {end}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col gap-1">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                          {days.toFixed(1)} day{days !== 1 ? 's' : ''}
-                        </span>
-                        {item.session && item.session !== 'Full Day' && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
-                            {item.session}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center space-x-1.5">
-                        {getStatusIcon(statusRaw)}
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(statusRaw)} capitalize`}>
-                          {statusLower}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      {item.workflow_id && item.workflow_status === 'in_progress' ? (
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
-                          <div className="font-medium text-sm text-blue-900 mb-1">Level {item.current_level || 1}</div>
-                          <div className="text-xs text-blue-700 mb-1">
-                            {item.current_approver_names || 'Pending assignment'}
-                          </div>
-                          <TimelineCountdown item={item} />
-                        </div>
-                      ) : item.workflow_id && item.workflow_status === 'approved' ? (
-                        <span className="text-xs text-green-600 font-medium">✓ Workflow Approved</span>
-                      ) : item.workflow_id && item.workflow_status === 'rejected' ? (
-                        <span className="text-xs text-red-600 font-medium">✗ Workflow Rejected</span>
-                      ) : item.workflow_id && item.workflow_status === 'cancelled' ? (
-                        <span className="text-xs text-gray-500 font-medium">Workflow Cancelled</span>
-                      ) : item.workflow_id && item.workflow_status === 'expired' ? (
-                        <span className="text-xs text-orange-600 font-medium">⏱ Timeline Expired</span>
-                      ) : item.workflow_id ? (
-                        <span className="text-xs text-gray-500">Workflow: {item.workflow_status || 'pending'}</span>
-                      ) : (
-                        <span className="text-xs text-gray-400">No workflow</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {reason ? (
-                        <span className="text-xs text-gray-700 line-clamp-2">{reason}</span>
-                      ) : (
-                        <span className="text-xs text-gray-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {item.created_at ? (
-                        <div className="text-xs text-gray-700">
-                          {String(item.created_at).replace('T', ' ').replace('.000Z', '')}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <ActionDropdown item={item} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {visibleItems.length === 0 && !loading && (
-          <div className="text-center py-8">
-            <FileText className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-            <h3 className="text-sm font-medium text-gray-900 mb-1">No leave requests found</h3>
-            <p className="text-xs text-gray-500 mb-3">No leave requests match your current filters.</p>
-            <button
-              onClick={() => {
-                setStatus("All");
-                setFromDate("");
-                setToDate("");
-                if (!externalControl) {
-                  setSelectedSiteId(null);
-                  setHqMode(defaultHQ);
-                }
-                setPage(1);
-              }}
-              className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
-            >
-              Clear Filters
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Pagination */}
-      {visibleItems.length > 0 && (
-        <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 p-2">
-          <div className="text-xs text-gray-600">
-            Showing <span className="font-medium">{pageStart + 1}</span> to <span className="font-medium">{Math.min(pageStart + pageSize, totalEntries)}</span> of <span className="font-medium">{totalEntries}</span> requests
-          </div>
-          <div className="flex items-center space-x-3">
-            <div className="flex items-center space-x-1">
-              <span className="text-xs text-gray-600">Rows:</span>
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setPage(1);
-                }}
-                className="px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-xs"
-              >
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-            </div>
-            <div className="flex items-center space-x-1">
-              <button
-                onClick={() => setPage(Math.max(1, page - 1))}
-                disabled={page <= 1}
-                className="p-1.5 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronLeft className="w-3 h-3" />
-              </button>
-              <div className="flex items-center space-x-1">
-                {(() => {
-                  const pages = [];
-                  const maxVisible = 5;
-                  let startPage = Math.max(1, page - Math.floor(maxVisible / 2));
-                  let endPage = Math.min(totalPages, startPage + maxVisible - 1);
-                  if (endPage - startPage + 1 < maxVisible) startPage = Math.max(1, endPage - maxVisible + 1);
-                  if (startPage > 1) {
-                    pages.push(
-                      <button
-                        key={1}
-                        onClick={() => setPage(1)}
-                        className={`px-2 py-1 rounded text-xs transition-colors ${page === 1
-                          ? 'bg-blue-600 text-white'
-                          : 'border border-gray-300 hover:bg-gray-50'
-                          }`}
-                      >
-                        1
-                      </button>
-                    );
-                    if (startPage > 2) pages.push(<span key="ellipsis1" className="px-1 text-gray-500">...</span>);
-                  }
-                  for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
-                    pages.push(
-                      <button
-                        key={pageNum}
-                        onClick={() => setPage(pageNum)}
-                        className={`px-2 py-1 rounded text-xs transition-colors ${page === pageNum
-                          ? 'bg-blue-600 text-white'
-                          : 'border border-gray-300 hover:bg-gray-50'
-                          }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  }
-                  if (endPage < totalPages) {
-                    if (endPage < totalPages - 1) pages.push(<span key="ellipsis2" className="px-1 text-gray-500">...</span>);
-                    pages.push(
-                      <button
-                        key={totalPages}
-                        onClick={() => setPage(totalPages)}
-                        className={`px-2 py-1 rounded text-xs transition-colors ${page === totalPages
-                          ? 'bg-blue-600 text-white'
-                          : 'border border-gray-300 hover:bg-gray-50'
-                          }`}
-                      >
-                        {totalPages}
-                      </button>
-                    );
-                  }
-                  return pages;
-                })()}
+          {/* Stats Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-orange-50 rounded-xl p-4 border border-orange-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-orange-600 uppercase tracking-wider">Pending (Overall)</p>
+                  <p className="text-2xl font-bold text-orange-900 mt-1">{pendingCount}</p>
+                </div>
+                <div className="p-2 bg-white rounded-lg shadow-sm">
+                  <Clock className="w-5 h-5 text-orange-600" />
+                </div>
               </div>
-              <button
-                onClick={() => setPage(Math.min(totalPages, page + 1))}
-                disabled={page === totalPages}
-                className="p-1.5 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronRight className="w-3 h-3" />
-              </button>
+            </div>
+            <div className="bg-green-50 rounded-xl p-4 border border-green-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-green-600 uppercase tracking-wider">This Month Approved</p>
+                  <p className="text-2xl font-bold text-green-900 mt-1">{approvedCount}</p>
+                </div>
+                <div className="p-2 bg-white rounded-lg shadow-sm">
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-red-50 rounded-xl p-4 border border-red-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-red-600 uppercase tracking-wider">This Month Rejected</p>
+                  <p className="text-2xl font-bold text-red-900 mt-1">{rejectedCount}</p>
+                </div>
+                <div className="p-2 bg-white rounded-lg shadow-sm">
+                  <AlertCircle className="w-5 h-5 text-red-600" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-violet-50 rounded-xl p-4 border border-violet-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-violet-600 uppercase tracking-wider">This Month Total</p>
+                  <p className="text-2xl font-bold text-violet-900 mt-1">{totalCount}</p>
+                </div>
+                <div className="p-2 bg-white rounded-lg shadow-sm">
+                  <Users className="w-5 h-5 text-violet-600" />
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+
+          {/* Error Alert */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+              <div className="flex items-center">
+                <AlertCircle className="w-5 h-5 mr-2" />
+                <span>{error}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Leave Requests Table */}
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="overflow-y-auto max-h-[400px] overflow-x-auto relative">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr>
+                    <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Employee
+                    </th>
+                    <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Type
+                    </th>
+                    <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Period
+                    </th>
+                    <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Days
+                    </th>
+                    <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Workflow/Timeline
+                    </th>
+                    <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Reason
+                    </th>
+                    <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Applied
+                    </th>
+                    <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {pageSlice.map((item) => {
+                    const name = String(item.employee_name || item.employee || `Employee #${item.employee_id || "-"}`);
+                    const type = String(item.type || item.leave_type || "");
+                    const statusRaw = String(item.status || "Pending");
+                    const statusLower = statusRaw.toLowerCase();
+                    const start = formatDateHuman(item.start_date || item.from || "");
+                    const end = formatDateHuman(item.end_date || item.to || "");
+                    const reason = String(item.reason || item.rejection_reason || item.reject_reason || "");
+                    const days = Number(item.duration_days || item.days || 0);
+
+                    return (
+                      <tr key={String(item.id)} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3">
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">
+                              {name}
+                            </div>
+                            <div className="text-sm text-gray-500">#{String(item.employee_id || "-")}</div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900">{type}</td>
+                        <td className="px-4 py-3">
+                          <div className="text-sm text-gray-900">{start}</div>
+                          <div className="text-xs text-gray-500">to {end}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col gap-1">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                              {days.toFixed(1)} day{days !== 1 ? 's' : ''}
+                            </span>
+                            {item.session && item.session !== 'Full Day' && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                                {item.session}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center space-x-1.5">
+                            {getStatusIcon(statusRaw)}
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(statusRaw)} capitalize`}>
+                              {statusLower}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          {item.workflow_id && (
+                            <div className={`rounded-lg p-2 text-xs font-semibold border ${item.workflow_status === 'approved' ? 'bg-emerald-50 border-emerald-100 text-emerald-700' :
+                              item.workflow_status === 'rejected' ? 'bg-rose-50 border-rose-100 text-rose-700' :
+                                item.workflow_status === 'expired' ? 'bg-amber-50 border-amber-100 text-amber-700' :
+                                  item.workflow_status === 'cancelled' ? 'bg-slate-50 border-slate-100 text-slate-700' :
+                                    'bg-indigo-50 border-indigo-100 text-indigo-700'
+                              }`}>
+                              <div className="flex items-center justify-between mb-0.5">
+                                <span className="uppercase tracking-wider">Level {item.current_level || 1}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 opacity-80">
+                                <Clock className="w-3 h-3" />
+                                {String(item.workflow_status || 'Pending')}
+                              </div>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {reason ? (
+                            <span className="text-xs text-gray-700 line-clamp-2">{reason}</span>
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {item.created_at ? (
+                            <div className="text-xs text-gray-700">
+                              {String(item.created_at).replace('T', ' ').replace('.000Z', '')}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <ActionDropdown item={item} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {visibleItems.length === 0 && !loading && (
+              <div className="text-center py-8">
+                <FileText className="w-10 h-10 text-gray-400 mx-auto mb-3" />
+                <h3 className="text-sm font-medium text-gray-900 mb-1">No leave requests found</h3>
+                <p className="text-xs text-gray-500 mb-3">No leave requests match your current filters.</p>
+                <button
+                  onClick={() => {
+                    setStatus("All");
+                    setFromDate("");
+                    setToDate("");
+                    if (!externalControl) {
+                      setSelectedSiteId(null);
+                      setHqMode(defaultHQ);
+                    }
+                    setPage(1);
+                  }}
+                  className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                >
+                  Clear Filters
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Pagination */}
+          {visibleItems.length > 0 && (
+            <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 p-2">
+              <div className="text-xs text-gray-600">
+                Showing <span className="font-medium">{pageStart + 1}</span> to <span className="font-medium">{Math.min(pageStart + pageSize, totalEntries)}</span> of <span className="font-medium">{totalEntries}</span> requests
+              </div>
+              <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-1">
+                  <span className="text-xs text-gray-600">Rows:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-xs"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <button
+                    onClick={() => setPage(Math.max(1, page - 1))}
+                    disabled={page <= 1}
+                    className="p-1.5 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronLeft className="w-3 h-3" />
+                  </button>
+                  <div className="flex items-center space-x-1">
+                    {(() => {
+                      const pages = [];
+                      const maxVisible = 5;
+                      let startPage = Math.max(1, page - Math.floor(maxVisible / 2));
+                      let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+                      if (endPage - startPage + 1 < maxVisible) startPage = Math.max(1, endPage - maxVisible + 1);
+                      if (startPage > 1) {
+                        pages.push(
+                          <button
+                            key={1}
+                            onClick={() => setPage(1)}
+                            className={`px-2 py-1 rounded text-xs transition-colors ${page === 1
+                              ? 'bg-blue-600 text-white'
+                              : 'border border-gray-300 hover:bg-gray-50'
+                              }`}
+                          >
+                            1
+                          </button>
+                        );
+                        if (startPage > 2) pages.push(<span key="ellipsis1" className="px-1 text-gray-500">...</span>);
+                      }
+                      for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
+                        pages.push(
+                          <button
+                            key={pageNum}
+                            onClick={() => setPage(pageNum)}
+                            className={`px-2 py-1 rounded text-xs transition-colors ${page === pageNum
+                              ? 'bg-blue-600 text-white'
+                              : 'border border-gray-300 hover:bg-gray-50'
+                              }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      }
+                      if (endPage < totalPages) {
+                        if (endPage < totalPages - 1) pages.push(<span key="ellipsis2" className="px-1 text-gray-500">...</span>);
+                        pages.push(
+                          <button
+                            key={totalPages}
+                            onClick={() => setPage(totalPages)}
+                            className={`px-2 py-1 rounded text-xs transition-colors ${page === totalPages
+                              ? 'bg-blue-600 text-white'
+                              : 'border border-gray-300 hover:bg-gray-50'
+                              }`}
+                          >
+                            {totalPages}
+                          </button>
+                        );
+                      }
+                      return pages;
+                    })()}
+                  </div>
+                  <button
+                    onClick={() => setPage(Math.min(totalPages, page + 1))}
+                    disabled={page === totalPages}
+                    className="p-1.5 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+
+        </>
       )}
-
-
     </div>
   );
 }

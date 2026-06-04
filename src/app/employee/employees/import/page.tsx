@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/apiClient";
 import { Upload, Download, CheckCircle, XCircle, AlertCircle, ArrowLeft, Filter, ChevronDown, ChevronUp } from "lucide-react";
+import RouteGuard from "@/components/auth/RouteGuard";
 
 export default function EmployeeImportPage() {
     const router = useRouter();
@@ -141,7 +142,8 @@ export default function EmployeeImportPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 p-6">
+        <RouteGuard requiredPermissions={["EMP_VIEW", "EMP_ADD", "EMP_EDIT", "EMP_DELETE", "HR_MODE"]} requireAny>
+            <div className="min-h-screen bg-gray-50 p-6">
             <div className="max-w-6xl mx-auto">
                 {/* Header - Matching EmployeeManagement style */}
                 <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
@@ -300,5 +302,6 @@ export default function EmployeeImportPage() {
                 )}
             </div>
         </div>
+        </RouteGuard>
     );
 }

@@ -1154,7 +1154,7 @@ export default function CompOffRequests() {
             {/* Details View Modal */}
             {viewOpen && activeItem && (
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center z-[60] p-4">
-                    <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full">
+                    <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
                         <div className="p-6 border-b border-gray-200">
                             <div className="flex items-center justify-between">
                                 <h3 className="text-xl font-semibold text-gray-900">Comp-Off Details</h3>
@@ -1163,8 +1163,8 @@ export default function CompOffRequests() {
                                 </button>
                             </div>
                         </div>
-
-                        <div className="p-6">
+                        
+                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
                             <div className="space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
@@ -1256,70 +1256,37 @@ export default function CompOffRequests() {
                                     </div>
                                 )}
 
-                                {/* Workflow Timeline */}
-                                {timeline.length > 0 && (
-                                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 mt-4">
-                                        <div className="text-xs font-semibold text-blue-700 uppercase mb-3 flex items-center gap-1.5">
-                                            <Clock className="w-3.5 h-3.5" />
-                                            Approval Workflow Timeline
-                                        </div>
-                                        <div className="space-y-3">
-                                            {timeline.map((entry, idx) => (
-                                                <div key={idx} className="flex items-start space-x-3">
-                                                    <div className={`mt-1 w-2 h-2 rounded-full ${entry.action === 'approved' ? 'bg-green-500' :
-                                                        entry.action === 'rejected' ? 'bg-red-500' :
-                                                            entry.action === 'pending' ? 'bg-orange-500' :
-                                                                entry.action === 'auto_escalated' ? 'bg-blue-400' :
-                                                                    'bg-gray-400'
-                                                        }`} />
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-sm font-medium text-gray-900">
-                                                                Level {entry.level_number}
-                                                            </span>
-                                                            <span className="text-xs text-gray-500">
-                                                                {entry.action_taken_at ? formatDate(entry.action_taken_at) : 'Pending'}
-                                                            </span>
-                                                        </div>
-                                                        {entry.approver_name && (
-                                                            <p className="text-xs text-gray-600 mt-0.5">
-                                                                {entry.action === 'approved' ? '✓ Approved' :
-                                                                    entry.action === 'rejected' ? '✗ Rejected' :
-                                                                        entry.action === 'auto_escalated' ? '⏭ Auto-escalated' :
-                                                                            '⏳ Pending'} by {entry.approver_name}
-                                                                {entry.employee_code && ` (${entry.employee_code})`}
-                                                            </p>
-                                                        )}
-                                                        {entry.remarks && (
-                                                            <p className="text-xs text-gray-500 mt-1 italic bg-white/50 px-2 py-1 rounded">
-                                                                "{entry.remarks}"
-                                                            </p>
-                                                        )}
-                                                        {entry.is_current_level === 1 && entry.action === 'pending' && (
-                                                            <span className="inline-block mt-1 text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
-                                                                Current Level
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {activeItem.remarks && (
-                                    <div>
-                                        <span className="text-sm text-gray-600">Remarks:</span>
-                                        <p className="mt-1">{activeItem.remarks}</p>
-                                    </div>
-                                )}
+                                </div>
                             </div>
-                        </div>
 
-                        <div className="p-6 border-t border-gray-200 flex justify-end">
+                        <div className="p-6 border-t border-gray-200 flex justify-end items-center gap-3 bg-slate-50/50">
+                            {activeItem.status === 'Pending' && (isOrgAdmin || canHRMode || activeItem.can_approve) && (
+                                <>
+                                    <button
+                                        onClick={() => {
+                                            setModalMode("reject");
+                                            setModalReason("");
+                                            setModalOpen(true);
+                                        }}
+                                        className="px-4 py-2 bg-white text-rose-600 rounded-lg hover:bg-rose-50 transition-colors flex items-center gap-2 border border-rose-200 font-semibold text-sm shadow-sm"
+                                    >
+                                        <XCircle className="w-4 h-4" /> Reject
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setModalMode("approve");
+                                            setModalReason("");
+                                            setModalOpen(true);
+                                        }}
+                                        className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-md shadow-emerald-100 font-semibold text-sm"
+                                    >
+                                        <CheckCircle className="w-4 h-4" /> Approve
+                                    </button>
+                                </>
+                            )}
                             <button
                                 onClick={() => setViewOpen(false)}
-                                className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                                className="px-4 py-2 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold text-sm border border-gray-200 shadow-sm"
                             >
                                 Close
                             </button>

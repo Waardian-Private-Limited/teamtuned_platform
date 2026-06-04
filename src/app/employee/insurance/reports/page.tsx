@@ -1,8 +1,10 @@
-"use client";
-
-import React from "react";
+import RouteGuard from "@/components/auth/RouteGuard";
 import InsuranceReports from "@/components/insurance/Reports";
 
 export default function Page() {
-  return <InsuranceReports />;
+  return (
+    <RouteGuard requiredPermissions={["INS_POLICY_VIEW", "INS_PROVIDER_VIEW"]} requireAny>
+      <InsuranceReports />
+    </RouteGuard>
+  );
 }

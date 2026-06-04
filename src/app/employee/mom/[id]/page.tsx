@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/apiClient';
 import { AlertCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import RouteGuard from '@/components/auth/RouteGuard';
 import MeetingDetailView from '@/components/mom/MeetingDetailView';
 
 export default function EmployeeMeetingDetails() {
@@ -61,12 +62,14 @@ export default function EmployeeMeetingDetails() {
     ];
 
     return (
-        <MeetingDetailView
-            meeting={meeting}
-            breadcrumbs={breadcrumbs}
-            onEdit={undefined} // Employees usually can't edit unless they are creators, but we'll stick to view for now
-            onStatusUpdate={handleStatusUpdate}
-            currentEmployeeId={employee?.id}
-        />
+        <RouteGuard requiredPermissions={["MOM_VIEW"]} requireAny>
+            <MeetingDetailView
+                meeting={meeting}
+                breadcrumbs={breadcrumbs}
+                onEdit={undefined} // Employees usually can't edit unless they are creators, but we'll stick to view for now
+                onStatusUpdate={handleStatusUpdate}
+                currentEmployeeId={employee?.id}
+            />
+        </RouteGuard>
     );
 }

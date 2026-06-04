@@ -7,10 +7,14 @@ function OnboardingStatusContent() {
   return <OnboardingStatusManagement />;
 }
 
+import RouteGuard from '@/components/auth/RouteGuard';
+
 export default function Page() {
   return (
-    <Suspense>
-      <OnboardingStatusContent />
-    </Suspense>
+    <RouteGuard requiredPermissions={["HR_MODE"]} requireAny>
+      <Suspense>
+        <OnboardingStatusContent />
+      </Suspense>
+    </RouteGuard>
   );
 }

@@ -478,7 +478,7 @@ export default function NightOTRequests({ defaultHQ = true, showHQToggle = true,
                             <span>View Details</span>
                         </button>
 
-                        {statusLower === "pending" && item.can_approve && (
+                        {((statusLower === "pending" && (item.can_approve || isOrgAdmin || canHRMode)) || (isOrgAdmin && statusLower === "rejected")) && (
                             <>
                                 <div className="border-t border-gray-100 my-1" />
                                 <button onClick={() => { openModal(item, "approve"); setIsOpen(false); }} className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-green-700 hover:bg-green-50 text-left">
@@ -707,10 +707,34 @@ export default function NightOTRequests({ defaultHQ = true, showHQToggle = true,
                             </div>
                         )}
                     </div>
-                    <div className="p-6 border-t border-gray-200 flex justify-end">
+                    <div className="p-6 border-t border-gray-200 flex justify-end items-center gap-3 bg-slate-50/50 font-semibold text-sm">
+                        {displayItem.night_ot_status?.toLowerCase() === 'pending' && (isOrgAdmin || canHRMode || displayItem.can_approve) && (
+                            <>
+                                <button
+                                    onClick={() => {
+                                        setModalMode("reject");
+                                        setModalReason("");
+                                        setModalOpen(true);
+                                    }}
+                                    className="px-4 py-2 bg-white text-rose-600 rounded-lg hover:bg-rose-50 transition-colors flex items-center gap-2 border border-rose-200 shadow-sm"
+                                >
+                                    <ThumbsDown className="w-4 h-4" /> Reject
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setModalMode("approve");
+                                        setModalReason("");
+                                        setModalOpen(true);
+                                    }}
+                                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-md shadow-emerald-100"
+                                >
+                                    <ThumbsUp className="w-4 h-4" /> Approve
+                                </button>
+                            </>
+                        )}
                         <button
                             onClick={() => setDetailsOpen(false)}
-                            className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                            className="px-4 py-2 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors border border-gray-200 shadow-sm"
                         >
                             Close
                         </button>

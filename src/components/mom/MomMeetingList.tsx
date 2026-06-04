@@ -54,6 +54,8 @@ export default function MomMeetingList({ basePath }: MomMeetingListProps) {
 
     // Modal State
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+    const [selectedAiSummary, setSelectedAiSummary] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [editingMeetingId, setEditingMeetingId] = useState<number | null>(null);
@@ -68,7 +70,9 @@ export default function MomMeetingList({ basePath }: MomMeetingListProps) {
         locations: [] as any[], // store array of {id, name}
         attendees: [] as any[],
         points: [] as any[],
-        department_ids: [] as number[]
+        department_ids: [] as number[],
+        acknowledging_site_ids: [] as number[],
+        meeting_type: 'General'
     });
 
     const [employees, setEmployees] = useState<any[]>([]);
@@ -212,7 +216,9 @@ export default function MomMeetingList({ basePath }: MomMeetingListProps) {
                         due_date: p.due_date,
                         priority: p.priority
                     })),
-                    department_ids: (res.departments || []).map((d: any) => d.id)
+                    department_ids: (res.departments || []).map((d: any) => d.id),
+                    acknowledging_site_ids: fullMeeting.acknowledging_site_ids ? (typeof fullMeeting.acknowledging_site_ids === 'string' ? JSON.parse(fullMeeting.acknowledging_site_ids) : fullMeeting.acknowledging_site_ids) : [],
+                    meeting_type: fullMeeting.meeting_type || 'General'
                 });
                 setIsCreateModalOpen(true);
             }
@@ -251,6 +257,11 @@ export default function MomMeetingList({ basePath }: MomMeetingListProps) {
             return;
         }
 
+        if (meetingData.acknowledging_site_ids.length === 0) {
+            setError('At least one acknowledging site is required');
+            return;
+        }
+
         try {
             setSubmitting(true);
             // Convert local input times to UTC ISO strings for backend
@@ -279,7 +290,9 @@ export default function MomMeetingList({ basePath }: MomMeetingListProps) {
                     locations: [],
                     attendees: [],
                     points: [],
-                    department_ids: []
+                    department_ids: [],
+                    acknowledging_site_ids: [],
+                    meeting_type: 'General'
                 });
                 fetchMeetings();
             }
@@ -302,6 +315,7 @@ export default function MomMeetingList({ basePath }: MomMeetingListProps) {
                 <button
                     onClick={() => {
                         setEditingMeetingId(null);
+                        const hqSite = sites.find(s => s.is_head_office === 1 || s.is_head_office === true || s.name?.toUpperCase() === 'HQ');
                         setMeetingData({
                             title: '',
                             description: '',
@@ -311,7 +325,9 @@ export default function MomMeetingList({ basePath }: MomMeetingListProps) {
                             locations: [],
                             attendees: [],
                             points: [],
-                            department_ids: []
+                            department_ids: [],
+                            acknowledging_site_ids: hqSite ? [hqSite.id] : [],
+                            meeting_type: 'General'
                         });
                         setIsCreateModalOpen(true);
                     }}
@@ -456,6 +472,21 @@ export default function MomMeetingList({ basePath }: MomMeetingListProps) {
                                                 <span className="text-[10px] font-bold text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">{meeting.total_points} total</span>
                                                 {meeting.open_points > 0 && (
                                                     <span className="bg-red-50 border border-red-200 text-red-600 text-[9px] uppercase px-1.5 py-0.5 rounded font-black">{meeting.open_points} Open</span>
+                                                )}
+                                                {meeting.ai_summary && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            setSelectedAiSummary(meeting.ai_summary);
+                                                            setIsSummaryModalOpen(true);
+                                                        }}
+                                                        className="p-1.5 bg-purple-50 text-purple-600 hover:bg-purple-600 hover:text-white rounded-sm transition-all border border-purple-200 shadow-sm flex items-center gap-1"
+                                                        title="View AI Summary"
+                                                    >
+                                                        <FileText size={12} />
+                                                        <span className="text-[10px] font-bold">Summary</span>
+                                                    </button>
                                                 )}
                                             </div>
                                         </td>
@@ -664,6 +695,68 @@ export default function MomMeetingList({ basePath }: MomMeetingListProps) {
                                             ))}
                                         </select>
                                     </div>
+
+                                    <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-5">
+                                        <div>
+                                            <label className="block text-xs uppercase font-bold text-gray-500 mb-1.5">Meeting Type</label>
+                                            <select
+                                                className="w-full bg-gray-50 border border-gray-200 rounded-md px-4 py-3 focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-all font-medium text-sm text-gray-900"
+                                                value={meetingData.meeting_type}
+                                                onChange={e => {
+                                                    const type = e.target.value;
+                                                    let updatedAckSites = [...meetingData.acknowledging_site_ids];
+                                                    if (type === 'DPR') {
+                                                        const hqSite = sites.find(s => s.is_head_office === 1);
+                                                        if (hqSite && !updatedAckSites.includes(hqSite.id)) {
+                                                            updatedAckSites.push(hqSite.id);
+                                                        }
+                                                    }
+                                                    setMeetingData({ ...meetingData, meeting_type: type, acknowledging_site_ids: updatedAckSites });
+                                                }}
+                                            >
+                                                <option value="General">General</option>
+                                                <option value="DPR">DPR</option>
+                                                <option value="Internal">Internal</option>
+                                                <option value="Client">Client</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs uppercase font-bold text-gray-500 mb-1.5 italic">Acknowledging Sites</label>
+                                            <div className="flex flex-wrap gap-1 mb-2">
+                                                {meetingData.acknowledging_site_ids.map(id => {
+                                                    const site = sites.find(s => s.id === id);
+                                                    return (
+                                                        <div key={id} className="flex items-center gap-1 bg-purple-50 text-purple-700 px-2 py-1 rounded text-[10px] border border-purple-100 font-bold">
+                                                            {site?.name || `Site ${id}`}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setMeetingData(prev => ({ ...prev, acknowledging_site_ids: prev.acknowledging_site_ids.filter(sid => sid !== id) }))}
+                                                                className="hover:text-purple-900"
+                                                            >
+                                                                ×
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                            <select
+                                                className="w-full bg-gray-50 border border-gray-200 rounded-md px-4 py-3 focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-all font-medium text-sm text-gray-900"
+                                                value=""
+                                                onChange={e => {
+                                                    const id = Number(e.target.value);
+                                                    if (id && !meetingData.acknowledging_site_ids.includes(id)) {
+                                                        setMeetingData(prev => ({ ...prev, acknowledging_site_ids: [...prev.acknowledging_site_ids, id] }));
+                                                    }
+                                                }}
+                                            >
+                                                <option value="">Add Acknowledging Site...</option>
+                                                {sites.filter(s => !meetingData.acknowledging_site_ids.includes(s.id)).map(s => (
+                                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div>
@@ -758,6 +851,38 @@ export default function MomMeetingList({ basePath }: MomMeetingListProps) {
                             >
                                 {submitting ? <Loader2 size={16} className="animate-spin" /> : editingMeetingId ? <CheckCircle2 size={16} /> : <CheckCircle2 size={16} />}
                                 {editingMeetingId ? 'Update Meeting' : 'Create Meeting'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* AI Summary Modal */}
+            {isSummaryModalOpen && (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm shadow-2xl">
+                    <div className="bg-white w-full max-w-xl rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] border border-gray-200 animate-in zoom-in-95 duration-200">
+                        <div className="px-6 py-4 bg-purple-600 text-white flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <FileText size={20} />
+                                <h2 className="text-xl font-bold">Meeting AI Summary</h2>
+                            </div>
+                            <button
+                                onClick={() => setIsSummaryModalOpen(false)}
+                                className="p-1 hover:bg-white/20 rounded-full transition-all"
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+                        <div className="p-8 overflow-y-auto custom-scrollbar bg-purple-50/30">
+                            <div className="prose prose-sm max-w-none text-gray-800 leading-relaxed whitespace-pre-wrap font-medium">
+                                {selectedAiSummary || "Summary not available."}
+                            </div>
+                        </div>
+                        <div className="px-6 py-4 bg-white border-t border-gray-100 flex justify-end">
+                            <button
+                                onClick={() => setIsSummaryModalOpen(false)}
+                                className="px-6 py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 transition-all shadow-md active:scale-95"
+                            >
+                                Close
                             </button>
                         </div>
                     </div>

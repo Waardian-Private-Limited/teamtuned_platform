@@ -24,10 +24,14 @@ function FormBuilderContent() {
   );
 }
 
+import RouteGuard from "@/components/auth/RouteGuard";
+
 export default function EmployeeFormBuilderPage() {
   return (
-    <Suspense fallback={<div className="p-6">Loading form builder...</div>}>
-      <FormBuilderContent />
-    </Suspense>
+    <RouteGuard requiredPermissions={["TASK_VIEW", "TASK_ADD", "TASK_EDIT", "TASK_DELETE"]} requireAny>
+      <Suspense fallback={<div className="p-6">Loading form builder...</div>}>
+        <FormBuilderContent />
+      </Suspense>
+    </RouteGuard>
   );
 }

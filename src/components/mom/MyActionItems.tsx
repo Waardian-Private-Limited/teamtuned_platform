@@ -544,26 +544,54 @@ export default function MyActionItems() {
                                                     const assignments = point.assignments || [];
                                                     const isAssignedToMe = assignments.some((a: any) => a.assignee_type === 'employee' && String(a.assignee_id) === myId);
                                                     const isClaimed = assignments.some((a: any) => a.assignee_type === 'employee');
+                                                    
+                                                    // Site-based Acknowledge Logic
+                                                    const onlyDeptAssigned = assignments.length > 0 && assignments.every((a: any) => a.assignee_type === 'department');
+                                                    const ackSiteIds = point.acknowledging_site_ids || [];
+                                                    const normalizedAckSites = Array.isArray(ackSiteIds) ? ackSiteIds : (ackSiteIds ? [ackSiteIds] : []);
+                                                    const isMyDeptAssigned = assignments.some((a: any) => {
+                                                        const aId = Number(a.assignee_id || a.id);
+                                                        const uDeptId = Number(user?.departmentId || 0);
+                                                        return a.assignee_type === 'department' && aId === uDeptId && uDeptId !== 0;
+                                                    });
+
+                                                    const mySiteId = Number(user?.siteId || 0);
+                                                    const isMySiteAck = normalizedAckSites.map(Number).includes(mySiteId) && mySiteId !== 0;
+
+                                                    // Global debug for all points to see what is missing
+                                                    if (uiStatus === 'Planned') {
+                                                        console.log(`Point ${point.id} Visibility Debug:`, {
+                                                            uiStatus,
+                                                            onlyDeptAssigned,
+                                                            isMySiteAck,
+                                                            isMyDeptAssigned,
+                                                            ackSiteIds,
+                                                            normalizedAckSites,
+                                                            mySiteId,
+                                                            userDeptId: user?.departmentId,
+                                                            assignments: assignments.map((a: any) => ({ type: a.assignee_type, id: a.assignee_id }))
+                                                        });
+                                                    }
 
                                                     return (
                                                         <>
                                                             {(uiStatus === 'Planned' || uiStatus === 'Acknowledged' || uiStatus === 'In Progress' || uiStatus === 'Rejected') && (
-                                                                (!isClaimed || isAssignedToMe) && (
-                                                                    (uiStatus === 'Planned') ? (
+                                                                (uiStatus === 'Planned') ? (
+                                                                    (onlyDeptAssigned && isMySiteAck && isMyDeptAssigned) ? (
                                                                         <button
                                                                             onClick={(e) => handleAcknowledge(point.id, e)}
                                                                             className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-widest rounded-md transition-all shadow-sm active:scale-95"
                                                                         >
                                                                             Acknowledge
                                                                         </button>
-                                                                    ) : isAssignedToMe && (
-                                                                        <button
-                                                                            onClick={(e) => handleMarkDone(point.id, e)}
-                                                                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest rounded-md transition-all shadow-sm active:scale-95 flex items-center gap-1"
-                                                                        >
-                                                                            <Check size={12} /> Done
-                                                                        </button>
-                                                                    )
+                                                                    ) : null
+                                                                ) : isAssignedToMe && (
+                                                                    <button
+                                                                        onClick={(e) => handleMarkDone(point.id, e)}
+                                                                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest rounded-md transition-all shadow-sm active:scale-95 flex items-center gap-1"
+                                                                    >
+                                                                        <Check size={12} /> Done
+                                                                    </button>
                                                                 )
                                                             )}
                                                         </>

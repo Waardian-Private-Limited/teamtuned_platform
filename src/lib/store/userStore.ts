@@ -8,6 +8,8 @@ export interface UserInfo {
   societyId?: string;
   name?: string;
   features?: string[];
+  siteId?: number;
+  departmentId?: number;
 }
 
 interface UserStore {

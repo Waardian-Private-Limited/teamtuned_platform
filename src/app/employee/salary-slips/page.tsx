@@ -1,8 +1,10 @@
-"use client";
-
-import React from "react";
+import RouteGuard from "@/components/auth/RouteGuard";
 import SalarySlipGenerator from "@/components/payroll/SalarySlipGenerator";
 
 export default function EmployeeSalarySlipsPage() {
-    return <SalarySlipGenerator />;
+    return (
+        <RouteGuard requiredPermissions={["SLIP_VIEW", "SLIP_ADD", "SLIP_EDIT", "SLIP_DELETE"]} requireAny>
+            <SalarySlipGenerator />
+        </RouteGuard>
+    );
 }

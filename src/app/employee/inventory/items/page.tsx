@@ -1,8 +1,10 @@
-"use client";
-
-import React from "react";
+import RouteGuard from "@/components/auth/RouteGuard";
 import ItemList from "@/components/inventory/ItemList";
 
 export default function EmployeeItemsPage() {
-    return <ItemList />;
+    return (
+        <RouteGuard requiredPermissions={["INV_VIEW"]} requireAny>
+            <ItemList />
+        </RouteGuard>
+    );
 }

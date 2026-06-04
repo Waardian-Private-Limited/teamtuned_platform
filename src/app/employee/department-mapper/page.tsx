@@ -1,4 +1,4 @@
-import React from 'react';
+import RouteGuard from '@/components/auth/RouteGuard';
 import DepartmentMapper from '@/components/hr-operation/DepartmentMapper';
 
 export const metadata = {
@@ -8,8 +8,10 @@ export const metadata = {
 
 export default function EmployeeDepartmentMapperPage() {
     return (
-        <div className="min-h-screen bg-gray-50/50">
-            <DepartmentMapper />
-        </div>
+        <RouteGuard requiredPermissions={["POLICY_VIEW", "POLICY_ADD", "POLICY_EDIT", "POLICY_DELETE", "HR_MODE"]} requireAny>
+            <div className="min-h-screen bg-gray-50/50">
+                <DepartmentMapper />
+            </div>
+        </RouteGuard>
     );
 }

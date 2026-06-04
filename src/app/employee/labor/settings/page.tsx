@@ -1,12 +1,12 @@
-"use client";
-
-import React from "react";
+import RouteGuard from "@/components/auth/RouteGuard";
 import LaborSettingsManager from "@/components/org/labor/LaborSettingsManager";
 
 export default function LaborSettingsPage() {
     return (
-        <div>
-            <LaborSettingsManager />
-        </div>
+        <RouteGuard requiredPermissions={["LABOR_SETTINGS_VIEW", "LABOR_SETTINGS_EDIT"]} requireAny>
+            <div>
+                <LaborSettingsManager />
+            </div>
+        </RouteGuard>
     );
 }

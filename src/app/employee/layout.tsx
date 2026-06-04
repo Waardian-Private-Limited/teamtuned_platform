@@ -53,6 +53,8 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
         role: role || "",
         name: `${user.first_name || ""} ${user.last_name || ""}`.trim(),
         features,
+        siteId: employee?.site_id,
+        departmentId: employee?.department_id,
       });
     }
   }, [isAuthenticated, role, user, employee_id, loading, router, setUser, features]);

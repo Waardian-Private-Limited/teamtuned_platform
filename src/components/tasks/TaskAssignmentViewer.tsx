@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from "react";
 import { apiClient } from "@/lib/apiClient";
-import { X, Check, Search, Filter, Calendar, MapPin, Download, Printer, Eye, ChevronLeft, ChevronRight, MoreVertical, FileText, Phone, Loader2, AlertCircle, User, ChevronDown, ChevronUp, Clock, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
+import { X, Check, Search, Filter, Calendar, MapPin, Download, Printer, Eye, ChevronLeft, ChevronRight, MoreVertical, FileText, Phone, Loader2, AlertCircle, User, ChevronDown, ChevronUp, Clock, CheckCircle, XCircle, RotateCcw, Image as ImageIcon, ZoomIn } from 'lucide-react';
 
 import { useAuth } from "@/context/AuthContext";
 
@@ -96,6 +96,7 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
 
   const [showRejectModal, setShowRejectModal] = React.useState(false);
   const [rejectionReason, setRejectionReason] = React.useState('');
+  const [showGalleryModal, setShowGalleryModal] = React.useState(false);
 
   const { user, employee } = useAuth();
 
@@ -440,6 +441,13 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
             >
               <RotateCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               <span>Refresh</span>
+            </button>
+            <button
+              onClick={() => setShowGalleryModal(true)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm text-sm font-medium whitespace-nowrap hidden sm:flex"
+            >
+              <ImageIcon className="w-4 h-4" />
+              <span>Gallery</span>
             </button>
             <button
               onClick={() => setShowExportModal(true)}
@@ -883,6 +891,14 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
       )}
 
       {/* Export Modal */}
+      {showGalleryModal && (
+        <TaskGalleryModal
+          taskId={taskId}
+          sites={sites}
+          onClose={() => setShowGalleryModal(false)}
+        />
+      )}
+
       {showExportModal && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
@@ -1603,5 +1619,226 @@ function DownloadReport({ taskId, submissionId }: { taskId: number; submissionId
         {downloading ? 'Downloading...' : 'Download'}
       </span>
     </button>
+  );
+}
+
+function TaskGalleryModal({ taskId, sites, onClose }: { taskId: number; sites: any[]; onClose: () => void }) {
+  const [media, setMedia] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const [dateFrom, setDateFrom] = React.useState('');
+  const [dateTo, setDateTo] = React.useState('');
+  const [siteId, setSiteId] = React.useState('');
+  const [searchTerm, setSearchTerm] = React.useState('');
+
+  const [zoomedImage, setZoomedImage] = React.useState<string | null>(null);
+
+  const loadGallery = React.useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params: any = {};
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
+      if (siteId) params.site_id = siteId;
+      if (searchTerm) params.q = searchTerm;
+      const res = await apiClient<any>(`/tasks/${taskId}/gallery`, { method: 'GET', withAuth: true, params });
+      setMedia(res?.media || []);
+    } catch (e: any) {
+      setError(e.message || 'Failed to load gallery');
+    } finally {
+      setLoading(false);
+    }
+  }, [taskId, dateFrom, dateTo, siteId, searchTerm]);
+
+  React.useEffect(() => {
+    loadGallery();
+  }, [loadGallery]);
+
+  const handleDownload = async (url: string, filename: string) => {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (e) {
+      window.open(url, '_blank');
+    }
+  };
+
+  const formatDate = (s: string) => {
+    if (!s) return '-';
+    let dt = new Date(s);
+    if (isNaN(dt.getTime())) return s;
+    return new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(dt);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8 animate-in fade-in duration-200">
+      <div className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative flex flex-col w-full h-full max-w-7xl bg-gray-50 rounded-2xl shadow-2xl overflow-hidden border border-gray-200 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] min-h-[500px]">
+        {/* Header */}
+        <div className="px-6 py-4 bg-white border-b border-gray-200 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-100 shadow-inner">
+              <ImageIcon className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Task Gallery</h2>
+              <p className="text-sm text-gray-500">{media.length} images found</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">
+             <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        {/* Filters */}
+        <div className="px-6 py-3 bg-white border-b border-gray-200 flex flex-wrap gap-3 shrink-0 items-center">
+          <div className="relative group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 group-focus-within:text-indigo-500 transition-colors" />
+            <input
+              type="text"
+              placeholder="Search employee, site, label..."
+              className="pl-9 pr-4 py-2 border border-gray-300 rounded-xl text-sm w-64 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm bg-gray-50 focus:bg-white"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <select
+            className="border border-gray-300 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm bg-gray-50 focus:bg-white min-w-[150px]"
+            value={siteId}
+            onChange={(e) => setSiteId(e.target.value)}
+          >
+            <option value="">All Sites</option>
+            {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          <div className="flex items-center gap-2 border border-gray-300 rounded-xl px-3 py-1 bg-gray-50 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 focus-within:bg-white transition-all">
+            <Calendar className="w-4 h-4 text-gray-400" />
+            <input
+              type="date"
+              className="border-none bg-transparent text-sm py-1 focus:ring-0 outline-none text-gray-700 w-32"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+            />
+            <span className="text-gray-300 font-medium">to</span>
+            <input
+              type="date"
+              className="border-none bg-transparent text-sm py-1 focus:ring-0 outline-none text-gray-700 w-32"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-gray-50">
+          {loading ? (
+            <div className="flex items-center justify-center h-full">
+               <div className="flex flex-col items-center gap-3">
+                 <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+                 <span className="text-sm font-medium text-gray-500 uppercase tracking-widest animate-pulse">Loading gallery...</span>
+               </div>
+            </div>
+          ) : error ? (
+            <div className="flex flex-col flex-1 items-center justify-center p-8 text-center h-full">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                <AlertCircle className="w-8 h-8 text-red-600" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Failed to load gallery</h3>
+              <p className="text-gray-500 mb-6 max-w-sm">{error}</p>
+              <button
+                onClick={loadGallery}
+                className="px-6 py-2.5 bg-gray-900 text-white font-medium rounded-xl hover:bg-black transition-colors shadow-sm"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : media.length === 0 ? (
+            <div className="flex flex-col flex-1 items-center justify-center p-8 text-center h-full">
+              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4 border border-gray-200">
+                <ImageIcon className="w-10 h-10 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">No images found</h3>
+              <p className="text-sm text-gray-500 max-w-sm mb-6">No media matches your current filters or search criteria. Try adjusting them.</p>
+              {(searchTerm || dateFrom || dateTo || siteId) && (
+                <button
+                  onClick={() => { setSearchTerm(''); setDateFrom(''); setDateTo(''); setSiteId(''); }}
+                  className="px-6 py-2.5 bg-indigo-50 text-indigo-700 font-medium rounded-xl hover:bg-indigo-100 transition-colors shadow-sm border border-indigo-200"
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
+          ) : (
+             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
+                {media.map((img) => (
+                   <div key={img.id} className="group flex flex-col bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-200">
+                     <div 
+                       className="relative aspect-[4/3] bg-gray-100 overflow-hidden cursor-pointer"
+                       onClick={() => setZoomedImage(img.url)}
+                     >
+                       <img src={img.url} alt={img.field_label} loading="lazy" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                       <div className="absolute inset-0 bg-gradient-to-t from-gray-900/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                       <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 translate-y-[-10px] group-hover:translate-y-0">
+                          <button
+                            onClick={() => setZoomedImage(img.url)}
+                            className="p-1.5 bg-white/90 backdrop-blur rounded-lg text-gray-700 hover:text-indigo-600 hover:bg-white shadow-sm transition-colors border border-gray-200"
+                            title="Zoom"
+                          >
+                            <ZoomIn className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDownload(img.url, `${img.employee_name}_${img.field_label}.jpg`)}
+                            className="p-1.5 bg-white/90 backdrop-blur rounded-lg text-gray-700 hover:text-indigo-600 hover:bg-white shadow-sm transition-colors border border-gray-200"
+                            title="Download"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                       </div>
+                     </div>
+                     <div className="p-4">
+                       <div className="flex items-center gap-1.5 mb-2">
+                         <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-bold uppercase tracking-wider rounded line-clamp-1 break-all">
+                           {img.field_label || 'Image'}
+                         </span>
+                       </div>
+                       <p className="text-sm font-semibold text-gray-900 mb-1 line-clamp-1" title={img.employee_name}>{img.employee_name}</p>
+                       <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                         <MapPin className="w-3.5 h-3.5 shrink-0" />
+                         <span className="line-clamp-1">{img.site_name}</span>
+                       </div>
+                       <div className="flex items-center gap-2 text-xs text-gray-500">
+                         <Clock className="w-3.5 h-3.5 shrink-0" />
+                         <span>{formatDate(img.submitted_at)}</span>
+                       </div>
+                     </div>
+                   </div>
+                ))}
+             </div>
+          )}
+        </div>
+      </div>
+
+      {zoomedImage && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center animate-in fade-in duration-200">
+           <div className="absolute inset-0 bg-gray-900/95 backdrop-blur-md" onClick={() => setZoomedImage(null)} />
+           <div className="relative p-2 w-full max-w-5xl h-full max-h-[90vh] flex items-center justify-center pointer-events-none">
+              <img src={zoomedImage} alt="Zoomed" className="max-w-full max-h-full object-contain drop-shadow-2xl rounded-lg pointer-events-auto border border-gray-700/50" />
+              <button
+                onClick={() => setZoomedImage(null)}
+                className="absolute top-4 right-4 p-3 bg-white/10 hover:bg-white/20 text-white rounded-xl backdrop-blur transition-colors pointer-events-auto"
+              >
+                <X className="w-6 h-6" />
+              </button>
+           </div>
+        </div>
+      )}
+    </div>
   );
 }

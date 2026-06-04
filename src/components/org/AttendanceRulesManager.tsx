@@ -35,6 +35,12 @@ export type AttendancePolicy = {
   leave_cycle: "monthly" | "yearly";
   status?: "active" | "inactive";
 
+  // Monthly accrual fields
+  monthly_accrual?: boolean;
+  monthly_accrual_carry_forward?: "all" | "limit";
+  monthly_accrual_limit?: number;
+  monthly_accrual_collapse_yearly?: boolean;
+
   // Payroll fields
   salary_payment_cycle?: "monthly" | "biweekly" | "weekly";
   salary_date_day?: number;
@@ -149,6 +155,10 @@ const defaultPolicy: AttendancePolicy = {
   max_leave_per_month: 2,
   max_carry_forward_leaves: 12,
   monthly_carry_forward_allowed: false,
+  monthly_accrual: false,
+  monthly_accrual_carry_forward: "all",
+  monthly_accrual_limit: 0,
+  monthly_accrual_collapse_yearly: true,
   leave_breakdown: [
     { type: "Paid Leave", allocation: 18 },
   ],
@@ -375,6 +385,11 @@ export default function AttendanceRulesManager() {
       if (!(policy.max_leave_per_month > 0)) errs.max_leave_per_month = "Enter a positive number";
       if (policy.max_carry_forward_leaves === undefined || policy.max_carry_forward_leaves < 0) {
         errs.max_carry_forward_leaves = "Internal carry-forward must be 0 or more";
+      }
+      if (policy.monthly_accrual && policy.monthly_accrual_carry_forward === "limit") {
+        if (policy.monthly_accrual_limit === undefined || policy.monthly_accrual_limit < 0) {
+          errs.monthly_accrual_limit = "Carry forward limit must be 0 or more";
+        }
       }
     }
 
@@ -848,6 +863,27 @@ export default function AttendanceRulesManager() {
                   </div>
                 </div>
 
+                {policy.monthly_accrual && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-gray-100 pt-4">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500">Monthly Accrual (Hybrid)</h4>
+                      <p className="mt-1 text-gray-900 text-sm">
+                        Enabled — {policy.total_annual_leaves}/12 = {(policy.total_annual_leaves / 12).toFixed(2)} leaves credited monthly.
+                      </p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500">Monthly CF Rule & Year-End</h4>
+                      <p className="mt-1 text-gray-900 text-sm">
+                        {policy.monthly_accrual_carry_forward === "limit"
+                          ? `Limit to max ${policy.monthly_accrual_limit} leaves/month`
+                          : "Carry forward all leaves"
+                        }
+                        {policy.monthly_accrual_collapse_yearly ? " (Collapse at Year-End)" : ""}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {policy.leave_breakdown && policy.leave_breakdown.length > 0 && (
                   <div>
                     <h4 className="text-sm font-medium text-gray-500 mb-2">Leave Breakdown</h4>
@@ -1293,6 +1329,100 @@ export default function AttendanceRulesManager() {
                             </select>
                             <p className="mt-1 text-xs text-gray-500">Enable or disable carrying unused annual leaves to next year.</p>
                           </div>
+                        </div>
+
+                        {/* Monthly Accrual (Hybrid Model) */}
+                        <div className="border-t border-gray-200 pt-6 mt-6">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h5 className="text-sm font-semibold text-gray-900">Credit Annual Leaves Monthly</h5>
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                Pro-rate total annual leaves and credit them monthly (e.g. {policy.total_annual_leaves}/12 = {(policy.total_annual_leaves / 12).toFixed(2)} leaves/month).
+                              </p>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input
+                                type="checkbox"
+                                className="sr-only peer"
+                                checked={!!policy.monthly_accrual}
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setField("monthly_accrual", checked);
+                                  if (checked) {
+                                    if (!policy.monthly_accrual_carry_forward) {
+                                      setField("monthly_accrual_carry_forward", "all");
+                                    }
+                                    if (policy.monthly_accrual_limit === undefined) {
+                                      setField("monthly_accrual_limit", 0);
+                                    }
+                                    if (policy.monthly_accrual_collapse_yearly === undefined) {
+                                      setField("monthly_accrual_collapse_yearly", true);
+                                    }
+                                  }
+                                }}
+                              />
+                              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                          </div>
+
+                          {policy.monthly_accrual && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Monthly Carry Forward Rule
+                                </label>
+                                <select
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  value={policy.monthly_accrual_carry_forward || "all"}
+                                  onChange={(e) => setField("monthly_accrual_carry_forward", e.target.value as "all" | "limit")}
+                                >
+                                  <option value="all">Carry Forward All</option>
+                                  <option value="limit">Limit Remaining Balance</option>
+                                </select>
+                                <p className="mt-1 text-xs text-gray-500">Define carry-forward behavior for unused leaves at the end of each month.</p>
+                              </div>
+
+                              {policy.monthly_accrual_carry_forward === "limit" && (
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Max Carry Forward Limit<span className="text-red-500 ml-1">*</span>
+                                  </label>
+                                  <input
+                                    type="number"
+                                    className={`w-full px-3 py-2 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                                      formErrors.monthly_accrual_limit ? 'border-red-500' : 'border-gray-300'
+                                    }`}
+                                    min={0}
+                                    step={0.1}
+                                    value={policy.monthly_accrual_limit ?? 0}
+                                    onChange={(e) => setField("monthly_accrual_limit", Number(e.target.value))}
+                                  />
+                                  {formErrors.monthly_accrual_limit && (
+                                    <p className="mt-1 text-sm text-red-600">{formErrors.monthly_accrual_limit}</p>
+                                  )}
+                                  <p className="mt-1 text-xs text-gray-500">Maximum leave balance allowed to carry forward to the next month.</p>
+                                </div>
+                              )}
+
+                              <div className="md:col-span-2 flex items-center justify-between border-t border-gray-200 pt-4 mt-2">
+                                <div>
+                                  <h6 className="text-sm font-medium text-gray-900">Collapse Unused Leaves at Year End</h6>
+                                  <p className="text-xs text-gray-500 mt-0.5">
+                                    Reset all unused leaves to 0 on December 31st.
+                                  </p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    className="sr-only peer"
+                                    checked={!!policy.monthly_accrual_collapse_yearly}
+                                    onChange={(e) => setField("monthly_accrual_collapse_yearly", e.target.checked)}
+                                  />
+                                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </>
                     )}

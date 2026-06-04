@@ -15,6 +15,7 @@ interface User {
 interface Employee {
     id: number;
     employee_id?: number;
+    site_id?: number;
     employee_code?: string;
     permissions?: string[];
     sites?: Array<{ id: number; name?: string; code?: string }>;

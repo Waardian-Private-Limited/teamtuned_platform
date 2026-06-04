@@ -1,5 +1,10 @@
+import RouteGuard from "@/components/auth/RouteGuard";
 import LaborAttendanceDashboard from "@/components/labor/LaborAttendanceDashboard";
 
 export default function LaborAttendancePage() {
-    return <LaborAttendanceDashboard />;
+    return (
+        <RouteGuard requiredPermissions={["LABOR_ATTEND_VIEW"]} requireAny>
+            <LaborAttendanceDashboard />
+        </RouteGuard>
+    );
 }

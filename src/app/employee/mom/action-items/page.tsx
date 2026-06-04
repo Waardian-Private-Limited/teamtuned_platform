@@ -1,6 +1,10 @@
-import React from 'react';
+import RouteGuard from '@/components/auth/RouteGuard';
 import MyActionItems from '@/components/mom/MyActionItems';
 
 export default function EmployeeActionItemsPage() {
-    return <MyActionItems />;
+    return (
+        <RouteGuard requiredPermissions={["MOM_VIEW"]} requireAny>
+            <MyActionItems />
+        </RouteGuard>
+    );
 }

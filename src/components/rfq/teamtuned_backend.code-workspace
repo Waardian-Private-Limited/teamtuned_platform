@@ -11,6 +11,9 @@
 		},
 		{
 			"path": "../../../../teamtuned-website"
+		},
+		{
+			"path": "../../../../machine/TeamTuned"
 		}
 	],
 	"settings": {}

@@ -1,8 +1,10 @@
-"use client";
-
-import React from "react";
+import RouteGuard from "@/components/auth/RouteGuard";
 import VendorList from "@/components/inventory/VendorList";
 
 export default function EmployeeVendorsPage() {
-    return <VendorList />;
+    return (
+        <RouteGuard requiredPermissions={["INV_VIEW"]} requireAny>
+            <VendorList />
+        </RouteGuard>
+    );
 }

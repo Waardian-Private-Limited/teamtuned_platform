@@ -1,7 +1,10 @@
-"use client";
-
+import RouteGuard from "@/components/auth/RouteGuard";
 import SiteLoginsManager from "@/components/sites/SiteLoginsManager";
 
 export default function EmployeeSiteLoginsPage() {
-    return <SiteLoginsManager />;
+    return (
+        <RouteGuard requireOrgAdmin>
+            <SiteLoginsManager />
+        </RouteGuard>
+    );
 }
