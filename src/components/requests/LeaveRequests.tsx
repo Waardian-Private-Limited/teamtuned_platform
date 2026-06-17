@@ -221,6 +221,34 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
   const [selectedEmployees, setSelectedEmployees] = useState<Array<Record<string, any>>>([]);
   const [leaveBalances, setLeaveBalances] = useState<Record<string, number>>({});
 
+  // Tab control
+  const [activeTab, setActiveTab] = useState<"requests" | "balances">("requests");
+
+  // Balance management states
+  const [balSearch, setBalSearch] = useState("");
+  const [balDept, setBalDept] = useState("");
+  const [balEmployees, setBalEmployees] = useState<Array<Record<string, any>>>([]);
+  const [balEmployeesTotal, setBalEmployeesTotal] = useState(0);
+  const [balEmployeesLoading, setBalEmployeesLoading] = useState(false);
+  const [balPage, setBalPage] = useState(1);
+  const [balSelectedEmployee, setBalSelectedEmployee] = useState<Record<string, any> | null>(null);
+  const [balSelectedEmployeeBalances, setBalSelectedEmployeeBalances] = useState<Array<Record<string, any>>>([]);
+  const [balBalancesLoading, setBalBalancesLoading] = useState(false);
+
+  // Balance adjustment modal
+  const [adjustModalOpen, setAdjustModalOpen] = useState(false);
+  const [balActivePeriodLabel, setBalActivePeriodLabel] = useState("");
+  const [adjustForm, setAdjustForm] = useState({
+    id: undefined as number | undefined,
+    employee_id: 0,
+    leave_type: "",
+    total_allocated: 0,
+    used: 0,
+    carry_forward: 0,
+    period_year: new Date().getFullYear(),
+    period_month: null as number | null,
+  });
+
   // Edit Leave Request state
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -235,11 +263,11 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
   const approvedCount = useCountUp(stats?.month_approved || 0);
   const rejectedCount = useCountUp(stats?.month_rejected || 0);
   const totalCount = useCountUp(stats?.month_total || 0);
-  
+
   const visibleItems = items;
   const totalEntries = total;
   const pageStart = (page - 1) * pageSize;
-  const pageSlice = items; 
+  const pageSlice = items;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   // Auto-select first site for non-HR/non-OrgAdmin users on first load
@@ -321,14 +349,14 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
       if (fromDate) params["start"] = fromDate;
       if (toDate) params["end"] = toDate;
       if (search) params["search"] = search;
-      
+
       params["page"] = String(page);
       params["limit"] = String(pageSize);
 
       const res = await apiClient<any>("/leaves/requests", { method: "GET", params, withAuth: true });
       const list: any[] = Array.isArray(res) ? res : (res?.items || res?.rows || res?.requests || res?.data || []);
       const totalCount = res?.total || (Array.isArray(res) ? res.length : 0);
-      
+
       setItems(list.map((e: any) => ({ ...(e || {}) })));
       setTotal(totalCount);
     } catch (e: any) {
@@ -382,6 +410,126 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
 
     return () => clearTimeout(timer);
   }, [employeeSearch, employeeDepartmentFilter, employeePage, addLeaveOpen]);
+
+  const fetchBalEmployees = async () => {
+    try {
+      setBalEmployeesLoading(true);
+      const params: Record<string, string> = {
+        page: String(balPage),
+        limit: "10",
+      };
+
+      if (balSearch) params.search = balSearch;
+      if (balDept) params.department = balDept;
+
+      const res = await apiClient<any>("/organization/employees", {
+        method: "GET",
+        withAuth: true,
+        params
+      });
+
+      const list = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []);
+      setBalEmployees(list);
+      setBalEmployeesTotal(res?.total || list.length);
+    } catch (e) {
+      console.error("Failed to fetch balance tab employees", e);
+      setBalEmployees([]);
+    } finally {
+      setBalEmployeesLoading(false);
+    }
+  };
+
+  const fetchEmployeeBalancesDetail = async (empId: number) => {
+    try {
+      setBalBalancesLoading(true);
+      const res = await apiClient<any>("/leaves/balances", {
+        method: "GET",
+        // No period_year/period_month — backend defaults to the current active period:
+        // monthly cycle → current month; yearly cycle → period_month IS NULL
+        params: { employee_id: String(empId) },
+        withAuth: true
+      });
+      const list = Array.isArray(res) ? res : (res?.balances || res?.data || []);
+      const pol = res?.policy || null;
+      const now = new Date();
+      setBalActivePeriodLabel(
+        pol?.leave_cycle === "monthly"
+          ? `${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][now.getMonth()]} ${now.getFullYear()}`
+          : `FY ${now.getFullYear()}`
+      );
+      setBalSelectedEmployeeBalances(list);
+    } catch (e) {
+      console.error("Failed to fetch employee balances detail", e);
+      setBalSelectedEmployeeBalances([]);
+    } finally {
+      setBalBalancesLoading(false);
+    }
+  };
+
+  const handleAdjustSubmit = async () => {
+    if (!adjustForm.employee_id || !adjustForm.leave_type) {
+      showNotification("Missing employee or leave type", "error");
+      return;
+    }
+    try {
+      setActionLoading("adjust_balance");
+      await apiClient("/leaves/balances/adjust", {
+        method: "POST",
+        body: adjustForm,
+        withAuth: true
+      });
+      showNotification("Leave balance adjusted successfully", "success");
+      setAdjustModalOpen(false);
+      if (balSelectedEmployee) {
+        fetchEmployeeBalancesDetail(balSelectedEmployee.id);
+      }
+    } catch (e: any) {
+      showNotification(e?.message || "Failed to adjust leave balance", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== "balances") return;
+    const timer = setTimeout(() => {
+      fetchBalEmployees();
+    }, balSearch ? 500 : 0);
+    return () => clearTimeout(timer);
+  }, [balSearch, balDept, balPage, activeTab]);
+
+  useEffect(() => {
+    if (activeTab === "balances" && departments.length === 0) {
+      (async () => {
+        try {
+          const res = await apiClient<any>("/organization/departments", { method: "GET", withAuth: true });
+          const depts = Array.isArray(res?.data) ? res.data.map((d: any) => d.name || d) : [];
+          setDepartments(depts);
+        } catch (e) {
+          console.error("Failed to fetch departments", e);
+        }
+      })();
+    }
+    if (activeTab === "balances" && leaveTypes.length === 0) {
+      (async () => {
+        try {
+          const res = await apiClient<any>("/leaves/types", { method: "GET", withAuth: true });
+          const types = Array.isArray(res?.types) ? res.types : [];
+          setLeaveTypes(types.length > 0 ? types : [
+            { id: 1, name: "Casual Leave" },
+            { id: 2, name: "Sick Leave" },
+            { id: 3, name: "Earned Leave" }
+          ]);
+        } catch (e) {
+          setLeaveTypes([
+            { id: 1, name: "Casual Leave" },
+            { id: 2, name: "Sick Leave" },
+            { id: 3, name: "Earned Leave" }
+          ]);
+        }
+      })();
+    }
+  }, [activeTab]);
 
   // Helper function to check if current user can approve the current level
   const canUserApproveLevel = (item: LeaveItem, timeline?: any[]) => {
@@ -1896,7 +2044,145 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
     );
   }, [addLeaveOpen, addLeaveForm, employees, leaveTypes, actionLoading, employeeSearch, employeeDepartmentFilter, employeePage, selectedEmployees, leaveBalances, employeesLoading, employeesTotal, departments]);
 
+  const AdjustBalanceModal = React.useMemo(() => {
+    if (!adjustModalOpen) return null;
+    const isNewRecord = !adjustForm.id;
+    const remaining = (Number(adjustForm.total_allocated) + Number(adjustForm.carry_forward)) - Number(adjustForm.used);
+    return (
+      <div className="fixed inset-0 bg-opacity-30 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
+          <div className="p-5 border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-blue-50">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {isNewRecord ? "Add Leave Balance" : "Edit Leave Balance"}
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {balSelectedEmployee?.name || `${balSelectedEmployee?.first_name || ''} ${balSelectedEmployee?.last_name || ''}`.trim()}
+                  {' — '}{adjustForm.leave_type || 'Select type'}
+                </p>
+              </div>
+              <button onClick={() => setAdjustModalOpen(false)} className="p-1.5 rounded-lg hover:bg-white transition-colors">
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+          </div>
+
+          <div className="p-5 space-y-4">
+            {/* Balance Summary */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center p-3 bg-blue-50 rounded-xl border border-blue-100">
+                <p className="text-xs text-blue-600 font-medium uppercase tracking-wider">Allocated</p>
+                <p className="text-2xl font-bold text-blue-800">{Number(adjustForm.total_allocated).toFixed(1)}</p>
+              </div>
+              <div className="text-center p-3 bg-red-50 rounded-xl border border-red-100">
+                <p className="text-xs text-red-600 font-medium uppercase tracking-wider">Used</p>
+                <p className="text-2xl font-bold text-red-800">{Number(adjustForm.used).toFixed(1)}</p>
+              </div>
+              <div className={`text-center p-3 rounded-xl border ${remaining >= 0 ? 'bg-green-50 border-green-100' : 'bg-orange-50 border-orange-100'}`}>
+                <p className={`text-xs font-medium uppercase tracking-wider ${remaining >= 0 ? 'text-green-600' : 'text-orange-600'}`}>Remaining</p>
+                <p className={`text-2xl font-bold ${remaining >= 0 ? 'text-green-800' : 'text-orange-800'}`}>{remaining.toFixed(1)}</p>
+              </div>
+            </div>
+
+            {/* Leave Type (only for new records) */}
+            {isNewRecord && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Leave Type *</label>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  value={adjustForm.leave_type}
+                  onChange={(e) => setAdjustForm(prev => ({ ...prev, leave_type: e.target.value }))}
+                >
+                  <option value="">Select leave type</option>
+                  {leaveTypes.map((lt: any) => (
+                    <option key={lt.id || lt.name} value={lt.name}>{lt.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Period */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Period Year *</label>
+                <input
+                  type="number"
+                  min={2020} max={2100}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  value={adjustForm.period_year}
+                  onChange={(e) => setAdjustForm(prev => ({ ...prev, period_year: Number(e.target.value) }))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Period Month</label>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  value={adjustForm.period_month ?? ""}
+                  onChange={(e) => setAdjustForm(prev => ({ ...prev, period_month: e.target.value === "" ? null : Number(e.target.value) }))}
+                >
+                  <option value="">Yearly (null)</option>
+                  {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((m, i) => (
+                    <option key={i + 1} value={i + 1}>{m}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Adjustable fields */}
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Total Allocated</label>
+                <input
+                  type="number" min={0} step={0.5}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  value={adjustForm.total_allocated}
+                  onChange={(e) => setAdjustForm(prev => ({ ...prev, total_allocated: Number(e.target.value) }))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Used</label>
+                <input
+                  type="number" min={0} step={0.5}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  value={adjustForm.used}
+                  onChange={(e) => setAdjustForm(prev => ({ ...prev, used: Number(e.target.value) }))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Carry Forward</label>
+                <input
+                  type="number" min={0} step={0.5}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  value={adjustForm.carry_forward}
+                  onChange={(e) => setAdjustForm(prev => ({ ...prev, carry_forward: Number(e.target.value) }))}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="p-5 border-t border-gray-100 flex justify-end space-x-3">
+            <button
+              onClick={() => setAdjustModalOpen(false)}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleAdjustSubmit}
+              disabled={actionLoading === "adjust_balance" || (!adjustForm.leave_type && isNewRecord)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {actionLoading === "adjust_balance" ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }, [adjustModalOpen, adjustForm, actionLoading, leaveTypes, balSelectedEmployee]);
+
   // Loading State
+
   if (loading && items.length === 0) {
     return (
       <div className="space-y-4">
@@ -1987,6 +2273,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
       <DetailsViewModal />
       {EditLeaveModal}
       {AddLeaveModal}
+      {AdjustBalanceModal}
 
       {/* Header */}
       <div className="bg-white rounded-xl border border-gray-200 p-2">
@@ -2224,6 +2511,30 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
         </div>
       </div>
 
+      {/* Tab Navigation */}
+      {(isOrgAdmin || canAddLeave) && (
+        <div className="bg-white rounded-xl border border-gray-200 p-1 flex space-x-1">
+          <button
+            onClick={() => setActiveTab("requests")}
+            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "requests"
+                ? "bg-blue-600 text-white shadow-sm"
+                : "text-gray-600 hover:bg-gray-100"
+              }`}
+          >
+            Leave Requests
+          </button>
+          <button
+            onClick={() => { setActiveTab("balances"); fetchBalEmployees(); }}
+            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "balances"
+                ? "bg-blue-600 text-white shadow-sm"
+                : "text-gray-600 hover:bg-gray-100"
+              }`}
+          >
+            Balance Management
+          </button>
+        </div>
+      )}
+
       {/* Error Alert */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
@@ -2234,256 +2545,578 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
         </div>
       )}
 
-      {/* Leave Requests Table */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="overflow-y-auto max-h-[400px] overflow-x-auto relative">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr>
-                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Employee
-                </th>
-                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
-                </th>
-                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Period
-                </th>
-                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Days
-                </th>
-                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Workflow/Timeline
-                </th>
-                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Reason
-                </th>
-                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Applied
-                </th>
-                <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {pageSlice.map((item) => {
-                const name = String(item.employee_name || item.employee || `Employee #${item.employee_id || "-"}`);
-                const type = String(item.type || item.leave_type || "");
-                const statusRaw = String(item.status || "Pending");
-                const statusLower = statusRaw.toLowerCase();
-                const start = formatDateHuman(item.start_date || item.from || "");
-                const end = formatDateHuman(item.end_date || item.to || "");
-                const reason = String(item.reason || item.rejection_reason || item.reject_reason || "");
-                const days = Number(item.duration_days || item.days || 0);
-
-                return (
-                  <tr key={String(item.id)} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {name}
-                        </div>
-                        <div className="text-sm text-gray-500">#{String(item.employee_id || "-")}</div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{type}</td>
-                    <td className="px-4 py-3">
-                      <div className="text-sm text-gray-900">{start}</div>
-                      <div className="text-xs text-gray-500">to {end}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col gap-1">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                          {days.toFixed(1)} day{days !== 1 ? 's' : ''}
-                        </span>
-                        {item.session && item.session !== 'Full Day' && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
-                            {item.session}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center space-x-1.5">
-                        {getStatusIcon(statusRaw)}
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(statusRaw)} capitalize`}>
-                          {statusLower}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      {item.workflow_id && item.workflow_status === 'in_progress' ? (
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
-                          <div className="font-medium text-sm text-blue-900 mb-1">Level {item.current_level || 1}</div>
-                          <div className="text-xs text-blue-700 mb-1">
-                            {item.current_approver_names || 'Pending assignment'}
-                          </div>
-                          <TimelineCountdown item={item} />
-                        </div>
-                      ) : item.workflow_id && item.workflow_status === 'approved' ? (
-                        <span className="text-xs text-green-600 font-medium">✓ Workflow Approved</span>
-                      ) : item.workflow_id && item.workflow_status === 'rejected' ? (
-                        <span className="text-xs text-red-600 font-medium">✗ Workflow Rejected</span>
-                      ) : item.workflow_id && item.workflow_status === 'cancelled' ? (
-                        <span className="text-xs text-gray-500 font-medium">Workflow Cancelled</span>
-                      ) : item.workflow_id && item.workflow_status === 'expired' ? (
-                        <span className="text-xs text-orange-600 font-medium">⏱ Timeline Expired</span>
-                      ) : item.workflow_id ? (
-                        <span className="text-xs text-gray-500">Workflow: {item.workflow_status || 'pending'}</span>
-                      ) : (
-                        <span className="text-xs text-gray-400">No workflow</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {reason ? (
-                        <span className="text-xs text-gray-700 line-clamp-2">{reason}</span>
-                      ) : (
-                        <span className="text-xs text-gray-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {item.created_at ? (
-                        <div className="text-xs text-gray-700">
-                          {String(item.created_at).replace('T', ' ').replace('.000Z', '')}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <ActionDropdown item={item} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {visibleItems.length === 0 && !loading && (
-          <div className="text-center py-8">
-            <FileText className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-            <h3 className="text-sm font-medium text-gray-900 mb-1">No leave requests found</h3>
-            <p className="text-xs text-gray-500 mb-3">No leave requests match your current filters.</p>
-            <button
-              onClick={() => {
-                setStatus("All");
-                setFromDate("");
-                setToDate("");
-                if (!externalControl) {
-                  setSelectedSiteId(null);
-                  setHqMode(defaultHQ);
-                }
-                setPage(1);
-              }}
-              className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
-            >
-              Clear Filters
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Pagination */}
-      {visibleItems.length > 0 && (
-        <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 p-2">
-          <div className="text-xs text-gray-600">
-            Showing <span className="font-medium">{pageStart + 1}</span> to <span className="font-medium">{Math.min(pageStart + pageSize, totalEntries)}</span> of <span className="font-medium">{totalEntries}</span> requests
-          </div>
-          <div className="flex items-center space-x-3">
-            <div className="flex items-center space-x-1">
-              <span className="text-xs text-gray-600">Rows:</span>
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setPage(1);
-                }}
-                className="px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-xs"
-              >
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-            </div>
-            <div className="flex items-center space-x-1">
-              <button
-                onClick={() => setPage(Math.max(1, page - 1))}
-                disabled={page <= 1}
-                className="p-1.5 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronLeft className="w-3 h-3" />
-              </button>
-              <div className="flex items-center space-x-1">
-                {(() => {
-                  const pages = [];
-                  const maxVisible = 5;
-                  let startPage = Math.max(1, page - Math.floor(maxVisible / 2));
-                  let endPage = Math.min(totalPages, startPage + maxVisible - 1);
-                  if (endPage - startPage + 1 < maxVisible) startPage = Math.max(1, endPage - maxVisible + 1);
-                  if (startPage > 1) {
-                    pages.push(
-                      <button
-                        key={1}
-                        onClick={() => setPage(1)}
-                        className={`px-2 py-1 rounded text-xs transition-colors ${page === 1
-                          ? 'bg-blue-600 text-white'
-                          : 'border border-gray-300 hover:bg-gray-50'
-                          }`}
-                      >
-                        1
-                      </button>
-                    );
-                    if (startPage > 2) pages.push(<span key="ellipsis1" className="px-1 text-gray-500">...</span>);
-                  }
-                  for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
-                    pages.push(
-                      <button
-                        key={pageNum}
-                        onClick={() => setPage(pageNum)}
-                        className={`px-2 py-1 rounded text-xs transition-colors ${page === pageNum
-                          ? 'bg-blue-600 text-white'
-                          : 'border border-gray-300 hover:bg-gray-50'
-                          }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  }
-                  if (endPage < totalPages) {
-                    if (endPage < totalPages - 1) pages.push(<span key="ellipsis2" className="px-1 text-gray-500">...</span>);
-                    pages.push(
-                      <button
-                        key={totalPages}
-                        onClick={() => setPage(totalPages)}
-                        className={`px-2 py-1 rounded text-xs transition-colors ${page === totalPages
-                          ? 'bg-blue-600 text-white'
-                          : 'border border-gray-300 hover:bg-gray-50'
-                          }`}
-                      >
-                        {totalPages}
-                      </button>
-                    );
-                  }
-                  return pages;
-                })()}
+      {/* Balance Management Tab */}
+      {activeTab === "balances" && (
+        <div className="space-y-4">
+          {/* Employee Search Bar */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="flex items-center space-x-3">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search employee by name or ID..."
+                  value={balSearch}
+                  onChange={(e) => { setBalSearch(e.target.value); setBalPage(1); }}
+                  className="pl-9 pr-4 py-2 border border-gray-300 rounded-lg w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                />
+                {balSearch && (
+                  <button onClick={() => setBalSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
               </div>
+              {departments.length > 0 && (
+                <select
+                  value={balDept}
+                  onChange={(e) => { setBalDept(e.target.value); setBalPage(1); }}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                >
+                  <option value="">All Departments</option>
+                  {departments.map((d, i) => <option key={i} value={d}>{d}</option>)}
+                </select>
+              )}
               <button
-                onClick={() => setPage(Math.min(totalPages, page + 1))}
-                disabled={page === totalPages}
-                className="p-1.5 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                onClick={() => { setBalSelectedEmployee(null); setBalSelectedEmployeeBalances([]); fetchBalEmployees(); }}
+                disabled={balEmployeesLoading}
+                className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm flex items-center gap-1 transition-colors disabled:opacity-50"
               >
-                <ChevronRight className="w-3 h-3" />
+                <RefreshCw className={`w-4 h-4 ${balEmployeesLoading ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
               </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Employee List */}
+            <div className="lg:col-span-1">
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="p-3 border-b border-gray-100 bg-gray-50">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Employees ({balEmployeesTotal})</p>
+                </div>
+                {balEmployeesLoading ? (
+                  <div className="p-4 space-y-3">
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} className="animate-pulse flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
+                        <div className="flex-1 space-y-1">
+                          <div className="h-3 bg-gray-200 rounded w-3/4"></div>
+                          <div className="h-2 bg-gray-200 rounded w-1/2"></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : balEmployees.length === 0 ? (
+                  <div className="p-6 text-center">
+                    <Users className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">No employees found</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-100 max-h-[500px] overflow-y-auto">
+                    {balEmployees.map((emp) => {
+                      const empName = emp.name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || `Emp #${emp.id}`;
+                      const isSelected = balSelectedEmployee?.id === emp.id;
+                      return (
+                        <button
+                          key={emp.id}
+                          onClick={() => {
+                            setBalSelectedEmployee(emp);
+                            fetchEmployeeBalancesDetail(emp.id);
+                          }}
+                          className={`w-full text-left px-4 py-3 flex items-center space-x-3 hover:bg-blue-50 transition-colors ${isSelected ? 'bg-blue-50 border-l-2 border-blue-600' : ''
+                            }`}
+                        >
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isSelected ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
+                            }`}>
+                            {empName.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-medium truncate ${isSelected ? 'text-blue-900' : 'text-gray-900'}`}>{empName}</p>
+                            <p className="text-xs text-gray-500 truncate">{emp.department || emp.designation || `#${emp.id}`}</p>
+                          </div>
+                          {isSelected && <ChevronRight className="w-4 h-4 text-blue-600 flex-shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {/* Pagination */}
+                {balEmployeesTotal > 10 && (
+                  <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between">
+                    <button
+                      disabled={balPage <= 1}
+                      onClick={() => setBalPage(p => Math.max(1, p - 1))}
+                      className="p-1 rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="w-3 h-3" />
+                    </button>
+                    <span className="text-xs text-gray-500">Page {balPage}</span>
+                    <button
+                      disabled={balPage * 10 >= balEmployeesTotal}
+                      onClick={() => setBalPage(p => p + 1)}
+                      className="p-1 rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Balance Detail Panel */}
+            <div className="lg:col-span-2">
+              {!balSelectedEmployee ? (
+                <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+                  <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <h3 className="text-base font-medium text-gray-700 mb-1">Select an Employee</h3>
+                  <p className="text-sm text-gray-400">Click on an employee to view and manage their leave balances</p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50 flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">
+                        {(balSelectedEmployee.name || `${balSelectedEmployee.first_name || ''} ${balSelectedEmployee.last_name || ''}`.trim()).charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">
+                          {balSelectedEmployee.name || `${balSelectedEmployee.first_name || ''} ${balSelectedEmployee.last_name || ''}`.trim()}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <p className="text-xs text-gray-500">{balSelectedEmployee.department || balSelectedEmployee.designation || `Employee #${balSelectedEmployee.id}`}</p>
+                          {balActivePeriodLabel && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-xs font-medium">
+                              Active: {balActivePeriodLabel}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setAdjustForm({
+                          id: undefined,
+                          employee_id: balSelectedEmployee.id,
+                          leave_type: "",
+                          total_allocated: 0,
+                          used: 0,
+                          carry_forward: 0,
+                          period_year: new Date().getFullYear(),
+                          period_month: null,
+                        });
+                        setAdjustModalOpen(true);
+                      }}
+                      className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs flex items-center space-x-1 transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Balance</span>
+                    </button>
+                  </div>
+
+                  {balBalancesLoading ? (
+                    <div className="p-6 space-y-4">
+                      {[...Array(3)].map((_, i) => (
+                        <div key={i} className="animate-pulse flex items-center space-x-4">
+                          <div className="h-4 bg-gray-200 rounded w-32"></div>
+                          <div className="h-4 bg-gray-200 rounded w-16"></div>
+                          <div className="h-4 bg-gray-200 rounded w-16"></div>
+                          <div className="h-4 bg-gray-200 rounded w-16"></div>
+                          <div className="h-4 bg-gray-200 rounded w-16"></div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : balSelectedEmployeeBalances.length === 0 ? (
+                    <div className="p-10 text-center">
+                      <Calendar className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                      <h4 className="text-sm font-medium text-gray-700 mb-1">No Balance Records</h4>
+                      <p className="text-xs text-gray-400 mb-4">No leave balance records found for this employee for the current active period{balActivePeriodLabel ? ` (${balActivePeriodLabel})` : ''}.</p>
+                      <button
+                        onClick={() => {
+                          setAdjustForm({
+                            id: undefined,
+                            employee_id: balSelectedEmployee.id,
+                            leave_type: "",
+                            total_allocated: 0,
+                            used: 0,
+                            carry_forward: 0,
+                            period_year: new Date().getFullYear(),
+                            period_month: null,
+                          });
+                          setAdjustModalOpen(true);
+                        }}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm transition-colors"
+                      >
+                        Add First Balance
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50">
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Leave Type</th>
+                            <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Period</th>
+                            <th className="px-4 py-3 text-center text-xs font-semibold text-blue-600 uppercase tracking-wider">Allocated</th>
+                            <th className="px-4 py-3 text-center text-xs font-semibold text-red-600 uppercase tracking-wider">Used</th>
+                            <th className="px-4 py-3 text-center text-xs font-semibold text-amber-600 uppercase tracking-wider">Carry Fwd</th>
+                            <th className="px-4 py-3 text-center text-xs font-semibold text-green-600 uppercase tracking-wider">Remaining</th>
+                            <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {balSelectedEmployeeBalances.map((bal, idx) => {
+                            const remaining = (Number(bal.total_allocated) + Number(bal.carry_forward || 0)) - Number(bal.used);
+                            const utilizationPct = Number(bal.total_allocated) > 0
+                              ? Math.min(100, (Number(bal.used) / Number(bal.total_allocated)) * 100)
+                              : 0;
+                            return (
+                              <tr key={bal.id || idx} className="hover:bg-gray-50 transition-colors">
+                                <td className="px-4 py-3">
+                                  <span className="text-sm font-medium text-gray-900">{bal.leave_type}</span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className="text-xs text-gray-500">
+                                    {bal.period_month ? `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][bal.period_month - 1]} ` : ''}{bal.period_year}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className="inline-flex items-center justify-center w-10 h-6 bg-blue-100 text-blue-700 rounded text-xs font-semibold">
+                                    {Number(bal.total_allocated).toFixed(1)}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <div className="flex flex-col items-center">
+                                    <span className="inline-flex items-center justify-center w-10 h-6 bg-red-100 text-red-700 rounded text-xs font-semibold">
+                                      {Number(bal.used).toFixed(1)}
+                                    </span>
+                                    {Number(bal.total_allocated) > 0 && (
+                                      <div className="mt-1 w-12 bg-gray-200 rounded-full h-1">
+                                        <div className="bg-red-500 h-1 rounded-full" style={{ width: `${utilizationPct}%` }}></div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className="inline-flex items-center justify-center w-10 h-6 bg-amber-100 text-amber-700 rounded text-xs font-semibold">
+                                    {Number(bal.carry_forward || 0).toFixed(1)}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className={`inline-flex items-center justify-center w-10 h-6 rounded text-xs font-semibold ${remaining > 0 ? 'bg-green-100 text-green-700' : remaining === 0 ? 'bg-gray-100 text-gray-600' : 'bg-orange-100 text-orange-700'
+                                    }`}>
+                                    {remaining.toFixed(1)}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <button
+                                    onClick={() => {
+                                      setAdjustForm({
+                                        id: bal.id,
+                                        employee_id: balSelectedEmployee.id,
+                                        leave_type: bal.leave_type,
+                                        total_allocated: Number(bal.total_allocated),
+                                        used: Number(bal.used),
+                                        carry_forward: Number(bal.carry_forward || 0),
+                                        period_year: bal.period_year,
+                                        period_month: bal.period_month,
+                                      });
+                                      setAdjustModalOpen(true);
+                                    }}
+                                    className="px-2.5 py-1 border border-gray-300 rounded-lg hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 text-xs font-medium text-gray-600 transition-colors flex items-center space-x-1 mx-auto"
+                                  >
+                                    <Settings className="w-3 h-3" />
+                                    <span>Edit</span>
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+
+                      {/* Summary footer */}
+                      <div className="border-t border-gray-100 p-4 bg-gray-50">
+                        <div className="grid grid-cols-4 gap-4">
+                          {['Total Allocated', 'Total Used', 'Total Carry Fwd', 'Total Remaining'].map((label, i) => {
+                            const vals = balSelectedEmployeeBalances.map(b => [
+                              Number(b.total_allocated),
+                              Number(b.used),
+                              Number(b.carry_forward || 0),
+                              (Number(b.total_allocated) + Number(b.carry_forward || 0)) - Number(b.used)
+                            ][i]);
+                            const total = vals.reduce((a, b) => a + b, 0);
+                            const colors = ['text-blue-700', 'text-red-700', 'text-amber-700', total >= 0 ? 'text-green-700' : 'text-orange-700'];
+                            return (
+                              <div key={i} className="text-center">
+                                <p className="text-xs text-gray-500 mb-0.5">{label}</p>
+                                <p className={`text-base font-bold ${colors[i]}`}>{total.toFixed(1)}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
+
+      {/* Leave Requests Table */}
+      {activeTab === "requests" && (<>
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="overflow-y-auto max-h-[400px] overflow-x-auto relative">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Employee
+                  </th>
+                  <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Period
+                  </th>
+                  <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Days
+                  </th>
+                  <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Workflow/Timeline
+                  </th>
+                  <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Reason
+                  </th>
+                  <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Applied
+                  </th>
+                  <th className="sticky top-0 bg-gray-50 z-10 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {pageSlice.map((item) => {
+                  const name = String(item.employee_name || item.employee || `Employee #${item.employee_id || "-"}`);
+                  const type = String(item.type || item.leave_type || "");
+                  const statusRaw = String(item.status || "Pending");
+                  const statusLower = statusRaw.toLowerCase();
+                  const start = formatDateHuman(item.start_date || item.from || "");
+                  const end = formatDateHuman(item.end_date || item.to || "");
+                  const reason = String(item.reason || item.rejection_reason || item.reject_reason || "");
+                  const days = Number(item.duration_days || item.days || 0);
+
+                  return (
+                    <tr key={String(item.id)} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {name}
+                          </div>
+                          <div className="text-sm text-gray-500">#{String(item.employee_id || "-")}</div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{type}</td>
+                      <td className="px-4 py-3">
+                        <div className="text-sm text-gray-900">{start}</div>
+                        <div className="text-xs text-gray-500">to {end}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col gap-1">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                            {days.toFixed(1)} day{days !== 1 ? 's' : ''}
+                          </span>
+                          {item.session && item.session !== 'Full Day' && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                              {item.session}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center space-x-1.5">
+                          {getStatusIcon(statusRaw)}
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(statusRaw)} capitalize`}>
+                            {statusLower}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {item.workflow_id && item.workflow_status === 'in_progress' ? (
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
+                            <div className="font-medium text-sm text-blue-900 mb-1">Level {item.current_level || 1}</div>
+                            <div className="text-xs text-blue-700 mb-1">
+                              {item.current_approver_names || 'Pending assignment'}
+                            </div>
+                            <TimelineCountdown item={item} />
+                          </div>
+                        ) : item.workflow_id && item.workflow_status === 'approved' ? (
+                          <span className="text-xs text-green-600 font-medium">✓ Workflow Approved</span>
+                        ) : item.workflow_id && item.workflow_status === 'rejected' ? (
+                          <span className="text-xs text-red-600 font-medium">✗ Workflow Rejected</span>
+                        ) : item.workflow_id && item.workflow_status === 'cancelled' ? (
+                          <span className="text-xs text-gray-500 font-medium">Workflow Cancelled</span>
+                        ) : item.workflow_id && item.workflow_status === 'expired' ? (
+                          <span className="text-xs text-orange-600 font-medium">⏱ Timeline Expired</span>
+                        ) : item.workflow_id ? (
+                          <span className="text-xs text-gray-500">Workflow: {item.workflow_status || 'pending'}</span>
+                        ) : (
+                          <span className="text-xs text-gray-400">No workflow</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {reason ? (
+                          <span className="text-xs text-gray-700 line-clamp-2">{reason}</span>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {item.created_at ? (
+                          <div className="text-xs text-gray-700">
+                            {String(item.created_at).replace('T', ' ').replace('.000Z', '')}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <ActionDropdown item={item} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {visibleItems.length === 0 && !loading && (
+            <div className="text-center py-8">
+              <FileText className="w-10 h-10 text-gray-400 mx-auto mb-3" />
+              <h3 className="text-sm font-medium text-gray-900 mb-1">No leave requests found</h3>
+              <p className="text-xs text-gray-500 mb-3">No leave requests match your current filters.</p>
+              <button
+                onClick={() => {
+                  setStatus("All");
+                  setFromDate("");
+                  setToDate("");
+                  if (!externalControl) {
+                    setSelectedSiteId(null);
+                    setHqMode(defaultHQ);
+                  }
+                  setPage(1);
+                }}
+                className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+              >
+                Clear Filters
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Pagination */}
+        {visibleItems.length > 0 && (
+          <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 p-2">
+            <div className="text-xs text-gray-600">
+              Showing <span className="font-medium">{pageStart + 1}</span> to <span className="font-medium">{Math.min(pageStart + pageSize, totalEntries)}</span> of <span className="font-medium">{totalEntries}</span> requests
+            </div>
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-1">
+                <span className="text-xs text-gray-600">Rows:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  className="px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-xs"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+              <div className="flex items-center space-x-1">
+                <button
+                  onClick={() => setPage(Math.max(1, page - 1))}
+                  disabled={page <= 1}
+                  className="p-1.5 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronLeft className="w-3 h-3" />
+                </button>
+                <div className="flex items-center space-x-1">
+                  {(() => {
+                    const pages = [];
+                    const maxVisible = 5;
+                    let startPage = Math.max(1, page - Math.floor(maxVisible / 2));
+                    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+                    if (endPage - startPage + 1 < maxVisible) startPage = Math.max(1, endPage - maxVisible + 1);
+                    if (startPage > 1) {
+                      pages.push(
+                        <button
+                          key={1}
+                          onClick={() => setPage(1)}
+                          className={`px-2 py-1 rounded text-xs transition-colors ${page === 1
+                            ? 'bg-blue-600 text-white'
+                            : 'border border-gray-300 hover:bg-gray-50'
+                            }`}
+                        >
+                          1
+                        </button>
+                      );
+                      if (startPage > 2) pages.push(<span key="ellipsis1" className="px-1 text-gray-500">...</span>);
+                    }
+                    for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
+                      pages.push(
+                        <button
+                          key={pageNum}
+                          onClick={() => setPage(pageNum)}
+                          className={`px-2 py-1 rounded text-xs transition-colors ${page === pageNum
+                            ? 'bg-blue-600 text-white'
+                            : 'border border-gray-300 hover:bg-gray-50'
+                            }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    }
+                    if (endPage < totalPages) {
+                      if (endPage < totalPages - 1) pages.push(<span key="ellipsis2" className="px-1 text-gray-500">...</span>);
+                      pages.push(
+                        <button
+                          key={totalPages}
+                          onClick={() => setPage(totalPages)}
+                          className={`px-2 py-1 rounded text-xs transition-colors ${page === totalPages
+                            ? 'bg-blue-600 text-white'
+                            : 'border border-gray-300 hover:bg-gray-50'
+                            }`}
+                        >
+                          {totalPages}
+                        </button>
+                      );
+                    }
+                    return pages;
+                  })()}
+                </div>
+                <button
+                  onClick={() => setPage(Math.min(totalPages, page + 1))}
+                  disabled={page === totalPages}
+                  className="p-1.5 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronRight className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </>)}
 
 
     </div>

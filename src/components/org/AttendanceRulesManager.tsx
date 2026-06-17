@@ -86,6 +86,11 @@ export type AttendancePolicy = {
   leave_reset_day?: number;
   leave_reset_month?: number | null;
 
+  // New leave policy fields
+  yearly_credit_type?: "all_at_once" | "monthly";
+  limit_max_leave_per_month?: boolean;
+  carry_forward_all?: boolean;
+
   // Night OT policy
   allow_night_ot?: boolean;
   night_shift_min_percentage?: number;
@@ -155,6 +160,10 @@ const defaultPolicy: AttendancePolicy = {
 
   leave_reset_day: 1,
   leave_reset_month: 1,
+
+  yearly_credit_type: "all_at_once",
+  limit_max_leave_per_month: true,
+  carry_forward_all: false,
 
   allow_night_ot: false,
   night_shift_min_percentage: 50,
@@ -342,7 +351,6 @@ export default function AttendanceRulesManager() {
     const errs: Partial<Record<keyof AttendancePolicy, string>> = {};
     if (!policy.policy_name?.trim()) errs.policy_name = "Policy name is required";
     if (!policy.policy_description?.trim()) errs.policy_description = "Description is required";
-    if (!policy.leave_cycle) errs.leave_cycle = "Leave cycle is required";
     if (!policy.salary_payment_cycle) errs.salary_payment_cycle = "Payment cycle is required";
 
     const day = Number(policy.salary_date_day);
@@ -361,20 +369,27 @@ export default function AttendanceRulesManager() {
 
   const validateStep2 = () => {
     const errs: Partial<Record<keyof AttendancePolicy, string>> = {};
+    if (!policy.leave_cycle) errs.leave_cycle = "Leave cycle is required";
     if (policy.leave_cycle === "monthly") {
       if (!(policy.max_leave_per_month > 0)) errs.max_leave_per_month = "Enter a positive number";
       if (policy.monthly_carry_forward_allowed) {
-        if (policy.max_carry_forward_leaves === undefined || policy.max_carry_forward_leaves < 0) {
-          errs.max_carry_forward_leaves = "Enter 0 or more";
-        } else if (policy.max_carry_forward_leaves > policy.max_leave_per_month) {
-          errs.max_carry_forward_leaves = "Cannot exceed leaves per month";
+        if (!policy.carry_forward_all) {
+          if (policy.max_carry_forward_leaves === undefined || policy.max_carry_forward_leaves < 0) {
+            errs.max_carry_forward_leaves = "Enter 0 or more";
+          } else if (policy.max_carry_forward_leaves > policy.max_leave_per_month) {
+            errs.max_carry_forward_leaves = "Cannot exceed leaves per month";
+          }
         }
       }
     } else {
       if (!(policy.total_annual_leaves > 0)) errs.total_annual_leaves = "Enter a positive number";
-      if (!(policy.max_leave_per_month > 0)) errs.max_leave_per_month = "Enter a positive number";
-      if (policy.max_carry_forward_leaves === undefined || policy.max_carry_forward_leaves < 0) {
-        errs.max_carry_forward_leaves = "Internal carry-forward must be 0 or more";
+      if (policy.limit_max_leave_per_month !== false) {
+        if (!(policy.max_leave_per_month > 0)) errs.max_leave_per_month = "Enter a positive number";
+      }
+      if (!policy.carry_forward_all) {
+        if (policy.max_carry_forward_leaves === undefined || policy.max_carry_forward_leaves < 0) {
+          errs.max_carry_forward_leaves = "Internal carry-forward must be 0 or more";
+        }
       }
     }
 
@@ -830,19 +845,26 @@ export default function AttendanceRulesManager() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <h4 className="text-sm font-medium text-gray-500">Leave Allocation</h4>
-                    <p className="mt-1 text-gray-900">
+                    <div className="mt-1 text-gray-900">
                       {policy.leave_cycle === "monthly"
                         ? `${policy.max_leave_per_month} days per month`
-                        : `${policy.total_annual_leaves} days annually, ${policy.max_leave_per_month} max per month`
+                        : `${policy.total_annual_leaves} days annually${policy.limit_max_leave_per_month !== false ? `, ${policy.max_leave_per_month} max per month` : ""}`
                       }
-                    </p>
+                      {policy.leave_cycle === "yearly" && (
+                        <span className="block text-xs text-gray-500 mt-0.5">
+                          Credit Type: {policy.yearly_credit_type === "monthly" ? "Credit monthly (divided by 12)" : "Credit all at once"}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <h4 className="text-sm font-medium text-gray-500">Carry Forward</h4>
                     <p className="mt-1 text-gray-900">
-                      {policy.max_carry_forward_leaves > 0
-                        ? `${policy.max_carry_forward_leaves} days allowed`
-                        : 'Not allowed'
+                      {policy.carry_forward_all
+                        ? "All remaining balances carried forward"
+                        : (policy.max_carry_forward_leaves > 0
+                          ? `${policy.max_carry_forward_leaves} days allowed`
+                          : 'Not allowed')
                       }
                     </p>
                   </div>
@@ -959,25 +981,6 @@ export default function AttendanceRulesManager() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Leave Cycle<span className="text-red-500 ml-1">*</span>
-                        </label>
-                        <select
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.leave_cycle ? 'border-red-500' : 'border-gray-300'
-                            }`}
-                          value={policy.leave_cycle}
-                          onChange={(e) => setField("leave_cycle", e.target.value as AttendancePolicy["leave_cycle"])}
-                        >
-                          <option value="monthly">Monthly</option>
-                          <option value="yearly">Yearly</option>
-                        </select>
-                        {formErrors.leave_cycle && (
-                          <p className="mt-1 text-sm text-red-600">{formErrors.leave_cycle}</p>
-                        )}
-                        <p className="mt-1 text-xs text-gray-500">Choose whether leave allowances reset monthly or annually.</p>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
                           Payment Cycle<span className="text-red-500 ml-1">*</span>
                         </label>
                         <select
@@ -1071,19 +1074,44 @@ export default function AttendanceRulesManager() {
                         <p className="mt-1 text-xs text-gray-500">For weekly/biweekly cycles (1-31).</p>
                       </div>
                     </div>
+                  </>
+                )}
 
-                    {/* Leave Reset Date Configuration */}
-                    <div className="border-t pt-6 mt-6">
-                      <h4 className="text-md font-semibold text-gray-900 mb-4">Leave Balance Reset Schedule</h4>
+                {/* Step 2: Leave Policy */}
+                {wizardStep === 2 && (
+                  <>
+                    <div className="border-b pb-4 mb-4">
+                      <h4 className="text-lg font-semibold text-gray-900">Leave Policy</h4>
+                    </div>
 
-                      {policy.leave_cycle === "monthly" && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6 space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Leave Cycle<span className="text-red-500 ml-1">*</span>
+                          </label>
+                          <select
+                            className={`w-full px-3 py-2 border bg-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.leave_cycle ? 'border-red-500' : 'border-gray-300'
+                              }`}
+                            value={policy.leave_cycle}
+                            onChange={(e) => setField("leave_cycle", e.target.value as AttendancePolicy["leave_cycle"])}
+                          >
+                            <option value="monthly">Monthly</option>
+                            <option value="yearly">Yearly</option>
+                          </select>
+                          {formErrors.leave_cycle && (
+                            <p className="mt-1 text-sm text-red-600">{formErrors.leave_cycle}</p>
+                          )}
+                          <p className="mt-1 text-xs text-gray-500">Choose whether leave allowances reset monthly or annually.</p>
+                        </div>
+
+                        {policy.leave_cycle === "monthly" && (
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                               Reset Day of Month
                             </label>
                             <select
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              className="w-full px-3 py-2 border border-gray-300 bg-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                               value={policy.leave_reset_day ?? 1}
                               onChange={(e) => setField("leave_reset_day", Number(e.target.value))}
                             >
@@ -1102,72 +1130,63 @@ export default function AttendanceRulesManager() {
                               </strong> of every month.
                             </p>
                           </div>
-                        </div>
-                      )}
+                        )}
 
-                      {policy.leave_cycle === "yearly" && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Reset Month
-                            </label>
-                            <select
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              value={policy.leave_reset_month ?? 1}
-                              onChange={(e) => setField("leave_reset_month", Number(e.target.value))}
-                            >
-                              <option value="1">January</option>
-                              <option value="2">February</option>
-                              <option value="3">March</option>
-                              <option value="4">April</option>
-                              <option value="5">May</option>
-                              <option value="6">June</option>
-                              <option value="7">July</option>
-                              <option value="8">August</option>
-                              <option value="9">September</option>
-                              <option value="10">October</option>
-                              <option value="11">November</option>
-                              <option value="12">December</option>
-                            </select>
-                            <p className="mt-1 text-xs text-gray-500">Select the month when annual leave balances reset.</p>
+                        {policy.leave_cycle === "yearly" && (
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Reset Month
+                              </label>
+                              <select
+                                className="w-full px-3 py-2 border border-gray-300 bg-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                value={policy.leave_reset_month ?? 1}
+                                onChange={(e) => setField("leave_reset_month", Number(e.target.value))}
+                              >
+                                <option value="1">January</option>
+                                <option value="2">February</option>
+                                <option value="3">March</option>
+                                <option value="4">April</option>
+                                <option value="5">May</option>
+                                <option value="6">June</option>
+                                <option value="7">July</option>
+                                <option value="8">August</option>
+                                <option value="9">September</option>
+                                <option value="10">October</option>
+                                <option value="11">November</option>
+                                <option value="12">December</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Reset Day
+                              </label>
+                              <select
+                                className="w-full px-3 py-2 border border-gray-300 bg-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                value={policy.leave_reset_day ?? 1}
+                                onChange={(e) => setField("leave_reset_day", Number(e.target.value))}
+                              >
+                                {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                                  <option key={day} value={day}>
+                                    {day}{day === 1 ? 'st' : day === 2 ? 'nd' : day === 3 ? 'rd' : 'th'}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="col-span-2">
+                              <p className="text-xs text-gray-500">
+                                Leave balances will reset on <strong>
+                                  {['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][policy.leave_reset_month ?? 1]}
+                                  {' '}{policy.leave_reset_day ?? 1}
+                                  {(policy.leave_reset_day ?? 1) === 1 ? 'st' :
+                                    (policy.leave_reset_day ?? 1) === 2 ? 'nd' :
+                                      (policy.leave_reset_day ?? 1) === 3 ? 'rd' : 'th'}
+                                </strong> every year.
+                              </p>
+                            </div>
                           </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Reset Day
-                            </label>
-                            <select
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              value={policy.leave_reset_day ?? 1}
-                              onChange={(e) => setField("leave_reset_day", Number(e.target.value))}
-                            >
-                              {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                                <option key={day} value={day}>
-                                  {day}{day === 1 ? 'st' : day === 2 ? 'nd' : day === 3 ? 'rd' : 'th'}
-                                </option>
-                              ))}
-                            </select>
-                            <p className="mt-1 text-xs text-gray-500">
-                              Leave balances will reset on <strong>
-                                {['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][policy.leave_reset_month ?? 1]}
-                                {' '}{policy.leave_reset_day ?? 1}
-                                {(policy.leave_reset_day ?? 1) === 1 ? 'st' :
-                                  (policy.leave_reset_day ?? 1) === 2 ? 'nd' :
-                                    (policy.leave_reset_day ?? 1) === 3 ? 'rd' : 'th'}
-                              </strong> every year.
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {/* Step 2: Leave Policy */}
-                {wizardStep === 2 && (
-                  <>
-                    <div className="border-b pb-4 mb-4">
-                      <h4 className="text-lg font-semibold text-gray-900">Leave Policy</h4>
+                        )}
+                      </div>
                     </div>
 
                     {policy.leave_cycle === "monthly" && (
@@ -1201,7 +1220,10 @@ export default function AttendanceRulesManager() {
                               onChange={(e) => {
                                 const yes = e.target.value === "true";
                                 setField("monthly_carry_forward_allowed", yes);
-                                if (!yes) setField("max_carry_forward_leaves", 0);
+                                if (!yes) {
+                                  setField("max_carry_forward_leaves", 0);
+                                  setField("carry_forward_all", false);
+                                }
                               }}
                             >
                               <option value="false">No</option>
@@ -1212,24 +1234,45 @@ export default function AttendanceRulesManager() {
                         </div>
 
                         {policy.monthly_carry_forward_allowed && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Carry-forward Limit (per month)
-                              </label>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                            <div className="flex items-center space-x-2">
                               <input
-                                type="number"
-                                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.max_carry_forward_leaves ? 'border-red-500' : 'border-gray-300'
-                                  }`}
-                                min={0}
-                                value={policy.max_carry_forward_leaves}
-                                onChange={(e) => setField("max_carry_forward_leaves", Number(e.target.value))}
+                                type="checkbox"
+                                id="carry_forward_all"
+                                checked={policy.carry_forward_all || false}
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setField("carry_forward_all", checked);
+                                  if (checked) {
+                                    setField("max_carry_forward_leaves", 0);
+                                  }
+                                }}
+                                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                               />
-                              {formErrors.max_carry_forward_leaves && (
-                                <p className="mt-1 text-sm text-red-600">{formErrors.max_carry_forward_leaves}</p>
-                              )}
-                              <p className="mt-1 text-xs text-gray-500">Cannot exceed the monthly leave allowance.</p>
+                              <label htmlFor="carry_forward_all" className="text-sm font-medium text-gray-700">
+                                Carry forward all remaining balances
+                              </label>
                             </div>
+
+                            {!policy.carry_forward_all && (
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Carry-forward Limit (per month)
+                                </label>
+                                <input
+                                  type="number"
+                                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.max_carry_forward_leaves ? 'border-red-500' : 'border-gray-300'
+                                    }`}
+                                  min={0}
+                                  value={policy.max_carry_forward_leaves}
+                                  onChange={(e) => setField("max_carry_forward_leaves", Number(e.target.value))}
+                                />
+                                {formErrors.max_carry_forward_leaves && (
+                                  <p className="mt-1 text-sm text-red-600">{formErrors.max_carry_forward_leaves}</p>
+                                )}
+                                <p className="mt-1 text-xs text-gray-500">Cannot exceed the monthly leave allowance.</p>
+                              </div>
+                            )}
                           </div>
                         )}
                       </>
@@ -1258,34 +1301,79 @@ export default function AttendanceRulesManager() {
 
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Max Leaves per Month<span className="text-red-500 ml-1">*</span>
+                              Annual Leaves Credit Type
                             </label>
-                            <input
-                              type="number"
-                              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.max_leave_per_month ? 'border-red-500' : 'border-gray-300'
-                                }`}
-                              min={1}
-                              value={policy.max_leave_per_month}
-                              onChange={(e) => setField("max_leave_per_month", Number(e.target.value))}
-                            />
-                            {formErrors.max_leave_per_month && (
-                              <p className="mt-1 text-sm text-red-600">{formErrors.max_leave_per_month}</p>
-                            )}
-                            <p className="mt-1 text-xs text-gray-500">Monthly cap on leaves taken, within the annual total.</p>
+                            <select
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              value={policy.yearly_credit_type || "all_at_once"}
+                              onChange={(e) => setField("yearly_credit_type", e.target.value)}
+                            >
+                              <option value="all_at_once">Credit all at once</option>
+                              <option value="monthly">Credit monthly (divided by 12)</option>
+                            </select>
+                            <p className="mt-1 text-xs text-gray-500">How annual leaves are credited to employees.</p>
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="limit_max_leave_per_month"
+                              checked={policy.limit_max_leave_per_month !== false}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setField("limit_max_leave_per_month", checked);
+                                if (!checked) {
+                                  setField("max_leave_per_month", 0);
+                                } else {
+                                  setField("max_leave_per_month", 2);
+                                }
+                              }}
+                              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <label htmlFor="limit_max_leave_per_month" className="text-sm font-medium text-gray-700">
+                              Limit max leaves per month
+                            </label>
+                          </div>
+
+                          {policy.limit_max_leave_per_month !== false && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Max Leaves per Month<span className="text-red-500 ml-1">*</span>
+                              </label>
+                              <input
+                                type="number"
+                                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.max_leave_per_month ? 'border-red-500' : 'border-gray-300'
+                                  }`}
+                                min={1}
+                                value={policy.max_leave_per_month}
+                                onChange={(e) => setField("max_leave_per_month", Number(e.target.value))}
+                              />
+                              {formErrors.max_leave_per_month && (
+                                <p className="mt-1 text-sm text-red-600">{formErrors.max_leave_per_month}</p>
+                              )}
+                              <p className="mt-1 text-xs text-gray-500">Monthly cap on leaves taken, within the annual total.</p>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                               Annual Carry Forward Allowed
                             </label>
                             <select
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              value={(policy.max_carry_forward_leaves ?? 0) > 0 ? "true" : "false"}
+                              value={(policy.max_carry_forward_leaves ?? 0) > 0 || policy.carry_forward_all ? "true" : "false"}
                               onChange={(e) => {
                                 const yes = e.target.value === "true";
-                                setField("max_carry_forward_leaves", yes ? Math.max(1, policy.max_carry_forward_leaves || 12) : 0);
+                                if (!yes) {
+                                  setField("max_carry_forward_leaves", 0);
+                                  setField("carry_forward_all", false);
+                                } else {
+                                  setField("max_carry_forward_leaves", policy.max_carry_forward_leaves || 12);
+                                }
                               }}
                             >
                               <option value="false">No</option>
@@ -1293,6 +1381,48 @@ export default function AttendanceRulesManager() {
                             </select>
                             <p className="mt-1 text-xs text-gray-500">Enable or disable carrying unused annual leaves to next year.</p>
                           </div>
+
+                          {((policy.max_carry_forward_leaves ?? 0) > 0 || policy.carry_forward_all) && (
+                            <div className="flex flex-col justify-end">
+                              <div className="flex items-center space-x-2 mb-2">
+                                <input
+                                  type="checkbox"
+                                  id="carry_forward_all_yearly"
+                                  checked={policy.carry_forward_all || false}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    setField("carry_forward_all", checked);
+                                    if (checked) {
+                                      setField("max_carry_forward_leaves", 0);
+                                    }
+                                  }}
+                                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                />
+                                <label htmlFor="carry_forward_all_yearly" className="text-sm font-medium text-gray-700">
+                                  Carry forward all remaining balances
+                                </label>
+                              </div>
+
+                              {!policy.carry_forward_all && (
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Carry-forward Limit (yearly)
+                                  </label>
+                                  <input
+                                    type="number"
+                                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.max_carry_forward_leaves ? 'border-red-500' : 'border-gray-300'
+                                      }`}
+                                    min={1}
+                                    value={policy.max_carry_forward_leaves}
+                                    onChange={(e) => setField("max_carry_forward_leaves", Number(e.target.value))}
+                                  />
+                                  {formErrors.max_carry_forward_leaves && (
+                                    <p className="mt-1 text-sm text-red-600">{formErrors.max_carry_forward_leaves}</p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </>
                     )}
@@ -2271,7 +2401,12 @@ export default function AttendanceRulesManager() {
           </div>
           <div className="flex items-center space-x-3">
             <button
-              onClick={() => setFiltersExpanded(!filtersExpanded)}
+              onClick={() => {
+                if (filtersExpanded) {
+                  clearFilters();
+                }
+                setFiltersExpanded(!filtersExpanded);
+              }}
               className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-1 text-sm"
             >
               <Filter className="w-4 h-4" />
@@ -2410,13 +2545,15 @@ export default function AttendanceRulesManager() {
                     <div className="text-sm text-gray-900">
                       {policyItem.leave_cycle === 'monthly'
                         ? `${policyItem.max_leave_per_month}/month`
-                        : `${policyItem.total_annual_leaves}/year`
+                        : `${policyItem.total_annual_leaves}/year${policyItem.limit_max_leave_per_month !== false ? ` (${policyItem.max_leave_per_month}/mo max)` : ""}`
                       }
                     </div>
                     <div className="text-xs text-gray-500">
-                      {policyItem.max_carry_forward_leaves > 0
-                        ? `${policyItem.max_carry_forward_leaves} carry forward`
-                        : 'No carry forward'
+                      {policyItem.carry_forward_all
+                        ? 'All balance carried forward'
+                        : (policyItem.max_carry_forward_leaves > 0
+                          ? `${policyItem.max_carry_forward_leaves} carry forward`
+                          : 'No carry forward')
                       }
                     </div>
                   </td>
