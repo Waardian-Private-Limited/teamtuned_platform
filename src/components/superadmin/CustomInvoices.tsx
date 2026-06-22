@@ -40,7 +40,7 @@ export default function CustomInvoices() {
         paid_amount: "0",
         status: "PENDING",
         without_gst: false,
-        items: [{ description: "", rate: "", quantity: "1" }]
+        items: [{ description: "", sac: "", rate: "", quantity: "1" }]
     });
 
     useEffect(() => {
@@ -68,7 +68,7 @@ export default function CustomInvoices() {
     const handleAddItem = () => {
         setFormData({
             ...formData,
-            items: [...formData.items, { description: "", rate: "", quantity: "1" }]
+            items: [...formData.items, { description: "", sac: "", rate: "", quantity: "1" }]
         });
     };
 
@@ -120,9 +120,10 @@ export default function CustomInvoices() {
                     without_gst: !!res.invoice.without_gst,
                     items: res.items?.length > 0 ? res.items.map((i: any) => ({
                         description: i.description,
+                        sac: i.sac || "",
                         rate: i.rate?.toString() || "",
                         quantity: i.quantity?.toString() || "1"
-                    })) : [{ description: "", rate: "", quantity: "1" }]
+                    })) : [{ description: "", sac: "", rate: "", quantity: "1" }]
                 });
                 setShowCreateModal(true);
             }
@@ -143,7 +144,7 @@ export default function CustomInvoices() {
             paid_amount: "0",
             status: "PENDING",
             without_gst: false,
-            items: [{ description: "", rate: "", quantity: "1" }]
+            items: [{ description: "", sac: "", rate: "", quantity: "1" }]
         });
     };
 
@@ -435,7 +436,7 @@ export default function CustomInvoices() {
 
                                 {formData.items.map((item, index) => (
                                     <div key={index} className="grid grid-cols-12 gap-3 items-end bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
-                                        <div className="col-span-6">
+                                        <div className="col-span-4">
                                             <label className="block text-[8px] font-bold text-gray-400 uppercase mb-1">Description</label>
                                             <input 
                                                 required
@@ -444,6 +445,16 @@ export default function CustomInvoices() {
                                                 onChange={(e) => handleItemChange(index, 'description', e.target.value)}
                                                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-bold text-black"
                                                 placeholder="Service name..."
+                                            />
+                                        </div>
+                                        <div className="col-span-2">
+                                            <label className="block text-[8px] font-bold text-gray-400 uppercase mb-1">SAC Code</label>
+                                            <input 
+                                                type="text"
+                                                value={item.sac || ""}
+                                                onChange={(e) => handleItemChange(index, 'sac', e.target.value)}
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-bold text-black"
+                                                placeholder="e.g. 998311"
                                             />
                                         </div>
                                         <div className="col-span-2">
