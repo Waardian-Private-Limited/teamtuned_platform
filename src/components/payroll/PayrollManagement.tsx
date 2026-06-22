@@ -4,8 +4,9 @@ import React from "react";
 import { createPortal } from "react-dom";
 import { apiClient } from "@/lib/apiClient";
 import PayrollCycleCalendar from "@/components/payroll/PayrollCycleCalendar";
-import { Search, Filter, Users, Phone, Building, Clock, MapPin, MoreVertical, ChevronLeft, ChevronRight, Calendar, User, Shield, Eye, RefreshCw, X, CheckCircle, AlertCircle, LogOut, Layers, ChevronDown, Download, FileText, CreditCard, Loader2, Lock, Unlock, FileUp, Upload } from "lucide-react";
+import { Search, Filter, Users, Phone, Building, Clock, MapPin, MoreVertical, ChevronLeft, ChevronRight, Calendar, User, Shield, Eye, RefreshCw, X, CheckCircle, AlertCircle, LogOut, Layers, ChevronDown, Download, FileText, CreditCard, Loader2, Lock, Unlock, FileUp, Upload, Save } from "lucide-react";
 import toast from "react-hot-toast";
+import AdjustPayrollModal from "./AdjustPayrollModal";
 
 import { useAuth } from "@/context/AuthContext";
 type EmployeeItem = Record<string, any>;
@@ -69,6 +70,9 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
   const [showLockConfirm, setShowLockConfirm] = React.useState(false);
   const [showUnlockConfirm, setShowUnlockConfirm] = React.useState(false);
   const [includeInactive, setIncludeInactive] = React.useState(false);
+  const [adjustingEmployee, setAdjustingEmployee] = React.useState<any>(null);
+  const [adjustModalOpen, setAdjustModalOpen] = React.useState(false);
+  const [adjustingInitialData, setAdjustingInitialData] = React.useState<any>(null);
 
   const computeCycle = React.useCallback((ref: Date, startDay: number, endDay: number) => {
     let cycleYear = ref.getFullYear();
@@ -391,6 +395,30 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
 
   const handleUnlockAll = () => {
     setShowUnlockConfirm(true);
+  };
+
+  const handleAdjustPayroll = async (emp: any) => {
+    try {
+      setIsLocking(true);
+      const res = await apiClient<any>("/attendance/payroll-cycle", {
+        method: "GET",
+        withAuth: true,
+        params: {
+          employee_id: String(emp.id),
+          ref_month: cycleEndKey.slice(5, 7),
+          ref_year: cycleEndKey.slice(0, 4)
+        }
+      });
+      if (res) {
+        setAdjustingEmployee(emp);
+        setAdjustingInitialData(res);
+        setAdjustModalOpen(true);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load payroll details for adjustment");
+    } finally {
+      setIsLocking(false);
+    }
   };
 
   const [isGenerating, setIsGenerating] = React.useState(false);
@@ -1029,10 +1057,16 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                 <span className="font-medium">View Payroll</span>
               </button>
               {menuEmployee.is_locked === 1 ? (
-                <button className="w-full text-left px-4 py-2.5 hover:bg-blue-50 text-slate-700 hover:text-blue-700 transition-colors flex items-center gap-2.5" onClick={() => { handleLockUnlock([menuEmployee.id], 'unlock'); closeMenu(); }}>
-                  <Unlock className="w-4 h-4" />
-                  <span className="font-medium">Unlock Payroll</span>
-                </button>
+                <>
+                  <button className="w-full text-left px-4 py-2.5 hover:bg-blue-50 text-slate-700 hover:text-blue-700 transition-colors flex items-center gap-2.5" onClick={() => { handleLockUnlock([menuEmployee.id], 'unlock'); closeMenu(); }}>
+                    <Unlock className="w-4 h-4" />
+                    <span className="font-medium">Unlock Payroll</span>
+                  </button>
+                  <button className="w-full text-left px-4 py-2.5 hover:bg-blue-50 text-slate-700 hover:text-blue-700 transition-colors flex items-center gap-2.5" onClick={() => { handleAdjustPayroll(menuEmployee); closeMenu(); }}>
+                    <Save className="w-4 h-4" />
+                    <span className="font-medium">Adjust Payroll</span>
+                  </button>
+                </>
               ) : (
                 <button className="w-full text-left px-4 py-2.5 hover:bg-blue-50 text-slate-700 hover:text-blue-700 transition-colors flex items-center gap-2.5" onClick={() => { handleLockUnlock([menuEmployee.id], 'lock'); closeMenu(); }}>
                   <Lock className="w-4 h-4" />
@@ -1426,6 +1460,18 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
           </div>
         )
       }
+
+      {adjustModalOpen && adjustingEmployee && adjustingInitialData && (
+        <AdjustPayrollModal
+          isOpen={adjustModalOpen}
+          onClose={() => { setAdjustModalOpen(false); setAdjustingEmployee(null); setAdjustingInitialData(null); }}
+          initialData={adjustingInitialData}
+          employeeId={adjustingEmployee.id}
+          cycleStart={cycleStartKey}
+          cycleEnd={cycleEndKey}
+          onSuccess={() => fetchList()}
+        />
+      )}
     </div >
   );
 }

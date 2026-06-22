@@ -35,9 +35,11 @@ import {
   Lock,
   Unlock,
   Plus,
-  Trash2
+  Trash2,
+  Save
 } from "lucide-react";
 import SalarySlipEditorModal from "./SalarySlipEditorModal";
+import AdjustPayrollModal from "./AdjustPayrollModal";
 import AttendanceDetailsModal from "../attendance/AttendanceDetailsModal";
 
 import { useAuth } from "@/context/AuthContext";
@@ -89,6 +91,7 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
   };
 
   const [policyData, setPolicyData] = React.useState<any>(null);
+  const [adjustModalOpen, setAdjustModalOpen] = React.useState<boolean>(false);
 
   // Custom calculator states
   const [customCalcOpen, setCustomCalcOpen] = React.useState<boolean>(false);
@@ -565,14 +568,23 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
                     </button>
                     <div className="my-1 border-t border-slate-100" />
                     {payrollData?.is_locked === 1 ? (
-                      <button
-                        disabled={isLocking}
-                        onClick={() => { handleLockUnlock(employeeId || employee?.id || 0, 'unlock'); closeActionMenu(); }}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-blue-50 text-blue-600 flex items-center gap-2 transition-colors"
-                      >
-                        <Unlock className="w-4 h-4" />
-                        <span>Unlock Cycle</span>
-                      </button>
+                      <>
+                        <button
+                          disabled={isLocking}
+                          onClick={() => { handleLockUnlock(employeeId || employee?.id || 0, 'unlock'); closeActionMenu(); }}
+                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-blue-50 text-blue-600 flex items-center gap-2 transition-colors"
+                        >
+                          <Unlock className="w-4 h-4" />
+                          <span>Unlock Cycle</span>
+                        </button>
+                        <button
+                          onClick={() => { setAdjustModalOpen(true); closeActionMenu(); }}
+                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-blue-50 text-blue-600 flex items-center gap-2 transition-colors"
+                        >
+                          <Save className="w-4 h-4" />
+                          <span>Adjust Payroll</span>
+                        </button>
+                      </>
                     ) : (
                       <button
                         disabled={isLocking}
@@ -954,6 +966,18 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
           employeeId={employeeId || employee?.id || 0}
           cycleStart={cycleStartKey}
           cycleEnd={cycleEndKey}
+        />
+      )}
+
+      {adjustModalOpen && payrollData && (
+        <AdjustPayrollModal
+          isOpen={adjustModalOpen}
+          onClose={() => setAdjustModalOpen(false)}
+          initialData={payrollData}
+          employeeId={employeeId || employee?.id || 0}
+          cycleStart={cycleStartKey}
+          cycleEnd={cycleEndKey}
+          onSuccess={() => fetchData()}
         />
       )}
     </div >
