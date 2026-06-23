@@ -1524,12 +1524,46 @@ function AttendanceExportModal({
   const [submitting, setSubmitting] = React.useState<boolean>(false);
   const [includeTerminated, setIncludeTerminated] = React.useState<boolean>(false);
 
+  const [exportTarget, setExportTarget] = React.useState<'all' | 'specific'>('all');
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = React.useState<number[]>([]);
+  const [allEmployees, setAllEmployees] = React.useState<any[]>([]);
+  const [loadingEmployees, setLoadingEmployees] = React.useState<boolean>(false);
+  const [employeeSearch, setEmployeeSearch] = React.useState<string>("");
+  const [showEmployeeDropdown, setShowEmployeeDropdown] = React.useState<boolean>(false);
+
   // Get current month in YYYY-MM format
   const getCurrentMonth = () => {
     const now = new Date();
     return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
   };
   const [month, setMonth] = React.useState<string>(getCurrentMonth());
+
+  React.useEffect(() => {
+    if (exportTarget === 'specific' && allEmployees.length === 0) {
+      (async () => {
+        try {
+          setLoadingEmployees(true);
+          const res = await apiClient<any>("/organization/employees?format=paginated&limit=5000&include_terminated=true", { method: "GET", withAuth: true });
+          const list = res?.data || [];
+          setAllEmployees(list);
+        } catch (e) {
+          console.error("Failed to fetch employees for export", e);
+        } finally {
+          setLoadingEmployees(false);
+        }
+      })();
+    }
+  }, [exportTarget, allEmployees.length]);
+
+  const filteredEmployees = React.useMemo(() => {
+    const s = employeeSearch.toLowerCase().trim();
+    if (!s) return allEmployees;
+    return allEmployees.filter(emp => {
+      const fullName = `${emp.first_name || ''} ${emp.last_name || ''}`.toLowerCase();
+      const code = String(emp.employee_id || emp.id).toLowerCase();
+      return fullName.includes(s) || code.includes(s) || (emp.email && emp.email.toLowerCase().includes(s));
+    });
+  }, [allEmployees, employeeSearch]);
 
   const submit = async () => {
     try {
@@ -1541,14 +1575,20 @@ function AttendanceExportModal({
         return;
       }
 
+      if (exportTarget === 'specific' && selectedEmployeeIds.length === 0) {
+        notify('Please select at least one employee', 'error');
+        return;
+      }
+
       const body: any = {
         emails,
-        site_id: local.siteId,
-        status: local.status === 'all' ? '' : local.status,
-        department: local.department,
+        site_id: exportTarget === 'all' ? local.siteId : null,
+        status: exportTarget === 'all' ? (local.status === 'all' ? '' : local.status) : '',
+        department: exportTarget === 'all' ? local.department : '',
         export_type: exportType,
         export_format: exportFormat,
-        include_terminated: includeTerminated
+        include_terminated: exportTarget === 'all' ? includeTerminated : true,
+        employee_ids: exportTarget === 'specific' ? selectedEmployeeIds : undefined
       };
 
       if (exportType === 'day') {
@@ -1574,14 +1614,20 @@ function AttendanceExportModal({
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3002/api/v1';
 
+      if (exportTarget === 'specific' && selectedEmployeeIds.length === 0) {
+        notify('Please select at least one employee', 'error');
+        return;
+      }
+
       const body: any = {
-        site_id: local.siteId,
-        status: local.status === 'all' ? '' : local.status,
-        department: local.department,
+        site_id: exportTarget === 'all' ? local.siteId : null,
+        status: exportTarget === 'all' ? (local.status === 'all' ? '' : local.status) : '',
+        department: exportTarget === 'all' ? local.department : '',
         export_type: exportType,
         download_local: true,
         export_format: exportFormat,
-        include_terminated: includeTerminated
+        include_terminated: exportTarget === 'all' ? includeTerminated : true,
+        employee_ids: exportTarget === 'specific' ? selectedEmployeeIds : undefined
       };
 
       if (exportType === 'day') {
@@ -1635,18 +1681,209 @@ function AttendanceExportModal({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {/* Site */}
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Site</label>
-            <select
-              value={local.siteId ?? ""}
-              onChange={(e) => setLocal({ ...local, siteId: e.target.value ? Number(e.target.value) : null })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-            >
-              <option value="">All Sites</option>
-              {siteOptions.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
-            </select>
+          {/* Export Range Option */}
+          <div className="md:col-span-2">
+            <label className="block text-xs text-gray-500 mb-1">Export Range</label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="export_target"
+                  value="all"
+                  checked={exportTarget === 'all'}
+                  onChange={() => setExportTarget('all')}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span className="text-sm text-gray-700">All Employees under Site</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="export_target"
+                  value="specific"
+                  checked={exportTarget === 'specific'}
+                  onChange={() => setExportTarget('specific')}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span className="text-sm text-gray-700">Specific Employee(s)</span>
+              </label>
+            </div>
           </div>
+
+          {exportTarget === 'all' ? (
+            <>
+              {/* Site */}
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Site</label>
+                <select
+                  value={local.siteId ?? ""}
+                  onChange={(e) => setLocal({ ...local, siteId: e.target.value ? Number(e.target.value) : null })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="">All Sites</option>
+                  {siteOptions.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
+                </select>
+              </div>
+
+              {/* Status */}
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Status</label>
+                <select
+                  value={local.status}
+                  onChange={(e) => setLocal({ ...local, status: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="all">All Status</option>
+                  <option value="present">Present</option>
+                  <option value="completed">Completed</option>
+                  <option value="absent">Absent</option>
+                  <option value="week_off">Week Off</option>
+                  <option value="half_day">Half Day</option>
+                  <option value="late">Late</option>
+                  <option value="on_leave">On Leave</option>
+                </select>
+              </div>
+
+              {/* Department */}
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Department</label>
+                <select
+                  value={local.department}
+                  onChange={(e) => setLocal({ ...local, department: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="">All Departments</option>
+                  {departments.map((d) => (<option key={d.id} value={d.name}>{d.name}</option>))}
+                </select>
+              </div>
+
+              {/* Include Terminated */}
+              <div className="md:col-span-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeTerminated}
+                    onChange={(e) => setIncludeTerminated(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <span className="text-sm text-gray-700">Include Terminated/Inactive Employees</span>
+                </label>
+              </div>
+            </>
+          ) : (
+            /* Specific Employee Selection Search Bar */
+            <div className="md:col-span-2 relative">
+              <label className="block text-xs text-gray-500 mb-1">Search & Select Employees</label>
+              <div className="border border-gray-300 rounded-lg p-1.5 min-h-[42px] bg-white flex flex-wrap gap-1.5 items-center relative focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500">
+                {/* Selected Pills */}
+                {selectedEmployeeIds.map(id => {
+                  const emp = allEmployees.find(e => e.id === id);
+                  if (!emp) return null;
+                  return (
+                    <span key={id} className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 text-xs px-2 py-1 rounded-md border border-slate-200">
+                      {emp.first_name} {emp.last_name}
+                      {emp.status && emp.status !== 'Active' && (
+                        <span className={`text-[9px] px-1 rounded font-bold ${
+                          emp.status === 'Terminated' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          {emp.status}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedEmployeeIds(prev => prev.filter(x => x !== id))}
+                        className="hover:text-red-600 font-bold ml-0.5 text-slate-400"
+                      >
+                        &times;
+                      </button>
+                    </span>
+                  );
+                })}
+                {/* Search Input */}
+                <input
+                  type="text"
+                  placeholder={selectedEmployeeIds.length === 0 ? "Type to search employees (includes Inactive/Terminated)..." : "Type to add more..."}
+                  value={employeeSearch}
+                  onChange={(e) => {
+                    setEmployeeSearch(e.target.value);
+                    setShowEmployeeDropdown(true);
+                  }}
+                  onFocus={() => setShowEmployeeDropdown(true)}
+                  className="flex-1 min-w-[150px] outline-none border-none text-sm p-1 bg-transparent"
+                />
+                {/* Clear Button */}
+                {selectedEmployeeIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEmployeeIds([])}
+                    className="text-xs text-red-500 hover:text-red-700 px-2 py-1 font-semibold ml-auto border-l border-slate-200"
+                  >
+                    Clear All
+                  </button>
+                )}
+              </div>
+
+              {/* Dropdown Options */}
+              {showEmployeeDropdown && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowEmployeeDropdown(false)} />
+                  <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto z-20 divide-y divide-slate-50">
+                    {loadingEmployees ? (
+                      <div className="p-3 text-center text-xs text-gray-500">Loading employees...</div>
+                    ) : filteredEmployees.length === 0 ? (
+                      <div className="p-3 text-center text-xs text-gray-500">No employees found</div>
+                    ) : (
+                      filteredEmployees.map((emp) => {
+                        const isSelected = selectedEmployeeIds.includes(emp.id);
+                        return (
+                          <div
+                            key={emp.id}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedEmployeeIds(prev => prev.filter(id => id !== emp.id));
+                              } else {
+                                setSelectedEmployeeIds(prev => [...prev, emp.id]);
+                              }
+                            }}
+                            className={`p-2.5 flex items-center justify-between cursor-pointer hover:bg-blue-50 transition-colors ${
+                              isSelected ? 'bg-blue-50/50' : ''
+                            }`}
+                          >
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-sm font-medium text-slate-800">
+                                {emp.first_name} {emp.last_name}
+                              </span>
+                              <span className="text-xs text-slate-400 truncate">
+                                {emp.designation || 'No Designation'} {emp.department_name ? `• ${emp.department_name}` : ''}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              {emp.status && (
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
+                                  emp.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                  emp.status === 'Terminated' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                  emp.status === 'Inactive' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                  'bg-slate-50 text-slate-600 border-slate-200'
+                                }`}>
+                                  {emp.status}
+                                </span>
+                              )}
+                              <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  readOnly
+                                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                />
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Export Type */}
           <div className="md:col-span-2">
@@ -1698,38 +1935,6 @@ function AttendanceExportModal({
             </div>
           )}
 
-          {/* Status */}
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Status</label>
-            <select
-              value={local.status}
-              onChange={(e) => setLocal({ ...local, status: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-            >
-              <option value="all">All Status</option>
-              <option value="present">Present</option>
-              <option value="completed">Completed</option>
-              <option value="absent">Absent</option>
-              <option value="week_off">Week Off</option>
-              <option value="half_day">Half Day</option>
-              <option value="late">Late</option>
-              <option value="on_leave">On Leave</option>
-            </select>
-          </div>
-
-          {/* Department */}
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Department</label>
-            <select
-              value={local.department}
-              onChange={(e) => setLocal({ ...local, department: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-            >
-              <option value="">All Departments</option>
-              {departments.map((d) => (<option key={d.id} value={d.name}>{d.name}</option>))}
-            </select>
-          </div>
-
           {/* Export Format */}
           <div className="md:col-span-2">
             <label className="block text-xs text-gray-500 mb-1">Export Format</label>
@@ -1757,19 +1962,6 @@ function AttendanceExportModal({
                 <span className="text-sm text-gray-700">PDF (.pdf)</span>
               </label>
             </div>
-          </div>
-
-          {/* Include Terminated */}
-          <div className="md:col-span-2">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={includeTerminated}
-                onChange={(e) => setIncludeTerminated(e.target.checked)}
-                className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <span className="text-sm text-gray-700">Include Terminated/Inactive Employees</span>
-            </label>
           </div>
 
           {/* Emails */}
