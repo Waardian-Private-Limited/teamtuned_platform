@@ -421,17 +421,20 @@ export default function LoginFormTabs() {
     }
   };
 
-  const handleOtpVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleOtpVerify = async (e: React.FormEvent, otpOverride?: string) => {
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+    }
     setError('');
     setIsLoading(true);
 
+    const activeOtp = otpOverride || otp;
     try {
-      if (!otp) throw new Error('Please enter the OTP');
+      if (!activeOtp) throw new Error('Please enter the OTP');
 
       const response = selectedAccount 
-        ? await verifyWebOtp(selectedAccount.id, otp)
-        : await verifyOtp(mobile, otp);
+        ? await verifyWebOtp(selectedAccount.id, activeOtp)
+        : await verifyOtp(mobile, activeOtp);
 
       if (response.success && response.user) {
         const user = {
@@ -836,7 +839,7 @@ const AccountOtpStep = ({ selectedAccount, onSubmit, onBack, error, isLoading }:
   </div>
 );
 
-const OtpVerifyStep = ({ otp, setOtp, onSubmit, onResend, onBack, error, isLoading }: { otp: string, setOtp: (v: string) => void, onSubmit: (e: React.FormEvent) => void, onResend: () => void, onBack: () => void, error: string, isLoading: boolean }) => {
+const OtpVerifyStep = ({ otp, setOtp, onSubmit, onResend, onBack, error, isLoading }: { otp: string, setOtp: (v: string) => void, onSubmit: (e: React.FormEvent, otpVal?: string) => void, onResend: () => void, onBack: () => void, error: string, isLoading: boolean }) => {
   const [otpStatus, setOtpStatus] = useState<'idle' | 'verifying' | 'success' | 'failed'>('idle');
   const formRef = React.useRef<HTMLFormElement>(null);
 
@@ -846,6 +849,8 @@ const OtpVerifyStep = ({ otp, setOtp, onSubmit, onResend, onBack, error, isLoadi
       // If no error after loading completes, assume success for demo; in real app, check result
       if (!error) {
         setOtpStatus('success');
+      } else {
+        setOtpStatus('failed');
       }
     }
   }, [isLoading, error, otpStatus]);
@@ -856,11 +861,11 @@ const OtpVerifyStep = ({ otp, setOtp, onSubmit, onResend, onBack, error, isLoadi
     onSubmit(e);
   };
 
-  const handleAutoSubmit = () => {
+  const handleAutoSubmit = (val: string) => {
     setOtpStatus('verifying');
     // Create a synthetic submit event
     const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
-    onSubmit(fakeEvent);
+    onSubmit(fakeEvent, val);
   };
 
   return (
@@ -901,7 +906,7 @@ const PremiumOtpInput = ({
   isLoading: boolean,
   status: OtpStatus,
   setStatus: (s: OtpStatus) => void,
-  onComplete?: () => void,
+  onComplete?: (val: string) => void,
 }) => {
   const [staggerProgress, setStaggerProgress] = useState(0);
   const [mergeProgress, setMergeProgress] = useState(0);
@@ -979,7 +984,7 @@ const PremiumOtpInput = ({
   // Auto-submit when 4 digits are filled
   useEffect(() => {
     if (otp.length === 4 && status === 'idle' && !isLoading && onComplete) {
-      onComplete();
+      onComplete(otp);
     }
   }, [otp, status, isLoading, onComplete]);
 
@@ -1036,6 +1041,9 @@ const PremiumOtpInput = ({
         onChange={(e) => {
           const val = e.target.value.replace(/\D/g, '').slice(0, 4);
           setOtp(val);
+          if (status !== 'idle') {
+            setStatus('idle');
+          }
         }}
         disabled={status !== 'idle' || isLoading}
         className="absolute inset-0 opacity-0 cursor-default z-10"
