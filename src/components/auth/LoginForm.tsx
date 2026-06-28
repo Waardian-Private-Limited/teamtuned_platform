@@ -34,6 +34,7 @@ export default function LoginFormTabs() {
   const qrExpireRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentTokenRef = useRef<string | null>(null);
   const requestSeqRef = useRef<number>(0);
+  const verifyingRef = useRef<boolean>(false);
 
   const router = useRouter();
   const setUser = useUserStore((state) => state.setUser);
@@ -121,40 +122,51 @@ export default function LoginFormTabs() {
         console.warn('Failed to initialize QR socket:', socketErr);
       }
 
-      // Poll every 2 seconds as a fallback
-      const intervalId = setInterval(async () => {
-        try {
-          const poll = await apiClient<any>(`/auth/qr/status/${data.token}`);
-          
-          if (currentTokenRef.current !== data.token) {
-            clearInterval(intervalId);
-            return;
-          }
-          
-          if (poll.status === 'scanned') { setQrStatus('scanned'); }
-          if (poll.status === 'confirmed') {
-            setQrStatus('confirmed');
-            stopQrPolling();
-            await handleQrLoginSuccess(poll);
-          }
-          if (poll.success === false) {
-            setQrStatus('expired');
-            stopQrPolling();
-          }
-        } catch (pollErr: any) {
-          if (currentTokenRef.current !== data.token) {
-            clearInterval(intervalId);
-            return;
-          }
-          console.warn('QR poll fallback error (retrying):', pollErr);
-          // If the server explicitly says the session is gone/expired, set to expired and stop
-          if (pollErr && (pollErr.status === 404 || pollErr.status === 410 || pollErr.status === 400)) {
-            setQrStatus('expired');
-            stopQrPolling();
-          }
+      // Check socket status after 2 seconds. Start HTTP polling ONLY if socket is NOT connected!
+      setTimeout(() => {
+        if (currentTokenRef.current !== data.token) return;
+
+        const socket = getSocket(undefined, true);
+        if (socket && socket.connected) {
+          console.log('🔌 Socket is connected. Skipping fallback HTTP polling.');
+          return;
         }
+
+        console.log('🔌 Socket is not connected. Starting fallback HTTP polling...');
+        const intervalId = setInterval(async () => {
+          try {
+            const poll = await apiClient<any>(`/auth/qr/status/${data.token}`);
+            
+            if (currentTokenRef.current !== data.token) {
+              clearInterval(intervalId);
+              return;
+            }
+            
+            if (poll.status === 'scanned') { setQrStatus('scanned'); }
+            if (poll.status === 'confirmed') {
+              setQrStatus('confirmed');
+              stopQrPolling();
+              await handleQrLoginSuccess(poll);
+            }
+            if (poll.success === false) {
+              setQrStatus('expired');
+              stopQrPolling();
+            }
+          } catch (pollErr: any) {
+            if (currentTokenRef.current !== data.token) {
+              clearInterval(intervalId);
+              return;
+            }
+            console.warn('QR poll fallback error (retrying):', pollErr);
+            // If the server explicitly says the session is gone/expired, set to expired and stop
+            if (pollErr && (pollErr.status === 404 || pollErr.status === 410 || pollErr.status === 400)) {
+              setQrStatus('expired');
+              stopQrPolling();
+            }
+          }
+        }, 3000); // 3 seconds interval is gentler than 2 seconds
+        qrPollRef.current = intervalId;
       }, 2000);
-      qrPollRef.current = intervalId;
     } catch (e) {
       console.error('QR generate error', e);
     } finally {
@@ -425,6 +437,9 @@ export default function LoginFormTabs() {
     if (e && typeof e.preventDefault === 'function') {
       e.preventDefault();
     }
+    if (verifyingRef.current) return;
+    verifyingRef.current = true;
+
     setError('');
     setIsLoading(true);
 
@@ -467,6 +482,7 @@ export default function LoginFormTabs() {
       setError(err.message || 'An unexpected error occurred');
     } finally {
       setIsLoading(false);
+      verifyingRef.current = false;
     }
   };
 

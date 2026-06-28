@@ -19,7 +19,7 @@ export const getSocket = (token?: string, isQr?: boolean) => {
         socket = io(backendUrl, {
             auth: authOptions,
             query: isQr ? { isQr: 'true' } : {},
-            transports: ['polling', 'websocket'],
+            transports: ['websocket'],
             extraHeaders: {
                 'ngrok-skip-browser-warning': 'true',
             },
