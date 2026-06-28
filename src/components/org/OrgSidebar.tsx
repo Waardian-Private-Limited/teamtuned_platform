@@ -169,7 +169,8 @@ export default function OrgSidebar({
                 "/org-admin/site-budget-requests",
                 "/org-admin/salary-components",
                 "/org-admin/debit-rules",
-                "/org-admin/salary-import"
+                "/org-admin/salary-import",
+                "/org-admin/device-management"
             ]));
 
             setWalletOpen(isActive(["/org-admin/wallet"]));
@@ -195,7 +196,7 @@ export default function OrgSidebar({
 
             setMainOpen(pathname === "/org-admin");
             setAttendanceOpen(isActive(["/org-admin/attendance", "/org-admin/holiday-calendar", "/org-admin/approval-workflows", "/org-admin/requests", "/org-admin/payroll", "/org-admin/salary-slips"]));
-            setManagementOpen(isActive(["/org-admin/employees", "/org-admin/assignments", "/org-admin/policy-mapper", "/org-admin/emergency-contacts", "/org-admin/roles", "/org-admin/departments", "/org-admin/sites", "/org-admin/sub-organizations", "/org-admin/site-sub-org-mapper", "/org-admin/employee-sites", "/org-admin/other-locations", "/org-admin/site-budget-requests", "/org-admin/salary-components", "/org-admin/debit-rules", "/org-admin/salary-import"]));
+            setManagementOpen(isActive(["/org-admin/employees", "/org-admin/assignments", "/org-admin/policy-mapper", "/org-admin/emergency-contacts", "/org-admin/roles", "/org-admin/departments", "/org-admin/sites", "/org-admin/sub-organizations", "/org-admin/site-sub-org-mapper", "/org-admin/employee-sites", "/org-admin/other-locations", "/org-admin/site-budget-requests", "/org-admin/salary-components", "/org-admin/debit-rules", "/org-admin/salary-import", "/org-admin/device-management"]));
             setWalletOpen(isActive(["/org-admin/wallet"]));
             setSalaryAdvanceOpen(isActive(["/org-admin/salary-advance"]));
             setInventoryOpen(isActive(["/org-admin/inventory"]));
@@ -409,6 +410,7 @@ export default function OrgSidebar({
                             <Item icon={Coins} label="Salary Components" href="/org-admin/salary-components" active={pathname === "/org-admin/salary-components"} />
                             <Item icon={ListChecks} label="Debit Rules" href="/org-admin/debit-rules" active={pathname === "/org-admin/debit-rules"} />
                             <Item icon={Upload} label="Salary Import" href="/org-admin/salary-import" active={pathname === "/org-admin/salary-import"} />
+                            <Item icon={Users} label="Employee Devices" href="/org-admin/device-management" active={pathname === "/org-admin/device-management"} />
                         </div>
                     )}
 

@@ -18,6 +18,28 @@ export interface RequestOptions {
   signal?: AbortSignal;
 }
 
+// Helper function to clear client-side auth data
+export function clearClientSideAuth() {
+    if (typeof window === 'undefined') return;
+    
+    // Clear localStorage token
+    localStorage.removeItem('token');
+    
+    // Clear the non-httpOnly 'token' cookie (the only one JS can actually clear)
+    // Try all parameter variations to cover different ways it might have been set
+    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    
+    // Also try with domain if configured
+    if (process.env.NEXT_PUBLIC_COOKIE_DOMAIN) {
+        document.cookie = `token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; domain=${process.env.NEXT_PUBLIC_COOKIE_DOMAIN}`;
+        document.cookie = `token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; domain=${process.env.NEXT_PUBLIC_COOKIE_DOMAIN}`;
+    }
+    
+    // Note: The 'tt_session' cookie is httpOnly, so JS can't clear it!
+    // It must be cleared by the backend via the /auth/logout endpoint.
+}
+
 export async function apiClient<T = any>(
   path: string,
   options: RequestOptions = {}
@@ -80,10 +102,15 @@ export async function apiClient<T = any>(
     // Auto logout and redirect on 401
     if (res.status === 401 && typeof window !== 'undefined') {
       try {
-        localStorage.removeItem(tokenKey);
+        // First try to hit the logout endpoint to have the backend clear the httpOnly cookie
+        apiClient('/auth/logout', { method: 'POST' }).catch(() => { /* ignore errors here */ });
       } catch { }
-      // Only redirect to login if we're using the standard session token
-      if (tokenKey === 'token') {
+      
+      // Clear what we can on the client side
+      clearClientSideAuth();
+      
+      // Only redirect to login if we're not already there
+      if (window.location.pathname !== '/login') {
         window.location.href = '/login';
       }
     }
@@ -194,6 +221,13 @@ export async function sendWebOtp(accountId: string): Promise<any> {
   return apiClient('/auth/send-web-otp', {
     method: 'POST',
     body: { accountId },
+  });
+}
+
+export async function verifyWebOtp(accountId: string, otp: string): Promise<OtpVerificationResponse> {
+  return apiClient<OtpVerificationResponse>('/auth/verify-web-otp', {
+    method: 'POST',
+    body: { accountId, otp },
   });
 }
 

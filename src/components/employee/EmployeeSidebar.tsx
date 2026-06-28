@@ -177,7 +177,8 @@ export default function EmployeeSidebar({
         "/employee/site-sub-org-mapper",
         "/employee/site-budget-requests",
         "/employee/departments",
-        "/employee/roles"
+        "/employee/roles",
+        "/employee/device-management"
       ]));
 
       setInsuranceOpen(isActive(["/employee/insurance"]));
@@ -234,7 +235,7 @@ export default function EmployeeSidebar({
 
       setMainOpen(pathname === "/employee");
       setAttendanceOpen(isActive(["/employee/attendance-dashboard", "/employee/attendance", "/employee/regularize-requests", "/employee/verification-issues", "/employee/night-ot-requests", "/employee/leave-requests", "/employee/comp-offs", "/employee/payroll", "/employee/salary-slips"]));
-      setManagementOpen(isActive(["/employee/employee-management", "/employee/emergency-contacts", "/employee/assignments", "/employee/policy-mapper", "/employee/employees/import", "/employee/employees/shifts", "/employee/employee-sites", "/employee/other-locations", "/employee/salary-components", "/employee/site-logins", "/employee/debit-rules", "/employee/salary-import", "/employee/orgProfile", "/employee/sites", "/employee/sub-organizations", "/employee/site-sub-org-mapper", "/employee/site-budget-requests", "/employee/departments", "/employee/roles"]));
+      setManagementOpen(isActive(["/employee/employee-management", "/employee/emergency-contacts", "/employee/assignments", "/employee/policy-mapper", "/employee/employees/import", "/employee/employees/shifts", "/employee/employee-sites", "/employee/other-locations", "/employee/salary-components", "/employee/site-logins", "/employee/debit-rules", "/employee/salary-import", "/employee/orgProfile", "/employee/sites", "/employee/sub-organizations", "/employee/site-sub-org-mapper", "/employee/site-budget-requests", "/employee/departments", "/employee/roles", "/employee/device-management"]));
       setInsuranceOpen(isActive(["/employee/insurance"]));
       setSalaryAdvanceOpen(isActive(["/employee/salary-advance"]));
       setOtherOpen(isActive(["/employee/petty-cash", "/employee/wallet-overview", "/employee/wallet-config", "/employee/wallet-topups"]));
@@ -428,7 +429,7 @@ export default function EmployeeSidebar({
     isOrgAdmin || isDirector || hasAnyPerm(["REIMB_VIEW", "REIMB_APPROVE", "REIMB_REJECT", "REIMB_EXPORT"]);
   const canDisburseReimbursements = isOrgAdmin || hasPerm("REIMB_DISBURSE");
   const showReimbursements = canViewAllReimbursements || canDisburseReimbursements; // standard for "My Reimbursements" but guarded category
- 
+
   // New Sensitive Permission Gates
   const canViewDPR = isOrgAdmin || hasAnyPerm(["DPR_VIEW", "DPR_ADMIN", "DPR_ADD", "DPR_EDIT"]);
   const canViewMOM = isOrgAdmin || hasAnyPerm(["MOM_VIEW", "MOM_ADD", "MOM_EDIT"]);
@@ -920,7 +921,7 @@ export default function EmployeeSidebar({
                         active={pathname?.startsWith("/employee/site-logins") || false}
                       />
                     )}
- 
+
                     {canViewDebitRules && (
                       <Item
                         icon={ListChecks}
@@ -935,6 +936,14 @@ export default function EmployeeSidebar({
                         label="Salary Import"
                         href="/employee/salary-import"
                         active={pathname?.startsWith("/employee/salary-import") || false}
+                      />
+                    )}
+                    {(isOrgAdmin || hasPerm('EMP_DEVICE_MANAGEMENT')) && (
+                      <Item
+                        icon={Users}
+                        label="Employee Devices"
+                        href="/employee/device-management"
+                        active={pathname?.startsWith("/employee/device-management") || false}
                       />
                     )}
                   </div>
@@ -1481,7 +1490,7 @@ export default function EmployeeSidebar({
                     href="/employee/hr-operation/interviews"
                     active={pathname === "/employee/hr-operation/interviews"}
                   />
- 
+
                   <Item
                     icon={Award}
                     label="Technical Assessments"

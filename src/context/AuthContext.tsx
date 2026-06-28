@@ -2,7 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { apiClient } from "@/lib/apiClient";
+import { apiClient, clearClientSideAuth } from "@/lib/apiClient";
+import { getSocket, disconnectSocket } from "@/lib/socket";
 
 // Types
 interface User {
@@ -124,12 +125,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Logout function
     const logout = useCallback(async () => {
         try {
+            // First call backend to clear the httpOnly tt_session cookie
             await apiClient("/auth/logout", { method: "POST" });
         } catch (error) {
             console.error("Logout error:", error);
         } finally {
-            localStorage.removeItem('token'); // Critical: clear persistent token
+            // Clear client-side auth data
+            clearClientSideAuth();
             clearAuthState();
+            disconnectSocket();
             router.push("/login");
         }
     }, [router]);
@@ -144,6 +148,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         fetchSession();
     }, [fetchSession]);
+
+    // Socket-based real-time session revocation listener
+    useEffect(() => {
+        if (isAuthenticated && user?.id) {
+            const token = localStorage.getItem('token');
+            const socket = getSocket(token || undefined);
+            if (socket) {
+                socket.off('session_revoked');
+                socket.on('session_revoked', (data: any) => {
+                    const currentToken = localStorage.getItem('token');
+                    // Invalidate current session if target token matches ours, or target all/logoutAllMobile is set
+                    const shouldLogout = 
+                        data.token === currentToken || 
+                        data.all === true ||
+                        (data.logoutAllMobile === true && data.userId === user.id && role?.toLowerCase() === 'employee');
+                    
+                    if (shouldLogout) {
+                        console.log('⚠️ Session has been revoked by admin or another client. Logging out...');
+                        logout();
+                    }
+                });
+            }
+        } else {
+            disconnectSocket();
+        }
+    }, [isAuthenticated, user?.id, role, logout]);
 
     // Set auth state directly (e.g. from login response)
     const setAuthState = useCallback((data: Partial<SessionResponse>) => {

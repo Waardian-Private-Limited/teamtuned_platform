@@ -47,6 +47,8 @@ export type AttendancePolicy = {
   grace_period_minutes: number;
   grace_period_specific_time_late?: string;
   grace_period_specific_time_early?: string;
+  apply_grace_on_checkin?: boolean;
+  apply_grace_on_checkout?: boolean;
   max_late_marks_per_month: number;
   late_mark_penalty: "none" | "half_day" | "full_day";
   standard_work_hours: number;
@@ -99,6 +101,7 @@ export type AttendancePolicy = {
   night_ot_type?: "hours" | "time";
   night_ot_half_day_time?: string;
   night_ot_full_day_time?: string;
+  auto_adjust_night_ot_next_day?: boolean;
 
 
   // Display settings
@@ -123,6 +126,8 @@ const defaultPolicy: AttendancePolicy = {
   grace_period_minutes: 10,
   grace_period_specific_time_late: "09:30:00",
   grace_period_specific_time_early: "18:00:00",
+  apply_grace_on_checkin: true,
+  apply_grace_on_checkout: true,
   max_late_marks_per_month: 3,
   late_mark_penalty: "none",
   standard_work_hours: 480,
@@ -172,6 +177,7 @@ const defaultPolicy: AttendancePolicy = {
   night_ot_type: "hours",
   night_ot_half_day_time: "00:30:00",
   night_ot_full_day_time: "02:00:00",
+  auto_adjust_night_ot_next_day: false,
 
 
   show_grace_minutes: true,
@@ -1011,8 +1017,8 @@ export default function AttendanceRulesManager() {
                             }`}
                           min={1}
                           max={31}
-                          value={policy.salary_date_day}
-                          onChange={(e) => setField("salary_date_day", Number(e.target.value))}
+                          value={policy.salary_date_day ?? ''}
+                          onChange={(e) => setField("salary_date_day", e.target.value ? Number(e.target.value) : undefined)}
                         />
                         {formErrors.salary_date_day && (
                           <p className="mt-1 text-sm text-red-600">{formErrors.salary_date_day}</p>
@@ -1647,6 +1653,33 @@ export default function AttendanceRulesManager() {
                           </div>
                         )}
                       </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                        <div className="flex items-center space-x-3">
+                          <input
+                            type="checkbox"
+                            id="apply_grace_on_checkin"
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            checked={policy.apply_grace_on_checkin !== false}
+                            onChange={(e) => setField("apply_grace_on_checkin", e.target.checked)}
+                          />
+                          <label htmlFor="apply_grace_on_checkin" className="text-sm font-medium text-gray-700">
+                            Apply Grace on Check-in
+                          </label>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <input
+                            type="checkbox"
+                            id="apply_grace_on_checkout"
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            checked={policy.apply_grace_on_checkout !== false}
+                            onChange={(e) => setField("apply_grace_on_checkout", e.target.checked)}
+                          />
+                          <label htmlFor="apply_grace_on_checkout" className="text-sm font-medium text-gray-700">
+                            Apply Grace on Check-out
+                          </label>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -2203,12 +2236,24 @@ export default function AttendanceRulesManager() {
                               <input
                                 type="checkbox"
                                 id="night_ot_compoff"
-                                className="w-4 height-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                                 checked={policy.night_ot_compoff_conversion || false}
                                 onChange={(e) => setField("night_ot_compoff_conversion", e.target.checked)}
                               />
                               <label htmlFor="night_ot_compoff" className="text-sm font-medium text-gray-700">
                                 Convert to Comp-Off Automatically
+                              </label>
+                            </div>
+                            <div className="flex items-center space-x-3">
+                              <input
+                                type="checkbox"
+                                id="auto_adjust_night_ot_next_day"
+                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                checked={policy.auto_adjust_night_ot_next_day || false}
+                                onChange={(e) => setField("auto_adjust_night_ot_next_day", e.target.checked)}
+                              />
+                              <label htmlFor="auto_adjust_night_ot_next_day" className="text-sm font-medium text-gray-700">
+                                Auto Adjust Night OT Against Next Day Absence
                               </label>
                             </div>
                           </div>
