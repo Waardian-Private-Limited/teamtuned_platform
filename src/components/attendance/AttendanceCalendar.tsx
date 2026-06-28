@@ -139,17 +139,16 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
 
     // Holiday takes priority (but check for overtime work)
     if (record?.is_holiday) {
-      // If there's an attendance record on a holiday, it's overtime work
       if (record?.attendance_id && record?.total_work_minutes > 0) {
         return {
-          color: "bg-indigo-100 border-indigo-300 text-indigo-900",
-          dotColor: "bg-indigo-600",
+          color: "bg-blue-50 border-blue-200 text-blue-900",
+          dotColor: "bg-blue-600",
           label: "OT",
           type: "overtime"
         };
       }
       return {
-        color: "bg-purple-100 border-purple-300 text-purple-800",
+        color: "bg-purple-50 border-purple-200 text-purple-800",
         dotColor: "bg-purple-500",
         label: "H",
         type: "holiday"
@@ -158,60 +157,58 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
 
     // Week off (but check for overtime work)
     if (record?.is_weekly_off) {
-      // If there's an attendance record on a week off, it's overtime work
       if (record?.attendance_id !== null) {
         return {
-          color: "bg-indigo-100 border-indigo-300 text-indigo-900",
-          dotColor: "bg-indigo-600",
+          color: "bg-blue-50 border-blue-200 text-blue-900",
+          dotColor: "bg-blue-600",
           label: "OT",
           type: "overtime"
         };
       }
       return {
-        color: "bg-slate-100 border-slate-300 text-slate-600",
+        color: "bg-slate-50 border-slate-200 text-slate-600",
         dotColor: "bg-slate-400",
         label: "WO",
         type: "weekoff"
       };
     }
 
-    // Night OT Visual Indicators
-    if (record?.was_night_ot) {
-      return {
-        color: "bg-indigo-50 border-indigo-200 text-indigo-900",
-        dotColor: "bg-indigo-500",
-        label: "N-OT",
-        type: "night_ot"
-      };
-    }
-
     // Only if status = "Completed" and status_timeline is Full-Day or Half-Day
-    if (record?.status === "Completed") {
-      if (record?.status_timeline === "Full-Day") {
+    if (record?.status === "Completed" || record?.status === "Present") {
+      if (record?.status_timeline === "Half-Day" || record?.status_summary?.includes("Half")) {
         return {
-          color: "bg-emerald-100 border-emerald-300 text-emerald-900",
-          dotColor: "bg-emerald-600",
-          label: "P",
-          type: "fullday"
-        };
-      } else if (record?.status_timeline === "Half-Day") {
-        return {
-          color: "bg-amber-100 border-amber-300 text-amber-900",
+          color: "bg-amber-50 border-amber-200 text-amber-900",
           dotColor: "bg-amber-600",
           label: "HD",
           type: "halfday"
         };
+      } else {
+        return {
+          color: "bg-emerald-50 border-emerald-200 text-emerald-900",
+          dotColor: "bg-emerald-600",
+          label: "P",
+          type: "fullday"
+        };
       }
     }
 
-    // Unpaid Leave (Leave but not paid) - CHECK FIRST (Hierarchy: Unpaid > Paid)
-    // Fix: Backend might send is_paid_leave=true for Unpaid Leave, so we verify leave_type string
+    // Night OT (if not marked completed/absent yet but active/was night ot)
+    if (record?.was_night_ot) {
+      return {
+        color: "bg-emerald-50 border-emerald-200 text-emerald-900",
+        dotColor: "bg-emerald-600",
+        label: "P",
+        type: "fullday"
+      };
+    }
+
+    // Unpaid Leave (Leave but not paid)
     const leaveType = (record?.leave_type || '').toLowerCase();
     const isUnpaidType = leaveType.includes('unpaid') || leaveType.includes('lwp') || leaveType.includes('loss of pay');
 
     if (isUnpaidType || ((record?.status === 'Leave' || record?.is_leave) && !record?.is_paid_leave)) {
       return {
-        color: "bg-orange-100 border-orange-300 text-orange-900",
+        color: "bg-orange-50 border-orange-200 text-orange-950",
         dotColor: "bg-orange-600",
         label: "LWP",
         type: "unpaidleave"
@@ -221,7 +218,7 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
     // Paid Leave
     if (record?.is_paid_leave) {
       return {
-        color: "bg-teal-100 border-teal-300 text-teal-900",
+        color: "bg-teal-50 border-teal-200 text-teal-900",
         dotColor: "bg-teal-600",
         label: "PL",
         type: "paidleave"
@@ -230,23 +227,15 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
 
     // If no attendance_id and not future, it's absent
     if (!record?.attendance_id && !isFuture) {
-      if (record?.was_post_night_ot) {
-        return {
-          color: "bg-indigo-100 border-indigo-300 text-indigo-900",
-          dotColor: "bg-indigo-600",
-          label: "A-N",
-          type: "absent_post_night_ot"
-        };
-      }
       return {
-        color: "bg-rose-100 border-rose-300 text-rose-900",
+        color: "bg-rose-50 border-rose-200 text-rose-900",
         dotColor: "bg-rose-600",
         label: "A",
         type: "absent"
       };
     }
 
-    // Default to neutral for edge cases
+    // Default to neutral
     return {
       color: "bg-white border-slate-100 text-slate-300",
       dotColor: "bg-slate-200",
@@ -469,40 +458,44 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
                             <div className={`w-2 h-2 rounded-full ${statusInfo.dotColor}`}></div>
                             <div className="text-xs font-semibold">{statusInfo.label}</div>
                           </div>
-
                           {/* Badge icons from flags */}
-                          <div className="flex items-center gap-0.5 mt-0.5 flex-wrap justify-center">
-                            {/* Late Mark: removed flag shows strikethrough even if mark was cleared */}
+                          <div className="flex items-center gap-0.5 mt-0.5 flex-wrap justify-center px-0.5">
+                            {/* Late Mark */}
                             {record?.is_late_mark_removed === 1 ? (
-                              <span title="Late Mark (Removed)" className="text-[8px] font-bold text-slate-400 line-through">L</span>
+                              <span title="Late Mark (Removed)" className="px-1 py-0.2 rounded font-bold text-[7px] text-slate-400 border border-slate-200 line-through bg-slate-50">Late (W)</span>
                             ) : (record?.is_late_mark === 1 && !record?.was_night_ot && !record?.is_holiday && !record?.is_weekly_off) ? (
-                              <span title="Late Mark" className="text-[8px] font-bold text-orange-500">L</span>
+                              <span title="Late Mark" className="px-1 py-0.2 rounded font-bold text-[7px] bg-orange-50 text-orange-700 border border-orange-200">Late</span>
                             ) : null}
 
-                            {/* Late Penalty: removed flag shows strikethrough even if penalty was cleared */}
+                            {/* Late Penalty */}
                             {record?.is_late_penalty_removed === 1 ? (
-                              <span title="Late Penalty (Waived)" className="text-[8px] font-bold text-slate-400 line-through">LP</span>
+                              <span title="Late Penalty (Waived)" className="px-1 py-0.2 rounded font-bold text-[7px] text-slate-400 border border-slate-200 line-through bg-slate-50">L-Pen (W)</span>
                             ) : record?.is_latemark_penalty === 1 ? (
-                              <span title="Late Penalty" className="w-2 h-2 rounded-full bg-orange-500 inline-block" />
+                              <span title="Late Penalty" className="px-1 py-0.2 rounded font-bold text-[7px] bg-orange-600 text-white">L-Pen</span>
                             ) : null}
 
                             {/* Early Mark */}
                             {record?.is_early_mark_removed === 1 ? (
-                              <span title="Early Exit (Removed)" className="text-[8px] font-bold text-slate-400 line-through">E</span>
+                              <span title="Early Exit (Removed)" className="px-1 py-0.2 rounded font-bold text-[7px] text-slate-400 border border-slate-200 line-through bg-slate-50">Early (W)</span>
                             ) : (record?.is_early_mark === 1 && !record?.was_night_ot && !record?.is_holiday && !record?.is_weekly_off) ? (
-                              <span title="Early Exit" className="text-[8px] font-bold text-red-400">E</span>
+                              <span title="Early Exit" className="px-1 py-0.2 rounded font-bold text-[7px] bg-red-50 text-red-700 border border-red-200">Early</span>
                             ) : null}
 
                             {/* Early Penalty */}
                             {record?.is_early_penalty_removed === 1 ? (
-                              <span title="Early Penalty (Waived)" className="text-[8px] font-bold text-slate-400 line-through">EP</span>
+                              <span title="Early Penalty (Waived)" className="px-1 py-0.2 rounded font-bold text-[7px] text-slate-400 border border-slate-200 line-through bg-slate-50">E-Pen (W)</span>
                             ) : record?.is_early_penalty === 1 ? (
-                              <span title="Early Penalty" className="w-2 h-2 rounded-full bg-red-500 inline-block" />
+                              <span title="Early Penalty" className="px-1 py-0.2 rounded font-bold text-[7px] bg-red-600 text-white">E-Pen</span>
                             ) : null}
 
                             {/* Override */}
                             {record?.is_overridden === 1 && (
-                              <span title="Overridden" className="text-[8px] font-bold text-blue-400">OV</span>
+                              <span title="Overridden" className="px-1 py-0.2 rounded font-bold text-[7px] bg-blue-50 text-blue-700 border border-blue-200">OV</span>
+                            )}
+
+                            {/* Night OT Text Badge */}
+                            {record?.was_night_ot && (
+                              <span title="Night OT" className="px-1 py-0.2 rounded font-bold text-[7px] bg-indigo-600 text-white">Night OT</span>
                             )}
                           </div>
 
@@ -510,28 +503,18 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
                             <div className="flex flex-col items-center mt-auto w-full">
                               {/* Night OT Session Times */}
                               {record.was_night_ot && record.sessions?.filter((s: any) => s.session_type === 'night_ot').map((s: any, i: number) => (
-                                <div key={i} className="text-[9px] text-indigo-600 font-bold leading-tight flex items-center gap-1">
-                                  <span>🌙</span>
+                                <div key={i} className="text-[8px] text-indigo-600 font-bold leading-tight flex items-center gap-0.5">
                                   <span>{s.start_time ? new Date(s.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '??'}</span>
                                   <span>-</span>
                                   <span>{s.end_time ? new Date(s.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '??'}</span>
                                 </div>
                               ))}
 
-                              <div className="flex items-center justify-between w-full px-1">
-                                {record.total_work_minutes > 0 ? (
+                                {record.total_work_minutes > 0 && (
                                   <div className="text-[10px] opacity-70 font-semibold">
                                     {Math.floor(record.total_work_minutes / 60)}h{record.total_work_minutes % 60}m
                                   </div>
-                                ) : <div />}
-                                
-                                {/* Comp-Off Indicator */}
-                                {record.compoffs && record.compoffs.length > 0 && (
-                                  <div title="Comp-Off Generated" className="text-[10px]">
-                                    🎁
-                                  </div>
                                 )}
-                              </div>
                             </div>
                           )}
                         </button>
