@@ -121,6 +121,7 @@ export default function LaborWalletLedger() {
         payment_date: new Date().toISOString().split('T')[0],
         notes: ""
     });
+    const [showExportModal, setShowExportModal] = useState(false);
 
     useEffect(() => {
         fetchLedger();
@@ -520,6 +521,12 @@ export default function LaborWalletLedger() {
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
                 </div>
+                <button
+                    onClick={() => setShowExportModal(true)}
+                    className="bg-green-600 hover:bg-green-700 text-white font-bold text-sm px-4 py-2 rounded-lg transition-all flex items-center gap-2 shadow-sm whitespace-nowrap"
+                >
+                    <Download size={16} /> Export
+                </button>
             </div>
 
             <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
@@ -1170,6 +1177,185 @@ export default function LaborWalletLedger() {
                     </div>
                 </div>
             )}
+
+            {showExportModal && (
+                <LedgerExportModal
+                    onClose={() => setShowExportModal(false)}
+                />
+            )}
+        </div>
+    );
+}
+
+// Ledger Export Modal Component
+function LedgerExportModal({ onClose }: { onClose: () => void }) {
+    const [fromDate, setFromDate] = useState(
+        new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
+    );
+    const [toDate, setToDate] = useState(
+        new Date().toISOString().split('T')[0]
+    );
+    const [type, setType] = useState<'all' | 'attendance' | 'registration'>('all');
+    const [exportFormat, setExportFormat] = useState<'excel' | 'pdf'>('excel');
+    const [submitting, setSubmitting] = useState(false);
+
+    const downloadLedger = async () => {
+        try {
+            setSubmitting(true);
+            const token = localStorage.getItem('token');
+            const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3006/api/v1';
+
+            const res = await fetch(`${baseUrl}/labor/billing/ledger/export`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    'ngrok-skip-browser-warning': 'true',
+                },
+                body: JSON.stringify({
+                    fromDate,
+                    toDate,
+                    type,
+                    format: exportFormat
+                }),
+            });
+
+            if (!res.ok) throw new Error('Failed to download ledger report');
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Labor_Ledger_${fromDate}_to_${toDate}.${exportFormat === 'pdf' ? 'pdf' : 'xlsx'}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+
+            onClose();
+        } catch (err: any) {
+            console.error('Export error:', err);
+            toast.error(err.message || 'Failed to download ledger report');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-gray-100 animate-in fade-in zoom-in duration-250">
+                {/* Header */}
+                <div className="p-6 bg-gradient-to-r from-blue-600 to-blue-700 text-white flex justify-between items-center">
+                    <div>
+                        <h3 className="text-xl font-bold">Export Labor Wallet Ledger</h3>
+                        <p className="text-blue-100 text-xs mt-1">Download transaction history, summary cards and breakdowns</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="p-6 space-y-4">
+                    {/* Date Pickers */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">From Date</label>
+                            <div className="relative">
+                                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                                <input
+                                    type="date"
+                                    value={fromDate}
+                                    onChange={(e) => setFromDate(e.target.value)}
+                                    className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all font-semibold"
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">To Date</label>
+                            <div className="relative">
+                                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                                <input
+                                    type="date"
+                                    value={toDate}
+                                    onChange={(e) => setToDate(e.target.value)}
+                                    className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all font-semibold"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Filter Type */}
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">Transaction Filter Type</label>
+                        <select
+                            value={type}
+                            onChange={(e: any) => setType(e.target.value)}
+                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all font-semibold"
+                        >
+                            <option value="all">All Transactions (Passbook)</option>
+                            <option value="attendance">Daily Attendance Charges Only</option>
+                            <option value="registration">Registration / Subscription Fees Only</option>
+                        </select>
+                    </div>
+
+                    {/* Export Format */}
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">Export Format</label>
+                        <div className="flex gap-6 mt-1 ml-1">
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                                <input
+                                    type="radio"
+                                    name="export_format"
+                                    value="excel"
+                                    checked={exportFormat === 'excel'}
+                                    onChange={() => setExportFormat('excel')}
+                                    className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 cursor-pointer"
+                                />
+                                <span className="text-sm text-gray-700 font-semibold">Excel (.xlsx)</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                                <input
+                                    type="radio"
+                                    name="export_format"
+                                    value="pdf"
+                                    checked={exportFormat === 'pdf'}
+                                    onChange={() => setExportFormat('pdf')}
+                                    className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 cursor-pointer"
+                                />
+                                <span className="text-sm text-gray-700 font-semibold">PDF (.pdf)</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="p-6 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3">
+                    <button
+                        onClick={onClose}
+                        className="px-5 py-2.5 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-100 font-bold text-sm transition-all"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={downloadLedger}
+                        disabled={submitting}
+                        className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-sm shadow-md shadow-green-100 disabled:opacity-50 transition-all flex items-center gap-2"
+                    >
+                        {submitting ? (
+                            <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Downloading...
+                            </>
+                        ) : (
+                            <>
+                                <Download className="w-4 h-4" />
+                                Download Report
+                            </>
+                        )}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }
