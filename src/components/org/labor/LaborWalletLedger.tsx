@@ -44,6 +44,8 @@ export default function LaborWalletLedger() {
     // Sync Modal State
     const [showSyncModal, setShowSyncModal] = useState(false);
     const [syncing, setSyncing] = useState(false);
+    const [previewing, setPreviewing] = useState(false);
+    const [syncPreview, setSyncPreview] = useState<any>(null);
     const [syncDates, setSyncDates] = useState({
         fromDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
         toDate: new Date().toISOString().split('T')[0]
@@ -273,6 +275,27 @@ export default function LaborWalletLedger() {
         }
     };
 
+    const handleSyncPreview = async () => {
+        if (!syncDates.fromDate || !syncDates.toDate) {
+            toast.error("Please select both dates");
+            return;
+        }
+        try {
+            setPreviewing(true);
+            setSyncPreview(null);
+            const res = await apiClient.get("/labor/billing/sync-preview", syncDates);
+            if (res.success) {
+                setSyncPreview(res.preview);
+            } else {
+                toast.error("Failed to load preview");
+            }
+        } catch (error: any) {
+            toast.error(error.message || "Preview failed");
+        } finally {
+            setPreviewing(false);
+        }
+    };
+
     const handleSync = async () => {
         try {
             setSyncing(true);
@@ -280,6 +303,7 @@ export default function LaborWalletLedger() {
             if (res.success) {
                 toast.success(res.message);
                 setShowSyncModal(false);
+                setSyncPreview(null);
                 fetchLedger();
                 fetchStats();
             }
@@ -840,56 +864,147 @@ export default function LaborWalletLedger() {
             {/* Sync Historical Modal */}
             {showSyncModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-                    <div 
+                    <div
                         className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm transition-opacity"
-                        onClick={() => !syncing && setShowSyncModal(false)}
+                        onClick={() => !syncing && !previewing && (setShowSyncModal(false), setSyncPreview(null))}
                     />
-                    <div className="relative bg-white rounded-lg shadow-2xl w-full max-w-md overflow-hidden transform transition-all animate-in fade-in zoom-in duration-200">
+                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all animate-in fade-in zoom-in duration-200">
                         <div className="p-6 border-b border-gray-100 flex items-center justify-between">
                             <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                                 <RefreshCcw className="text-blue-600" size={20} /> Sync Historical Billing
                             </h3>
-                            <button 
-                                onClick={() => !syncing && setShowSyncModal(false)}
+                            <button
+                                onClick={() => { if (!syncing && !previewing) { setShowSyncModal(false); setSyncPreview(null); } }}
                                 className="p-2 hover:bg-gray-100 rounded-full transition-colors"
                             >
                                 <X size={20} className="text-gray-400" />
                             </button>
                         </div>
-                        
-                        <div className="p-8 space-y-6">
+
+                        <div className="p-6 space-y-5">
                             <p className="text-sm text-gray-500">
-                                Backfill base fees and daily attendance charges for existing laborers within the selected date range.
+                                Select a date range to preview missing billing entries before adding them to the ledger.
                             </p>
 
-                            <div className="space-y-4">
+                            {/* Date Range */}
+                            <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">From Date</label>
-                                    <input 
+                                    <label className="block text-xs font-semibold text-gray-600 mb-1">From Date</label>
+                                    <input
                                         type="date"
                                         value={syncDates.fromDate}
-                                        onChange={(e) => setSyncDates({...syncDates, fromDate: e.target.value})}
-                                        className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all"
+                                        onChange={(e) => { setSyncDates({...syncDates, fromDate: e.target.value}); setSyncPreview(null); }}
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm transition-all"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">To Date</label>
-                                    <input 
+                                    <label className="block text-xs font-semibold text-gray-600 mb-1">To Date</label>
+                                    <input
                                         type="date"
                                         value={syncDates.toDate}
-                                        onChange={(e) => setSyncDates({...syncDates, toDate: e.target.value})}
-                                        className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all"
+                                        onChange={(e) => { setSyncDates({...syncDates, toDate: e.target.value}); setSyncPreview(null); }}
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm transition-all"
                                     />
                                 </div>
                             </div>
 
-                            <button
-                                onClick={handleSync}
-                                disabled={syncing}
-                                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-lg shadow-lg shadow-blue-200 disabled:opacity-50 transition-all cursor-pointer"
-                            >
-                                {syncing ? <><Loader2 className="animate-spin" size={20} /> Processing...</> : "Start Historical Sync"}
-                            </button>
+                            {/* Preview Result */}
+                            {syncPreview && (
+                                <div className="rounded-xl border border-blue-100 bg-blue-50 overflow-hidden">
+                                    <div className="px-4 py-3 bg-blue-100 flex items-center justify-between">
+                                        <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">Sync Preview</span>
+                                        <span className="text-xs text-blue-500">{syncPreview.fromDate} → {syncPreview.toDate}</span>
+                                    </div>
+
+                                    {/* Before / Adding / After table */}
+                                    <div className="px-4 pt-3 pb-1">
+                                        <table className="w-full text-sm">
+                                            <thead>
+                                                <tr className="text-xs text-gray-400 uppercase border-b border-blue-100">
+                                                    <th className="text-left pb-2 font-semibold">Type</th>
+                                                    <th className="text-right pb-2 font-semibold">Before</th>
+                                                    <th className="text-right pb-2 font-semibold text-orange-500">+ Adding</th>
+                                                    <th className="text-right pb-2 font-semibold text-green-600">After</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-blue-50">
+                                                <tr>
+                                                    <td className="py-2 text-gray-700 font-medium">
+                                                        Registration
+                                                        {syncPreview.missingRegistration > 0 && (
+                                                            <span className="ml-1 text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full font-semibold">
+                                                                {syncPreview.missingRegistration} missing
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-2 text-right text-gray-600">₹{syncPreview.currentRegistrationTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                                    <td className="py-2 text-right text-orange-500 font-semibold">
+                                                        {syncPreview.estimatedRegistrationTotal > 0 ? `+₹${syncPreview.estimatedRegistrationTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}
+                                                    </td>
+                                                    <td className="py-2 text-right text-green-700 font-bold">₹{syncPreview.afterRegistrationTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td className="py-2 text-gray-700 font-medium">
+                                                        Attendance
+                                                        {syncPreview.missingAttendance > 0 && (
+                                                            <span className="ml-1 text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full font-semibold">
+                                                                {syncPreview.missingAttendance} missing
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-2 text-right text-gray-600">₹{syncPreview.currentAttendanceTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                                    <td className="py-2 text-right text-orange-500 font-semibold">
+                                                        {syncPreview.estimatedAttendanceTotal > 0 ? `+₹${syncPreview.estimatedAttendanceTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}
+                                                    </td>
+                                                    <td className="py-2 text-right text-green-700 font-bold">₹{syncPreview.afterAttendanceTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                                </tr>
+                                                <tr className="border-t-2 border-blue-200 bg-blue-100/40">
+                                                    <td className="py-2 text-gray-800 font-bold text-xs uppercase">Total</td>
+                                                    <td className="py-2 text-right text-gray-700 font-bold">₹{syncPreview.currentTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                                    <td className="py-2 text-right text-orange-600 font-bold">
+                                                        {syncPreview.estimatedTotal > 0 ? `+₹${syncPreview.estimatedTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}
+                                                    </td>
+                                                    <td className="py-2 text-right text-green-700 font-extrabold">₹{syncPreview.afterTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {syncPreview.totalMissing === 0 && (
+                                        <div className="px-4 pb-3 pt-1 text-center text-sm text-green-600 font-semibold">
+                                            ✅ All entries are already up to date — nothing to sync.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Buttons */}
+                            {!syncPreview ? (
+                                <button
+                                    onClick={handleSyncPreview}
+                                    disabled={previewing}
+                                    className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-md shadow-blue-200 disabled:opacity-50 transition-all cursor-pointer"
+                                >
+                                    {previewing ? <><span className="animate-spin">⏳</span> Checking...</> : "Preview Missing Entries"}
+                                </button>
+                            ) : (
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setSyncPreview(null)}
+                                        disabled={syncing}
+                                        className="flex-1 py-3 rounded-lg border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition-all text-sm"
+                                    >
+                                        ← Change Dates
+                                    </button>
+                                    <button
+                                        onClick={handleSync}
+                                        disabled={syncing || syncPreview.totalMissing === 0}
+                                        className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg shadow-md shadow-green-200 disabled:opacity-50 transition-all cursor-pointer"
+                                    >
+                                        {syncing ? <><span className="animate-spin">⏳</span> Syncing...</> : `Confirm & Add ${syncPreview.totalMissing} Entries`}
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
