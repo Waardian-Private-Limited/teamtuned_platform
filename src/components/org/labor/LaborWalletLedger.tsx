@@ -26,7 +26,8 @@ import {
     Download,
     Receipt,
     Building2,
-    Briefcase
+    Briefcase,
+    Trash2
 } from "lucide-react";
 
 export default function LaborWalletLedger() {
@@ -389,6 +390,29 @@ export default function LaborWalletLedger() {
         }
     };
 
+    const handleDeleteRow = async (id: number) => {
+        if (!window.confirm("Are you sure you want to delete this transaction row? This will recalculate and adjust all subsequent running balances and wallet balances in the ledger and reports!")) {
+            return;
+        }
+
+        try {
+            setLoading(true);
+            const res = await apiClient.delete(`/labor/billing/ledger/${id}`);
+            if (res.success) {
+                toast.success(res.message || "Transaction deleted successfully");
+                fetchLedger();
+                fetchStats();
+            } else {
+                toast.error(res.message || "Failed to delete transaction");
+            }
+        } catch (error: any) {
+            console.error("handleDeleteRow error:", error);
+            toast.error(error.message || "An error occurred");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleDownloadInvoice = async (inv: any) => {
         try {
             setDownloadingInvoiceId(inv.id);
@@ -646,12 +670,15 @@ export default function LaborWalletLedger() {
                                         <th className="px-6 py-5 text-[10px] font-black text-black/40 uppercase tracking-widest">Type</th>
                                         <th className="px-6 py-5 text-[10px] font-black text-black/40 uppercase tracking-widest text-right">Amount (₹)</th>
                                         <th className="px-6 py-5 text-[10px] font-black text-black/40 uppercase tracking-widest text-right">Running Bal.</th>
+                                        {isOrgAdmin && (
+                                            <th className="px-6 py-5 text-[10px] font-black text-black/40 uppercase tracking-widest text-center">Actions</th>
+                                        )}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {loading ? (
                                         <tr>
-                                            <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
+                                            <td colSpan={isOrgAdmin ? 8 : 7} className="px-6 py-12 text-center text-gray-400">
                                                 <div className="flex flex-col items-center gap-3">
                                                     <Loader2 className="animate-spin text-blue-600" size={32} />
                                                     <span className="text-xs font-medium">Crunching transaction history...</span>
@@ -660,7 +687,7 @@ export default function LaborWalletLedger() {
                                         </tr>
                                     ) : ledger.length === 0 ? (
                                         <tr>
-                                            <td colSpan={7} className="px-6 py-20 text-center text-gray-400">
+                                            <td colSpan={isOrgAdmin ? 8 : 7} className="px-6 py-20 text-center text-gray-400">
                                                 <div className="flex flex-col items-center gap-2">
                                                     <div className="p-4 bg-gray-50 rounded-full mb-2">
                                                         <FileText size={40} className="text-gray-300" />
@@ -712,6 +739,17 @@ export default function LaborWalletLedger() {
                                                         ₹{formatCurrency(item.org_wallet_balance || item.wallet_balance)}
                                                     </div>
                                                 </td>
+                                                {isOrgAdmin && (
+                                                    <td className="px-6 py-4 text-center">
+                                                        <button
+                                                            onClick={() => handleDeleteRow(item.id)}
+                                                            className="p-1.5 text-red-500 hover:text-white hover:bg-red-500 border border-transparent hover:border-red-600 rounded transition-all cursor-pointer inline-flex items-center justify-center"
+                                                            title="Delete transaction"
+                                                        >
+                                                            <Trash2 size={15} />
+                                                        </button>
+                                                    </td>
+                                                )}
                                              </tr>
                                         ))
                                     )}
