@@ -24,7 +24,9 @@ import {
     FileText,
     ExternalLink,
     Download,
-    Receipt
+    Receipt,
+    Building2,
+    Briefcase
 } from "lucide-react";
 
 export default function LaborWalletLedger() {
@@ -38,6 +40,13 @@ export default function LaborWalletLedger() {
     });
     const [search, setSearch] = useState("");
     const [laborerId, setLaborerId] = useState("");
+    
+    // Site & Contractor Filter States
+    const [sites, setSites] = useState<any[]>([]);
+    const [siteId, setSiteId] = useState<string>("");
+    const [contractors, setContractors] = useState<any[]>([]);
+    const [contractorId, setContractorId] = useState<string>("");
+
     const { role } = useAuth();
     const isOrgAdmin = role?.toLowerCase() === 'orgadmin';
 
@@ -129,11 +138,38 @@ export default function LaborWalletLedger() {
         fetchLedger();
         fetchInvoices();
         fetchStats();
-    }, [pagination.page, pagination.limit, invPagination.page, invPagination.limit, search, laborerId, activeTab]);
+    }, [pagination.page, pagination.limit, invPagination.page, invPagination.limit, search, laborerId, siteId, contractorId, activeTab]);
 
     useEffect(() => {
         fetchAllLaborers();
+        fetchSites();
     }, []);
+
+    useEffect(() => {
+        fetchContractors();
+    }, [siteId]);
+
+    const fetchSites = async () => {
+        try {
+            const res = await apiClient.get("/sites", { incharge_only: "0" });
+            if (res.success) {
+                setSites(res.sites || res.data || []);
+            }
+        } catch (error) {
+            console.error("Error fetching sites:", error);
+        }
+    };
+
+    const fetchContractors = async () => {
+        try {
+            const res = await apiClient.get("/labor/contractors", { site_id: siteId || undefined });
+            if (res.success) {
+                setContractors(res.contractors || res.data || []);
+            }
+        } catch (error) {
+            console.error("Error fetching contractors:", error);
+        }
+    };
 
     const fetchAllLaborers = async () => {
         try {
@@ -156,7 +192,9 @@ export default function LaborWalletLedger() {
                 page: pagination.page,
                 limit: pagination.limit,
                 search,
-                laborer_id: laborerId || undefined
+                laborer_id: laborerId || undefined,
+                site_id: siteId || undefined,
+                contractor_id: contractorId || undefined
             });
             if (res.success) {
                 setLedger(res.ledger);
@@ -469,49 +507,49 @@ export default function LaborWalletLedger() {
 
             {/* Stats Overview */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm hover:border-blue-200 transition-all group">
+                <div className="bg-blue-50/50 p-6 rounded-xl border border-blue-100 shadow-sm hover:bg-blue-50/80 transition-all group">
                     <div className="flex items-center justify-between mb-4">
-                        <div className="p-3 bg-black rounded-xl text-white">
+                        <div className="p-2.5 bg-white rounded-xl text-blue-600 shadow-sm">
                             <Wallet size={24} />
                         </div>
-                        <span className="text-[10px] font-black text-black/40 uppercase tracking-widest">Total Outstanding</span>
+                        <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Total Outstanding</span>
                     </div>
-                    <div className="text-3xl font-black text-black tracking-tighter">₹{formatCurrency(totalBalance)}</div>
+                    <div className="text-3xl font-black text-blue-900 tracking-tighter">₹{formatCurrency(totalBalance)}</div>
                 </div>
 
-                <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm hover:border-red-200 transition-all group">
+                <div className="bg-orange-50/50 p-6 rounded-xl border border-orange-100 shadow-sm hover:bg-orange-50/80 transition-all group">
                     <div className="flex items-center justify-between mb-4">
-                        <div className="p-3 bg-black rounded-xl text-white">
+                        <div className="p-2.5 bg-white rounded-xl text-orange-600 shadow-sm">
                             <ArrowUpRight size={24} />
                         </div>
-                        <span className="text-[10px] font-black text-black/40 uppercase tracking-widest">Monthly Debits</span>
+                        <span className="text-[10px] font-bold text-orange-600 uppercase tracking-wider">Monthly Debits</span>
                     </div>
-                    <div className="text-3xl font-black text-black tracking-tighter">₹{formatCurrency(monthDebits)}</div>
+                    <div className="text-3xl font-black text-orange-900 tracking-tighter">₹{formatCurrency(monthDebits)}</div>
                 </div>
 
-                <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm hover:border-green-200 transition-all group">
+                <div className="bg-green-50/50 p-6 rounded-xl border border-green-100 shadow-sm hover:bg-green-50/80 transition-all group">
                     <div className="flex items-center justify-between mb-4">
-                        <div className="p-3 bg-black rounded-xl text-white">
+                        <div className="p-2.5 bg-white rounded-xl text-green-600 shadow-sm">
                             <ArrowDownLeft size={24} />
                         </div>
-                        <span className="text-[10px] font-black text-black/40 uppercase tracking-widest">Monthly Credits</span>
+                        <span className="text-[10px] font-bold text-green-600 uppercase tracking-wider">Monthly Credits</span>
                     </div>
-                    <div className="text-3xl font-black text-black tracking-tighter">₹{formatCurrency(monthCredits)}</div>
+                    <div className="text-3xl font-black text-green-900 tracking-tighter">₹{formatCurrency(monthCredits)}</div>
                 </div>
 
-                <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm hover:border-purple-200 transition-all group">
+                <div className="bg-purple-50/50 p-6 rounded-xl border border-purple-100 shadow-sm hover:bg-purple-50/80 transition-all group">
                     <div className="flex items-center justify-between mb-4">
-                        <div className="p-3 bg-black rounded-xl text-white">
+                        <div className="p-2.5 bg-white rounded-xl text-purple-600 shadow-sm">
                             <Clock size={24} />
                         </div>
-                        <span className="text-[10px] font-black text-black/40 uppercase tracking-widest">Active Subscriptions</span>
+                        <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wider">Active Subscriptions</span>
                     </div>
-                    <div className="text-3xl font-black text-black tracking-tighter">{activeSubs}</div>
+                    <div className="text-3xl font-black text-purple-900 tracking-tighter">{activeSubs}</div>
                 </div>
             </div>
 
             {/* Filter Bar */}
-            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm flex flex-col md:flex-row gap-4 items-center">
+            <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm flex flex-col lg:flex-row gap-3 items-center">
                 <div className="relative flex-1 w-full">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                     <input
@@ -526,7 +564,47 @@ export default function LaborWalletLedger() {
                     />
                 </div>
 
-                <div className="relative w-full md:w-64">
+                {/* Site Filter */}
+                <div className="relative w-full lg:w-48">
+                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <select
+                        value={siteId}
+                        onChange={(e) => {
+                            setSiteId(e.target.value);
+                            setContractorId(""); // Reset contractor on site change
+                            setPagination(prev => ({ ...prev, page: 1 }));
+                        }}
+                        className="w-full pl-10 pr-10 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-sm font-semibold appearance-none outline-none"
+                    >
+                        <option value="">All Sites</option>
+                        {sites.map(s => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                </div>
+
+                {/* Contractor Filter */}
+                <div className="relative w-full lg:w-48">
+                    <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <select
+                        value={contractorId}
+                        onChange={(e) => {
+                            setContractorId(e.target.value);
+                            setPagination(prev => ({ ...prev, page: 1 }));
+                        }}
+                        className="w-full pl-10 pr-10 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-sm font-semibold appearance-none outline-none"
+                    >
+                        <option value="">All Contractors</option>
+                        {contractors.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                </div>
+
+                {/* Laborer Filter */}
+                <div className="relative w-full lg:w-48">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                     <select
                         value={laborerId}
@@ -545,9 +623,10 @@ export default function LaborWalletLedger() {
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
                 </div>
+
                 <button
                     onClick={() => setShowExportModal(true)}
-                    className="bg-green-600 hover:bg-green-700 text-white font-bold text-sm px-4 py-2 rounded-lg transition-all flex items-center gap-2 shadow-sm whitespace-nowrap"
+                    className="bg-green-600 hover:bg-green-700 text-white font-bold text-sm px-4 py-2 rounded-lg transition-all flex items-center gap-2 shadow-sm whitespace-nowrap w-full lg:w-auto justify-center"
                 >
                     <Download size={16} /> Export
                 </button>
@@ -1312,7 +1391,40 @@ function LedgerExportModal({ onClose }: { onClose: () => void }) {
     );
     const [type, setType] = useState<'all' | 'attendance' | 'registration'>('all');
     const [exportFormat, setExportFormat] = useState<'excel' | 'pdf'>('excel');
+    const [exportMode, setExportMode] = useState<'full' | 'breakdown'>('full');
     const [submitting, setSubmitting] = useState(false);
+
+    // Site & Contractor selections inside export
+    const [sites, setSites] = useState<any[]>([]);
+    const [selectedSiteId, setSelectedSiteId] = useState<string>("");
+    const [contractors, setContractors] = useState<any[]>([]);
+    const [selectedContractorId, setSelectedContractorId] = useState<string>("");
+
+    useEffect(() => {
+        fetchSites();
+    }, []);
+
+    useEffect(() => {
+        fetchContractors();
+    }, [selectedSiteId]);
+
+    const fetchSites = async () => {
+        try {
+            const res = await apiClient.get("/sites", { incharge_only: "0" });
+            if (res.success) {
+                setSites(res.sites || res.data || []);
+            }
+        } catch (error) {}
+    };
+
+    const fetchContractors = async () => {
+        try {
+            const res = await apiClient.get("/labor/contractors", { site_id: selectedSiteId || undefined });
+            if (res.success) {
+                setContractors(res.contractors || res.data || []);
+            }
+        } catch (error) {}
+    };
 
     const downloadLedger = async () => {
         try {
@@ -1331,7 +1443,10 @@ function LedgerExportModal({ onClose }: { onClose: () => void }) {
                     fromDate,
                     toDate,
                     type,
-                    format: exportFormat
+                    format: exportFormat,
+                    siteId: selectedSiteId || undefined,
+                    contractorId: selectedContractorId || undefined,
+                    mode: exportMode
                 }),
             });
 
@@ -1400,18 +1515,64 @@ function LedgerExportModal({ onClose }: { onClose: () => void }) {
                         </div>
                     </div>
 
-                    {/* Filter Type */}
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">Transaction Filter Type</label>
-                        <select
-                            value={type}
-                            onChange={(e: any) => setType(e.target.value)}
-                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all font-semibold"
-                        >
-                            <option value="all">All Transactions (Passbook)</option>
-                            <option value="attendance">Daily Attendance Charges Only</option>
-                            <option value="registration">Registration / Subscription Fees Only</option>
-                        </select>
+                    {/* Site & Contractor selections */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">Site</label>
+                            <select
+                                value={selectedSiteId}
+                                onChange={(e) => {
+                                    setSelectedSiteId(e.target.value);
+                                    setSelectedContractorId("");
+                                }}
+                                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all font-semibold"
+                            >
+                                <option value="">All Sites</option>
+                                {sites.map((s) => (
+                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">Contractor</label>
+                            <select
+                                value={selectedContractorId}
+                                onChange={(e) => setSelectedContractorId(e.target.value)}
+                                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all font-semibold"
+                            >
+                                <option value="">All Contractors</option>
+                                {contractors.map((c) => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Filter Type & Mode */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">Txn Filter Type</label>
+                            <select
+                                value={type}
+                                onChange={(e: any) => setType(e.target.value)}
+                                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all font-semibold"
+                            >
+                                <option value="all">All (Passbook)</option>
+                                <option value="attendance">Attendance Only</option>
+                                <option value="registration">Registration Only</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 ml-1">Export Mode</label>
+                            <select
+                                value={exportMode}
+                                onChange={(e: any) => setExportMode(e.target.value)}
+                                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all font-semibold"
+                            >
+                                <option value="full">Full Ledger Passbook</option>
+                                <option value="breakdown">Breakdown Summary Only</option>
+                            </select>
+                        </div>
                     </div>
 
                     {/* Export Format */}
