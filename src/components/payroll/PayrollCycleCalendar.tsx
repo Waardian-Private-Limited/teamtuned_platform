@@ -359,7 +359,20 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
     // Check Sandwich LOP first (Overwrites Week Off visual)
     const sandwichDates = payrollData?.sandwich_dates || [];
     if (dateStr && sandwichDates.includes(dateStr)) {
-      return { color: "text-rose-950", bg: "bg-rose-50", border: "border-rose-200", label: "LOP (Sandwich)", icon: AlertTriangle };
+      return { color: "text-rose-955", bg: "bg-rose-50", border: "border-rose-200", label: "LOP (Sandwich)", icon: AlertTriangle };
+    }
+
+    // Check No Out (Check-in but no Check-out for past days)
+    const isPastDay = dateStr ? new Date(dateStr).getTime() < new Date().setHours(0, 0, 0, 0) : false;
+    const isNoOut = record?.punch_in_time && !record?.punch_out_time && isPastDay;
+    if (isNoOut) {
+      return {
+        color: "text-rose-900",
+        bg: "bg-rose-50/50",
+        border: "border-rose-300 border-dashed border-2",
+        label: "Absent (No Out)",
+        icon: AlertTriangle
+      };
     }
 
     if (record?.is_holiday) {
@@ -688,7 +701,7 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
                               <>
                                 <div className={`mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold leading-none ${config.bg} ${config.color} border ${config.border}`}>
                                   {config.label === 'Present' ? 'P' :
-                                    config.label === 'Absent' ? 'A' :
+                                    config.label.includes('Absent') ? 'A' :
                                       config.label === 'Holiday' ? 'H' :
                                         config.label === 'Week Off' ? 'WO' :
                                           config.label.includes('Paid Leave') ? 'PL' :

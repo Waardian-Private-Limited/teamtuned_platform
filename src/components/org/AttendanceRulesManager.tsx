@@ -109,6 +109,7 @@ export type AttendancePolicy = {
   show_late_min?: boolean;
   show_ot_minutes?: boolean;
   adjust_leave_compoff?: boolean;
+  apply_sandwich?: boolean;
   max_sessions_allowed: number;
 };
 
@@ -184,6 +185,7 @@ const defaultPolicy: AttendancePolicy = {
   show_late_min: true,
   show_ot_minutes: true,
   adjust_leave_compoff: true,
+  apply_sandwich: true,
   max_sessions_allowed: 1,
 };
 
@@ -2127,6 +2129,23 @@ export default function AttendanceRulesManager() {
                         </select>
                         <p className="mt-1 text-xs text-gray-500">
                           If enabled, system will automatically deduct Paid Leaves and Comp Offs for absent days during payroll.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Apply Sandwich Policy
+                        </label>
+                        <select
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          value={policy.apply_sandwich !== false ? "true" : "false"}
+                          onChange={(e) => setField("apply_sandwich", e.target.value === "true")}
+                        >
+                          <option value="true">Yes</option>
+                          <option value="false">No</option>
+                        </select>
+                        <p className="mt-1 text-xs text-gray-500">
+                          If enabled, sandwich policy will treat weekend/holiday absences flanked by other absences as LOP.
                         </p>
                       </div>
                     </div>

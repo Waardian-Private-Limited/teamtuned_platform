@@ -208,6 +208,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
     end_date: "",
     session: "Full Day",
     reason: "",
+    always_deduct_from_balance: true,
   });
 
   // Employee selector optimization states
@@ -789,6 +790,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
       end_date: "",
       session: "Full Day",
       reason: "",
+      always_deduct_from_balance: true,
     });
     setSelectedEmployees([]);
     setLeaveBalances({});
@@ -842,6 +844,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
             auto_approve: true,
             is_comp_off: addLeaveForm.leave_type === 'Comp-off',
             admin_granted: addLeaveForm.leave_type === 'Comp-off',
+            always_deduct_from_balance: addLeaveForm.always_deduct_from_balance,
           },
           withAuth: true,
         })
@@ -1965,6 +1968,24 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                 </p>
               </div>
 
+              {/* Deduct from Balance selector */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Deduct from Leave Balance
+                </label>
+                <select
+                  value={addLeaveForm.always_deduct_from_balance ? "true" : "false"}
+                  onChange={(e) => setAddLeaveForm({ ...addLeaveForm, always_deduct_from_balance: e.target.value === "true" })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                >
+                  <option value="true">Yes</option>
+                  <option value="false">No (Override / Do not deduct)</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  Select "No" to allow adding leave regardless of balance, without deducting from the employee's leave balance.
+                </p>
+              </div>
+
               {duration > 0 && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                   <div className="flex items-center space-x-2 text-blue-800">
@@ -2011,8 +2032,8 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                 // Disable if required fields missing
                 if (!addLeaveForm.leave_type || !addLeaveForm.start_date || !addLeaveForm.end_date) return true;
 
-                // For non-comp-off leaves, check balance
-                if (addLeaveForm.leave_type !== 'Comp-off') {
+                // For non-comp-off leaves, check balance if always_deduct_from_balance is true
+                if (addLeaveForm.leave_type !== 'Comp-off' && addLeaveForm.always_deduct_from_balance) {
                   const duration = calculateDuration(addLeaveForm.start_date, addLeaveForm.end_date, addLeaveForm.session);
                   const hasInsufficientBalance = addLeaveForm.employee_ids.some(empId => {
                     const balance = leaveBalances[`${empId}_${addLeaveForm.leave_type}`] || 0;
