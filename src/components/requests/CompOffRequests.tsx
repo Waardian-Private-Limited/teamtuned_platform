@@ -67,6 +67,7 @@ export default function CompOffRequests() {
     const [toDate, setToDate] = useState<string>("");
     const [items, setItems] = useState<CompOffItem[]>([]);
     const [stats, setStats] = useState<{ pending: number; approved: number; rejected: number; total: number } | null>(null);
+    const [showAllHistory, setShowAllHistory] = useState<boolean>(false);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [page, setPage] = useState<number>(1);
@@ -190,6 +191,7 @@ export default function CompOffRequests() {
             if (status && status !== "All") params["status"] = status.toLowerCase();
             if (fromDate) params["start"] = fromDate;
             if (toDate) params["end"] = toDate;
+            if (showAllHistory) params["showAllHistory"] = "true";
 
             const res = await apiClient<any>("/attendance/comp-off/requests", { method: "GET", params, withAuth: true });
             const list: any[] = res?.requests || [];
@@ -203,7 +205,7 @@ export default function CompOffRequests() {
         } finally {
             setLoading(false);
         }
-    }, [status, page, fromDate, toDate, hqMode, selectedSiteId]);
+    }, [status, page, fromDate, toDate, hqMode, selectedSiteId, showAllHistory]);
 
     const toggleSelectAll = () => {
         if (selectedIds.length === items.length) {
@@ -877,7 +879,20 @@ export default function CompOffRequests() {
                                 placeholder="To Date"
                             />
 
-                            <div className="flex items-center space-x-2"></div>
+                            <div className="flex items-center space-x-2">
+                                <label className="flex items-center space-x-2 cursor-pointer text-sm font-medium text-gray-700">
+                                    <input
+                                        type="checkbox"
+                                        checked={showAllHistory}
+                                        onChange={(e) => {
+                                            setShowAllHistory(e.target.checked);
+                                            setPage(1);
+                                        }}
+                                        className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                    />
+                                    <span>Show All History (Web Only)</span>
+                                </label>
+                            </div>
                         </div>
 
                         <div className="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -893,6 +908,7 @@ export default function CompOffRequests() {
                                         setStatus("All");
                                         setFromDate("");
                                         setToDate("");
+                                        setShowAllHistory(false);
                                         setPage(1);
                                     }}
                                     className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm flex-1"

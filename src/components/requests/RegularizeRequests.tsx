@@ -108,6 +108,7 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
   const [status, setStatus] = useState<string>("All");
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
+  const [showAllHistory, setShowAllHistory] = useState<boolean>(false);
   const [items, setItems] = useState<RequestItem[]>([]);
   const [stats, setStats] = useState<{ pending: number; approved: number; rejected: number; total: number } | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -238,6 +239,7 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
       }
       if (fromDate) params["start"] = fromDate;
       if (toDate) params["end"] = toDate;
+      if (showAllHistory) params["showAllHistory"] = "true";
 
       const res = await apiClient<any>("/attendance/regularize-requests", { method: "GET", params, withAuth: true });
       const list: any[] = Array.isArray(res) ? res : (res?.items || res?.rows || res?.requests || res?.data || []);
@@ -248,11 +250,11 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
     } finally {
       setLoading(false);
     }
-  }, [status, hqMode, selectedSiteId, fromDate, toDate]);
+  }, [status, hqMode, selectedSiteId, fromDate, toDate, showAllHistory]);
 
   useEffect(() => {
     fetchList();
-  }, [status, externalControl ? extHq : hqMode, externalControl ? extSiteId : selectedSiteId, fromDate, toDate]);
+  }, [status, externalControl ? extHq : hqMode, externalControl ? extSiteId : selectedSiteId, fromDate, toDate, showAllHistory]);
 
   useEffect(() => {
     (async () => {
@@ -1380,7 +1382,20 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
                 placeholder="To Date"
               />
 
-              <div className="flex items-center space-x-2"></div>
+              <div className="flex items-center space-x-2">
+                <label className="flex items-center space-x-2 cursor-pointer text-sm font-medium text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={showAllHistory}
+                    onChange={(e) => {
+                      setShowAllHistory(e.target.checked);
+                      setPage(1);
+                    }}
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span>Show All History (Web Only)</span>
+                </label>
+              </div>
             </div>
 
             <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1396,6 +1411,7 @@ export default function RegularizeRequests({ defaultHQ = true, showHQToggle = tr
                     setStatus("All");
                     setFromDate("");
                     setToDate("");
+                    setShowAllHistory(false);
                     if (!externalControl) {
                       setSelectedSiteId(null);
                       setHqMode(defaultHQ);

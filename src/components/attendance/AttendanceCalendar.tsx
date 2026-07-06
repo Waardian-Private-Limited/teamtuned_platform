@@ -225,11 +225,23 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
       };
     }
 
+    // Missed Out (Check-in but no Check-out for past days, or explicit Missed Out status)
+    const isPastDay = dateKey ? dateKey < todayKey : false;
+    const isNoOut = record?.punch_in_time && !record?.punch_out_time && isPastDay;
+    if (record?.status === "Missed Out" || record?.status === "Pending" || isNoOut) {
+      return {
+        color: "bg-red-50 border-red-200 text-red-700",
+        dotColor: "bg-red-500",
+        label: "MO",
+        type: "missed_out"
+      };
+    }
+
     // If no attendance_id and not future, it's absent
     if (!record?.attendance_id && !isFuture) {
       return {
-        color: "bg-rose-50 border-rose-200 text-rose-900",
-        dotColor: "bg-rose-600",
+        color: "bg-red-900 border-red-955 text-white",
+        dotColor: "bg-red-200",
         label: "A",
         type: "absent"
       };

@@ -365,12 +365,14 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
     // Check No Out (Check-in but no Check-out for past days)
     const isPastDay = dateStr ? new Date(dateStr).getTime() < new Date().setHours(0, 0, 0, 0) : false;
     const isNoOut = record?.punch_in_time && !record?.punch_out_time && isPastDay;
-    if (isNoOut) {
+    
+    const isMissedOut = statusRaw === "Missed Out" || statusRaw === "Pending" || isNoOut;
+    if (isMissedOut) {
       return {
-        color: "text-rose-900",
-        bg: "bg-rose-50/50",
-        border: "border-rose-300 border-dashed border-2",
-        label: "Absent (No Out)",
+        color: "text-red-700",
+        bg: "bg-red-50",
+        border: "border-red-200",
+        label: "Missed Out",
         icon: AlertTriangle
       };
     }
@@ -433,7 +435,7 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
     }
 
     // Standard Absent
-    return { color: "text-rose-950", bg: "bg-rose-50", border: "border-rose-200", label: "Absent", icon: XCircle };
+    return { color: "text-white", bg: "bg-red-900", border: "border-red-955", label: "Absent", icon: XCircle };
   };
 
   const formatTime = (timeString: string) => {
@@ -624,6 +626,8 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
               <MetricCard label="Present" value={metrics.present_days || 0} color="emerald" icon={CheckCircle2} />
               <MetricCard label="Absent" value={metrics.absent_days || 0} color="rose" icon={XCircle} />
               <MetricCard label="Late Deduction" value={metrics.late_days || 0} color="orange" icon={Clock} />
+              <MetricCard label="Total Late" value={`${metrics.total_late_minutes || 0} mins`} color="orange" icon={Clock} />
+              <MetricCard label="Total OT" value={`${metrics.total_ot_minutes || 0} mins`} color="blue" icon={Clock} />
               <MetricCard label="Paid Leaves" value={metrics.total_paid_leave_days || 0} color="teal" icon={CheckCircle2} />
               <MetricCard label="Adj PL" value={metrics.adjusted_paid_leaves || 0} color="teal" icon={CheckCircle2} />
               <MetricCard label="Comp Off" value={metrics.comp_off_days || 0} color="cyan" icon={CheckCircle2} />
@@ -701,6 +705,7 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
                               <>
                                 <div className={`mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold leading-none ${config.bg} ${config.color} border ${config.border}`}>
                                   {config.label === 'Present' ? 'P' :
+                                    config.label === 'Missed Out' ? 'MO' :
                                     config.label.includes('Absent') ? 'A' :
                                       config.label === 'Holiday' ? 'H' :
                                         config.label === 'Week Off' ? 'WO' :

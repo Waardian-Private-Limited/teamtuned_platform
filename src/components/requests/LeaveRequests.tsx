@@ -251,6 +251,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
   });
 
   // Edit Leave Request state
+  const [showAllHistory, setShowAllHistory] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editForm, setEditForm] = useState({
     start_date: "",
@@ -350,6 +351,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
       if (fromDate) params["start"] = fromDate;
       if (toDate) params["end"] = toDate;
       if (search) params["search"] = search;
+      if (showAllHistory) params["showAllHistory"] = "true";
 
       params["page"] = String(page);
       params["limit"] = String(pageSize);
@@ -365,7 +367,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
     } finally {
       setLoading(false);
     }
-  }, [status, hqMode, selectedSiteId, fromDate, toDate, search, page, pageSize, externalControl, extHq, extSiteId, isOrgAdmin, canHRMode]);
+  }, [status, hqMode, selectedSiteId, fromDate, toDate, search, page, pageSize, externalControl, extHq, extSiteId, isOrgAdmin, canHRMode, showAllHistory]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -2452,7 +2454,20 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                 placeholder="To Date"
               />
 
-              <div className="flex items-center space-x-2"></div>
+              <div className="flex items-center space-x-2">
+                <label className="flex items-center space-x-2 cursor-pointer text-sm font-medium text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={showAllHistory}
+                    onChange={(e) => {
+                      setShowAllHistory(e.target.checked);
+                      setPage(1);
+                    }}
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span>Show All History (Web Only)</span>
+                </label>
+              </div>
             </div>
 
             <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -2468,6 +2483,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                     setStatus("All");
                     setFromDate("");
                     setToDate("");
+                    setShowAllHistory(false);
                     if (!externalControl) {
                       setSelectedSiteId(null);
                       setHqMode(defaultHQ);
