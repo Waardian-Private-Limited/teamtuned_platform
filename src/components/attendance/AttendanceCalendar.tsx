@@ -506,7 +506,7 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
                             )}
 
                             {/* Night OT Text Badge */}
-                            {record?.was_night_ot && (
+                            {!!record?.was_night_ot && (
                               <span title="Night OT" className="px-1 py-0.2 rounded font-bold text-[7px] bg-indigo-600 text-white">Night OT</span>
                             )}
                           </div>
@@ -514,7 +514,7 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
                           {record && (
                             <div className="flex flex-col items-center mt-auto w-full">
                               {/* Night OT Session Times */}
-                              {record.was_night_ot && record.sessions?.filter((s: any) => s.session_type === 'night_ot').map((s: any, i: number) => (
+                              {!!record.was_night_ot && record.sessions?.filter((s: any) => s.session_type === 'night_ot').map((s: any, i: number) => (
                                 <div key={i} className="text-[8px] text-indigo-600 font-bold leading-tight flex items-center gap-0.5">
                                   <span>{s.start_time ? new Date(s.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '??'}</span>
                                   <span>-</span>

@@ -745,7 +745,7 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
                                     <span title="Overridden" className="px-1 py-0.2 rounded font-bold text-[7px] bg-blue-50 text-blue-700 border border-blue-200 leading-none">OV</span>
                                   )}
                                   {/* Night OT Text Badge */}
-                                  {record?.was_night_ot && (
+                                  {!!record?.was_night_ot && (
                                     <span title="Night OT" className="px-1 py-0.2 rounded font-bold text-[7px] bg-indigo-600 text-white leading-none">Night OT</span>
                                   )}
                                 </div>
