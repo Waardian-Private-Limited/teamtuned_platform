@@ -240,7 +240,7 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
     // If status is explicitly Absent, or no attendance record exists and not future
     if (record?.status === "Absent" || (!(record?.attendance_id || record?.id) && !isFuture)) {
       return {
-        color: "bg-red-600 border-red-700 text-white",
+        color: "bg-red-300 border-red-700 text-white",
         dotColor: "bg-red-200",
         label: "A",
         type: "absent"
@@ -268,7 +268,7 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
   const earlyPenaltyCount = stats.EarlyPenalty ?? 0;
   const lateDeductionDates = stats.LateDeductionDates || [];
   const earlyPenaltyDates = stats.EarlyPenaltyDates || [];
-  
+
   const lateRemoved = stats.LateRemoved || 0;
   const earlyRemoved = stats.EarlyRemoved || 0;
   const latePenaltyRemoved = stats.LatePenaltyRemoved || 0;
@@ -522,11 +522,11 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
                                 </div>
                               ))}
 
-                                {record.total_work_minutes > 0 && (
-                                  <div className="text-[10px] opacity-70 font-semibold">
-                                    {Math.floor(record.total_work_minutes / 60)}h{record.total_work_minutes % 60}m
-                                  </div>
-                                )}
+                              {record.total_work_minutes > 0 && (
+                                <div className="text-[10px] opacity-70 font-semibold">
+                                  {Math.floor(record.total_work_minutes / 60)}h{record.total_work_minutes % 60}m
+                                </div>
+                              )}
                             </div>
                           )}
                         </button>

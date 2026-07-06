@@ -365,7 +365,7 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
     // Check No Out (Check-in but no Check-out for past days)
     const isPastDay = dateStr ? new Date(dateStr).getTime() < new Date().setHours(0, 0, 0, 0) : false;
     const isNoOut = record?.punch_in_time && !record?.punch_out_time && isPastDay;
-    
+
     const isMissedOut = statusRaw === "Missed Out" || statusRaw === "Pending" || isNoOut;
     if (isMissedOut) {
       return {
@@ -435,7 +435,7 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
     }
 
     // Standard Absent
-    return { color: "text-white", bg: "bg-red-600", border: "border-red-700", label: "Absent", icon: XCircle };
+    return { color: "text-white", bg: "bg-300", border: "border-red-700", label: "Absent", icon: XCircle };
   };
 
   const formatTime = (timeString: string) => {
@@ -638,7 +638,7 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
               <MetricCard label="Week Off" value={metrics.total_week_offs || 0} color="slate" icon={CalendarIcon} />
               <MetricCard label="Holidays" value={metrics.total_holidays || 0} color="violet" icon={CalendarIcon} />
               <MetricCard label="Sandwich LOP" value={metrics.sandwich_loss_days || 0} color="rose" icon={AlertTriangle} />
-              
+
               {/* Penalty Removals */}
               {metrics.lateRemoved > 0 && <MetricCard label="Late Removed" value={metrics.lateRemoved} color="emerald" icon={CheckCircle2} />}
               {metrics.earlyRemoved > 0 && <MetricCard label="Early Removed" value={metrics.earlyRemoved} color="emerald" icon={CheckCircle2} />}
@@ -706,13 +706,13 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
                                 <div className={`mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold leading-none ${config.bg} ${config.color} border ${config.border}`}>
                                   {config.label === 'Present' ? 'P' :
                                     config.label === 'Missed Out' ? 'MO' :
-                                    config.label.includes('Absent') ? 'A' :
-                                      config.label === 'Holiday' ? 'H' :
-                                        config.label === 'Week Off' ? 'WO' :
-                                          config.label.includes('Paid Leave') ? 'PL' :
-                                            config.label.includes('Unpaid Leave') ? 'LWP' :
-                                              config.label.includes('Half') ? 'HD' :
-                                                config.label.slice(0, 2).toUpperCase()}
+                                      config.label.includes('Absent') ? 'A' :
+                                        config.label === 'Holiday' ? 'H' :
+                                          config.label === 'Week Off' ? 'WO' :
+                                            config.label.includes('Paid Leave') ? 'PL' :
+                                              config.label.includes('Unpaid Leave') ? 'LWP' :
+                                                config.label.includes('Half') ? 'HD' :
+                                                  config.label.slice(0, 2).toUpperCase()}
                                 </div>
                                 {/* Flag-based badges — read directly from record columns */}
                                 <div className="mt-1 flex gap-0.5 items-center flex-wrap justify-center px-0.5">
