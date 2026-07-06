@@ -378,14 +378,14 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
     }
 
     if (record?.is_holiday) {
-      if (record?.attendance_id && record?.total_work_minutes > 0) {
+      if ((record?.attendance_id || record?.id) && record?.total_work_minutes > 0) {
         return { color: "text-blue-950", bg: "bg-blue-50", border: "border-blue-200", label: "Overtime", icon: Clock };
       }
       return { color: "text-violet-600", bg: "bg-violet-50", border: "border-violet-200", label: "Holiday", icon: CalendarIcon };
     }
 
     if (record?.is_weekly_off) {
-      if (record?.attendance_id !== null && record?.attendance_id !== undefined) {
+      if (record?.attendance_id || record?.id) {
         return { color: "text-blue-950", bg: "bg-blue-50", border: "border-blue-200", label: "Overtime", icon: Clock };
       }
       return { color: "text-slate-600", bg: "bg-slate-100", border: "border-slate-200", label: "Week Off", icon: CalendarIcon };

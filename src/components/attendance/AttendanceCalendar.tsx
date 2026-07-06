@@ -128,7 +128,7 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
     const isFuture = dateKey ? dateKey > todayKey : false;
 
     // Future dates should not be marked as absent
-    if (isFuture && !record?.attendance_id) {
+    if (isFuture && !(record?.attendance_id || record?.id)) {
       return {
         color: "bg-white border-slate-100 text-slate-300",
         dotColor: "bg-slate-200",
@@ -139,7 +139,7 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
 
     // Holiday takes priority (but check for overtime work)
     if (record?.is_holiday) {
-      if (record?.attendance_id && record?.total_work_minutes > 0) {
+      if ((record?.attendance_id || record?.id) && record?.total_work_minutes > 0) {
         return {
           color: "bg-blue-50 border-blue-200 text-blue-900",
           dotColor: "bg-blue-600",
@@ -157,7 +157,7 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
 
     // Week off (but check for overtime work)
     if (record?.is_weekly_off) {
-      if (record?.attendance_id !== null) {
+      if (record?.attendance_id || record?.id) {
         return {
           color: "bg-blue-50 border-blue-200 text-blue-900",
           dotColor: "bg-blue-600",
@@ -238,7 +238,7 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
     }
 
     // If no attendance_id and not future, it's absent
-    if (!record?.attendance_id && !isFuture) {
+    if (!(record?.attendance_id || record?.id) && !isFuture) {
       return {
         color: "bg-red-900 border-red-955 text-white",
         dotColor: "bg-red-200",
