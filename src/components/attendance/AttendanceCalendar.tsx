@@ -237,8 +237,8 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
       };
     }
 
-    // If no attendance_id and not future, it's absent
-    if (!(record?.attendance_id || record?.id) && !isFuture) {
+    // If status is explicitly Absent, or no attendance record exists and not future
+    if (record?.status === "Absent" || (!(record?.attendance_id || record?.id) && !isFuture)) {
       return {
         color: "bg-red-600 border-red-700 text-white",
         dotColor: "bg-red-200",
