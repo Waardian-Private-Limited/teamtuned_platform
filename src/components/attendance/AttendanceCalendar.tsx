@@ -240,7 +240,7 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
     // If no attendance_id and not future, it's absent
     if (!(record?.attendance_id || record?.id) && !isFuture) {
       return {
-        color: "bg-red-900 border-red-955 text-white",
+        color: "bg-red-600 border-red-700 text-white",
         dotColor: "bg-red-200",
         label: "A",
         type: "absent"
@@ -601,6 +601,22 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
                   <span className="text-sm text-slate-700">Holiday</span>
                 </div>
                 <span className="font-semibold text-violet-900">{holiday}</span>
+              </div>
+
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-orange-50/50 border border-orange-200/50">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-orange-500"></div>
+                  <span className="text-sm text-slate-700">Total Late</span>
+                </div>
+                <span className="font-semibold text-orange-900">{summary?.TotalLateMinutes || 0} mins</span>
+              </div>
+
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-blue-50/50 border border-blue-200/50">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                  <span className="text-sm text-slate-700">Total OT</span>
+                </div>
+                <span className="font-semibold text-blue-900">{summary?.TotalOTMinutes || 0} mins</span>
               </div>
 
               {lateDeductionCount > 0 && (

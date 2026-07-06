@@ -435,7 +435,7 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
     }
 
     // Standard Absent
-    return { color: "text-white", bg: "bg-red-900", border: "border-red-955", label: "Absent", icon: XCircle };
+    return { color: "text-white", bg: "bg-red-600", border: "border-red-700", label: "Absent", icon: XCircle };
   };
 
   const formatTime = (timeString: string) => {
