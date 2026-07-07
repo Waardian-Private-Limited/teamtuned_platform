@@ -51,6 +51,7 @@ import {
   List,
   PlusCircle,
   Camera,
+  MinusCircle,
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
@@ -143,7 +144,8 @@ export default function EmployeeSidebar({
         "/employee/attendance-config",
         "/employee/holiday-calendar",
         "/employee/approval-workflows",
-        "/employee/attendance-rules"
+        "/employee/attendance-rules",
+        "/employee/other-deductions"
       ]));
 
       setAttendanceOpen(isActive([
@@ -155,7 +157,8 @@ export default function EmployeeSidebar({
         "/employee/leave-requests",
         "/employee/comp-offs",
         "/employee/payroll",
-        "/employee/salary-slips"
+        "/employee/salary-slips",
+        "/employee/other-deductions"
       ]));
 
       setManagementOpen(isActive([
@@ -762,6 +765,14 @@ export default function EmployeeSidebar({
                         label="Salary Slips"
                         href="/employee/salary-slips"
                         active={pathname?.startsWith("/employee/salary-slips") || false}
+                      />
+                    )}
+                    {(isOrgAdmin || hasPerm("HR_MODE") || hasPerm("PAYROLL_ADMIN")) && (
+                      <Item
+                        icon={MinusCircle}
+                        label="Other Deductions"
+                        href="/employee/other-deductions"
+                        active={pathname?.startsWith("/employee/other-deductions") || false}
                       />
                     )}
                   </div>

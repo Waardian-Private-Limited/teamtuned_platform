@@ -48,6 +48,7 @@ import {
     ShoppingCart,
     Zap,
     CreditCard,
+    MinusCircle,
     PieChart,
     Phone,
     HardHat,
@@ -151,7 +152,8 @@ export default function OrgSidebar({
                 "/org-admin/approval-workflows",
                 "/org-admin/requests",
                 "/org-admin/payroll",
-                "/org-admin/salary-slips"
+                "/org-admin/salary-slips",
+                "/org-admin/other-deductions"
             ]));
 
             setManagementOpen(isActive([
@@ -386,6 +388,7 @@ export default function OrgSidebar({
                             <Item icon={ListChecks} label="Session Requests" href="/org-admin/requests/sessions" active={pathname === "/org-admin/requests/sessions"} />
                             <Item icon={ListChecks} label="Payroll" href="/org-admin/payroll" active={pathname === "/org-admin/payroll"} />
                             <Item icon={FileText} label="Salary Slips" href="/org-admin/salary-slips" active={pathname === "/org-admin/salary-slips"} />
+                            <Item icon={MinusCircle} label="Other Deductions" href="/org-admin/other-deductions" active={pathname?.startsWith("/org-admin/other-deductions")} />
                         </div>
                     )}
 
