@@ -13,6 +13,7 @@ import {
     Clock,
     CheckCircle,
     XCircle,
+    Upload,
 } from "lucide-react";
 import RequestAdvanceModal from "./RequestAdvanceModal";
 import RequestDetails from "./RequestDetails";
@@ -45,12 +46,30 @@ type Request = {
     updated_at: string;
 };
 
+type Employee = {
+    id: number;
+    first_name: string;
+    last_name: string;
+    email: string;
+};
+
 export default function SalaryAdvanceDashboard() {
     const [loading, setLoading] = useState(false);
     const [eligibility, setEligibility] = useState<Eligibility | null>(null);
     const [requests, setRequests] = useState<Request[]>([]);
     const [showRequestModal, setShowRequestModal] = useState(false);
+    const [showManualAdvanceModal, setShowManualAdvanceModal] = useState(false);
     const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
+    const [employees, setEmployees] = useState<Employee[]>([]);
+    const [manualFormData, setManualFormData] = useState({
+        employee_id: '',
+        total_amount: '',
+        amount_paid: '',
+        repayment_months: '',
+        start_month: new Date().toISOString().substring(0, 7),
+        reason: 'Manual Entry'
+    });
+    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         fetchData();
@@ -59,19 +78,64 @@ export default function SalaryAdvanceDashboard() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [eligData, requestsData] = await Promise.all([
+            const [eligData, requestsData, employeesData] = await Promise.all([
                 apiClient<Eligibility>("/salary-advance/eligibility", { withAuth: true }),
                 apiClient<{ requests: Request[] }>("/salary-advance/requests", { withAuth: true }),
+                apiClient<{ data: Employee[] }>("/organization/employees?format=paginated&limit=1000", { withAuth: true }),
             ]);
 
             setEligibility(eligData);
             setRequests(requestsData.requests || []);
+            setEmployees(employeesData.data || []);
         } catch (error) {
             console.error("Failed to fetch salary advance data:", error);
         } finally {
             setLoading(false);
         }
     };
+
+    const handleSubmitManualAdvance = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            setLoading(true);
+            await apiClient("/salary-advance/manual-advance", {
+                method: "POST",
+                withAuth: true,
+                body: JSON.stringify({
+                    ...manualFormData,
+                    employee_id: Number(manualFormData.employee_id),
+                    total_amount: Number(manualFormData.total_amount),
+                    amount_paid: Number(manualFormData.amount_paid || 0),
+                    repayment_months: Number(manualFormData.repayment_months),
+                }),
+            });
+            setShowManualAdvanceModal(false);
+            fetchData();
+            // Reset form
+            setManualFormData({
+                employee_id: '',
+                total_amount: '',
+                amount_paid: '',
+                repayment_months: '',
+                start_month: new Date().toISOString().substring(0, 7),
+                reason: 'Manual Entry'
+            });
+            setSearchQuery('');
+        } catch (error) {
+            console.error("Failed to create manual advance:", error);
+            alert("Failed to create manual advance. Please try again.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const filteredEmployees = employees.filter((emp) => {
+        if (!searchQuery.trim()) return true;
+        const fullName = `${emp.first_name || ''} ${emp.last_name || ''}`.toLowerCase();
+        const email = (emp.email || "").toLowerCase();
+        const searchLower = searchQuery.toLowerCase();
+        return fullName.includes(searchLower) || email.includes(searchLower);
+    });
 
     const getStatusBadge = (status: string) => {
         const statusConfig: Record<string, { color: string; icon: any; label: string }> = {
@@ -126,6 +190,13 @@ export default function SalaryAdvanceDashboard() {
                         >
                             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
                             Refresh
+                        </button>
+                        <button
+                            onClick={() => setShowManualAdvanceModal(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                            <Upload className="w-4 h-4" />
+                            Import Old Advance
                         </button>
                         {eligibility?.eligible && (
                             <button
@@ -272,6 +343,137 @@ export default function SalaryAdvanceDashboard() {
                     requestId={selectedRequest.id}
                     onClose={() => setSelectedRequest(null)}
                 />
+            )}
+
+            {/* Manual Advance Modal */}
+            {showManualAdvanceModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+                        <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+                            <h2 className="text-xl font-semibold text-gray-900">Import Old Salary Advance</h2>
+                            <button
+                                onClick={() => setShowManualAdvanceModal(false)}
+                                className="p-2 hover:bg-gray-100 rounded-lg"
+                            >
+                                <XCircle size={24} className="text-gray-500" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleSubmitManualAdvance} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Search Employee</label>
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search by name or email"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Select Employee *</label>
+                                <select
+                                    value={manualFormData.employee_id}
+                                    onChange={(e) => setManualFormData({ ...manualFormData, employee_id: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    required
+                                >
+                                    <option value="">Select Employee</option>
+                                    {filteredEmployees.map((emp) => (
+                                        <option key={emp.id} value={emp.id}>
+                                            {emp.first_name} {emp.last_name} ({emp.email})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Total Amount *</label>
+                                    <input
+                                        type="number"
+                                        value={manualFormData.total_amount}
+                                        onChange={(e) => setManualFormData({ ...manualFormData, total_amount: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        placeholder="e.g. 10000"
+                                        required
+                                        min="0"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Amount Paid</label>
+                                    <input
+                                        type="number"
+                                        value={manualFormData.amount_paid}
+                                        onChange={(e) => setManualFormData({ ...manualFormData, amount_paid: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        placeholder="e.g. 6000"
+                                        min="0"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Repayment Months *</label>
+                                    <input
+                                        type="number"
+                                        value={manualFormData.repayment_months}
+                                        onChange={(e) => setManualFormData({ ...manualFormData, repayment_months: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        placeholder="e.g. 5"
+                                        required
+                                        min="1"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Month *</label>
+                                    <input
+                                        type="month"
+                                        value={manualFormData.start_month}
+                                        onChange={(e) => setManualFormData({ ...manualFormData, start_month: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+                                <input
+                                    type="text"
+                                    value={manualFormData.reason}
+                                    onChange={(e) => setManualFormData({ ...manualFormData, reason: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    placeholder="Reason for advance"
+                                />
+                            </div>
+
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <p className="text-sm text-blue-800">
+                                    <strong>Note:</strong> The remaining amount will be split equally into the specified number of months, starting from the selected month.
+                                </p>
+                            </div>
+
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowManualAdvanceModal(false)}
+                                    className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                                >
+                                    {loading ? 'Creating...' : 'Create Advance'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             )}
         </div>
     );
