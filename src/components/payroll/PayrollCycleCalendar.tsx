@@ -884,6 +884,12 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
                       <span className="text-slate-600">Late Deduction Days</span>
                       <span className="font-medium text-orange-700">{metrics.late_days?.toLocaleString() || 0}</span>
                     </div>
+                    {metrics.late_min_deduction_days > 0 && (
+                      <div className="flex items-center justify-between py-1">
+                        <span className="text-slate-600">Late Min Deduction</span>
+                        <span className="font-medium text-orange-700">{metrics.late_min_deduction_days?.toLocaleString()} days (₹{salary.late_min_deduction_amount?.toLocaleString() || 0})</span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between py-1">
                       <span className="text-slate-600">Sandwich LOP Days</span>
                       <span className="font-medium text-rose-700">{metrics.sandwich_loss_days?.toLocaleString() || 0}</span>

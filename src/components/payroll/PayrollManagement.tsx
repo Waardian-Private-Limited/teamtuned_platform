@@ -749,7 +749,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
               <div className="min-w-[2100px] h-full flex flex-col">
                 {/* Fixed Header */}
                 <div className="bg-white border-b border-slate-200 flex-shrink-0 z-10">
-                  <div className="grid grid-cols-[40px_80px_200px_120px_80px_100px_100px_110px_80px_80px_80px_80px_100px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-3">
+                  <div className="grid grid-cols-[40px_80px_200px_120px_80px_100px_100px_100px_100px_110px_80px_80px_80px_80px_100px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-3">
                     <div className="flex items-center justify-center">
                       <input
                         type="checkbox"
@@ -765,6 +765,8 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Total Days</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Present Days</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Absent Days</div>
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Late Min Deduct</div>
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Late Min Amt</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Paid Leave</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Adj PL</div>
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wide text-right">Adj CO</div>
@@ -786,11 +788,13 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                   {loading ? (
                     // Ghost Loader
                     Array.from({ length: 5 }).map((_, i) => (
-                      <div key={i} className="min-w-[2100px] grid grid-cols-[80px_200px_120px_80px_100px_100px_110px_80px_80px_80px_80px_100px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-4 animate-pulse">
+                      <div key={i} className="min-w-[2100px] grid grid-cols-[80px_200px_120px_80px_100px_100px_100px_100px_110px_80px_80px_80px_80px_100px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-4 animate-pulse">
                         <div className="w-9 h-9 bg-slate-100 rounded-lg"></div>
                         <div className="h-4 bg-slate-100 rounded w-32"></div>
 
                         <div className="h-4 bg-slate-100 rounded w-24"></div>
+                        <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
+                        <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
                         <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
                         <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
                         <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
@@ -829,7 +833,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                       const salary = employee.salary || {};
 
                       return (
-                        <div key={employee.id} className="min-w-[2100px] grid grid-cols-[40px_80px_200px_120px_80px_100px_100px_110px_80px_80px_80px_80px_100px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-3 hover:bg-slate-50 transition-colors items-center group border-l-2 border-transparent hover:border-blue-500">
+                        <div key={employee.id} className="min-w-[2100px] grid grid-cols-[40px_80px_200px_120px_80px_100px_100px_100px_100px_110px_80px_80px_80px_80px_100px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-3 hover:bg-slate-50 transition-colors items-center group border-l-2 border-transparent hover:border-blue-500">
                           {/* Checkbox */}
                           <div className="flex items-center justify-center">
                             <input
@@ -879,6 +883,12 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
 
                           {/* Absent */}
                           <div className="text-sm text-rose-600 font-medium text-right">{metrics.absent_days || 0}</div>
+
+                          {/* Late Min Deduct */}
+                          <div className="text-sm text-amber-600 font-medium text-right">{metrics.late_min_deduction_days || 0}</div>
+
+                          {/* Late Min Amt */}
+                          <div className="text-sm text-rose-600 font-medium text-right">₹{Number(salary.late_min_deduction_amount || 0).toLocaleString()}</div>
 
                           {/* Paid Leaves */}
                           <div className="text-sm text-teal-600 font-medium text-right">{Number(metrics.total_paid_leave_days || 0).toFixed(1)}</div>
@@ -942,7 +952,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
 
                   {/* Total Row */}
                   {items.length > 0 && (
-                    <div className="min-w-[2100px] grid grid-cols-[40px_80px_200px_120px_80px_100px_100px_110px_80px_80px_80px_80px_100px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-3 bg-slate-100 border-t-2 border-slate-200 items-center font-bold text-slate-900 sticky bottom-0 z-10 shadow-inner">
+                    <div className="min-w-[2100px] grid grid-cols-[40px_80px_200px_120px_80px_100px_100px_100px_100px_110px_80px_80px_80px_80px_100px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-3 bg-slate-100 border-t-2 border-slate-200 items-center font-bold text-slate-900 sticky bottom-0 z-10 shadow-inner">
                       <div></div>
                       <div></div>
                       <div>Total Employees: {items.length}</div>
@@ -957,6 +967,12 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
 
                       {/* Absent */}
                       <div className="text-right">{items.reduce((sum, item) => sum + (Number(item?.metrics?.absent_days) || 0), 0)}</div>
+
+                      {/* Late Min Deduct */}
+                      <div className="text-right">{items.reduce((sum, item) => sum + (Number(item?.metrics?.late_min_deduction_days) || 0), 0)}</div>
+
+                      {/* Late Min Amt */}
+                      <div className="text-right">₹{items.reduce((sum, item) => sum + (Number(item?.salary?.late_min_deduction_amount) || 0), 0).toLocaleString()}</div>
 
                       {/* Paid Leaves */}
                       <div className="text-right">{items.reduce((sum, item) => sum + (Number(item?.metrics?.total_paid_leave_days) || 0), 0).toFixed(1)}</div>
