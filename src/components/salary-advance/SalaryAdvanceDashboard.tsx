@@ -101,13 +101,13 @@ export default function SalaryAdvanceDashboard() {
             await apiClient("/salary-advance/manual-advance", {
                 method: "POST",
                 withAuth: true,
-                body: JSON.stringify({
+                body: {
                     ...manualFormData,
                     employee_id: Number(manualFormData.employee_id),
                     total_amount: Number(manualFormData.total_amount),
                     amount_paid: Number(manualFormData.amount_paid || 0),
                     repayment_months: Number(manualFormData.repayment_months),
-                }),
+                },
             });
             setShowManualAdvanceModal(false);
             fetchData();

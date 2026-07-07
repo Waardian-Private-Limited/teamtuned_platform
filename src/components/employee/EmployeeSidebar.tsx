@@ -1047,6 +1047,12 @@ export default function EmployeeSidebar({
               {salaryAdvanceOpen && (
                 <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
                   <div className={`relative ${isCollapsed ? "" : "pl-3 border-l border-gray-100"}`}>
+                    <Item
+                      icon={LayoutDashboard}
+                      label="Dashboard"
+                      href="/employee/salary-advance/dashboard"
+                      active={pathname === "/employee/salary-advance/dashboard"}
+                    />
                     {canViewSalAdvRequests && (
                       <Item
                         icon={ClipboardList}

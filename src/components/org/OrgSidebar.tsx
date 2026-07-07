@@ -432,17 +432,18 @@ export default function OrgSidebar({
                     )}
 
                     {/* Salary Advance Section */}
-                    <CategoryButton label="Salary Advance" isOpen={salaryAdvanceOpen} onClick={() => handleToggle(setSalaryAdvanceOpen, salaryAdvanceOpen)} />
-                    {salaryAdvanceOpen && (
-                        <div className="ml-4 space-y-1">
-                            <Item icon={ClipboardList} label="All Requests" href="/org-admin/salary-advance/requests" active={pathname === "/org-admin/salary-advance/requests"} />
-                            <Item icon={CheckSquare} label="Approval Queue" href="/org-admin/salary-advance/approvals" active={pathname === "/org-admin/salary-advance/approvals"} />
-                            <Item icon={Calendar} label="Repayment Schedule" href="/org-admin/salary-advance/repayments" active={pathname === "/org-admin/salary-advance/repayments"} />
-                            <Item icon={TrendingUp} label="Analytics" href="/org-admin/salary-advance/analytics" active={pathname === "/org-admin/salary-advance/analytics"} />
-                            <Item icon={Settings} label="Policy Configuration" href="/org-admin/salary-advance/policy" active={pathname === "/org-admin/salary-advance/policy"} />
-                            <Item icon={Users} label="Accounts" href="/org-admin/salary-advance/accounts" active={pathname === "/org-admin/salary-advance/accounts"} />
-                        </div>
-                    )}
+        <CategoryButton label="Salary Advance" isOpen={salaryAdvanceOpen} onClick={() => handleToggle(setSalaryAdvanceOpen, salaryAdvanceOpen)} />
+        {salaryAdvanceOpen && (
+          <div className="ml-4 space-y-1">
+            <Item icon={LayoutDashboard} label="Dashboard" href="/org-admin/salary-advance/dashboard" active={pathname === "/org-admin/salary-advance/dashboard"} />
+            <Item icon={ClipboardList} label="All Requests" href="/org-admin/salary-advance/requests" active={pathname === "/org-admin/salary-advance/requests"} />
+            <Item icon={CheckSquare} label="Approval Queue" href="/org-admin/salary-advance/approvals" active={pathname === "/org-admin/salary-advance/approvals"} />
+            <Item icon={Calendar} label="Repayment Schedule" href="/org-admin/salary-advance/repayments" active={pathname === "/org-admin/salary-advance/repayments"} />
+            <Item icon={TrendingUp} label="Analytics" href="/org-admin/salary-advance/analytics" active={pathname === "/org-admin/salary-advance/analytics"} />
+            <Item icon={Settings} label="Policy Configuration" href="/org-admin/salary-advance/policy" active={pathname === "/org-admin/salary-advance/policy"} />
+            <Item icon={Users} label="Accounts" href="/org-admin/salary-advance/accounts" active={pathname === "/org-admin/salary-advance/accounts"} />
+          </div>
+        )}
 
                     {/* Inventory Section */}
                     {hasFeature("INVENTORY") && (
