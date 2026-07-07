@@ -12,13 +12,14 @@ interface OtherDeduction {
     id: number;
     first_name: string;
     last_name: string;
-    employee_code?: string;
   };
   amount: number;
   reason: string;
   month: string;
   site_id?: number;
   created_at: string;
+  first_name?: string;
+  last_name?: string;
 }
 
 export default function OtherDeductionsManagement() {
@@ -56,20 +57,30 @@ export default function OtherDeductionsManagement() {
     try {
       const [deductionsData, employeesData, sitesData] = await Promise.all([
         apiClient(`/attendance/other-deductions?month=${selectedMonth}`, { withAuth: true }),
-        apiClient<any>("/organization/employees", { withAuth: true }),
+        apiClient<any>("/organization/employees", { 
+          withAuth: true, 
+          params: { format: "paginated", limit: 10000 } 
+        }),
         apiClient<any>("/sites", { withAuth: true }),
       ]);
 
-      setDeductions(deductionsData || []);
-      // Employees data is either an array directly or in data.something? Let's check what we get!
-      const employeeList = Array.isArray(employeesData) ? employeesData : 
-        (Array.isArray(employeesData?.data) ? employeesData.data : 
-        (Array.isArray(employeesData?.employees) ? employeesData.employees : []));
+      // Map deduction data to have employee object
+      const mappedDeductions = (deductionsData || []).map((d: any) => ({
+        ...d,
+        employee: {
+          id: d.employee_id,
+          first_name: d.first_name,
+          last_name: d.last_name
+        }
+      }));
+      setDeductions(mappedDeductions);
+      
+      // Employees data from paginated format
+      const employeeList = Array.isArray(employeesData?.data) ? employeesData.data : [];
       setEmployees(employeeList);
-      // Sites data same thing!
-      const siteList = Array.isArray(sitesData) ? sitesData : 
-        (Array.isArray(sitesData?.sites) ? sitesData.sites : 
-        (Array.isArray(sitesData?.data) ? sitesData.data : []));
+      
+      // Sites data from res.sites
+      const siteList = Array.isArray(sitesData?.sites) ? sitesData.sites : [];
       setSites(siteList);
     } catch (error: any) {
       console.error("Failed to fetch data:", error);
@@ -323,9 +334,6 @@ export default function OtherDeductionsManagement() {
                             ? `${deduction.employee.first_name} ${deduction.employee.last_name}`
                             : "Unknown Employee"}
                         </p>
-                        {deduction.employee?.employee_code && (
-                          <p className="text-xs text-gray-500">{deduction.employee.employee_code}</p>
-                        )}
                       </div>
                     </div>
                   </td>
@@ -387,7 +395,7 @@ export default function OtherDeductionsManagement() {
                   <option value="">Select Employee</option>
                   {employees.map((emp) => (
                     <option key={emp.id} value={emp.id}>
-                      {emp.first_name} {emp.last_name} {emp.employee_code ? `(${emp.employee_code})` : ""}
+                      {emp.first_name} {emp.last_name}
                     </option>
                   ))}
                 </select>
