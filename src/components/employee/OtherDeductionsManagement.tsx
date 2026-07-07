@@ -47,6 +47,17 @@ export default function OtherDeductionsManagement() {
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importLoading, setImportLoading] = useState(false);
   const [importResults, setImportResults] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Filter employees based on search query
+  const filteredEmployees = employees.filter((emp) => {
+    if (!searchQuery.trim()) return true;
+    const fullName = `${emp.first_name || ""} ${emp.last_name || ""}`.toLowerCase();
+    const email = (emp.email || "").toLowerCase();
+    const phone = (emp.phone || "").toLowerCase();
+    const searchLower = searchQuery.toLowerCase();
+    return fullName.includes(searchLower) || email.includes(searchLower) || phone.includes(searchLower);
+  });
 
   useEffect(() => {
     fetchData();
@@ -107,6 +118,7 @@ export default function OtherDeductionsManagement() {
       });
       setShowModal(false);
       setEditingDeduction(null);
+      setSearchQuery("");
       setFormData({
         employee_id: "",
         amount: "",
@@ -121,6 +133,7 @@ export default function OtherDeductionsManagement() {
 
   const handleEdit = (deduction: OtherDeduction) => {
     setEditingDeduction(deduction);
+    setSearchQuery("");
     setFormData({
       employee_id: String(deduction.employee_id),
       amount: String(deduction.amount),
@@ -374,32 +387,45 @@ export default function OtherDeductionsManagement() {
       {/* Add/Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-gray-900/30 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-md shadow-xl">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-lg font-semibold text-gray-900">
-                {editingDeduction ? "Edit Deduction" : "Add Deduction"}
-              </h2>
-              <button onClick={() => { setShowModal(false); setEditingDeduction(null); }}>
-                <X size={20} className="text-gray-500" />
-              </button>
-            </div>
-            <form onSubmit={handleSubmit} className="p-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Employee</label>
-                <select
-                  value={formData.employee_id}
-                  onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
+        <div className="bg-white rounded-xl w-full max-w-md shadow-xl">
+          <div className="flex items-center justify-between p-4 border-b">
+            <h2 className="text-lg font-semibold text-gray-900">
+              {editingDeduction ? "Edit Deduction" : "Add Deduction"}
+            </h2>
+            <button onClick={() => { 
+              setShowModal(false); 
+              setEditingDeduction(null); 
+              setSearchQuery("");
+            }}>
+              <X size={20} className="text-gray-500" />
+            </button>
+          </div>
+          <form onSubmit={handleSubmit} className="p-4 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Employee</label>
+              <div className="mb-2">
+                <input
+                  type="text"
+                  placeholder="Search employee by name, email or phone..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  required
-                >
-                  <option value="">Select Employee</option>
-                  {employees.map((emp) => (
-                    <option key={emp.id} value={emp.id}>
-                      {emp.first_name} {emp.last_name}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
+              <select
+                value={formData.employee_id}
+                onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                required
+              >
+                <option value="">Select Employee</option>
+                {filteredEmployees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.first_name} {emp.last_name}
+                  </option>
+                ))}
+              </select>
+            </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Month</label>
                 <input
