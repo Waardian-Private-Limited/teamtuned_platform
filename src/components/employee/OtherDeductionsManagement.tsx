@@ -61,9 +61,15 @@ export default function OtherDeductionsManagement() {
       ]);
 
       setDeductions(deductionsData || []);
-      const employeeList = Array.isArray(employeesData?.data) ? employeesData.data : (Array.isArray(employeesData) ? employeesData : []);
+      // Employees data is either an array directly or in data.something? Let's check what we get!
+      const employeeList = Array.isArray(employeesData) ? employeesData : 
+        (Array.isArray(employeesData?.data) ? employeesData.data : 
+        (Array.isArray(employeesData?.employees) ? employeesData.employees : []));
       setEmployees(employeeList);
-      const siteList = Array.isArray(sitesData?.sites) ? sitesData.sites : (Array.isArray(sitesData) ? sitesData : []);
+      // Sites data same thing!
+      const siteList = Array.isArray(sitesData) ? sitesData : 
+        (Array.isArray(sitesData?.sites) ? sitesData.sites : 
+        (Array.isArray(sitesData?.data) ? sitesData.data : []));
       setSites(siteList);
     } catch (error: any) {
       console.error("Failed to fetch data:", error);
