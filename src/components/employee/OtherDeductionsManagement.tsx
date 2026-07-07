@@ -56,13 +56,15 @@ export default function OtherDeductionsManagement() {
     try {
       const [deductionsData, employeesData, sitesData] = await Promise.all([
         apiClient(`/attendance/other-deductions?month=${selectedMonth}`, { withAuth: true }),
-        apiClient("/organization/employees", { withAuth: true }),
-        apiClient("/sites", { withAuth: true }),
+        apiClient<any>("/organization/employees", { withAuth: true }),
+        apiClient<any>("/sites", { withAuth: true }),
       ]);
 
       setDeductions(deductionsData || []);
-      setEmployees(employeesData?.employees || employeesData || []);
-      setSites(sitesData?.sites || sitesData || []);
+      const employeeList = Array.isArray(employeesData?.data) ? employeesData.data : (Array.isArray(employeesData) ? employeesData : []);
+      setEmployees(employeeList);
+      const siteList = Array.isArray(sitesData?.sites) ? sitesData.sites : (Array.isArray(sitesData) ? sitesData : []);
+      setSites(siteList);
     } catch (error: any) {
       console.error("Failed to fetch data:", error);
     } finally {
@@ -357,8 +359,8 @@ export default function OtherDeductionsManagement() {
 
       {/* Add/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-md">
+        <div className="fixed inset-0 bg-gray-900/30 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-md shadow-xl">
             <div className="flex items-center justify-between p-4 border-b">
               <h2 className="text-lg font-semibold text-gray-900">
                 {editingDeduction ? "Edit Deduction" : "Add Deduction"}
@@ -440,8 +442,8 @@ export default function OtherDeductionsManagement() {
 
       {/* Import Modal */}
       {showImport && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-2xl">
+        <div className="fixed inset-0 bg-gray-900/30 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl shadow-xl">
             <div className="flex items-center justify-between p-4 border-b">
               <h2 className="text-lg font-semibold text-gray-900">Import Other Deductions</h2>
               <button onClick={() => { setShowImport(false); setImportFile(null); setImportPreview([]); }}>
