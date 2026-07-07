@@ -111,6 +111,9 @@ export type AttendancePolicy = {
   adjust_leave_compoff?: boolean;
   apply_sandwich?: boolean;
   max_sessions_allowed: number;
+  is_late_min_deduction?: boolean;
+  late_min_grace?: number;
+  late_min_interval?: number;
 };
 
 const defaultPolicy: AttendancePolicy = {
@@ -131,6 +134,9 @@ const defaultPolicy: AttendancePolicy = {
   apply_grace_on_checkout: true,
   max_late_marks_per_month: 3,
   late_mark_penalty: "none",
+  is_late_min_deduction: false,
+  late_min_grace: 120,
+  late_min_interval: 120,
   standard_work_hours: 480,
   allow_early_login: true,
   early_login_minutes: 30,
@@ -425,6 +431,15 @@ export default function AttendanceRulesManager() {
     }
 
     if (policy.max_late_marks_per_month < 0) errs.max_late_marks_per_month = "Enter 0 or more";
+
+    if (policy.is_late_min_deduction) {
+      if (policy.late_min_grace === undefined || policy.late_min_grace < 0) {
+        errs.late_min_grace = "Enter 0 or more";
+      }
+      if (policy.late_min_interval === undefined || policy.late_min_interval < 1) {
+        errs.late_min_interval = "Enter 1 or more";
+      }
+    }
     if (policy.late_logout_redeem_minutes < 0) errs.late_logout_redeem_minutes = "Enter 0 or more";
     if (policy.redeem_carry_forward_days < 0) errs.redeem_carry_forward_days = "Enter 0 or more";
     if (policy.min_extra_work_for_compoff_minutes < 0) errs.min_extra_work_for_compoff_minutes = "Enter 0 or more";
@@ -1717,6 +1732,66 @@ export default function AttendanceRulesManager() {
                           <option value="full_day">Full-day</option>
                         </select>
                         <p className="mt-1 text-xs text-gray-500">Penalty applied after exceeding max late marks.</p>
+                      </div>
+
+                      <div className="border-t border-gray-100 pt-6 mt-4 col-span-1 md:col-span-2">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="text-sm font-semibold text-gray-900">Late Minutes Deduction</h4>
+                            <p className="text-xs text-gray-500">Deduct payable days based on cumulative late minutes in the cycle.</p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={policy.is_late_min_deduction}
+                              onChange={(e) => setField("is_late_min_deduction", e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                          </label>
+                        </div>
+
+                        {policy.is_late_min_deduction && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Late Minutes Grace Time (mins)
+                              </label>
+                              <input
+                                type="number"
+                                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.late_min_grace ? 'border-red-500' : 'border-gray-300'}`}
+                                min={0}
+                                value={policy.late_min_grace}
+                                onChange={(e) => setField("late_min_grace", Number(e.target.value))}
+                              />
+                              {formErrors.late_min_grace && (
+                                <p className="mt-1 text-sm text-red-600">{formErrors.late_min_grace}</p>
+                              )}
+                              <p className="mt-1 text-xs text-gray-500">
+                                The first N minutes of lateness are excluded from penalty (e.g. 120 mins).
+                              </p>
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Late Minutes Interval/Step (mins)
+                              </label>
+                              <input
+                                type="number"
+                                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.late_min_interval ? 'border-red-500' : 'border-gray-300'}`}
+                                min={1}
+                                value={policy.late_min_interval}
+                                onChange={(e) => setField("late_min_interval", Number(e.target.value))}
+                              />
+                              {formErrors.late_min_interval && (
+                                <p className="mt-1 text-sm text-red-600">{formErrors.late_min_interval}</p>
+                              )}
+                              <p className="mt-1 text-xs text-gray-500">
+                                Every full or partial block of N minutes after grace counts as 1 day LOP deduction.
+                              </p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 

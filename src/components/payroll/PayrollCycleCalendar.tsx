@@ -626,6 +626,9 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
               <MetricCard label="Present" value={metrics.present_days || 0} color="emerald" icon={CheckCircle2} />
               <MetricCard label="Absent" value={metrics.absent_days || 0} color="rose" icon={XCircle} />
               <MetricCard label="Late Deduction" value={metrics.late_days || 0} color="orange" icon={Clock} />
+              {metrics.late_min_deduction_days > 0 && (
+                <MetricCard label="Late Min Deduct" value={`${metrics.late_min_deduction_days} days`} color="orange" icon={Clock} />
+              )}
               <MetricCard label="Total Late" value={`${metrics.total_late_minutes || 0} mins`} color="orange" icon={Clock} />
               <MetricCard label="Total OT" value={`${metrics.total_ot_minutes || 0} mins`} color="blue" icon={Clock} />
               <MetricCard label="Paid Leaves" value={metrics.total_paid_leave_days || 0} color="teal" icon={CheckCircle2} />
