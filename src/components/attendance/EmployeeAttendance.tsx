@@ -43,6 +43,7 @@ import {
   Coffee
 } from "lucide-react";
 import ResetAttendanceModal from "./ResetAttendanceModal";
+import BulkOverrideModal from "./BulkOverrideModal";
 
 type EmployeeItem = Record<string, any>;
 
@@ -73,6 +74,7 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
   const [exporting, setExporting] = React.useState<boolean>(false);
   const [showResetModal, setShowResetModal] = React.useState<boolean>(false);
   const [resetting, setResetting] = React.useState<boolean>(false);
+  const [showBulkOverrideModal, setShowBulkOverrideModal] = React.useState<boolean>(false);
 
   // Detail views
   const [activeView, setActiveView] = React.useState<"list" | "attendance" | "leaves" | "redeems">("list");
@@ -982,6 +984,16 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
                 <span>Export</span>
               </button>
 
+              {(role?.toLowerCase() === 'orgadmin' || role?.toLowerCase() === 'hr') && (
+                <button
+                  onClick={() => setShowBulkOverrideModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all text-sm font-semibold"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Bulk Override</span>
+                </button>
+              )}
+
               {role?.toLowerCase() === 'orgadmin' && (
                 <button
                   onClick={() => setShowResetModal(true)}
@@ -1453,6 +1465,19 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
             setShowResetModal(false);
             fetchList();
             setSuccess("Attendance reset and re-calculated successfully.");
+          }}
+        />
+      )}
+
+      {showBulkOverrideModal && (
+        <BulkOverrideModal
+          currentSiteId={selectedSiteId}
+          siteOptions={canHRMode ? allSites : inchargeSites}
+          onClose={() => setShowBulkOverrideModal(false)}
+          onSuccess={(msg) => {
+            setShowBulkOverrideModal(false);
+            fetchList();
+            setSuccess(msg);
           }}
         />
       )}
