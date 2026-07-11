@@ -2,7 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import { apiClient } from "@/lib/apiClient";
-import { X, DollarSign, Calendar, User, FileText, CheckCircle, XCircle, Clock, Building } from "lucide-react";
+import { X, DollarSign, Calendar, User, FileText, CheckCircle, XCircle, Clock, Building, Landmark, Trash2 } from "lucide-react";
+import { showSuccess, showError } from "@/lib/toast";
+import { useAuth } from "@/context/AuthContext";
 
 type ApprovalLog = {
     id: number;
@@ -35,34 +37,76 @@ type RequestDetail = {
     disbursement_mode?: string | null;
     disbursement_reference?: string | null;
     disbursed_by_name?: string | null;
+    total_paid: number;
+};
+
+type RepaymentScheduleItem = {
+    id: number;
+    emi_number: number;
+    emi_amount: number;
+    paid_amount: number;
+    status: string;
+    due_date: string;
+    paid_date: string | null;
+    notes?: string | null;
 };
 
 type Props = {
     requestId: number;
     onClose: () => void;
+    onSuccess?: () => void;
 };
 
-export default function RequestDetails({ requestId, onClose }: Props) {
+export default function RequestDetails({ requestId, onClose, onSuccess }: Props) {
     const [loading, setLoading] = useState(true);
     const [request, setRequest] = useState<RequestDetail | null>(null);
     const [approvalLogs, setApprovalLogs] = useState<ApprovalLog[]>([]);
+    const [schedule, setSchedule] = useState<RepaymentScheduleItem[]>([]);
+    const [scheduleSummary, setScheduleSummary] = useState<{ totalPaid: number; totalPending: number } | null>(null);
+    const [wallet, setWallet] = useState<{ total_advanced: number; total_repaid: number; outstanding_balance: number } | null>(null);
+    const [deleting, setDeleting] = useState(false);
+
+    const { role, permissions } = useAuth();
+    const isOrgAdmin = (role || "").toLowerCase() === "orgadmin";
+    const canDelete = isOrgAdmin || permissions.includes("SALADV_DELETE") || permissions.includes("SALADV_APPROVE");
 
     useEffect(() => {
         fetchDetails();
+        fetchSchedule();
     }, [requestId]);
 
     const fetchDetails = async () => {
-        setLoading(true);
         try {
-            const data = await apiClient<{ request: RequestDetail; approval_logs: ApprovalLog[] }>(
+            const data = await apiClient<{ request: RequestDetail; approval_logs: ApprovalLog[]; wallet: any }>(
                 `/salary-advance/requests/${requestId}`,
                 { withAuth: true }
             );
 
             setRequest(data.request);
             setApprovalLogs(data.approval_logs || []);
+            setWallet(data.wallet || null);
         } catch (error) {
             console.error("Failed to fetch request details:", error);
+        }
+    };
+
+    const fetchSchedule = async () => {
+        try {
+            const data = await apiClient<{
+                request: any;
+                repayments?: RepaymentScheduleItem[];
+                schedule?: RepaymentScheduleItem[];
+                summary: { total_paid: number; total_pending: number; totalPaid?: number; totalPending?: number };
+            }>(`/salary-advance/requests/${requestId}/repayments`, { withAuth: true });
+
+            const repaymentList = data.repayments || data.schedule || [];
+            setSchedule(repaymentList);
+            
+            const totalPaid = data.summary.total_paid !== undefined ? data.summary.total_paid : (data.summary.totalPaid || 0);
+            const totalPending = data.summary.total_pending !== undefined ? data.summary.total_pending : (data.summary.totalPending || 0);
+            setScheduleSummary({ totalPaid, totalPending });
+        } catch (error) {
+            console.error("Failed to fetch repayment schedule:", error);
         } finally {
             setLoading(false);
         }
@@ -90,6 +134,7 @@ export default function RequestDetails({ requestId, onClose }: Props) {
             rejected: { color: "bg-red-50 text-red-700 border-red-200", icon: XCircle, label: "Rejected" },
             paid: { color: "bg-purple-50 text-purple-700 border-purple-200", icon: CheckCircle, label: "Paid" },
             cancelled: { color: "bg-gray-50 text-gray-700 border-gray-200", icon: XCircle, label: "Cancelled" },
+            disbursed: { color: "bg-blue-50 text-blue-700 border-blue-200", icon: CheckCircle, label: "Disbursed" },
         };
 
         const config = statusConfig[status] || statusConfig.pending;
@@ -181,13 +226,47 @@ export default function RequestDetails({ requestId, onClose }: Props) {
                                 <div className="font-semibold text-gray-900">{formatCurrency(request.eligible_amount_at_request)}</div>
                             </div>
                             {request.approved_amount && (
-                                <div className="col-span-2">
+                                <div>
                                     <div className="text-xs text-gray-500 mb-1">Approved Amount</div>
                                     <div className="font-bold text-blue-600 text-lg">{formatCurrency(request.approved_amount)}</div>
                                 </div>
                             )}
+                            <div>
+                                <div className="text-xs text-gray-500 mb-1">Total Paid</div>
+                                <div className="font-bold text-green-700 text-lg">{formatCurrency(request.total_paid || 0)}</div>
+                            </div>
+                            <div>
+                                <div className="text-xs text-gray-500 mb-1">Total Pending</div>
+                                <div className="font-bold text-orange-700 text-lg">
+                                    {formatCurrency((request.approved_amount || request.requested_amount) - (request.total_paid || 0))}
+                                </div>
+                            </div>
                         </div>
                     </div>
+
+                    {/* Wallet Details */}
+                    {wallet && (
+                        <div>
+                            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                <Landmark size={16} className="text-blue-600" />
+                                Employee Wallet Overview
+                            </h3>
+                            <div className="grid grid-cols-3 gap-4 bg-blue-50/50 border border-blue-100 p-4 rounded-lg">
+                                <div>
+                                    <div className="text-xs text-gray-500 mb-1 font-medium">Lifetime Borrowed</div>
+                                    <div className="font-semibold text-gray-900 text-sm">{formatCurrency(wallet.total_advanced)}</div>
+                                </div>
+                                <div>
+                                    <div className="text-xs text-gray-500 mb-1 font-medium">Lifetime Repaid</div>
+                                    <div className="font-semibold text-gray-900 text-sm">{formatCurrency(wallet.total_repaid)}</div>
+                                </div>
+                                <div>
+                                    <div className="text-xs text-gray-500 mb-1 font-medium">Outstanding Balance</div>
+                                    <div className="font-bold text-blue-700 text-sm">{formatCurrency(wallet.outstanding_balance)}</div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Reason */}
                     {request.reason && (
@@ -254,6 +333,58 @@ export default function RequestDetails({ requestId, onClose }: Props) {
                         </div>
                     )}
 
+                    {/* Repayment Schedule */}
+                    {schedule.length > 0 && (
+                        <div>
+                            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                <Calendar size={16} className="text-blue-600" />
+                                Repayment Schedule
+                            </h3>
+                            <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-gray-50 border-b border-gray-200">
+                                        <tr>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">EMI #</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Due Date</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">EMI Amount</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Paid Amount</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Paid Date</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Notes/Reason</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200">
+                                        {schedule.map((item) => (
+                                            <tr key={item.id} className="hover:bg-gray-50">
+                                                <td className="px-4 py-3 text-sm text-gray-900 font-medium">{item.emi_number}</td>
+                                                <td className="px-4 py-3 text-sm text-gray-900">{item.due_date ? new Date(item.due_date).toLocaleDateString('en-IN') : '-'}</td>
+                                                <td className="px-4 py-3 text-sm text-gray-900 font-semibold">{formatCurrency(item.emi_amount)}</td>
+                                                <td className="px-4 py-3 text-sm text-gray-900">{formatCurrency(item.paid_amount)}</td>
+                                                <td className="px-4 py-3">
+                                                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold border ${
+                                                        item.status === 'paid'
+                                                            ? 'bg-green-50 text-green-700 border-green-200'
+                                                            : item.status === 'partial'
+                                                            ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                                                            : item.status === 'overdue'
+                                                            ? 'bg-red-50 text-red-700 border-red-200'
+                                                            : item.status === 'skipped'
+                                                            ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                                            : 'bg-gray-50 text-gray-700 border-gray-200'
+                                                    }`}>
+                                                        {item.status.toUpperCase()}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3 text-sm text-gray-900">{item.paid_date ? new Date(item.paid_date).toLocaleDateString('en-IN') : '-'}</td>
+                                                <td className="px-4 py-3 text-sm text-gray-500 max-w-[200px] truncate" title={item.notes || ''}>{item.notes || '-'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Approval Workflow */}
                     {approvalLogs.length > 0 && (
                         <div>
@@ -294,10 +425,37 @@ export default function RequestDetails({ requestId, onClose }: Props) {
                 </div>
 
                 {/* Footer */}
-                <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end">
+                <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
+                    {canDelete && (
+                        <button
+                            onClick={async () => {
+                                if (window.confirm("Are you sure you want to delete this salary advance request? This will permanently remove the request and its entire repayment schedule.")) {
+                                    setDeleting(true);
+                                    try {
+                                        await apiClient(`/salary-advance/requests/${requestId}`, {
+                                            method: "DELETE",
+                                            withAuth: true
+                                        });
+                                        showSuccess("Request deleted successfully");
+                                        if (onSuccess) onSuccess();
+                                        onClose();
+                                    } catch (err: any) {
+                                        showError(err.message || "Failed to delete request");
+                                    } finally {
+                                        setDeleting(false);
+                                    }
+                                }
+                            }}
+                            disabled={deleting}
+                            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-semibold flex items-center gap-1.5 disabled:opacity-50"
+                        >
+                            <Trash2 size={16} />
+                            {deleting ? "Deleting..." : "Delete"}
+                        </button>
+                    )}
                     <button
                         onClick={onClose}
-                        className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
+                        className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-semibold"
                     >
                         Close
                     </button>

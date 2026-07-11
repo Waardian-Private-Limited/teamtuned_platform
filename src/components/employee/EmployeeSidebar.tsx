@@ -1077,14 +1077,6 @@ export default function EmployeeSidebar({
                         active={pathname?.startsWith("/employee/salary-advance/repayments") || false}
                       />
                     )}
-                    {canViewSalAdvAnalytics && (
-                      <Item
-                        icon={TrendingUp}
-                        label="Analytics"
-                        href="/employee/salary-advance/analytics"
-                        active={pathname?.startsWith("/employee/salary-advance/analytics") || false}
-                      />
-                    )}
                     {canViewSalAdvPolicy && (
                       <Item
                         icon={Settings}

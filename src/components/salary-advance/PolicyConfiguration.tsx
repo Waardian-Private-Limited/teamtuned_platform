@@ -30,6 +30,8 @@ type Policy = {
     emi_fixed_amount: number | null;
     emi_percentage_of_salary: number | null;
     emi_decision_mode: 'policy_level' | 'request_level';
+    hide_limits_to_employee: boolean;
+    repayment_day_of_month?: number;
 };
 
 type WorkflowDesignerProps = {
@@ -408,6 +410,8 @@ export default function PolicyConfiguration() {
         emi_fixed_amount: null,
         emi_percentage_of_salary: null,
         emi_decision_mode: 'policy_level',
+        hide_limits_to_employee: false,
+        repayment_day_of_month: 7,
     });
 
     // Permission state
@@ -529,7 +533,6 @@ export default function PolicyConfiguration() {
                 <div className="mb-6 flex items-start justify-between">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-                            <Settings className="w-8 h-8 text-indigo-600" />
                             Salary Advance Policy Configuration
                         </h1>
                         <p className="text-gray-600 mt-2">Configure rules, limits, and approval workflow for salary advances</p>
@@ -560,17 +563,34 @@ export default function PolicyConfiguration() {
                         {/* Eligibility Type - Readonly */}
                         <div className="bg-white rounded-xl border border-gray-200 p-6">
                             <h2 className="text-lg font-semibold text-gray-900 mb-4">Eligibility Type</h2>
-                            <div className="p-4 bg-gray-50 rounded-lg">
-                                <div className="flex items-center gap-2">
-                                    <div className={`w-4 h-4 rounded ${policy.allow_only_earned_amount ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                                    <div>
-                                        <div className="font-medium text-gray-900">
-                                            {policy.allow_only_earned_amount ? 'Restricted to Earned Amount' : 'Any Amount Allowed'}
+                            <div className="space-y-3">
+                                <div className="p-4 bg-gray-50 rounded-lg">
+                                    <div className="flex items-center gap-2">
+                                        <div className={`w-4 h-4 rounded ${policy.allow_only_earned_amount ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                                        <div>
+                                            <div className="font-medium text-gray-900">
+                                                {policy.allow_only_earned_amount ? 'Restricted to Earned Amount' : 'Any Amount Allowed'}
+                                            </div>
+                                            <div className="text-sm text-gray-600">
+                                                {policy.allow_only_earned_amount
+                                                    ? 'Employees can only request up to their earned salary'
+                                                    : 'Employees can request any amount up to the maximum limit'}
+                                            </div>
                                         </div>
-                                        <div className="text-sm text-gray-600">
-                                            {policy.allow_only_earned_amount
-                                                ? 'Employees can only request up to their earned salary'
-                                                : 'Employees can request any amount up to the maximum limit'}
+                                    </div>
+                                </div>
+                                <div className="p-4 bg-gray-50 rounded-lg">
+                                    <div className="flex items-center gap-2">
+                                        <div className={`w-4 h-4 rounded ${policy.hide_limits_to_employee ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                                        <div>
+                                            <div className="font-medium text-gray-900">
+                                                {policy.hide_limits_to_employee ? 'Limits Hidden from Employees' : 'Limits Disclosed to Employees'}
+                                            </div>
+                                            <div className="text-sm text-gray-600">
+                                                {policy.hide_limits_to_employee
+                                                    ? 'Basic limits and earned calculations are hidden from employee requests'
+                                                    : 'Employees can see their calculated available limits and employment day rules'}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -580,17 +600,16 @@ export default function PolicyConfiguration() {
                         {/* Basic Limits - Readonly */}
                         <div className="bg-white rounded-xl border border-gray-200 p-6">
                             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                                <DollarSign className="w-5 h-5 text-green-600" />
                                 Basic Limits
                             </h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {/* Only show Max % when restricting to earned amount */}
-                                {policy.allow_only_earned_amount && (
+                                {!!policy.allow_only_earned_amount && (
                                     <div className="p-4 bg-gray-50 rounded-lg">
                                         <div className="text-sm text-gray-600 mb-1">Max % of Earned Salary</div>
                                         <div className="text-xl font-bold text-gray-900">
                                             {policy.max_percentage_of_earned_salary ?? 'Not Set'}
-                                            {policy.max_percentage_of_earned_salary && '%'}
+                                            {!!policy.max_percentage_of_earned_salary && '%'}
                                         </div>
                                     </div>
                                 )}
@@ -627,7 +646,7 @@ export default function PolicyConfiguration() {
                         {/* Repayment Configuration - Readonly */}
                         <div className="bg-white rounded-xl border border-gray-200 p-6">
                             <h2 className="text-lg font-semibold text-gray-900 mb-4">Repayment Configuration</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="p-4 bg-gray-50 rounded-lg">
                                     <div className="text-sm text-gray-600 mb-1">Repayment Mode</div>
                                     <div className="text-lg font-bold text-gray-900 capitalize">
@@ -638,6 +657,12 @@ export default function PolicyConfiguration() {
                                     <div className="text-sm text-gray-600 mb-1">Max Repayment Tenure</div>
                                     <div className="text-lg font-bold text-gray-900">
                                         {policy.max_repayment_months || 12} Months
+                                    </div>
+                                </div>
+                                <div className="p-4 bg-gray-50 rounded-lg">
+                                    <div className="text-sm text-gray-600 mb-1">Repayment Day of Month</div>
+                                    <div className="text-lg font-bold text-gray-900">
+                                        {policy.repayment_day_of_month || 7}th
                                     </div>
                                 </div>
                             </div>
@@ -653,7 +678,7 @@ export default function PolicyConfiguration() {
                                         {policy.interest_enabled ? 'Interest Enabled' : 'No Interest'}
                                     </div>
                                 </div>
-                                {policy.interest_enabled && policy.interest_rate_percentage && (
+                                {!!policy.interest_enabled && !!policy.interest_rate_percentage && (
                                     <div className="text-sm text-gray-600">
                                         Annual Rate: <span className="font-bold text-gray-900">{policy.interest_rate_percentage}%</span>
                                     </div>
@@ -671,7 +696,7 @@ export default function PolicyConfiguration() {
                                         {policy.allow_multiple_requests ? 'Multiple Requests Allowed' : 'Single Request Only'}
                                     </div>
                                 </div>
-                                {policy.allow_multiple_requests && (
+                                {!!policy.allow_multiple_requests && (
                                     <div className="text-sm text-gray-600">
                                         Mode: <span className="font-bold text-gray-900 capitalize">{policy.multiple_requests_mode || 'Separate'}</span>
                                     </div>
@@ -757,9 +782,21 @@ export default function PolicyConfiguration() {
                                         <div className="text-sm text-gray-600">Employees can only request up to their earned salary for the current cycle</div>
                                     </div>
                                 </label>
+                                <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+                                    <input
+                                        type="checkbox"
+                                        checked={policy.hide_limits_to_employee}
+                                        onChange={(e) => updateField("hide_limits_to_employee", e.target.checked)}
+                                        className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                                    />
+                                    <div>
+                                        <div className="font-medium text-gray-900">Hide Policy Limits from Employees</div>
+                                        <div className="text-sm text-gray-600">Do not disclose basic limits, percentages, or cycle information to the employees on their dashboard</div>
+                                    </div>
+                                </label>
                                 {!policy.allow_only_earned_amount && (
                                     <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                                        <p className="text-sm text-amber-800">⚠️ Employees can request any amount up to the maximum limit, regardless of earned salary</p>
+                                        <p className="text-sm text-amber-800">Employees can request any amount up to the maximum limit, regardless of earned salary</p>
                                     </div>
                                 )}
                             </div>
@@ -768,13 +805,12 @@ export default function PolicyConfiguration() {
                         {/* Basic Limits */}
                         <div className="bg-white rounded-xl border border-gray-200 p-6">
                             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                                <DollarSign className="w-5 h-5 text-green-600" />
                                 Basic Limits
                             </h2>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {/* Only show Max % when restricting to earned amount */}
-                                {policy.allow_only_earned_amount && (
+                                {!!policy.allow_only_earned_amount && (
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">
                                             Max % of Earned Salary
@@ -880,6 +916,22 @@ export default function PolicyConfiguration() {
                                         {policy.repayment_mode === 'salary_deduction' && 'EMIs will be automatically deducted from monthly salary'}
                                         {policy.repayment_mode === 'manual' && 'Employees must make manual payments'}
                                         {policy.repayment_mode === 'both' && 'Employees can choose their preferred repayment method'}
+                                    </p>
+                                </div>
+
+                                {/* Repayment Day of Month */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Repayment Day of Month</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="31"
+                                        value={policy.repayment_day_of_month !== undefined ? policy.repayment_day_of_month : 7}
+                                        onChange={(e) => updateField("repayment_day_of_month", Number(e.target.value))}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Day of the month on which previous month's EMI is marked as paid (e.g. 7th of July for June EMI).
                                     </p>
                                 </div>
 
@@ -992,7 +1044,7 @@ export default function PolicyConfiguration() {
                                     </div>
                                 </label>
 
-                                {policy.interest_enabled && (
+                                {!!policy.interest_enabled && (
                                     <div className="space-y-4 pl-7">
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">Annual Interest Rate (%)</label>
@@ -1009,7 +1061,7 @@ export default function PolicyConfiguration() {
                                             <p className="text-xs text-gray-500 mt-1">Interest calculated using reducing balance method</p>
                                         </div>
 
-                                        {policy.interest_rate_percentage && policy.interest_rate_percentage > 0 && (
+                                        {!!policy.interest_rate_percentage && policy.interest_rate_percentage > 0 && (
                                             <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                                                 <div className="text-sm font-medium text-blue-900 mb-2">Example Calculation</div>
                                                 <div className="text-sm text-blue-800">
@@ -1041,7 +1093,7 @@ export default function PolicyConfiguration() {
                                     </div>
                                 </label>
 
-                                {policy.allow_multiple_requests && (
+                                {!!policy.allow_multiple_requests && (
                                     <div className="pl-7">
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Handling Mode</label>
                                         <select

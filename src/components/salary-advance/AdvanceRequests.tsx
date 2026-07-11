@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect } from "react";
 import { apiClient } from "@/lib/apiClient";
-import { Eye, Filter, RefreshCw, CheckCircle, XCircle, Clock, Search, Building, Shield } from "lucide-react";
+import { Eye, Filter, RefreshCw, CheckCircle, XCircle, Clock, Search, Building, Shield, Plus } from "lucide-react";
 import RequestDetails from "./RequestDetails";
 import Pagination from "./Pagination";
 import TableSkeleton from "./TableSkeleton";
+import AddManualAdvanceModal from "./AddManualAdvanceModal";
 
 import { useAuth } from "@/context/AuthContext";
 type Request = {
@@ -39,6 +40,7 @@ export default function AdvanceRequests() {
     const [searchQuery, setSearchQuery] = useState("");
     const [debouncedSearch, setDebouncedSearch] = useState("");
     const [departments, setDepartments] = useState<Department[]>([]);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
     // Permission state
     const [userRole, setUserRole] = useState<string | null>(null);const [checkingPerms, setCheckingPerms] = useState(true);
@@ -191,14 +193,25 @@ export default function AdvanceRequests() {
                     <h1 className="text-2xl font-bold text-gray-900">All Requests</h1>
                     <p className="text-sm text-gray-500 mt-1">Manage salary advance requests from your team</p>
                 </div>
-                <button
-                    onClick={fetchRequests}
-                    disabled={loading}
-                    className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-all shadow-sm"
-                >
-                    <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-                    Refresh
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={fetchRequests}
+                        disabled={loading}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-all shadow-sm"
+                    >
+                        <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+                        Refresh
+                    </button>
+                    {(isOrgAdmin || permissions.includes("SALADV_CREATE") || permissions.includes("SALADV_APPROVE")) && (
+                        <button
+                            onClick={() => setIsAddModalOpen(true)}
+                            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all shadow-sm"
+                        >
+                            <Plus className="w-4 h-4" />
+                            Add Direct Advance / Old EMI
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Filters & Search */}
@@ -361,8 +374,15 @@ export default function AdvanceRequests() {
                 <RequestDetails
                     requestId={selectedRequest.id}
                     onClose={() => setSelectedRequest(null)}
+                    onSuccess={fetchRequests}
                 />
             )}
+
+            <AddManualAdvanceModal
+                isOpen={isAddModalOpen}
+                onClose={() => setIsAddModalOpen(false)}
+                onSuccess={fetchRequests}
+            />
         </div>
     );
 }

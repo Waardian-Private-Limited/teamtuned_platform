@@ -30,6 +30,7 @@ type Props = {
 export default function RequestAdvanceModal({ eligibility, onClose, onSuccess }: Props) {
     const [amount, setAmount] = useState<number>(0);
     const [reason, setReason] = useState("");
+    const [deductInCurrentMonth, setDeductInCurrentMonth] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -60,7 +61,7 @@ export default function RequestAdvanceModal({ eligibility, onClose, onSuccess }:
             await apiClient("/salary-advance/requests", {
                 method: "POST",
                 withAuth: true,
-                body: { amount, reason },
+                body: { amount, reason, deduct_in_current_month: deductInCurrentMonth },
             });
 
             showSuccess("Salary advance request submitted successfully");
@@ -186,6 +187,19 @@ export default function RequestAdvanceModal({ eligibility, onClose, onSuccess }:
                             </div>
                         </div>
                     )}
+                    {/* Deduct in Current Month */}
+                    <div className="flex items-center gap-2 bg-slate-50 p-3 rounded-lg border border-gray-200">
+                        <input
+                            type="checkbox"
+                            id="deduct_in_current_month"
+                            checked={deductInCurrentMonth}
+                            onChange={(e) => setDeductInCurrentMonth(e.target.checked)}
+                            className="w-4 h-4 text-green-600 rounded border-gray-300 focus:ring-green-500 accent-green-600 cursor-pointer"
+                        />
+                        <label htmlFor="deduct_in_current_month" className="text-sm font-semibold text-gray-700 cursor-pointer select-none">
+                            Deduct from current month's salary (Repay in next salary slip)
+                        </label>
+                    </div>
 
                     {/* Actions */}
                     <div className="flex gap-3">

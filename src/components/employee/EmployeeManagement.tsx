@@ -81,6 +81,8 @@ export type Employee = {
   face_image_url?: string | null;
   updated_by_name?: string | null;
   shift_updated_by_name?: string | null;
+  status_changed_by_name?: string | null;
+  status_changed_at?: string | null;
 };
 
 const weeklyDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -260,6 +262,8 @@ export default function EmployeeManagement() {
   const [shiftEnd, setShiftEnd] = useState<string>(""); // time
   const [isFlexibleTime, setIsFlexibleTime] = useState<boolean>(false);
   const [flexibleHours, setFlexibleHours] = useState<string>("");
+  const [isFlexibleWeekOff, setIsFlexibleWeekOff] = useState<boolean>(false);
+  const [flexibleWeekOffDays, setFlexibleWeekOffDays] = useState<string>("");
   const [policyId, setPolicyId] = useState<number | "">("");
 
   const selectedPolicy = React.useMemo(() => {
@@ -592,6 +596,8 @@ export default function EmployeeManagement() {
     setShiftEnd("");
     setIsFlexibleTime(false);
     setFlexibleHours("");
+    setIsFlexibleWeekOff(false);
+    setFlexibleWeekOffDays("");
     setPolicyId("");
   };
 
@@ -702,6 +708,8 @@ export default function EmployeeManagement() {
       setShiftEnd((data as any).shift_end_time || "");
       setIsFlexibleTime(!!((data as any).flexible_time || false));
       setFlexibleHours(((data as any).flexible_hours != null && !Number.isNaN(Number((data as any).flexible_hours))) ? String(Number((data as any).flexible_hours)) : "");
+      setIsFlexibleWeekOff(!!((data as any).is_flexible_week_off || false));
+      setFlexibleWeekOffDays(((data as any).flexible_week_off_days != null && !Number.isNaN(Number((data as any).flexible_week_off_days))) ? String(Number((data as any).flexible_week_off_days)) : "");
       setPolicyId((data as any).attendance_policy_id || "");
       setSalaryType((data as any).salary_type || "");
       const salAmt = (data as any).salary_amount != null ? Number((data as any).salary_amount) : 0;
@@ -937,6 +945,8 @@ export default function EmployeeManagement() {
       shift_start_time: isFlexibleTime ? null : (shiftStart || null),
       shift_end_time: isFlexibleTime ? null : (shiftEnd || null),
       attendance_policy_id: typeof policyId === "number" ? policyId : null,
+      is_flexible_week_off: isFlexibleWeekOff,
+      flexible_week_off_days: isFlexibleWeekOff ? (flexibleWeekOffDays ? Number(flexibleWeekOffDays) : 0) : 0,
     };
 
     try {
@@ -1004,6 +1014,8 @@ export default function EmployeeManagement() {
       shift_start_time: isFlexibleTime ? null : (shiftStart || null),
       shift_end_time: isFlexibleTime ? null : (shiftEnd || null),
       attendance_policy_id: typeof policyId === "number" ? policyId : null,
+      is_flexible_week_off: isFlexibleWeekOff,
+      flexible_week_off_days: isFlexibleWeekOff ? (flexibleWeekOffDays ? Number(flexibleWeekOffDays) : 0) : 0,
     };
 
     try {
@@ -2089,18 +2101,26 @@ export default function EmployeeManagement() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center space-x-1.5">
-                        {getStatusIcon(employee)}
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(employee)} capitalize`}>
-                          {(() => {
-                            const st = (employee.status || "active");
-                            if (st.toLowerCase() === 'invited') {
-                              const isExpired = employee.onboarding_token_expires_at && new Date(employee.onboarding_token_expires_at) < new Date();
-                              return isExpired ? "Invited (Expired)" : "Invited";
-                            }
-                            return st;
-                          })()}
-                        </span>
+                      <div>
+                        <div className="flex items-center space-x-1.5">
+                          {getStatusIcon(employee)}
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(employee)} capitalize`}>
+                            {(() => {
+                              const st = (employee.status || "active");
+                              if (st.toLowerCase() === 'invited') {
+                                const isExpired = employee.onboarding_token_expires_at && new Date(employee.onboarding_token_expires_at) < new Date();
+                                return isExpired ? "Invited (Expired)" : "Invited";
+                              }
+                              return st;
+                            })()}
+                          </span>
+                        </div>
+                        {employee.status_changed_by_name && (
+                          <div className="text-[10px] text-gray-400 mt-1 whitespace-nowrap">
+                            by {employee.status_changed_by_name}
+                            {employee.status_changed_at && ` on ${new Date(employee.status_changed_at).toLocaleDateString('en-IN')}`}
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -2539,14 +2559,46 @@ export default function EmployeeManagement() {
                           <button
                             key={d}
                             type="button"
+                            disabled={isFlexibleWeekOff}
                             onClick={() => toggleWeekly(d)}
-                            className={`px-3 py-1 rounded border ${weeklyOff.has(d) ? "bg-blue-600 text-white" : "bg-white"}`}
+                            className={`px-3 py-1 rounded border ${weeklyOff.has(d) ? "bg-blue-600 text-white" : "bg-white"} ${isFlexibleWeekOff ? "opacity-50 cursor-not-allowed" : ""}`}
                           >
                             {d}
                           </button>
                         ))}
                       </div>
                     </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-2">Flexible Week Off?</label>
+                      <div className="inline-flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={isFlexibleWeekOff}
+                          onChange={(e) => {
+                            setIsFlexibleWeekOff(e.target.checked);
+                            if (e.target.checked) {
+                              setWeeklyOff(new Set());
+                            }
+                          }}
+                        />
+                        <span>Enable flexible week off instead of fixed weekdays</span>
+                      </div>
+                    </div>
+                    {isFlexibleWeekOff && (
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Number of Days *</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={31}
+                          placeholder="e.g., 5"
+                          value={flexibleWeekOffDays}
+                          onChange={(e) => setFlexibleWeekOffDays(e.target.value)}
+                          className="w-full border rounded px-2 py-2 text-sm"
+                        />
+                        <div className="text-xs text-gray-500 mt-1">Specify maximum week off days allowed per cycle.</div>
+                      </div>
+                    )}
                     <div className="md:col-span-2">
                       <label className="block text-xs text-gray-600 mb-2">Flexible Time?</label>
                       <div className="inline-flex items-center gap-2 text-sm">

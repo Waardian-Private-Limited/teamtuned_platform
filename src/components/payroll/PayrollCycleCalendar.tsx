@@ -225,8 +225,33 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
             Array.isArray(res?.data) ? res.data : []
       );
 
+      let processedRecords = [...allRecords];
+      processedRecords.sort((a, b) => String(a.attendance_date || '').localeCompare(String(b.attendance_date || '')));
+
+      const emp = payrollRes?.emp || attendanceResults[0]?.emp || {};
+      const isFlexible = emp.is_flexible_week_off === 1;
+      const flexibleLimit = emp.flexible_week_off_days || 0;
+
+      if (isFlexible && flexibleLimit > 0) {
+        let appliedWOs = 0;
+        processedRecords = processedRecords.map((record) => {
+          const isAbsent = record?.status === "Absent" || (!(record?.attendance_id || record?.id) && !record?.is_holiday && !record?.is_paid_leave);
+          if (isAbsent && appliedWOs < flexibleLimit) {
+            appliedWOs++;
+            return {
+              ...record,
+              is_weekly_off: true,
+              status: "Week Off",
+              status_timeline: "Week Off",
+              status_summary: "Week Off"
+            };
+          }
+          return record;
+        });
+      }
+
       setPayrollData(payrollRes);
-      setItems(allRecords);
+      setItems(processedRecords);
       setBreakdown(Array.isArray(payrollRes?.salary_breakdown) ? payrollRes.salary_breakdown : []);
 
     } catch (e: any) {

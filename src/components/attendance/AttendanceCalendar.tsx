@@ -40,6 +40,7 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
   const [error, setError] = React.useState<string | null>(null);
   const [items, setItems] = React.useState<AttendanceRecord[]>([]);
   const [summary, setSummary] = React.useState<Record<string, any> | null>(null);
+  const [employeeInfo, setEmployeeInfo] = React.useState<any>(null);
   const [cycleInfo, setCycleInfo] = React.useState<{ start: string; end: string } | null>(null);
   const [selectedRecord, setSelectedRecord] = React.useState<AttendanceRecord | null>(null);
   const [showResetModal, setShowResetModal] = React.useState<boolean>(false);
@@ -59,10 +60,33 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
         params: { employee_id: String(employeeId), month: String(mon), year: String(year) },
       });
 
+      setEmployeeInfo(res?.emp || null);
+
       let list: any[] = [];
       if (Array.isArray(res?.records)) list = res.records;
       else if (Array.isArray(res?.items)) list = res.items;
       else if (Array.isArray(res)) list = res;
+
+      // Post-process for flexible week off: dynamically mark absent days as week offs up to the limit
+      const isFlexible = res?.emp?.is_flexible_week_off === 1;
+      const flexibleLimit = res?.emp?.flexible_week_off_days || 0;
+      if (isFlexible && flexibleLimit > 0) {
+        let appliedWOs = 0;
+        list = list.map((record) => {
+          const isAbsent = record?.status === "Absent" || (!(record?.attendance_id || record?.id) && !record?.is_holiday && !record?.is_paid_leave);
+          if (isAbsent && appliedWOs < flexibleLimit) {
+            appliedWOs++;
+            return {
+              ...record,
+              is_weekly_off: true,
+              status: "Week Off",
+              status_timeline: "Week Off",
+              status_summary: "Week Off"
+            };
+          }
+          return record;
+        });
+      }
 
       setItems(list);
       const sum = res?.summary || {};
@@ -602,6 +626,16 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
                 </div>
                 <span className="font-semibold text-violet-900">{holiday}</span>
               </div>
+
+              {employeeInfo?.is_flexible_week_off === 1 && (
+                <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50/50 border border-slate-200/50">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-slate-500"></div>
+                    <span className="text-sm text-slate-700">Week Off</span>
+                  </div>
+                  <span className="font-semibold text-slate-900">{summary?.WeekOff || 0}</span>
+                </div>
+              )}
 
               <div className="flex items-center justify-between p-2.5 rounded-lg bg-orange-50/50 border border-orange-200/50">
                 <div className="flex items-center gap-2">
