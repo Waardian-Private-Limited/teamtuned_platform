@@ -67,6 +67,71 @@ export default function LaborAttendanceList() {
 
     const [totalPages, setTotalPages] = useState(0);
     const [contractors, setContractors] = useState<any[]>([]);
+
+    // Autocomplete states for Contractor Search
+    const [contractorSearchInput, setContractorSearchInput] = useState('');
+    const [autocompleteContractors, setAutocompleteContractors] = useState<any[]>([]);
+    const [loadingContractors, setLoadingContractors] = useState(false);
+    const [showContractorAutocompleteDropdown, setShowContractorAutocompleteDropdown] = useState(false);
+    const [showAllContractorsModal, setShowAllContractorsModal] = useState(false);
+    const [allContractors, setAllContractors] = useState<any[]>([]);
+    const [allContractorsSearch, setAllContractorsSearch] = useState('');
+
+    // Keep search input in sync if selectedContractorId is cleared/changed
+    useEffect(() => {
+        setContractorSearchInput(String(selectedContractorId || ''));
+    }, [selectedContractorId]);
+
+    // Debounced autocomplete search
+    useEffect(() => {
+        const delayDebounceFn = setTimeout(async () => {
+            if (!contractorSearchInput.trim() || contractorSearchInput === String(selectedContractorId || '')) {
+                setAutocompleteContractors([]);
+                return;
+            }
+            try {
+                setLoadingContractors(true);
+                const params: any = {
+                    search: contractorSearchInput,
+                    limit: 5
+                };
+                if (selectedSiteId) params.site_id = selectedSiteId;
+                const res = await apiClient<any>("/labor/contractors", { withAuth: true, params });
+                setAutocompleteContractors(res.contractors || []);
+            } catch (error) {
+                console.error("Failed to fetch autocomplete contractors", error);
+            } finally {
+                setLoadingContractors(false);
+            }
+        }, 300);
+
+        return () => clearTimeout(delayDebounceFn);
+    }, [contractorSearchInput, selectedSiteId, selectedContractorId]);
+
+    // Fetch all contractors for popup
+    const fetchAllContractors = async () => {
+        try {
+            setLoadingContractors(true);
+            const params: any = {
+                limit: 1000 // Large limit to show all
+            };
+            if (selectedSiteId) params.site_id = selectedSiteId;
+            if (allContractorsSearch.trim()) params.search = allContractorsSearch;
+            const res = await apiClient<any>("/labor/contractors", { withAuth: true, params });
+            setAllContractors(res.contractors || []);
+        } catch (error) {
+            console.error("Failed to fetch all contractors", error);
+        } finally {
+            setLoadingContractors(false);
+        }
+    };
+
+    useEffect(() => {
+        if (showAllContractorsModal) {
+            fetchAllContractors();
+        }
+    }, [showAllContractorsModal, allContractorsSearch, selectedSiteId]);
+
     const [categories, setCategories] = useState<any[]>([]);
     const [subcategories, setSubcategories] = useState<any[]>([]);
 
@@ -439,18 +504,101 @@ export default function LaborAttendanceList() {
                             </div>
 
                             {/* Contractor Filter */}
-                            <div>
+                            <div className="relative">
                                 <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">Contractor</label>
-                                <select
-                                    value={selectedContractorId || ""}
-                                    onChange={(e) => setSelectedContractorId(e.target.value || null)}
-                                    className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                >
-                                    <option value="">All Contractors</option>
-                                    {Array.from(new Set(contractors.map(c => c.name).filter(Boolean))).map(name => (
-                                        <option key={name} value={name}>{name}</option>
-                                    ))}
-                                </select>
+                                <div className="flex gap-1.5 items-center">
+                                    <div className="relative flex-1">
+                                        <input
+                                            type="text"
+                                            value={contractorSearchInput}
+                                            onChange={(e) => {
+                                                setContractorSearchInput(e.target.value);
+                                                setShowContractorAutocompleteDropdown(true);
+                                            }}
+                                            onFocus={() => setShowContractorAutocompleteDropdown(true)}
+                                            placeholder="Search Contractor..."
+                                            className="w-full p-2 pr-8 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        />
+                                        {contractorSearchInput && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedContractorId(null);
+                                                    setContractorSearchInput('');
+                                                    setShowContractorAutocompleteDropdown(false);
+                                                }}
+                                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        )}
+
+                                        {showContractorAutocompleteDropdown && (
+                                            <>
+                                                <div 
+                                                    className="fixed inset-0 z-10" 
+                                                    onClick={() => setShowContractorAutocompleteDropdown(false)} 
+                                                />
+                                                <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 max-h-60 overflow-y-auto divide-y divide-gray-50">
+                                                    <div 
+                                                        onClick={() => {
+                                                            setSelectedContractorId(null);
+                                                            setContractorSearchInput('');
+                                                            setShowContractorAutocompleteDropdown(false);
+                                                        }}
+                                                        className="p-2.5 text-xs text-gray-500 hover:bg-blue-50 cursor-pointer font-medium"
+                                                    >
+                                                        Clear / All Contractors
+                                                    </div>
+                                                    
+                                                    {loadingContractors && autocompleteContractors.length === 0 && (
+                                                        <div className="p-2.5 text-xs text-gray-400 text-center">Searching...</div>
+                                                    )}
+
+                                                    {autocompleteContractors.map((c) => (
+                                                        <div
+                                                            key={c.id}
+                                                            onClick={() => {
+                                                                setSelectedContractorId(c.name);
+                                                                setContractorSearchInput(c.name);
+                                                                setShowContractorAutocompleteDropdown(false);
+                                                            }}
+                                                            className="p-2.5 text-sm text-gray-700 hover:bg-blue-50 cursor-pointer flex flex-col"
+                                                        >
+                                                            <span className="font-semibold text-gray-900">{c.name}</span>
+                                                            {c.contact_person && (
+                                                                <span className="text-[10px] text-gray-400">{c.contact_person} • {c.phone}</span>
+                                                            )}
+                                                        </div>
+                                                    ))}
+
+                                                    {!loadingContractors && contractorSearchInput.trim() !== '' && autocompleteContractors.length === 0 && (
+                                                        <div className="p-2.5 text-xs text-gray-400 text-center">No matches found</div>
+                                                    )}
+
+                                                    <div 
+                                                        onClick={() => {
+                                                            setShowAllContractorsModal(true);
+                                                            setShowContractorAutocompleteDropdown(false);
+                                                        }}
+                                                        className="p-2.5 text-xs text-blue-600 hover:bg-blue-50 cursor-pointer font-bold text-center border-t border-gray-100 flex items-center justify-center gap-1"
+                                                    >
+                                                        <span>Show All Contractors</span>
+                                                        <ArrowRight className="w-3.5 h-3.5" />
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowAllContractorsModal(true)}
+                                        className="p-2 bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100 rounded-lg text-sm transition-all flex items-center justify-center h-[38px] w-[38px] flex-shrink-0"
+                                        title="Show All Contractors"
+                                    >
+                                        <Users className="w-4 h-4" />
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Category Filter */}
@@ -1021,6 +1169,119 @@ export default function LaborAttendanceList() {
                 />
             )}
 
+            {/* Show All Contractors Modal */}
+            {showAllContractorsModal && (
+                <div className="fixed inset-0 bg-black/50 z-[999] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
+                        {/* Header */}
+                        <div className="p-5 border-b border-gray-150 flex justify-between items-center bg-gray-50/50">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900">All Contractors</h3>
+                                <p className="text-xs text-gray-500 mt-0.5">Select a contractor to filter the attendance logs</p>
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    setShowAllContractorsModal(false);
+                                    setAllContractorsSearch('');
+                                }}
+                                className="p-1.5 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Search Input */}
+                        <div className="p-4 border-b border-gray-100">
+                            <div className="relative">
+                                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="text"
+                                    placeholder="Search by name, contact or phone..."
+                                    value={allContractorsSearch}
+                                    onChange={(e) => setAllContractorsSearch(e.target.value)}
+                                    className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Scrollable list */}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                            {loadingContractors && allContractors.length === 0 ? (
+                                <div className="py-8 text-center text-gray-400 flex flex-col items-center gap-2">
+                                    <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
+                                    <span className="text-xs font-semibold">Loading contractors...</span>
+                                </div>
+                            ) : allContractors.length === 0 ? (
+                                <div className="py-12 text-center text-gray-400 text-sm">
+                                    No contractors found matching the search criteria.
+                                </div>
+                            ) : (
+                                allContractors.map((c) => (
+                                    <div
+                                        key={c.id}
+                                        onClick={() => {
+                                            setSelectedContractorId(c.name);
+                                            setContractorSearchInput(c.name);
+                                            setShowAllContractorsModal(false);
+                                            setAllContractorsSearch('');
+                                        }}
+                                        className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between hover:bg-blue-50/40 hover:border-blue-200 ${
+                                            selectedContractorId === c.name 
+                                                ? 'bg-blue-50 border-blue-200 ring-2 ring-blue-100' 
+                                                : 'bg-white border-gray-150'
+                                        }`}
+                                    >
+                                        <div className="flex items-start justify-between">
+                                            <div>
+                                                <h4 className="font-bold text-gray-900 text-sm">{c.name}</h4>
+                                                {c.contact_person && (
+                                                    <p className="text-xs text-gray-600 mt-1 flex items-center gap-1">
+                                                        <User className="w-3 h-3 text-gray-400" />
+                                                        <span>{c.contact_person}</span>
+                                                    </p>
+                                                )}
+                                                {c.phone && (
+                                                    <p className="text-xs text-gray-600 mt-0.5 flex items-center gap-1">
+                                                        <Phone className="w-3 h-3 text-gray-400" />
+                                                        <span>{c.phone}</span>
+                                                    </p>
+                                                )}
+                                                {c.site_name && (
+                                                    <p className="text-[11px] text-gray-500 mt-1 flex items-center gap-1.5 bg-gray-50 px-2 py-0.5 rounded border border-gray-100 w-fit">
+                                                        <MapPin className="w-3 h-3 text-gray-400" />
+                                                        <span>{c.site_name}</span>
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            {c.laborer_count !== undefined && (
+                                                <span className="bg-gray-100 text-gray-700 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                                                    {c.laborer_count} Laborers
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-4 border-t border-gray-100 bg-gray-50 text-right flex justify-between items-center">
+                            <span className="text-xs text-gray-500 font-semibold">{allContractors.length} Contractors total</span>
+                            <button
+                                onClick={() => {
+                                    setShowAllContractorsModal(false);
+                                    setAllContractorsSearch('');
+                                }}
+                                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl text-xs font-bold transition-all"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Image Modal */}
             {showImageModal && selectedImage && (
                 <div className="fixed inset-0 bg-black bg-opacity-90 z-[9999] flex items-center justify-center p-4" onClick={() => setShowImageModal(false)}>
@@ -1193,6 +1454,64 @@ function LaborExportModal({
     const [submitting, setSubmitting] = useState(false);
     const [subcategories, setSubcategories] = useState<any[]>([]);
 
+    // Autocomplete states for contractor inside modal
+    const [contractorSearch, setContractorSearch] = useState(String(local.contractorId || ''));
+    const [autocompleteContractors, setAutocompleteContractors] = useState<any[]>([]);
+    const [loadingContractors, setLoadingContractors] = useState(false);
+    const [showAutocomplete, setShowAutocomplete] = useState(false);
+    const [showAllModal, setShowAllModal] = useState(false);
+    const [allContractors, setAllContractors] = useState<any[]>([]);
+    const [allSearch, setAllSearch] = useState('');
+
+    useEffect(() => {
+        setContractorSearch(String(local.contractorId || ''));
+    }, [local.contractorId]);
+
+    // Debounced search
+    useEffect(() => {
+        const delayDebounceFn = setTimeout(async () => {
+            if (!contractorSearch.trim() || contractorSearch === String(local.contractorId || '')) {
+                setAutocompleteContractors([]);
+                return;
+            }
+            try {
+                setLoadingContractors(true);
+                const params: any = { search: contractorSearch, limit: 5 };
+                if (local.siteId) params.site_id = local.siteId;
+                const res = await apiClient<any>("/labor/contractors", { withAuth: true, params });
+                setAutocompleteContractors(res.contractors || []);
+            } catch (error) {
+                console.error("Failed to fetch autocomplete contractors", error);
+            } finally {
+                setLoadingContractors(false);
+            }
+        }, 300);
+
+        return () => clearTimeout(delayDebounceFn);
+    }, [contractorSearch, local.siteId, local.contractorId]);
+
+    const fetchAll = async () => {
+        try {
+            setLoadingContractors(true);
+            const params: any = { limit: 1000 };
+            if (local.siteId) params.site_id = local.siteId;
+            if (allSearch.trim()) params.search = allSearch;
+            const res = await apiClient<any>("/labor/contractors", { withAuth: true, params });
+            setAllContractors(res.contractors || []);
+        } catch (error) {
+            console.error("Failed to fetch all contractors", error);
+        } finally {
+            setLoadingContractors(false);
+        }
+    };
+
+    useEffect(() => {
+        if (showAllModal) {
+            fetchAll();
+        }
+    }, [showAllModal, allSearch, local.siteId]);
+
+
     // Fetch subcategories when category changes
     useEffect(() => {
         if (local.categoryId) {
@@ -1361,18 +1680,101 @@ function LaborExportModal({
                     </div>
 
                     {/* Contractor */}
-                    <div>
+                    <div className="relative">
                         <label className="block text-xs text-gray-500 mb-1">Contractor</label>
-                        <select
-                            value={local.contractorId ?? ""}
-                            onChange={(e) => setLocal({ ...local, contractorId: e.target.value || null })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                        >
-                            <option value="">All Contractors</option>
-                            {Array.from(new Set(contractors.map(c => c.name).filter(Boolean))).map((name) => (
-                                <option key={name} value={name}>{name}</option>
-                            ))}
-                        </select>
+                        <div className="flex gap-1.5 items-center">
+                            <div className="relative flex-1">
+                                <input
+                                    type="text"
+                                    value={contractorSearch}
+                                    onChange={(e) => {
+                                        setContractorSearch(e.target.value);
+                                        setShowAutocomplete(true);
+                                    }}
+                                    onFocus={() => setShowAutocomplete(true)}
+                                    placeholder="Search Contractor..."
+                                    className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                                {contractorSearch && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setLocal({ ...local, contractorId: null });
+                                            setContractorSearch('');
+                                            setShowAutocomplete(false);
+                                        }}
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                )}
+
+                                {showAutocomplete && (
+                                    <>
+                                        <div 
+                                            className="fixed inset-0 z-[1001]" 
+                                            onClick={() => setShowAutocomplete(false)} 
+                                        />
+                                        <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-[1002] max-h-60 overflow-y-auto divide-y divide-gray-50">
+                                            <div 
+                                                onClick={() => {
+                                                    setLocal({ ...local, contractorId: null });
+                                                    setContractorSearch('');
+                                                    setShowAutocomplete(false);
+                                                }}
+                                                className="p-2.5 text-xs text-gray-500 hover:bg-blue-50 cursor-pointer font-medium"
+                                            >
+                                                Clear / All Contractors
+                                            </div>
+                                            
+                                            {loadingContractors && autocompleteContractors.length === 0 && (
+                                                <div className="p-2.5 text-xs text-gray-400 text-center">Searching...</div>
+                                            )}
+
+                                            {autocompleteContractors.map((c) => (
+                                                <div
+                                                    key={c.id}
+                                                    onClick={() => {
+                                                        setLocal({ ...local, contractorId: c.name });
+                                                        setContractorSearch(c.name);
+                                                        setShowAutocomplete(false);
+                                                    }}
+                                                    className="p-2.5 text-sm text-gray-700 hover:bg-blue-50 cursor-pointer flex flex-col"
+                                                >
+                                                    <span className="font-semibold text-gray-900">{c.name}</span>
+                                                    {c.contact_person && (
+                                                        <span className="text-[10px] text-gray-400">{c.contact_person} • {c.phone}</span>
+                                                    )}
+                                                </div>
+                                            ))}
+
+                                            {!loadingContractors && contractorSearch.trim() !== '' && autocompleteContractors.length === 0 && (
+                                                <div className="p-2.5 text-xs text-gray-400 text-center">No matches found</div>
+                                            )}
+
+                                            <div 
+                                                onClick={() => {
+                                                    setShowAllModal(true);
+                                                    setShowAutocomplete(false);
+                                                }}
+                                                className="p-2.5 text-xs text-blue-600 hover:bg-blue-50 cursor-pointer font-bold text-center border-t border-gray-100 flex items-center justify-center gap-1"
+                                            >
+                                                <span>Show All Contractors</span>
+                                                <ArrowRight className="w-3.5 h-3.5" />
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowAllModal(true)}
+                                className="p-2 bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100 rounded-lg text-sm transition-all flex items-center justify-center h-[38px] w-[38px] flex-shrink-0"
+                                title="Show All Contractors"
+                            >
+                                <Users className="w-4 h-4" />
+                            </button>
+                        </div>
                     </div>
 
                     {/* Status */}
@@ -1476,6 +1878,103 @@ function LaborExportModal({
                     </button>
                 </div>
             </div>
+
+            {/* Show All Modal for Export */}
+            {showAllModal && (
+                <div className="fixed inset-0 bg-black/50 z-[1005] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[80vh]">
+                        <div className="p-5 border-b border-gray-150 flex justify-between items-center bg-gray-50/50">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900">All Contractors</h3>
+                                <p className="text-xs text-gray-500 mt-0.5">Select a contractor for the export filters</p>
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    setShowAllModal(false);
+                                    setAllSearch('');
+                                }}
+                                className="p-1.5 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-4 border-b border-gray-100">
+                            <div className="relative">
+                                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="text"
+                                    placeholder="Search by name, contact or phone..."
+                                    value={allSearch}
+                                    onChange={(e) => setAllSearch(e.target.value)}
+                                    className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                            {loadingContractors && allContractors.length === 0 ? (
+                                <div className="py-8 text-center text-gray-400 flex flex-col items-center gap-2">
+                                    <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
+                                    <span className="text-xs font-semibold">Loading contractors...</span>
+                                </div>
+                            ) : allContractors.length === 0 ? (
+                                <div className="py-12 text-center text-gray-400 text-sm">
+                                    No contractors found matching search criteria.
+                                </div>
+                            ) : (
+                                allContractors.map((c) => (
+                                    <div
+                                        key={c.id}
+                                        onClick={() => {
+                                            setLocal({ ...local, contractorId: c.name });
+                                            setContractorSearch(c.name);
+                                            setShowAllModal(false);
+                                            setAllSearch('');
+                                        }}
+                                        className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between hover:bg-blue-50/40 hover:border-blue-200 ${
+                                            local.contractorId === c.name 
+                                                ? 'bg-blue-50 border-blue-200 ring-2 ring-blue-100' 
+                                                : 'bg-white border-gray-150'
+                                        }`}
+                                    >
+                                        <div className="flex items-start justify-between">
+                                            <div>
+                                                <h4 className="font-bold text-gray-900 text-sm">{c.name}</h4>
+                                                {c.contact_person && (
+                                                    <p className="text-xs text-gray-600 mt-1 flex items-center gap-1">
+                                                        <User className="w-3 h-3 text-gray-400" />
+                                                        <span>{c.contact_person}</span>
+                                                    </p>
+                                                )}
+                                                {c.phone && (
+                                                    <p className="text-xs text-gray-600 mt-0.5 flex items-center gap-1">
+                                                        <Phone className="w-3 h-3 text-gray-400" />
+                                                        <span>{c.phone}</span>
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        <div className="p-4 border-t border-gray-100 bg-gray-50 text-right flex justify-between items-center">
+                            <span className="text-xs text-gray-500 font-semibold">{allContractors.length} Contractors total</span>
+                            <button
+                                onClick={() => {
+                                    setShowAllModal(false);
+                                    setAllSearch('');
+                                }}
+                                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl text-xs font-bold transition-all"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
