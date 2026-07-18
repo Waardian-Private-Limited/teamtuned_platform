@@ -638,7 +638,10 @@ export default function LaborersManager() {
                     <div>
                         <select
                             value={siteFilter}
-                            onChange={(e) => setSiteFilter(e.target.value)}
+                            onChange={(e) => {
+                                setSiteFilter(e.target.value);
+                                setContractorFilter("");
+                            }}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         >
                             <option value="">All Sites</option>
@@ -654,9 +657,11 @@ export default function LaborersManager() {
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         >
                             <option value="">All Contractors</option>
-                            {contractors.map((c) => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
+                            {contractors
+                                .filter((c) => !siteFilter || !c.site_id || String(c.site_id) === String(siteFilter))
+                                .map((c) => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
                         </select>
                     </div>
                     <div>
@@ -949,7 +954,7 @@ export default function LaborersManager() {
                                         </label>
                                         <select
                                             value={form.site_id}
-                                            onChange={(e) => setForm({ ...form, site_id: e.target.value })}
+                                            onChange={(e) => setForm({ ...form, site_id: e.target.value, contractor_id: "", category_id: "", subcategory_id: "" })}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                         >
                                             <option value="">Select Site</option>
@@ -970,9 +975,11 @@ export default function LaborersManager() {
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                         >
                                             <option value="">Select Contractor</option>
-                                            {contractors.map((c) => (
-                                                <option key={c.id} value={String(c.id)}>{c.name}</option>
-                                            ))}
+                                            {contractors
+                                                .filter((c) => !form.site_id || !c.site_id || String(c.site_id) === String(form.site_id))
+                                                .map((c) => (
+                                                    <option key={c.id} value={String(c.id)}>{c.name}</option>
+                                                ))}
                                         </select>
                                     </div>
                                     <div>
