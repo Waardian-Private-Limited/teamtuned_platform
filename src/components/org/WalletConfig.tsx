@@ -65,6 +65,7 @@ export default function WalletConfig() {
   const [loadingCfg, setLoadingCfg] = useState(false);
   const [savingCfg, setSavingCfg] = useState(false);
   const [isEditingConfig, setIsEditingConfig] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
   const loadCategories = async () => {
     setLoadingCat(true);
@@ -198,7 +199,7 @@ export default function WalletConfig() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <button onClick={() => updateCategory(c.id, { status: c.status === 'active' ? 'inactive' : 'active' })} className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium hover:bg-gray-50 transition-colors">Toggle</button>
-                          <button onClick={() => deleteCategory(c.id)} className="p-1.5 rounded-lg border border-gray-300 text-red-600 hover:bg-red-50 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                          <button onClick={() => setDeleteConfirmId(c.id)} className="p-1.5 rounded-lg border border-gray-300 text-red-600 hover:bg-red-50 transition-colors"><Trash2 className="w-4 h-4" /></button>
                         </div>
                       </td>
                     </tr>
@@ -352,6 +353,33 @@ export default function WalletConfig() {
                   <span>{saveLoading ? 'Saving…' : 'Save'}</span>
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm border border-gray-200 p-6 text-center">
+            <div className="w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Category</h3>
+            <p className="text-sm text-gray-500 mb-6">Are you sure you want to delete this category? This action cannot be undone.</p>
+            <div className="flex items-center justify-center gap-3">
+              <button onClick={() => setDeleteConfirmId(null)} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium">Cancel</button>
+              <button onClick={async () => {
+                const id = deleteConfirmId;
+                setDeleteConfirmId(null);
+                try {
+                  await apiClient<any>(`/wallet-config/categories/${id}`, { method: "DELETE", withAuth: true });
+                  await loadCategories();
+                  showSuccess("Category deleted successfully");
+                } catch (e: any) {
+                  showError(e?.message || "Failed to delete category");
+                }
+              }} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium">Delete</button>
             </div>
           </div>
         </div>

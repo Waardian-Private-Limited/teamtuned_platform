@@ -119,8 +119,14 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
         const ct = res.headers.get('content-type') || '';
+        const cd = res.headers.get('content-disposition') || '';
         const ext = ct.includes('spreadsheetml') ? 'xlsx' : 'xls';
-        link.download = `task_${taskId}_assignments_${exportFrom}_${exportTo}.${ext} `;
+        let fileName = `task_${taskId}_assignments_${exportFrom}_${exportTo}.${ext}`;
+        const match = cd.match(/filename="?([^";]+)"?/);
+        if (match && match[1]) {
+          fileName = match[1].trim();
+        }
+        link.download = fileName;
         document.body.appendChild(link);
         link.click();
         link.remove();

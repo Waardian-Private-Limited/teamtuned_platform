@@ -125,10 +125,10 @@ export default function OrgSidebar({
             }
             setIsCollapsed(false);
         } else {
-            // Collapse after 500ms when not hovered
+            // Collapse after 2000ms when not hovered
             hoverTimeoutRef.current = setTimeout(() => {
                 setIsCollapsed(true);
-            }, 500);
+            }, 2000);
         }
 
         return () => {
@@ -190,7 +190,7 @@ export default function OrgSidebar({
             ]));
             setLaborOpen(isActive(["/org-admin/labor-attendance", "/org-admin/labor/"]));
             setHrOperationOpen(isActive(["/org-admin/department-mapper", "/org-admin/hr-operation"]));
-            setReimbursementsOpen(isActive(["/org/hr-operation/reimbursements", "/org/accounts/reimbursements", "/employee/hr-operation/reimbursements/my", "/employee/hr-operation/reimbursements/all"]));
+            setReimbursementsOpen(isActive(["/org/hr-operation/reimbursements", "/org/accounts/reimbursements", "/employee/hr-operation/reimbursements/my", "/employee/hr-operation/reimbursements/all", "/org-admin/reimbursements", "/org-admin/reimbursements/wallets", "/org-admin/reimbursements/categories"]));
             setMomOpen(isActive(["/org-admin/mom"]));
         } else {
             // When collapsed, only keep the active category open
@@ -209,7 +209,7 @@ export default function OrgSidebar({
             setPettyCashOpen(isActive(["/org-admin/petty-cash", "/org-admin/wallet-overview", "/org-admin/wallet-config", "/org-admin/wallet-topups"]));
             setLaborOpen(isActive(["/org-admin/labor-attendance", "/org-admin/labor/"]));
             setHrOperationOpen(isActive(["/org-admin/department-mapper", "/org-admin/hr-operation"]));
-            setReimbursementsOpen(isActive(["/org/hr-operation/reimbursements", "/org/accounts/reimbursements", "/employee/hr-operation/reimbursements/my", "/employee/hr-operation/reimbursements/all"]));
+            setReimbursementsOpen(isActive(["/org/hr-operation/reimbursements", "/org/accounts/reimbursements", "/employee/hr-operation/reimbursements/my", "/employee/hr-operation/reimbursements/all", "/org-admin/reimbursements", "/org-admin/reimbursements/wallets", "/org-admin/reimbursements/categories"]));
         }
     }, [isCollapsed, pathname]);
 
@@ -432,17 +432,17 @@ export default function OrgSidebar({
                     )}
 
                     {/* Salary Advance Section */}
-        <CategoryButton label="Salary Advance" isOpen={salaryAdvanceOpen} onClick={() => handleToggle(setSalaryAdvanceOpen, salaryAdvanceOpen)} />
-        {salaryAdvanceOpen && (
-          <div className="ml-4 space-y-1">
-            <Item icon={LayoutDashboard} label="Dashboard" href="/org-admin/salary-advance/dashboard" active={pathname === "/org-admin/salary-advance/dashboard"} />
-            <Item icon={ClipboardList} label="All Requests" href="/org-admin/salary-advance/requests" active={pathname === "/org-admin/salary-advance/requests"} />
-            <Item icon={CheckSquare} label="Approval Queue" href="/org-admin/salary-advance/approvals" active={pathname === "/org-admin/salary-advance/approvals"} />
-            <Item icon={Calendar} label="Repayment Schedule" href="/org-admin/salary-advance/repayments" active={pathname === "/org-admin/salary-advance/repayments"} />
-            <Item icon={Settings} label="Policy Configuration" href="/org-admin/salary-advance/policy" active={pathname === "/org-admin/salary-advance/policy"} />
-            <Item icon={Users} label="Accounts" href="/org-admin/salary-advance/accounts" active={pathname === "/org-admin/salary-advance/accounts"} />
-          </div>
-        )}
+                    <CategoryButton label="Salary Advance" isOpen={salaryAdvanceOpen} onClick={() => handleToggle(setSalaryAdvanceOpen, salaryAdvanceOpen)} />
+                    {salaryAdvanceOpen && (
+                        <div className="ml-4 space-y-1">
+                            <Item icon={LayoutDashboard} label="Dashboard" href="/org-admin/salary-advance/dashboard" active={pathname === "/org-admin/salary-advance/dashboard"} />
+                            <Item icon={ClipboardList} label="All Requests" href="/org-admin/salary-advance/requests" active={pathname === "/org-admin/salary-advance/requests"} />
+                            <Item icon={CheckSquare} label="Approval Queue" href="/org-admin/salary-advance/approvals" active={pathname === "/org-admin/salary-advance/approvals"} />
+                            <Item icon={Calendar} label="Repayment Schedule" href="/org-admin/salary-advance/repayments" active={pathname === "/org-admin/salary-advance/repayments"} />
+                            <Item icon={Settings} label="Policy Configuration" href="/org-admin/salary-advance/policy" active={pathname === "/org-admin/salary-advance/policy"} />
+                            <Item icon={Users} label="Accounts" href="/org-admin/salary-advance/accounts" active={pathname === "/org-admin/salary-advance/accounts"} />
+                        </div>
+                    )}
 
                     {/* Inventory Section */}
                     {hasFeature("INVENTORY") && (
@@ -564,7 +564,6 @@ export default function OrgSidebar({
                                 <Item icon={UserPlus} label="Onboarding" href="/org-admin/hr-operation/onboarding" active={pathname === "/org-admin/hr-operation/onboarding"} />
                                 <Item icon={Briefcase} label="Onboarding Status" href="/org-admin/hr-operation/onboarding/status" active={pathname === "/org-admin/hr-operation/onboarding/status"} />
                                 <Item icon={FileText} label="Document Center" href="/org-admin/hr-operation/document-center" active={pathname === "/org-admin/hr-operation/document-center"} />
-                                <Item icon={Receipt} label="Reimbursements" href="/org/hr-operation/reimbursements" active={pathname === "/org/hr-operation/reimbursements"} />
                             </div>
                         )}
                     </>
@@ -575,10 +574,9 @@ export default function OrgSidebar({
                         <CategoryButton label="Reimbursements" isOpen={reimbursementsOpen} onClick={() => handleToggle(setReimbursementsOpen, reimbursementsOpen)} />
                         {reimbursementsOpen && (
                             <div className="space-y-1 ml-2">
-                                <Item icon={Receipt} label="My Reimbursements" href="/employee/hr-operation/reimbursements/my" active={pathname === "/employee/hr-operation/reimbursements/my"} />
-                                <Item icon={Receipt} label="Reimbursements" href="/org/hr-operation/reimbursements" active={pathname === "/org/hr-operation/reimbursements"} />
-                                <Item icon={Tag} label="Categories" href="/org-admin/reimbursements/categories" active={pathname === "/org-admin/reimbursements/categories"} />
-                                <Item icon={Receipt} label="Accounts / Disburse" href="/org/accounts/reimbursements" active={pathname === "/org/accounts/reimbursements"} />
+                                <Item icon={Wallet} label="Reimbursements" href="/org-admin/reimbursements" active={pathname === "/org-admin/reimbursements"} />
+                                <Item icon={Wallet} label="Employee Wallets" href="/org-admin/reimbursements/wallets" active={pathname === "/org-admin/reimbursements/wallets"} />
+                                <Item icon={Cog} label="Reimbursement Config" href="/org-admin/reimbursements/categories" active={pathname === "/org-admin/reimbursements/categories"} />
                             </div>
                         )}
                     </>

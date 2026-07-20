@@ -37,6 +37,10 @@ export default function Permissions() {
         description: "",
     });
 
+    const [showSyncModal, setShowSyncModal] = React.useState(false);
+    const [syncStatus, setSyncStatus] = React.useState<"active" | "inactive">("inactive");
+    const [syncing, setSyncing] = React.useState(false);
+
     const fetchData = async () => {
         setLoading(true);
         setError(null);
@@ -102,11 +106,29 @@ export default function Permissions() {
         }
     };
 
+    const handleSyncAll = async () => {
+        setSyncing(true);
+        try {
+            const res = await apiClient<{ success: boolean; message: string }>("/superadmin/sync-all-permissions-to-all-orgs", {
+                method: "POST",
+                body: { status: syncStatus },
+            });
+            alert(res.message || "Sync completed successfully!");
+            setShowSyncModal(false);
+            fetchData();
+        } catch (e: any) {
+            alert(e?.message || "Sync failed");
+        } finally {
+            setSyncing(false);
+        }
+    };
+
     return (
         <section>
             <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-semibold text-black">Permissions</h1>
                 <div className="flex gap-2">
+                    <button className="px-4 py-2 rounded border border-black text-black hover:bg-gray-50" onClick={() => setShowSyncModal(true)}>Sync to All Orgs</button>
                     <button
                         className="px-4 py-2 rounded border border-gray-300 text-black hover:bg-gray-100"
                         onClick={async () => {
@@ -227,6 +249,42 @@ export default function Permissions() {
                         <div className="p-4 flex items-center justify-end gap-2 border-t">
                             <button className="px-4 py-2 rounded border text-black" onClick={() => setShowModal(false)}>Cancel</button>
                             <button className="px-4 py-2 rounded bg-black text-white hover:bg-gray-800" onClick={savePermission}>{editing ? "Save" : "Add"}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showSyncModal && (
+                <div className="fixed inset-0 z-50">
+                    <div className="absolute inset-0 bg-black/40" onClick={() => setShowSyncModal(false)} />
+                    <div className="relative mx-auto mt-24 w-[95%] max-w-md rounded bg-white shadow-lg">
+                        <div className="flex items-center justify-between border-b p-4">
+                            <h2 className="text-lg font-semibold text-black">Sync Categories & Permissions</h2>
+                            <button className="text-black hover:opacity-80" onClick={() => setShowSyncModal(false)}>✕</button>
+                        </div>
+
+                        <div className="p-4 space-y-4">
+                            <p className="text-sm text-gray-600">
+                                This will replicate all master permission categories and permissions from the superadmin DB to all organization databases.
+                            </p>
+                            <div>
+                                <label className="block text-sm font-medium text-black">Select Initial Status</label>
+                                <select
+                                    className="mt-1 w-full rounded border px-3 py-2 text-black"
+                                    value={syncStatus}
+                                    onChange={(e) => setSyncStatus(e.target.value as "active" | "inactive")}
+                                >
+                                    <option value="inactive">Inactive (Recommended - activate per org later)</option>
+                                    <option value="active">Active (Enable immediately for all orgs)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="p-4 flex items-center justify-end gap-2 border-t">
+                            <button className="px-4 py-2 rounded border text-black" onClick={() => setShowSyncModal(false)} disabled={syncing}>Cancel</button>
+                            <button className="px-4 py-2 rounded bg-black text-white hover:bg-gray-800 disabled:opacity-50" onClick={handleSyncAll} disabled={syncing}>
+                                {syncing ? "Syncing..." : "Sync Now"}
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -79,22 +79,16 @@ export default function EmployeeSelectionModal({
     const [totalEmployees, setTotalEmployees] = useState(0);
     const itemsPerPage = 20;
 
-    // Reset filters and pagination when modal closes
+    // Reset filters and pagination when modal opens/closes
     useEffect(() => {
-        if (!isOpen) {
+        if (isOpen) {
+            setLocalSelectedIds(initialSelectedIds || []);
+        } else {
             setSearchQuery("");
             setSelectedRoleId(null);
             setSelectedDepartmentId(null);
             setShowFilters(false);
             setCurrentPage(1);
-            setLocalSelectedIds(initialSelectedIds);
-        }
-    }, [isOpen, initialSelectedIds]);
-
-    // Update local selected IDs when initialSelectedIds changes while open
-    useEffect(() => {
-        if (isOpen && initialSelectedIds.length > 0 && localSelectedIds.length === 0) {
-            setLocalSelectedIds(initialSelectedIds);
         }
     }, [isOpen, initialSelectedIds]);
 
@@ -150,7 +144,6 @@ export default function EmployeeSelectionModal({
         }
     };
 
-    if (!isOpen) return null;
 
     // Filter employees (only if using client-side mode)
     const filteredEmployees = fetchEmployees ? employees : employees.filter((emp) => {
@@ -185,6 +178,16 @@ export default function EmployeeSelectionModal({
     const paginatedEmployees = fetchEmployees ? filteredEmployees : filteredEmployees.slice(startIndex, endIndex);
     const displayTotalEmployees = fetchEmployees ? totalEmployees : filteredEmployees.length;
 
+    const sortedEmployees = React.useMemo(() => {
+        return [...paginatedEmployees].sort((a, b) => {
+            const aSelected = localSelectedIds.includes(a.id);
+            const bSelected = localSelectedIds.includes(b.id);
+            if (aSelected && !bSelected) return -1;
+            if (!aSelected && bSelected) return 1;
+            return 0;
+        });
+    }, [paginatedEmployees, localSelectedIds]);
+
     const handleSelect = (employeeId: number) => {
         if (isMultiSelect) {
             setLocalSelectedIds(prev =>
@@ -209,8 +212,10 @@ export default function EmployeeSelectionModal({
         setCurrentPage(Math.max(1, Math.min(page, clientTotalPages)));
     };
 
+    if (!isOpen) return null;
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b border-gray-200">
@@ -315,7 +320,7 @@ export default function EmployeeSelectionModal({
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 gap-3">
-                            {paginatedEmployees.map((emp) => (
+                            {sortedEmployees.map((emp) => (
                                 <button
                                     key={emp.id}
                                     onClick={() => handleSelect(emp.id)}

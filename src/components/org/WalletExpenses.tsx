@@ -705,7 +705,7 @@ export default function WalletExpenses({ initialSiteId, initialWalletId, onClose
                   className="fixed w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
                 >
                   <div className="py-1">
-                    {(myLevel || (expense.can_approve_level != null)) && (
+                    {(expense.can_approve_level != null && expense.can_approve_level === expense.current_approval_level) && (
                       <>
                         <button
                           onClick={() => {

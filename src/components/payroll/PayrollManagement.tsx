@@ -746,7 +746,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
           <div className="flex-1 overflow-hidden bg-white border border-slate-200 rounded-lg">
             {/* Horizontal scroll container for both header and body with modern scrollbar */}
             <div className="h-full overflow-x-auto [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-slate-400">
-              <div className="min-w-[2200px] h-full flex flex-col">
+              <div className="min-w-[2350px] h-full flex flex-col">
                 {/* Fixed Header */}
                 <div className="bg-white border-b border-slate-200 flex-shrink-0 z-10">
                   <div className="grid grid-cols-[40px_80px_200px_120px_80px_100px_100px_100px_100px_110px_80px_80px_80px_80px_100px_100px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-3">
@@ -789,7 +789,10 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                   {loading ? (
                     // Ghost Loader
                     Array.from({ length: 5 }).map((_, i) => (
-                      <div key={i} className="min-w-[2200px] grid grid-cols-[80px_200px_120px_80px_100px_100px_100px_100px_110px_80px_80px_80px_80px_100px_100px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-4 animate-pulse">
+                      <div key={i} className="min-w-[2350px] grid grid-cols-[40px_80px_200px_120px_80px_100px_100px_100px_100px_110px_80px_80px_80px_80px_100px_100px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-4 animate-pulse items-center">
+                        <div className="flex items-center justify-center">
+                          <div className="w-4 h-4 bg-slate-100 rounded"></div>
+                        </div>
                         <div className="w-9 h-9 bg-slate-100 rounded-lg"></div>
                         <div className="h-4 bg-slate-100 rounded w-32"></div>
 
@@ -807,7 +810,6 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                         <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
                         <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
 
-                        <div className="h-4 bg-slate-100 rounded w-12 ml-auto"></div>
                         <div className="h-4 bg-slate-100 rounded w-20 ml-auto"></div>
                         <div className="h-4 bg-slate-100 rounded w-20 ml-auto"></div>
                         <div className="h-4 bg-slate-100 rounded w-20 ml-auto"></div>
@@ -835,7 +837,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                       const salary = employee.salary || {};
 
                       return (
-                        <div key={employee.id} className="min-w-[2200px] grid grid-cols-[40px_80px_200px_120px_80px_100px_100px_100px_100px_110px_80px_80px_80px_80px_100px_100px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-3 hover:bg-slate-50 transition-colors items-center group border-l-2 border-transparent hover:border-blue-500">
+                        <div key={employee.id} className="min-w-[2350px] grid grid-cols-[40px_80px_200px_120px_80px_100px_100px_100px_100px_110px_80px_80px_80px_80px_100px_100px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-3 hover:bg-slate-50 transition-colors items-center group border-l-2 border-transparent hover:border-blue-500">
                           {/* Checkbox */}
                           <div className="flex items-center justify-center">
                             <input
@@ -957,11 +959,10 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
 
                   {/* Total Row */}
                   {items.length > 0 && (
-                    <div className="min-w-[2100px] grid grid-cols-[40px_80px_200px_120px_80px_100px_100px_100px_100px_110px_80px_80px_80px_80px_100px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-3 bg-slate-100 border-t-2 border-slate-200 items-center font-bold text-slate-900 sticky bottom-0 z-10 shadow-inner">
+                    <div className="min-w-[2350px] grid grid-cols-[40px_80px_200px_120px_80px_100px_100px_100px_100px_110px_80px_80px_80px_80px_100px_100px_100px_100px_100px_100px_100px_80px] gap-2 px-4 py-3 bg-slate-100 border-t-2 border-slate-200 items-center font-bold text-slate-900 sticky bottom-0 z-10 shadow-inner">
                       <div></div>
                       <div></div>
                       <div>Total Employees: {items.length}</div>
-                      <div></div>
                       <div>Total</div>
 
                       {/* Total Days */}
@@ -1009,7 +1010,13 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                       {/* Deductions */}
                       <div className="text-right">₹{items.reduce((sum, item) => sum + (Number(item?.salary?.total_deductions) || 0), 0).toLocaleString()}</div>
 
-                      <div></div>
+                      {/* Salary Advance */}
+                      <div className="text-right">₹{items.reduce((sum, item) => sum + (Number(item?.salary?.salary_advance_emi) || 0), 0).toLocaleString()}</div>
+
+                      {/* Net Payment */}
+                      <div className="text-right">₹{items.reduce((sum, item) => sum + (Number(item?.salary?.net_payment) || 0), 0).toLocaleString()}</div>
+
+                      <div className="sticky right-0 bg-slate-100 shadow-[-10px_0_15px_-10px_rgba(0,0,0,0.05)] z-20 px-2 py-3 -my-3 h-full flex items-center justify-end"></div>
                     </div>
                   )}
                 </div>

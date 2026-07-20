@@ -114,6 +114,10 @@ export type AttendancePolicy = {
   is_late_min_deduction?: boolean;
   late_min_grace?: number;
   late_min_interval?: number;
+  always_full_day?: boolean;
+  late_extension_enabled?: boolean;
+  late_extension_trigger_minutes?: number;
+  late_extension_multiplier?: number;
 };
 
 const defaultPolicy: AttendancePolicy = {
@@ -186,13 +190,16 @@ const defaultPolicy: AttendancePolicy = {
   night_ot_full_day_time: "02:00:00",
   auto_adjust_night_ot_next_day: false,
 
-
   show_grace_minutes: true,
   show_late_min: true,
   show_ot_minutes: true,
   adjust_leave_compoff: true,
   apply_sandwich: true,
   max_sessions_allowed: 1,
+  always_full_day: false,
+  late_extension_enabled: false,
+  late_extension_trigger_minutes: 10,
+  late_extension_multiplier: 1.5,
 };
 
 export default function AttendanceRulesManager() {
@@ -453,6 +460,15 @@ export default function AttendanceRulesManager() {
     if (policy.regularization_allowed_days < 0 || policy.regularization_allowed_days > 31) errs.regularization_allowed_days = "Enter between 0 and 31";
     if (policy.regularizations_limit_per_month < 0) errs.regularizations_limit_per_month = "Enter 0 or more";
     if (policy.max_sessions_allowed < 1) errs.max_sessions_allowed = "Enter 1 or more";
+
+    if (policy.late_extension_enabled) {
+      if (policy.late_extension_trigger_minutes === undefined || policy.late_extension_trigger_minutes < 0) {
+        errs.late_extension_trigger_minutes = "Enter 0 or more";
+      }
+      if (policy.late_extension_multiplier === undefined || policy.late_extension_multiplier <= 0) {
+        errs.late_extension_multiplier = "Enter a positive number";
+      }
+    }
 
     setFormErrors((prev) => ({ ...prev, ...errs }));
     return Object.keys(errs).length === 0;
@@ -889,6 +905,26 @@ export default function AttendanceRulesManager() {
                           ? `${policy.max_carry_forward_leaves} days allowed`
                           : 'Not allowed')
                       }
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500">Always Full Day</h4>
+                    <p className="mt-1 text-gray-900">
+                      {policy.always_full_day ? "Enabled (Bypasses late/early penalties/LOP)" : "Disabled"}
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500">Late Shift Extension</h4>
+                    <p className="mt-1 text-gray-900">
+                      {policy.late_extension_enabled ? (
+                        <>
+                          Enabled <br />
+                          Trigger Buffer: {policy.late_extension_trigger_minutes} mins <br />
+                          Multiplier: {policy.late_extension_multiplier}x excess mins
+                        </>
+                      ) : "Disabled"}
                     </p>
                   </div>
                 </div>
@@ -2401,7 +2437,91 @@ export default function AttendanceRulesManager() {
                             <option value="false">Hide</option>
                           </select>
                           <p className="mt-1 text-xs text-gray-500">Show/Hide overtime in app</p>
+                        </div>
                       </div>
+
+                    {/* Always Full Day & Late Shift Extension Rules */}
+                    <div className="border-t pt-6 mt-6">
+                      <h5 className="text-md font-semibold text-gray-900 mb-4">Always Full Day & Late Shift Extension Rules</h5>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="flex flex-col">
+                          <label className="flex items-center space-x-2 mb-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              checked={policy.always_full_day || false}
+                              onChange={(e) => setField("always_full_day", e.target.checked)}
+                            />
+                            <span className="text-sm font-medium text-gray-700">Enable Always Full Day</span>
+                          </label>
+                          <p className="text-xs text-gray-500">
+                            Bypasses all late check-in penalties, early checkout penalties, and LOP deductions due to short hours. The user always gets full day credit as long as they punched in and out.
+                          </p>
+                        </div>
+
+                        <div className="flex flex-col">
+                          <label className="flex items-center space-x-2 mb-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              checked={policy.late_extension_enabled || false}
+                              onChange={(e) => setField("late_extension_enabled", e.target.checked)}
+                            />
+                            <span className="text-sm font-medium text-gray-700">Enable Late Shift Extension</span>
+                          </label>
+                          <p className="text-xs text-gray-500">
+                            Dynamically extends the expected shift checkout time by a multiplier of the lateness minutes.
+                          </p>
+                        </div>
+                      </div>
+
+                      {policy.late_extension_enabled && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Lateness Trigger Buffer (minutes)<span className="text-red-500 ml-1">*</span>
+                            </label>
+                            <input
+                              type="number"
+                              className={`w-full px-3 py-2 border bg-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                                formErrors.late_extension_trigger_minutes ? 'border-red-500' : 'border-gray-300'
+                              }`}
+                              min={0}
+                              value={policy.late_extension_trigger_minutes !== undefined ? policy.late_extension_trigger_minutes : 10}
+                              onChange={(e) => setField("late_extension_trigger_minutes", Number(e.target.value))}
+                            />
+                            {formErrors.late_extension_trigger_minutes && (
+                              <p className="mt-1 text-sm text-red-600">{formErrors.late_extension_trigger_minutes}</p>
+                            )}
+                            <p className="mt-1 text-xs text-gray-500">
+                              Lateness within this buffer won't trigger an extension (default: 10 mins).
+                            </p>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Extension Multiplier<span className="text-red-500 ml-1">*</span>
+                            </label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              className={`w-full px-3 py-2 border bg-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                                formErrors.late_extension_multiplier ? 'border-red-500' : 'border-gray-300'
+                              }`}
+                              min={0.1}
+                              value={policy.late_extension_multiplier !== undefined ? policy.late_extension_multiplier : 1.5}
+                              onChange={(e) => setField("late_extension_multiplier", Number(e.target.value))}
+                            />
+                            {formErrors.late_extension_multiplier && (
+                              <p className="mt-1 text-sm text-red-600">{formErrors.late_extension_multiplier}</p>
+                            )}
+                            <p className="mt-1 text-xs text-gray-500">
+                              The multiplier applied to the excess late minutes (default: 1.5).
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </>
                 )}

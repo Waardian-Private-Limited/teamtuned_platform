@@ -109,11 +109,11 @@ export default function EmployeeSidebar({
       }
       setIsCollapsed(false);
     } else {
-      // Collapse after 500ms when not hovered
+      // Collapse after 2000ms when not hovered
       hoverTimeoutRef.current = setTimeout(() => {
         setIsCollapsed(true);
         // Do NOT auto-open all categories when collapsed, as requested to show only active
-      }, 500);
+      }, 2000);
     }
 
     return () => {
@@ -230,7 +230,10 @@ export default function EmployeeSidebar({
         "/org/hr-operation/reimbursements",
         "/org/accounts/reimbursements",
         "/employee/hr-operation/reimbursements/my",
-        "/employee/hr-operation/reimbursements/all"
+        "/employee/hr-operation/reimbursements/all",
+        "/employee/reimbursements",
+        "/employee/reimbursements/wallets",
+        "/employee/reimbursements/categories"
       ]));
     } else {
       // When collapsed, only keep the active category open to follow "check and fix that open only active category"
@@ -247,7 +250,7 @@ export default function EmployeeSidebar({
       setDpsOpen(isActive(["/employee/dps"]));
       setLaborOpen(isActive(["/employee/labor-attendance", "/employee/labor/"]));
       setHrOperationOpen(isActive(["/employee/department-mapper", "/employee/hr-operation"]));
-      setReimbursementsOpen(isActive(["/org/hr-operation/reimbursements", "/org/accounts/reimbursements", "/employee/hr-operation/reimbursements/my", "/employee/hr-operation/reimbursements/all"]));
+      setReimbursementsOpen(isActive(["/org/hr-operation/reimbursements", "/org/accounts/reimbursements", "/employee/hr-operation/reimbursements/my", "/employee/hr-operation/reimbursements/all", "/employee/reimbursements", "/employee/reimbursements/wallets", "/employee/reimbursements/categories"]));
     }
   }, [isCollapsed, pathname]);
 
@@ -428,10 +431,10 @@ export default function EmployeeSidebar({
 
 
   // Reimbursement Permissions
-  const canViewAllReimbursements =
-    isOrgAdmin || isDirector || hasAnyPerm(["REIMB_VIEW", "REIMB_APPROVE", "REIMB_REJECT", "REIMB_EXPORT"]);
-  const canDisburseReimbursements = isOrgAdmin || hasPerm("REIMB_DISBURSE");
-  const showReimbursements = canViewAllReimbursements || canDisburseReimbursements; // standard for "My Reimbursements" but guarded category
+  const canViewReimbursementClaims = isOrgAdmin || hasPerm("REIMBUSMENT_VIEW");
+  const canViewReimbursementWallets = isOrgAdmin || hasPerm("REIMBUSMENT_WALLET_VIEW");
+  const canViewReimbursementConfig = isOrgAdmin || hasPerm("REIMBUSMENT_CONFIG");
+  const showReimbursements = canViewReimbursementClaims || canViewReimbursementWallets || canViewReimbursementConfig;
 
   // New Sensitive Permission Gates
   const canViewDPR = isOrgAdmin || hasAnyPerm(["DPR_VIEW", "DPR_ADMIN", "DPR_ADD", "DPR_EDIT"]);
@@ -1559,34 +1562,28 @@ export default function EmployeeSidebar({
               {reimbursementsOpen && (
                 <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
                   <div className={`relative ${isCollapsed ? "" : "pl-3 border-l border-gray-100"}`}>
-                    <Item
-                      icon={Receipt}
-                      label="My Reimbursements"
-                      href="/employee/hr-operation/reimbursements/my"
-                      active={pathname === "/employee/hr-operation/reimbursements/my"}
-                    />
-                    {canViewAllReimbursements && (
+                    {canViewReimbursementClaims && (
                       <Item
-                        icon={Tag}
-                        label="Categories"
-                        href="/employee/hr-operation/reimbursements/categories"
-                        active={pathname === "/employee/hr-operation/reimbursements/categories"}
-                      />
-                    )}
-                    {canViewAllReimbursements && (
-                      <Item
-                        icon={Receipt}
+                        icon={Wallet}
                         label="Reimbursements"
-                        href="/employee/hr-operation/reimbursements/all"
-                        active={pathname === "/employee/hr-operation/reimbursements/all"}
+                        href="/employee/reimbursements"
+                        active={pathname === "/employee/reimbursements"}
                       />
                     )}
-                    {canDisburseReimbursements && (
+                    {canViewReimbursementWallets && (
                       <Item
-                        icon={Receipt}
-                        label="Accounts / Disburse"
-                        href="/employee/accounts/reimbursements"
-                        active={pathname === "/employee/accounts/reimbursements"}
+                        icon={Wallet}
+                        label="Employee Wallets"
+                        href="/employee/reimbursements/wallets"
+                        active={pathname === "/employee/reimbursements/wallets"}
+                      />
+                    )}
+                    {canViewReimbursementConfig && (
+                      <Item
+                        icon={Cog}
+                        label="Reimbursement Config"
+                        href="/employee/reimbursements/categories"
+                        active={pathname === "/employee/reimbursements/categories"}
                       />
                     )}
                   </div>

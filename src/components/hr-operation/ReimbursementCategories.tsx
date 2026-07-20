@@ -1,309 +1,527 @@
 "use client";
-
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/lib/apiClient";
-import {
-    Plus, Search, RefreshCw, Edit2, Trash2, X, Tag, FileText, ChevronLeft, ChevronRight
-} from "lucide-react";
 import { showSuccess, showError } from "@/lib/toast";
-import { Toaster } from "react-hot-toast";
+import { Plus, X, Edit, Trash2, RefreshCw, CheckCircle, AlertCircle, Save, Users } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import ReimbursementWorkflowConfig from "./ReimbursementWorkflowConfig";
+import EmployeeSelectionModal from "../org/EmployeeSelectionModal";
 
-interface Category {
-    id: number;
-    name: string;
-    description: string | null;
-    created_at: string;
+type Category = { id: number; name: string; description?: string | null; status: "active" | "inactive" };
+type Config = {
+  can_negative: boolean;
+  auto_close_days: number;
+  physical_copies_required: boolean;
+  physical_copy_start_day: number | null;
+  physical_copy_end_day: number | null;
+  physical_copy_verifier_id: number | null;
+  is_locked: boolean;
+  locked_at: string | null;
+  locked_by: number | null;
+  lock_reason: string | null;
+};
+
+// Modern Toggle Component
+function Toggle({ enabled, onChange, label, description }: { enabled: boolean; onChange: (val: boolean) => void; label: string; description?: string }) {
+  return (
+    <div className="flex items-center justify-between py-3">
+      <div>
+        <span className="text-sm font-medium text-gray-900">{label}</span>
+        {description && <p className="text-xs text-gray-500 mt-0.5">{description}</p>}
+      </div>
+      <button
+        type="button"
+        onClick={() => onChange(!enabled)}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${enabled ? 'bg-indigo-600' : 'bg-gray-200'
+          }`}
+      >
+        <span
+          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'
+            }`}
+        />
+      </button>
+    </div>
+  );
 }
 
 export default function ReimbursementCategories() {
-    const [categories, setCategories] = useState<Category[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [search, setSearch] = useState("");
+  const { role, permissions } = useAuth();
+  const isOrgAdmin = (role || '').toLowerCase() === 'orgadmin';
+  const hasPerm = (code: string) =>
+    (permissions || []).some((p) => (p || '').toUpperCase() === code.toUpperCase());
+  const canConfig = isOrgAdmin || hasPerm('REIMB_ADMIN') || hasPerm('REIMBUSMENT_CONFIG');
 
-    // Modal state
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-    const [formData, setFormData] = useState({ name: "", description: "" });
-    const [submitting, setSubmitting] = useState(false);
+  const [tab, setTab] = useState<"categories" | "config" | "workflows">("categories");
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loadingCat, setLoadingCat] = useState(false);
+  const [errorCat, setErrorCat] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [formName, setFormName] = useState("");
+  const [formDesc, setFormDesc] = useState("");
+  const [saveLoading, setSaveLoading] = useState(false);
 
-    // Delete confirmation
-    const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [config, setConfig] = useState<Config>({
+    can_negative: false,
+    auto_close_days: 0,
+    physical_copies_required: false,
+    physical_copy_start_day: null,
+    physical_copy_end_day: null,
+    physical_copy_verifier_id: null,
+    is_locked: false,
+    locked_at: null,
+    locked_by: null,
+    lock_reason: null,
+  });
+  const [loadingCfg, setLoadingCfg] = useState(false);
+  const [savingCfg, setSavingCfg] = useState(false);
+  const [isEditingConfig, setIsEditingConfig] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
-    const fetchCategories = useCallback(async () => {
-        setLoading(true);
-        try {
-            const res = await apiClient("/reimbursements/categories", { method: "GET", withAuth: true }) as any;
-            if (res?.success) {
-                setCategories(res.data || []);
-            }
-        } catch (e: any) {
-            showError(e.message || "Failed to load categories");
-        } finally {
-            setLoading(false);
-        }
-    }, []);
+  const [roles, setRoles] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [showEmployeeModal, setShowEmployeeModal] = useState(false);
+  const [employeeCache, setEmployeeCache] = useState<Map<number, any>>(new Map());
 
-    useEffect(() => {
-        fetchCategories();
-    }, [fetchCategories]);
+  const updateEmployeeCache = (emps: any[]) => {
+    setEmployeeCache((prev) => {
+      const next = new Map(prev);
+      emps.forEach((e) => {
+        if (e && e.id) next.set(e.id, e);
+      });
+      return next;
+    });
+  };
 
-    const handleOpenModal = (cat: Category | null = null) => {
-        if (cat) {
-            setEditingCategory(cat);
-            setFormData({ name: cat.name, description: cat.description || "" });
-        } else {
-            setEditingCategory(null);
-            setFormData({ name: "", description: "" });
-        }
-        setIsModalOpen(true);
-    };
+  const fetchWorkflowOptions = async () => {
+    try {
+      const data = await apiClient<{ roles: any[]; departments: any[] }>(
+        "/reimbursement-workflow/options",
+        { withAuth: true }
+      );
+      setRoles(data.roles || []);
+      setDepartments(data.departments || []);
+    } catch (error) {
+      console.error("Failed to fetch workflow options:", error);
+    }
+  };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!formData.name.trim()) return showError("Category name is required");
+  const fetchEmployees = async (params?: {
+    search?: string;
+    role_id?: number;
+    department_id?: number;
+    page?: number;
+    limit?: number;
+  }) => {
+    try {
+      const queryParams = new URLSearchParams();
+      if (params?.search) queryParams.append('search', params.search);
+      if (params?.role_id) queryParams.append('role_id', params.role_id.toString());
+      if (params?.department_id) queryParams.append('department_id', params.department_id.toString());
+      if (params?.page) queryParams.append('page', params.page.toString());
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
 
-        setSubmitting(true);
-        try {
-            const method = editingCategory ? "PUT" : "POST";
-            const url = editingCategory
-                ? `/reimbursements/categories/${editingCategory.id}`
-                : "/reimbursements/categories";
+      const data = await apiClient<{
+        employees: any[];
+        pagination: { page: number; limit: number; total: number; totalPages: number };
+      }>(
+        `/reimbursement-workflow/options?${queryParams.toString()}`,
+        { withAuth: true }
+      );
+      return data;
+    } catch (error) {
+      console.error("Failed to fetch employees:", error);
+      return { employees: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 1 } };
+    }
+  };
 
-            const res = await apiClient(url, { method, body: formData, withAuth: true }) as any;
-            if (res?.success) {
-                showSuccess(editingCategory ? "Category updated" : "Category created");
-                setIsModalOpen(false);
-                fetchCategories();
-            }
-        } catch (e: any) {
-            showError(e.message || "Operation failed");
-        } finally {
-            setSubmitting(false);
-        }
-    };
+  const fetchEmployeeDetails = async (id: number) => {
+    try {
+      const data = await fetchEmployees({ limit: 100 });
+      if (data?.employees) {
+        updateEmployeeCache(data.employees);
+      }
+    } catch (error) {
+      console.error("Failed to fetch employee details:", error);
+    }
+  };
 
-    const handleDelete = async (id: number) => {
-        try {
-            const res = await apiClient(`/reimbursements/categories/${id}`, { method: "DELETE", withAuth: true }) as any;
-            if (res?.success) {
-                showSuccess("Category deleted");
-                setDeleteConfirm(null);
-                fetchCategories();
-            }
-        } catch (e: any) {
-            showError(e.message || "Failed to delete");
-        }
-    };
+  const loadCategories = async () => {
+    setLoadingCat(true);
+    setErrorCat(null);
+    try {
+      const res = await apiClient<any>("/reimbursement-config/categories", { method: "GET", withAuth: true });
+      const list: Category[] = Array.isArray(res) ? res : (res?.categories || []);
+      setCategories(list);
+    } catch (e: any) {
+      setErrorCat(e?.message || "Failed to load categories");
+    } finally {
+      setLoadingCat(false);
+    }
+  };
 
-    const filteredCategories = categories.filter(c =>
-        c.name.toLowerCase().includes(search.toLowerCase()) ||
-        (c.description || "").toLowerCase().includes(search.toLowerCase())
-    );
+  const loadConfig = async () => {
+    setLoadingCfg(true);
+    try {
+      const res = await apiClient<any>("/reimbursement-config/config", { method: "GET", withAuth: true });
+      const cfg: Config = res?.config || {
+        can_negative: false,
+        auto_close_days: 0,
+        physical_copies_required: false,
+        physical_copy_start_day: null,
+        physical_copy_end_day: null,
+        physical_copy_verifier_id: null,
+        is_locked: false,
+        locked_at: null,
+        locked_by: null,
+        lock_reason: null,
+      };
+      setConfig(cfg);
+      if (cfg.physical_copy_verifier_id) {
+        fetchEmployeeDetails(cfg.physical_copy_verifier_id);
+      }
+    } finally {
+      setLoadingCfg(false);
+    }
+  };
 
+  useEffect(() => { loadCategories(); loadConfig(); fetchWorkflowOptions(); }, []);
+
+  const openNew = () => { setFormName(""); setFormDesc(""); setModalOpen(true); };
+  const closeModal = () => { setModalOpen(false); };
+
+  const saveCategory = async () => {
+    if (!formName.trim()) return;
+    setSaveLoading(true);
+    try {
+      await apiClient<any>("/reimbursement-config/categories", { method: "POST", withAuth: true, body: { name: formName.trim(), description: formDesc.trim() } });
+      setModalOpen(false);
+      await loadCategories();
+      showSuccess("Category created successfully");
+    } catch (e: any) {
+      showError(e?.message || "Failed to create category");
+    } finally { setSaveLoading(false); }
+  };
+
+  const updateCategory = async (id: number, payload: Partial<Category>) => {
+    try {
+      await apiClient<any>(`/reimbursement-config/categories/${id}`, { method: "PUT", withAuth: true, body: payload });
+      await loadCategories();
+      showSuccess("Category updated successfully");
+    } catch (e: any) {
+      showError(e?.message || "Failed to update category");
+    }
+  };
+
+  const deleteCategory = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this category?")) return;
+    try {
+      await apiClient<any>(`/reimbursement-config/categories/${id}`, { method: "DELETE", withAuth: true });
+      await loadCategories();
+      showSuccess("Category deleted successfully");
+    } catch (e: any) {
+      showError(e?.message || "Failed to delete category");
+    }
+  };
+
+  const saveConfig = async () => {
+    setSavingCfg(true);
+    try {
+      await apiClient<any>("/reimbursement-config/config", { method: "PUT", withAuth: true, body: config });
+      setIsEditingConfig(false);
+      showSuccess("Configuration saved successfully");
+    } catch (e: any) {
+      showError(e?.message || "Failed to save configuration");
+    } finally { setSavingCfg(false); }
+  };
+
+  const catRows = useMemo(() => categories, [categories]);
+
+  if (!canConfig) {
     return (
-        <div className="min-h-screen">
-            <Toaster position="top-right" />
-            <div className="max-w-5xl mx-auto space-y-6">
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                            Reimbursement Categories
-                        </h1>
-                        <p className="text-sm text-gray-500 mt-0.5">
-                            Manage expense categories for employee reimbursements
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => fetchCategories()}
-                            disabled={loading}
-                            className="p-2 bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all"
-                        >
-                            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-                        </button>
-                        <button
-                            onClick={() => handleOpenModal()}
-                            className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-xl shadow-lg hover:shadow-xl transition-all text-sm font-medium"
-                        >
-                            <Plus className="w-4 h-4" />
-                            Add Category
-                        </button>
-                    </div>
-                </div>
-
-                {/* Table Section */}
-                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                    <div className="p-4 border-b border-gray-100 flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 flex-1 max-w-sm">
-                            <Search className="w-4 h-4 text-gray-400" />
-                            <input
-                                value={search}
-                                onChange={e => setSearch(e.target.value)}
-                                placeholder="Search categories..."
-                                className="bg-transparent text-sm text-gray-700 outline-none w-full"
-                            />
-                        </div>
-                        <p className="text-xs text-gray-500 font-medium">
-                            {filteredCategories.length} Categories
-                        </p>
-                    </div>
-
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="bg-gray-50 border-b border-gray-100">
-                                <tr className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                                    <th className="px-6 py-4 text-left">Category Name</th>
-                                    <th className="px-6 py-4 text-left">Description</th>
-                                    <th className="px-6 py-4 text-left">Created At</th>
-                                    <th className="px-6 py-4 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-50">
-                                {loading ? (
-                                    <tr>
-                                        <td colSpan={4} className="px-6 py-12 text-center">
-                                            <RefreshCw className="w-6 h-6 text-gray-300 animate-spin mx-auto" />
-                                        </td>
-                                    </tr>
-                                ) : filteredCategories.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={4} className="px-6 py-12 text-center">
-                                            <div className="flex flex-col items-center gap-2 opacity-40">
-                                                <Tag className="w-10 h-10" />
-                                                <p className="font-medium text-gray-500 text-base">No categories found</p>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ) : filteredCategories.map(cat => (
-                                    <tr key={cat.id} className="hover:bg-gray-50/50 transition-colors group">
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500 group-hover:bg-black group-hover:text-white transition-colors font-bold text-xs">
-                                                    {cat.name.charAt(0).toUpperCase()}
-                                                </div>
-                                                <span className="font-semibold text-gray-900">{cat.name}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 text-gray-500 max-w-xs truncate">
-                                            {cat.description || "—"}
-                                        </td>
-                                        <td className="px-6 py-4 text-gray-400 text-xs">
-                                            {new Date(cat.created_at).toLocaleDateString("en-IN", {
-                                                day: "2-digit", month: "short", year: "numeric"
-                                            })}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button
-                                                    onClick={() => handleOpenModal(cat)}
-                                                    className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"
-                                                >
-                                                    <Edit2 className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => setDeleteConfirm(cat.id)}
-                                                    className="p-1.5 hover:bg-red-50 rounded-lg text-red-500 transition-colors"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            {/* Create/Edit Modal */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                        <div className="flex items-center justify-between p-6 border-b border-gray-100">
-                            <h2 className="text-base font-black text-gray-900 uppercase tracking-wide">
-                                {editingCategory ? "Edit Category" : "Add New Category"}
-                            </h2>
-                            <button onClick={() => setIsModalOpen(false)} className="p-1 hover:bg-gray-100 rounded-full transition-colors">
-                                <X className="w-5 h-5 text-gray-400" />
-                            </button>
-                        </div>
-                        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-                            <div>
-                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">
-                                    Category Name *
-                                </label>
-                                <input
-                                    ref={el => { if (el && !editingCategory) el.focus(); }}
-                                    value={formData.name}
-                                    onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-black transition-colors"
-                                    placeholder="e.g. Travel, Office Supplies"
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">
-                                    Description (Optional)
-                                </label>
-                                <textarea
-                                    value={formData.description}
-                                    onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-black transition-colors resize-none"
-                                    placeholder="Brief description of when to use this category..."
-                                    rows={3}
-                                />
-                            </div>
-                            <div className="flex gap-3 pt-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsModalOpen(false)}
-                                    className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-50 transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={submitting}
-                                    className="flex-1 px-4 py-2.5 bg-black text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-800 transition-colors disabled:opacity-50"
-                                >
-                                    {submitting ? "Saving..." : (editingCategory ? "Update Category" : "Create Category")}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Delete Confirmation */}
-            {deleteConfirm && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
-                        <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center text-red-500 mx-auto mb-4">
-                            <Trash2 className="w-8 h-8" />
-                        </div>
-                        <h3 className="text-lg font-bold text-gray-900 mb-2">Delete Category?</h3>
-                        <p className="text-sm text-gray-500 mb-6">
-                            This action cannot be undone. Any reimbursements with this category will still exist but the category name will be unlinked.
-                        </p>
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setDeleteConfirm(null)}
-                                className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-50 transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={() => handleDelete(deleteConfirm)}
-                                className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-md shadow-red-200"
-                            >
-                                Delete
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
+      <div className="p-6 text-center">
+        <h2 className="text-xl font-semibold text-red-600">Access Denied</h2>
+        <p className="text-gray-500 mt-2">You do not have permission to manage reimbursement configuration.</p>
+      </div>
     );
+  }
+
+  return (
+    <div className="space-y-6 max-w-5xl mx-auto p-4">
+      {/* Header with Title and Tabs */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-gray-200 pb-5">
+        <div>
+          <h1 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+            Reimbursement Management
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Configure categories, rules, and multi-level approval workflows for employee reimbursements
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button onClick={() => setTab("categories")} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === "categories" ? "bg-indigo-600 text-white shadow-sm" : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"}`}>Categories</button>
+          <button onClick={() => setTab("config")} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === "config" ? "bg-indigo-600 text-white shadow-sm" : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"}`}>Configuration</button>
+          <button onClick={() => setTab("workflows")} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === "workflows" ? "bg-indigo-600 text-white shadow-sm" : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"}`}>Workflows</button>
+        </div>
+      </div>
+
+      {/* Categories Tab */}
+      {tab === "categories" && (
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <button onClick={openNew} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-indigo-700 transition-colors shadow-sm"><Plus className="w-4 h-4" /><span>Add Category</span></button>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            {loadingCat ? (
+              <div className="p-6 text-gray-500 flex items-center justify-center"><RefreshCw className="w-5 h-5 animate-spin mr-2" />Loading…</div>
+            ) : errorCat ? (
+              <div className="p-6 text-red-600 flex items-center gap-2"><AlertCircle className="w-5 h-5" />{errorCat}</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Description</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {catRows.map((c) => (
+                      <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{c.name}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{c.description || '-'}</td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${c.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>{c.status}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => updateCategory(c.id, { status: c.status === 'active' ? 'inactive' : 'active' })} className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium hover:bg-gray-50 transition-colors">Toggle</button>
+                            <button onClick={() => setDeleteConfirmId(c.id)} className="p-1.5 rounded-lg border border-gray-300 text-red-600 hover:bg-red-50 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {catRows.length === 0 && (
+                      <tr><td className="px-6 py-12 text-center text-sm text-gray-500" colSpan={4}>No categories found. Click "Add Category" to create one.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Configuration Tab */}
+      {tab === "config" && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Reimbursement Configuration</h2>
+            {!isEditingConfig ? (
+              <button onClick={() => setIsEditingConfig(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
+                <Edit className="w-4 h-4" />
+                Edit Configuration
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button onClick={() => { setIsEditingConfig(false); loadConfig(); }} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                  Cancel
+                </button>
+                <button onClick={saveConfig} disabled={savingCfg} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50">
+                  {savingCfg ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {savingCfg ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {loadingCfg ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-8 flex items-center justify-center">
+              <RefreshCw className="w-6 h-6 animate-spin text-indigo-600 mr-3" />
+              <span className="text-gray-600">Loading configuration…</span>
+            </div>
+          ) : (
+            <>
+              {/* General Settings */}
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                <h3 className="text-base font-semibold text-gray-900 mb-4">General Settings</h3>
+                <div className="space-y-1 divide-y divide-gray-100">
+                  <Toggle
+                    enabled={config.can_negative}
+                    onChange={(val) => isEditingConfig && setConfig({ ...config, can_negative: val })}
+                    label="Allow Over-budget Submissions"
+                    description="Permit employees to submit claims exceeding standard monthly wallet caps"
+                  />
+                  <div className="flex items-center justify-between py-3">
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">Wallet Cycle Auto-close Days</span>
+                      <p className="text-xs text-gray-500 mt-0.5">Automatically reconcile and close wallet balances after specified days</p>
+                    </div>
+                    <input
+                      type="number"
+                      disabled={!isEditingConfig}
+                      className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:text-gray-500"
+                      value={String(config.auto_close_days)}
+                      onChange={(e) => setConfig({ ...config, auto_close_days: parseInt(e.target.value || '0') || 0 })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Physical Copies */}
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                <h3 className="text-base font-semibold text-gray-900 mb-4">Physical Copy Requirements</h3>
+                <div className="space-y-4">
+                  <Toggle
+                    enabled={config.physical_copies_required}
+                    onChange={(val) => isEditingConfig && setConfig({ ...config, physical_copies_required: val })}
+                    label="Require Physical Copies"
+                    description="Mandate physical document submission for reimbursement auditing"
+                  />
+                  {config.physical_copies_required && (
+                    <div className="pl-6 space-y-3 border-l-2 border-indigo-200">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Start Day of Month</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="31"
+                            disabled={!isEditingConfig}
+                            placeholder="e.g., 1"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:text-gray-500"
+                            value={config.physical_copy_start_day || ''}
+                            onChange={(e) => setConfig({ ...config, physical_copy_start_day: e.target.value ? parseInt(e.target.value) : null })}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">End Day of Month</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="31"
+                            disabled={!isEditingConfig}
+                            placeholder="e.g., 31"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:text-gray-500"
+                            value={config.physical_copy_end_day || ''}
+                            onChange={(e) => setConfig({ ...config, physical_copy_end_day: e.target.value ? parseInt(e.target.value) : null })}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1.5 mt-2">
+                        <label className="block text-xs font-semibold text-gray-500 uppercase">Responsible Employee</label>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-gray-900 border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 min-w-[200px]">
+                            {config.physical_copy_verifier_id
+                              ? (employeeCache.get(config.physical_copy_verifier_id)
+                                ? `${employeeCache.get(config.physical_copy_verifier_id).first_name} ${employeeCache.get(config.physical_copy_verifier_id).last_name}`
+                                : `Employee #${config.physical_copy_verifier_id}`)
+                              : "None Assigned"}
+                          </span>
+                          {isEditingConfig && (
+                            <button
+                              type="button"
+                              onClick={() => setShowEmployeeModal(true)}
+                              className="px-3 py-2 text-xs font-medium bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                            >
+                              Choose Employee
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500">Physical copy verification will be flagged for submissions generated between these cycle days.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Workflows Tab */}
+      {tab === "workflows" && (
+        <ReimbursementWorkflowConfig />
+      )}
+
+      {/* Add Category Modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeModal} />
+          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md border border-gray-200">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="text-lg font-semibold text-gray-900">Add Category</h3>
+              <button onClick={closeModal} className="p-2 rounded-lg hover:bg-gray-100 transition-colors"><X className="w-5 h-5 text-gray-600" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <input value={formName} onChange={(e) => setFormName(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="e.g., Office Supplies" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea value={formDesc} onChange={(e) => setFormDesc(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" rows={3} placeholder="Optional description..." />
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-4">
+                <button onClick={closeModal} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
+                <button onClick={saveCategory} disabled={saveLoading || !formName.trim()} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center gap-2">
+                  {saveLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                  <span>{saveLoading ? 'Saving…' : 'Save'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm border border-gray-200 p-6 text-center">
+            <div className="w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Category</h3>
+            <p className="text-sm text-gray-500 mb-6">Are you sure you want to delete this category? This action cannot be undone.</p>
+            <div className="flex items-center justify-center gap-3">
+              <button onClick={() => setDeleteConfirmId(null)} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium">Cancel</button>
+              <button onClick={async () => {
+                const id = deleteConfirmId;
+                setDeleteConfirmId(null);
+                try {
+                  await apiClient<any>(`/reimbursement-config/categories/${id}`, { method: "DELETE", withAuth: true });
+                  await loadCategories();
+                  showSuccess("Category deleted successfully");
+                } catch (e: any) {
+                  showError(e?.message || "Failed to delete category");
+                }
+              }} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium">Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <EmployeeSelectionModal
+        isOpen={showEmployeeModal}
+        onClose={() => setShowEmployeeModal(false)}
+        onSelect={(employeeId) => {
+          setConfig((prev: any) => ({ ...prev, physical_copy_verifier_id: employeeId }));
+          setShowEmployeeModal(false);
+          if (employeeId) fetchEmployeeDetails(employeeId);
+        }}
+        onSelectMultiple={() => {}}
+        isMultiSelect={false}
+        fetchEmployees={fetchEmployees}
+        roles={roles}
+        departments={departments}
+        selectedEmployeeIds={config.physical_copy_verifier_id ? [config.physical_copy_verifier_id] : []}
+        initialSelectedIds={config.physical_copy_verifier_id ? [config.physical_copy_verifier_id] : []}
+        title="Select Responsible Employee"
+        onEmployeesLoaded={(emps) => updateEmployeeCache(emps)}
+      />
+
+    </div>
+  );
 }
