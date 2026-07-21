@@ -59,6 +59,36 @@ export default function TaskCreate({ mode = "create", initialTask, initialAssign
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [message, setMessage] = useState<string>("");
 
+  // Dynamic Custom Fields State
+  const [customFields, setCustomFields] = useState<Array<{
+    field_key: string;
+    label: string;
+    field_type: "text" | "textarea" | "number" | "date" | "select" | "file" | "checkbox";
+    is_required: boolean;
+  }>>([]);
+
+  const addCustomField = () => {
+    setCustomFields((prev) => [
+      ...prev,
+      {
+        field_key: `custom_${Date.now()}`,
+        label: "",
+        field_type: "text",
+        is_required: false,
+      },
+    ]);
+  };
+
+  const updateCustomField = (index: number, updated: Partial<{ field_key: string; label: string; field_type: any; is_required: boolean }>) => {
+    setCustomFields((prev) =>
+      prev.map((field, i) => (i === index ? { ...field, ...updated } : field))
+    );
+  };
+
+  const removeCustomField = (index: number) => {
+    setCustomFields((prev) => prev.filter((_, i) => i !== index));
+  };
+
   // Reference Material
   const [referenceUrl, setReferenceUrl] = useState<string>("");
   const [referenceFileUploading, setReferenceFileUploading] = useState<boolean>(false);
@@ -445,6 +475,7 @@ export default function TaskCreate({ mode = "create", initialTask, initialAssign
       status: "active",
       is_data_collection: isDataCollection,
       reference_url: referenceUrl || null,
+      custom_fields: customFields.filter((f) => f.label.trim() !== ""),
     };
 
     try {
@@ -1206,6 +1237,77 @@ export default function TaskCreate({ mode = "create", initialTask, initialAssign
             </div>
           )
         }
+        {/* Dynamic Custom Form Fields Section */}
+        <div className="border rounded-lg p-4 bg-gray-50/60 space-y-3 mt-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-semibold text-sm text-gray-900">Custom Form Fields</h4>
+              <p className="text-xs text-gray-500">Add dynamic input fields for task assignees to fill out</p>
+            </div>
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={addCustomField}
+                className="px-3 py-1.5 bg-black text-white text-xs font-medium rounded-lg hover:bg-gray-800 transition-colors"
+              >
+                + Add Custom Field
+              </button>
+            )}
+          </div>
+
+          {customFields.length === 0 ? (
+            <p className="text-xs text-gray-400 italic">No custom fields added yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {customFields.map((field, idx) => (
+                <div key={field.field_key} className="flex items-center gap-2 p-2 border border-gray-200 rounded-lg bg-white shadow-sm">
+                  <input
+                    type="text"
+                    placeholder="Field Name (e.g. Serial Number)"
+                    value={field.label}
+                    onChange={(e) => updateCustomField(idx, { label: e.target.value })}
+                    disabled={!!readOnly}
+                    className="flex-1 border border-gray-300 rounded px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                  <select
+                    value={field.field_type}
+                    onChange={(e) => updateCustomField(idx, { field_type: e.target.value as any })}
+                    disabled={!!readOnly}
+                    className="border border-gray-300 rounded px-2.5 py-1.5 text-sm bg-white focus:outline-none"
+                  >
+                    <option value="text">Short Text</option>
+                    <option value="textarea">Paragraph</option>
+                    <option value="number">Number</option>
+                    <option value="date">Date</option>
+                    <option value="file">File Attachment</option>
+                    <option value="select">Dropdown</option>
+                    <option value="checkbox">Checkbox</option>
+                  </select>
+                  <label className="flex items-center gap-1.5 text-xs text-gray-600 select-none cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={field.is_required}
+                      onChange={(e) => updateCustomField(idx, { is_required: e.target.checked })}
+                      disabled={!!readOnly}
+                      className="rounded text-blue-600"
+                    />
+                    Required
+                  </label>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      onClick={() => removeCustomField(idx)}
+                      className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                      title="Remove Field"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         <div className="flex justify-end gap-3 mt-4">
           <button
