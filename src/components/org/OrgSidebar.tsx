@@ -190,7 +190,7 @@ export default function OrgSidebar({
             ]));
             setLaborOpen(isActive(["/org-admin/labor-attendance", "/org-admin/labor/"]));
             setHrOperationOpen(isActive(["/org-admin/department-mapper", "/org-admin/hr-operation"]));
-            setReimbursementsOpen(isActive(["/org/hr-operation/reimbursements", "/org/accounts/reimbursements", "/employee/hr-operation/reimbursements/my", "/employee/hr-operation/reimbursements/all", "/org-admin/reimbursements", "/org-admin/reimbursements/wallets", "/org-admin/reimbursements/categories"]));
+            setReimbursementsOpen(isActive(["/org/hr-operation/reimbursements", "/org/accounts/reimbursements", "/employee/hr-operation/reimbursements/my", "/employee/hr-operation/reimbursements/all", "/org-admin/reimbursements", "/org-admin/reimbursements/wallets", "/org-admin/reimbursements/categories", "/org-admin/advances"]));
             setMomOpen(isActive(["/org-admin/mom"]));
         } else {
             // When collapsed, only keep the active category open
@@ -209,7 +209,7 @@ export default function OrgSidebar({
             setPettyCashOpen(isActive(["/org-admin/petty-cash", "/org-admin/wallet-overview", "/org-admin/wallet-config", "/org-admin/wallet-topups"]));
             setLaborOpen(isActive(["/org-admin/labor-attendance", "/org-admin/labor/"]));
             setHrOperationOpen(isActive(["/org-admin/department-mapper", "/org-admin/hr-operation"]));
-            setReimbursementsOpen(isActive(["/org/hr-operation/reimbursements", "/org/accounts/reimbursements", "/employee/hr-operation/reimbursements/my", "/employee/hr-operation/reimbursements/all", "/org-admin/reimbursements", "/org-admin/reimbursements/wallets", "/org-admin/reimbursements/categories"]));
+            setReimbursementsOpen(isActive(["/org/hr-operation/reimbursements", "/org/accounts/reimbursements", "/employee/hr-operation/reimbursements/my", "/employee/hr-operation/reimbursements/all", "/org-admin/reimbursements", "/org-admin/reimbursements/wallets", "/org-admin/reimbursements/categories", "/org-admin/advances"]));
         }
     }, [isCollapsed, pathname]);
 
@@ -575,6 +575,7 @@ export default function OrgSidebar({
                         {reimbursementsOpen && (
                             <div className="space-y-1 ml-2">
                                 <Item icon={Wallet} label="Reimbursements" href="/org-admin/reimbursements" active={pathname === "/org-admin/reimbursements"} />
+                                <Item icon={Wallet} label="Advances" href="/org-admin/advances" active={pathname === "/org-admin/advances"} />
                                 <Item icon={Wallet} label="Employee Wallets" href="/org-admin/reimbursements/wallets" active={pathname === "/org-admin/reimbursements/wallets"} />
                                 <Item icon={Cog} label="Reimbursement Config" href="/org-admin/reimbursements/categories" active={pathname === "/org-admin/reimbursements/categories"} />
                             </div>

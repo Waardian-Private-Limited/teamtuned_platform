@@ -116,8 +116,16 @@ export type AttendancePolicy = {
   late_min_interval?: number;
   always_full_day?: boolean;
   late_extension_enabled?: boolean;
+  late_extension_type?: "multiplier" | "slab";
   late_extension_trigger_minutes?: number;
   late_extension_multiplier?: number;
+  late_extension_slab_slot_minutes?: number;
+  late_extension_slab_extension_minutes?: number;
+  late_extension_slab_penalty_minutes?: number;
+
+  ack_uncompleted_penalty_enabled?: boolean;
+  ack_uncompleted_grace_days?: number;
+  ack_uncompleted_penalty_type?: "half_day" | "absent";
 };
 
 const defaultPolicy: AttendancePolicy = {
@@ -198,8 +206,15 @@ const defaultPolicy: AttendancePolicy = {
   max_sessions_allowed: 1,
   always_full_day: false,
   late_extension_enabled: false,
+  late_extension_type: "multiplier",
   late_extension_trigger_minutes: 10,
   late_extension_multiplier: 1.5,
+  late_extension_slab_slot_minutes: 10,
+  late_extension_slab_extension_minutes: 15,
+  late_extension_slab_penalty_minutes: 15,
+  ack_uncompleted_penalty_enabled: false,
+  ack_uncompleted_grace_days: 3,
+  ack_uncompleted_penalty_type: "half_day",
 };
 
 export default function AttendanceRulesManager() {
@@ -462,11 +477,30 @@ export default function AttendanceRulesManager() {
     if (policy.max_sessions_allowed < 1) errs.max_sessions_allowed = "Enter 1 or more";
 
     if (policy.late_extension_enabled) {
-      if (policy.late_extension_trigger_minutes === undefined || policy.late_extension_trigger_minutes < 0) {
-        errs.late_extension_trigger_minutes = "Enter 0 or more";
+      const mode = policy.late_extension_type || "multiplier";
+      if (mode === "multiplier") {
+        if (policy.late_extension_trigger_minutes === undefined || policy.late_extension_trigger_minutes < 0) {
+          errs.late_extension_trigger_minutes = "Enter 0 or more";
+        }
+        if (policy.late_extension_multiplier === undefined || policy.late_extension_multiplier <= 0) {
+          errs.late_extension_multiplier = "Enter a positive number";
+        }
+      } else {
+        if (!policy.late_extension_slab_slot_minutes || policy.late_extension_slab_slot_minutes < 1) {
+          errs.late_extension_slab_slot_minutes = "Enter at least 1 minute";
+        }
+        if (policy.late_extension_slab_extension_minutes === undefined || policy.late_extension_slab_extension_minutes < 0) {
+          errs.late_extension_slab_extension_minutes = "Enter 0 or more";
+        }
+        if (policy.late_extension_slab_penalty_minutes === undefined || policy.late_extension_slab_penalty_minutes < 0) {
+          errs.late_extension_slab_penalty_minutes = "Enter 0 or more";
+        }
       }
-      if (policy.late_extension_multiplier === undefined || policy.late_extension_multiplier <= 0) {
-        errs.late_extension_multiplier = "Enter a positive number";
+    }
+
+    if (policy.ack_uncompleted_penalty_enabled) {
+      if (policy.ack_uncompleted_grace_days === undefined || policy.ack_uncompleted_grace_days < 0) {
+        errs.ack_uncompleted_grace_days = "Enter 0 or more";
       }
     }
 
@@ -920,9 +954,28 @@ export default function AttendanceRulesManager() {
                     <p className="mt-1 text-gray-900">
                       {policy.late_extension_enabled ? (
                         <>
+                          Enabled ({policy.late_extension_type === 'slab' ? 'Slab-Wise' : 'Multiplier'}) <br />
+                          {policy.late_extension_type === 'slab' ? (
+                            <>
+                              Slot: {policy.late_extension_slab_slot_minutes ?? 10} mins | Extension: {policy.late_extension_slab_extension_minutes ?? 15} mins | Penalty: {policy.late_extension_slab_penalty_minutes ?? 15} mins
+                            </>
+                          ) : (
+                            <>
+                              Trigger Buffer: {policy.late_extension_trigger_minutes ?? 10} mins | Multiplier: {policy.late_extension_multiplier ?? 1.5}x excess mins
+                            </>
+                          )}
+                        </>
+                      ) : "Disabled"}
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500">Uncompleted Shift Penalty</h4>
+                    <p className="mt-1 text-gray-900">
+                      {policy.ack_uncompleted_penalty_enabled ? (
+                        <>
                           Enabled <br />
-                          Trigger Buffer: {policy.late_extension_trigger_minutes} mins <br />
-                          Multiplier: {policy.late_extension_multiplier}x excess mins
+                          Grace Days Allowed: {policy.ack_uncompleted_grace_days ?? 3} days <br />
+                          Penalty: {policy.ack_uncompleted_penalty_type === 'absent' ? 'Absent' : 'Half-Day'} (applied from 4th time)
                         </>
                       ) : "Disabled"}
                     </p>
@@ -2477,51 +2530,228 @@ export default function AttendanceRulesManager() {
                       </div>
 
                       {policy.late_extension_enabled && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Lateness Trigger Buffer (minutes)<span className="text-red-500 ml-1">*</span>
+                              Extension Calculation Mode
                             </label>
-                            <input
-                              type="number"
-                              className={`w-full px-3 py-2 border bg-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                formErrors.late_extension_trigger_minutes ? 'border-red-500' : 'border-gray-300'
-                              }`}
-                              min={0}
-                              value={policy.late_extension_trigger_minutes !== undefined ? policy.late_extension_trigger_minutes : 10}
-                              onChange={(e) => setField("late_extension_trigger_minutes", Number(e.target.value))}
-                            />
-                            {formErrors.late_extension_trigger_minutes && (
-                              <p className="mt-1 text-sm text-red-600">{formErrors.late_extension_trigger_minutes}</p>
-                            )}
-                            <p className="mt-1 text-xs text-gray-500">
-                              Lateness within this buffer won't trigger an extension (default: 10 mins).
-                            </p>
+                            <div className="flex items-center space-x-6">
+                              <label className="inline-flex items-center cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="late_extension_type"
+                                  value="multiplier"
+                                  checked={(policy.late_extension_type || "multiplier") === "multiplier"}
+                                  onChange={() => setField("late_extension_type", "multiplier")}
+                                  className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                                />
+                                <span className="ml-2 text-sm font-medium text-gray-700">Multiplier Mode</span>
+                              </label>
+                              <label className="inline-flex items-center cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="late_extension_type"
+                                  value="slab"
+                                  checked={policy.late_extension_type === "slab"}
+                                  onChange={() => setField("late_extension_type", "slab")}
+                                  className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                                />
+                                <span className="ml-2 text-sm font-medium text-gray-700">Slab-Wise Mode</span>
+                              </label>
+                            </div>
                           </div>
 
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Extension Multiplier<span className="text-red-500 ml-1">*</span>
-                            </label>
-                            <input
-                              type="number"
-                              step="0.1"
-                              className={`w-full px-3 py-2 border bg-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                formErrors.late_extension_multiplier ? 'border-red-500' : 'border-gray-300'
-                              }`}
-                              min={0.1}
-                              value={policy.late_extension_multiplier !== undefined ? policy.late_extension_multiplier : 1.5}
-                              onChange={(e) => setField("late_extension_multiplier", Number(e.target.value))}
-                            />
-                            {formErrors.late_extension_multiplier && (
-                              <p className="mt-1 text-sm text-red-600">{formErrors.late_extension_multiplier}</p>
-                            )}
-                            <p className="mt-1 text-xs text-gray-500">
-                              The multiplier applied to the excess late minutes (default: 1.5).
-                            </p>
-                          </div>
+                          {(policy.late_extension_type || "multiplier") === "multiplier" ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Lateness Trigger Buffer (minutes)<span className="text-red-500 ml-1">*</span>
+                                </label>
+                                <input
+                                  type="number"
+                                  className={`w-full px-3 py-2 border bg-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                                    formErrors.late_extension_trigger_minutes ? 'border-red-500' : 'border-gray-300'
+                                  }`}
+                                  min={0}
+                                  value={policy.late_extension_trigger_minutes !== undefined ? policy.late_extension_trigger_minutes : 10}
+                                  onChange={(e) => setField("late_extension_trigger_minutes", Number(e.target.value))}
+                                />
+                                {formErrors.late_extension_trigger_minutes && (
+                                  <p className="mt-1 text-sm text-red-600">{formErrors.late_extension_trigger_minutes}</p>
+                                )}
+                                <p className="mt-1 text-xs text-gray-500">
+                                  Lateness within this buffer won't trigger an extension (default: 10 mins).
+                                </p>
+                              </div>
+
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Extension Multiplier<span className="text-red-500 ml-1">*</span>
+                                </label>
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  className={`w-full px-3 py-2 border bg-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                                    formErrors.late_extension_multiplier ? 'border-red-500' : 'border-gray-300'
+                                  }`}
+                                  min={0.1}
+                                  value={policy.late_extension_multiplier !== undefined ? policy.late_extension_multiplier : 1.5}
+                                  onChange={(e) => setField("late_extension_multiplier", Number(e.target.value))}
+                                />
+                                {formErrors.late_extension_multiplier && (
+                                  <p className="mt-1 text-sm text-red-600">{formErrors.late_extension_multiplier}</p>
+                                )}
+                                <p className="mt-1 text-xs text-gray-500">
+                                  The multiplier applied to the excess late minutes (default: 1.5).
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-4 pt-2">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Slab Slot Minutes<span className="text-red-500 ml-1">*</span>
+                                  </label>
+                                  <input
+                                    type="number"
+                                    className={`w-full px-3 py-2 border bg-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                                      formErrors.late_extension_slab_slot_minutes ? 'border-red-500' : 'border-gray-300'
+                                    }`}
+                                    min={1}
+                                    value={policy.late_extension_slab_slot_minutes !== undefined ? policy.late_extension_slab_slot_minutes : 10}
+                                    onChange={(e) => setField("late_extension_slab_slot_minutes", Number(e.target.value))}
+                                  />
+                                  {formErrors.late_extension_slab_slot_minutes && (
+                                    <p className="mt-1 text-sm text-red-600">{formErrors.late_extension_slab_slot_minutes}</p>
+                                  )}
+                                  <p className="mt-1 text-xs text-gray-500">
+                                    Interval duration per slot (e.g. 10 mins).
+                                  </p>
+                                </div>
+
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Extension Minutes<span className="text-red-500 ml-1">*</span>
+                                  </label>
+                                  <input
+                                    type="number"
+                                    className={`w-full px-3 py-2 border bg-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                                      formErrors.late_extension_slab_extension_minutes ? 'border-red-500' : 'border-gray-300'
+                                    }`}
+                                    min={0}
+                                    value={policy.late_extension_slab_extension_minutes !== undefined ? policy.late_extension_slab_extension_minutes : 15}
+                                    onChange={(e) => setField("late_extension_slab_extension_minutes", Number(e.target.value))}
+                                  />
+                                  {formErrors.late_extension_slab_extension_minutes && (
+                                    <p className="mt-1 text-sm text-red-600">{formErrors.late_extension_slab_extension_minutes}</p>
+                                  )}
+                                  <p className="mt-1 text-xs text-gray-500">
+                                    Extension added per slab (e.g. 15 mins).
+                                  </p>
+                                </div>
+
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Penalty Minutes<span className="text-red-500 ml-1">*</span>
+                                  </label>
+                                  <input
+                                    type="number"
+                                    className={`w-full px-3 py-2 border bg-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                                      formErrors.late_extension_slab_penalty_minutes ? 'border-red-500' : 'border-gray-300'
+                                    }`}
+                                    min={0}
+                                    value={policy.late_extension_slab_penalty_minutes !== undefined ? policy.late_extension_slab_penalty_minutes : 15}
+                                    onChange={(e) => setField("late_extension_slab_penalty_minutes", Number(e.target.value))}
+                                  />
+                                  {formErrors.late_extension_slab_penalty_minutes && (
+                                    <p className="mt-1 text-sm text-red-600">{formErrors.late_extension_slab_penalty_minutes}</p>
+                                  )}
+                                  <p className="mt-1 text-xs text-gray-500">
+                                    Flat penalty added when late (e.g. 15 mins).
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
+                                <span className="font-semibold">Slab Calculation Example (Shift 9:30 AM – 6:30 PM):</span>
+                                <ul className="mt-1 list-disc list-inside space-y-0.5">
+                                  <li>
+                                    Arrives 9:31 / 9:32 AM (1-10 min late = 1 slab): Wait {(policy.late_extension_slab_extension_minutes ?? 15) + (policy.late_extension_slab_penalty_minutes ?? 15)} mins extra $\rightarrow$ Expected shift end **7:00 PM**
+                                  </li>
+                                  <li>
+                                    Arrives 9:42 AM (12 mins late = 2 slabs): Wait {(2 * (policy.late_extension_slab_extension_minutes ?? 15)) + (policy.late_extension_slab_penalty_minutes ?? 15)} mins extra $\rightarrow$ Expected shift end **7:15 PM**
+                                  </li>
+                                </ul>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
+
+                      {/* Ack / Uncompleted Shift Penalty Section */}
+                      <div className="border-t pt-6 mt-6">
+                        <div className="flex flex-col">
+                          <label className="flex items-center space-x-2 mb-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              checked={policy.ack_uncompleted_penalty_enabled || false}
+                              onChange={(e) => setField("ack_uncompleted_penalty_enabled", e.target.checked)}
+                            />
+                            <span className="text-sm font-medium text-gray-700">Enable Uncompleted Shift Penalty (Ack If Not Completed)</span>
+                          </label>
+                          <p className="text-xs text-gray-500">
+                            Enforces penalties on employees who do not complete their required shift hours or fail to acknowledge completion.
+                          </p>
+                        </div>
+
+                        {policy.ack_uncompleted_penalty_enabled && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Grace Allowed Days (per month)<span className="text-red-500 ml-1">*</span>
+                              </label>
+                              <input
+                                type="number"
+                                className={`w-full px-3 py-2 border bg-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                                  formErrors.ack_uncompleted_grace_days ? 'border-red-500' : 'border-gray-300'
+                                }`}
+                                min={0}
+                                value={policy.ack_uncompleted_grace_days !== undefined ? policy.ack_uncompleted_grace_days : 3}
+                                onChange={(e) => setField("ack_uncompleted_grace_days", Number(e.target.value))}
+                              />
+                              {formErrors.ack_uncompleted_grace_days && (
+                                <p className="mt-1 text-sm text-red-600">{formErrors.ack_uncompleted_grace_days}</p>
+                              )}
+                              <p className="mt-1 text-xs text-gray-500">
+                                Number of uncompleted shifts allowed without penalty per month (e.g. 3 days).
+                              </p>
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Penalty Action<span className="text-red-500 ml-1">*</span>
+                              </label>
+                              <select
+                                className="w-full px-3 py-2 border bg-white border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                value={policy.ack_uncompleted_penalty_type || "half_day"}
+                                onChange={(e) => setField("ack_uncompleted_penalty_type", e.target.value as "half_day" | "absent")}
+                              >
+                                <option value="half_day">Half Day Penalty</option>
+                                <option value="absent">Absent Penalty</option>
+                              </select>
+                              <p className="mt-1 text-xs text-gray-500">
+                                Action taken starting from the {Number(policy.ack_uncompleted_grace_days ?? 3) + 1}th uncompleted shift.
+                              </p>
+                            </div>
+
+                            <div className="md:col-span-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+                              <span className="font-semibold">Rule Overview:</span> When enabled, for the first {policy.ack_uncompleted_grace_days ?? 3} uncompleted shift days in a month, no penalty is marked ("{policy.ack_uncompleted_grace_days ?? 3} day nothing"). On the {Number(policy.ack_uncompleted_grace_days ?? 3) + 1}th uncompleted shift and onwards until month-end, whenever they don't complete their shift, a <strong>{policy.ack_uncompleted_penalty_type === 'absent' ? 'Full Absent' : 'Half Day'}</strong> penalty will be enforced.
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </>
                 )}

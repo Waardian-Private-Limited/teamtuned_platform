@@ -233,7 +233,8 @@ export default function EmployeeSidebar({
         "/employee/hr-operation/reimbursements/all",
         "/employee/reimbursements",
         "/employee/reimbursements/wallets",
-        "/employee/reimbursements/categories"
+        "/employee/reimbursements/categories",
+        "/employee/advances"
       ]));
     } else {
       // When collapsed, only keep the active category open to follow "check and fix that open only active category"
@@ -250,7 +251,7 @@ export default function EmployeeSidebar({
       setDpsOpen(isActive(["/employee/dps"]));
       setLaborOpen(isActive(["/employee/labor-attendance", "/employee/labor/"]));
       setHrOperationOpen(isActive(["/employee/department-mapper", "/employee/hr-operation"]));
-      setReimbursementsOpen(isActive(["/org/hr-operation/reimbursements", "/org/accounts/reimbursements", "/employee/hr-operation/reimbursements/my", "/employee/hr-operation/reimbursements/all", "/employee/reimbursements", "/employee/reimbursements/wallets", "/employee/reimbursements/categories"]));
+      setReimbursementsOpen(isActive(["/org/hr-operation/reimbursements", "/org/accounts/reimbursements", "/employee/hr-operation/reimbursements/my", "/employee/hr-operation/reimbursements/all", "/employee/reimbursements", "/employee/reimbursements/wallets", "/employee/reimbursements/categories", "/employee/advances"]));
     }
   }, [isCollapsed, pathname]);
 
@@ -1568,6 +1569,14 @@ export default function EmployeeSidebar({
                         label="Reimbursements"
                         href="/employee/reimbursements"
                         active={pathname === "/employee/reimbursements"}
+                      />
+                    )}
+                    {canViewReimbursementClaims && (
+                      <Item
+                        icon={Wallet}
+                        label="Advances"
+                        href="/employee/advances"
+                        active={pathname === "/employee/advances"}
                       />
                     )}
                     {canViewReimbursementWallets && (

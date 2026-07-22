@@ -129,6 +129,8 @@ export default function EmployeeWallets() {
     const [walletsPage, setWalletsPage] = useState(1);
     const [walletsSearch, setWalletsSearch] = useState("");
     const [walletsDept, setWalletsDept] = useState("");
+    const [walletsSite, setWalletsSite] = useState("");
+    const [sites, setSites] = useState<any[]>([]);
     const walletsLimit = 10;
 
     // Employees without wallets
@@ -190,6 +192,7 @@ export default function EmployeeWallets() {
                 page: walletsPage.toString(),
                 limit: walletsLimit.toString(),
                 ...(walletsDept && { department_id: walletsDept }),
+                ...(walletsSite && { site_id: walletsSite }),
             });
             const res = await apiClient<any>(`/reimbursements/wallets?${q}`, { method: "GET", withAuth: true });
             if (res.success) {
@@ -231,6 +234,16 @@ export default function EmployeeWallets() {
         }
     }, [canView, noWalletSearch, noWalletPage]);
 
+    const fetchSites = useCallback(async () => {
+        try {
+            const res = await apiClient<any>("/sites", { withAuth: true });
+            const list = res.sites || res.data || (Array.isArray(res) ? res : []);
+            setSites(list);
+        } catch (error) {
+            console.error("Failed to fetch sites:", error);
+        }
+    }, []);
+
     const fetchDepartments = useCallback(async () => {
         if (!canView) return;
         try {
@@ -242,7 +255,7 @@ export default function EmployeeWallets() {
 
     useEffect(() => { fetchWallets(); }, [fetchWallets]);
     useEffect(() => { fetchNoWallet(); }, [fetchNoWallet]);
-    useEffect(() => { fetchDepartments(); }, [fetchDepartments]);
+    useEffect(() => { fetchDepartments(); fetchSites(); }, [fetchDepartments, fetchSites]);
     useEffect(() => { setStatsTotal(walletsTotal); }, [walletsTotal]);
 
     const refreshAll = () => { fetchWallets(); fetchNoWallet(); };
@@ -534,6 +547,14 @@ export default function EmployeeWallets() {
                         >
                             <option value="">All Departments</option>
                             {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                        </select>
+                        <select
+                            value={walletsSite}
+                            onChange={e => { setWalletsSite(e.target.value); setWalletsPage(1); }}
+                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                        >
+                            <option value="">All Sites</option>
+                            {sites.map(s => <option key={s.id} value={s.id}>{s.name || s.site_name}</option>)}
                         </select>
                         <button onClick={refreshAll} className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors">Refresh Data</button>
                     </div>

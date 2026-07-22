@@ -38,6 +38,7 @@ import {
   Layout,
   Sparkles,
   Loader2,
+  ListPlus,
 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import type { FormField, FieldType, FieldOption, TemplateSnapshot } from "./types";
@@ -82,12 +83,14 @@ const WIDGET_GROUPS: { title: string; items: { type: FieldType; label: string; i
     ],
   },
   {
-    title: "Advanced",
+    title: "Advanced & Repeaters",
     items: [
       { type: "gps", label: "Location", icon: <MapPin size={18} />, description: "GPS coordinates" },
       { type: "barcode", label: "Barcode", icon: <ScanLine size={18} />, description: "Barcode/QR scanner" },
       { type: "section", label: "Section", icon: <Layers size={18} />, description: "Group fields visually" },
-      { type: "container", label: "Subform Container", icon: <Box size={18} />, description: "Nested group for subform data" },
+      { type: "container", label: "Subform Container", icon: <Box size={18} />, description: "Nested group with optional repeat entries" },
+      { type: "subform", label: "Dynamic Subform", icon: <Box size={18} />, description: "Group multiple widgets with optional repeat entries" },
+      { type: "list", label: "Dynamic List", icon: <ListPlus size={18} />, description: "Dynamic list of single-type items (text, date, image...)" },
       { type: "autocad", label: "AutoCAD Viewer", icon: <Monitor size={18} />, description: "View DWG/DXF files" },
       { type: "pdf_viewer", label: "PDF Viewer", icon: <FileText size={18} />, description: "View PDF files" },
       { type: "readonly", label: "Read Only", icon: <Eye size={18} />, description: "Display text" },
@@ -117,6 +120,8 @@ const TYPE_ICON: Record<FieldType, React.ReactNode> = {
   section: <Layers size={16} />,
   readonly: <Eye size={16} />,
   container: <Box size={16} />,
+  subform: <Box size={16} />,
+  list: <ListPlus size={16} />,
   autocad: <Monitor size={16} />,
   pdf_viewer: <FileText size={16} />,
 };
@@ -145,7 +150,13 @@ function defaultFieldForType(type: FieldType, sequence: number): FormField {
         { value: "opt2", label: "Option 2" },
       ]
       : undefined,
-    metadata: { required: false, autoOptionValues: true, ...(type === 'gps' ? { gpsMode: 'any' } : {}) },
+    metadata: {
+      required: false,
+      autoOptionValues: true,
+      ...(type === 'gps' ? { gpsMode: 'any' } : {}),
+      ...(type === 'list' ? { itemType: 'text', itemLabel: 'Item', minItems: 0, maxItems: 20 } : {}),
+      ...(type === 'container' || type === 'subform' ? { allowMultiple: false, entryLabel: 'Entry', minEntries: 0, maxEntries: 20 } : {}),
+    },
     is_active: true,
     sequence,
     parent_section_id: null,
@@ -1471,6 +1482,180 @@ export default function FormBuilder({
                   </div>
                 </div>
               )}
+
+              {selectedField.field_type === "list" && (
+                <div className="space-y-4 pt-4 border-t border-slate-200">
+                  <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Dynamic List Settings</h3>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Child Item Data Type</label>
+                    <select
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      value={selectedField.metadata?.itemType || "text"}
+                      onChange={(e) => updateSelected({ metadata: { ...(selectedField.metadata || {}), itemType: e.target.value as FieldType } })}
+                    >
+                      <option value="text">Text (Single Line)</option>
+                      <option value="textarea">Text Area (Multi Line)</option>
+                      <option value="number">Number</option>
+                      <option value="email">Email</option>
+                      <option value="phone">Phone</option>
+                      <option value="date">Date</option>
+                      <option value="time">Time</option>
+                      <option value="datetime">Date & Time</option>
+                      <option value="select">Dropdown Select</option>
+                      <option value="choice">Single Choice Radio</option>
+                      <option value="toggle">Toggle (Yes/No)</option>
+                      <option value="image">Image Picker</option>
+                      <option value="file">File Picker</option>
+                    </select>
+                    <p className="mt-1 text-xs text-slate-500">The data type collected for each item added by the user.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Item Label / Placeholder</label>
+                    <input
+                      type="text"
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="e.g. Task Completed, Client Email, Event Time..."
+                      value={selectedField.metadata?.itemLabel || "Item"}
+                      onChange={(e) => updateSelected({ metadata: { ...(selectedField.metadata || {}), itemLabel: e.target.value } })}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Min Items</label>
+                      <input
+                        type="number"
+                        min={0}
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                        value={Number(selectedField.metadata?.minItems || 0)}
+                        onChange={(e) => updateSelected({ metadata: { ...(selectedField.metadata || {}), minItems: Math.max(0, Number(e.target.value) || 0) } })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Max Items</label>
+                      <input
+                        type="number"
+                        min={1}
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                        value={Number(selectedField.metadata?.maxItems || 20)}
+                        onChange={(e) => updateSelected({ metadata: { ...(selectedField.metadata || {}), maxItems: Math.max(1, Number(e.target.value) || 20) } })}
+                      />
+                    </div>
+                  </div>
+
+                  {(selectedField.metadata?.itemType === "select" || selectedField.metadata?.itemType === "choice") && (
+                    <div className="pt-2 border-t border-slate-200 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-700">Item Dropdown Options</span>
+                        <button
+                          type="button"
+                          className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                          onClick={() => {
+                            const current = selectedField.metadata?.itemOptions || [
+                              { value: "opt1", label: "Option 1" },
+                              { value: "opt2", label: "Option 2" }
+                            ];
+                            const updated = [...current, { value: `opt${current.length + 1}`, label: `Option ${current.length + 1}` }];
+                            updateSelected({ metadata: { ...(selectedField.metadata || {}), itemOptions: updated } });
+                          }}
+                        >
+                          + Add Option
+                        </button>
+                      </div>
+                      {(selectedField.metadata?.itemOptions || [
+                        { value: "opt1", label: "Option 1" },
+                        { value: "opt2", label: "Option 2" }
+                      ]).map((opt, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs"
+                            value={opt.label}
+                            onChange={(e) => {
+                              const current = [...(selectedField.metadata?.itemOptions || [
+                                { value: "opt1", label: "Option 1" },
+                                { value: "opt2", label: "Option 2" }
+                              ])];
+                              current[idx] = { value: e.target.value.toLowerCase().replace(/\s+/g, '_'), label: e.target.value };
+                              updateSelected({ metadata: { ...(selectedField.metadata || {}), itemOptions: current } });
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="text-slate-400 hover:text-red-500"
+                            onClick={() => {
+                              const current = (selectedField.metadata?.itemOptions || []).filter((_, i) => i !== idx);
+                              updateSelected({ metadata: { ...(selectedField.metadata || {}), itemOptions: current } });
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {(selectedField.field_type === "subform" || selectedField.field_type === "container") && (
+                <div className="space-y-4 pt-4 border-t border-slate-200">
+                  <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Subform Settings</h3>
+
+                  <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <input
+                      type="checkbox"
+                      id="allowMultipleSubform"
+                      checked={selectedField.metadata?.allowMultiple === true}
+                      onChange={(e) => updateSelected({ metadata: { ...(selectedField.metadata || {}), allowMultiple: e.target.checked } })}
+                      className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                    />
+                    <label htmlFor="allowMultipleSubform" className="cursor-pointer">
+                      <div className="text-sm font-medium text-slate-900">Allow Multiple Entries (Repeater Subform)</div>
+                      <div className="text-xs text-slate-600 mt-0.5">Enables dynamic "+ Add Entry" button in app so users can add multiple subform records.</div>
+                    </label>
+                  </div>
+
+                  {selectedField.metadata?.allowMultiple && (
+                    <div className="space-y-3 pt-2">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Entry Label</label>
+                        <input
+                          type="text"
+                          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                          placeholder="e.g. Task Record, Event Entry..."
+                          value={selectedField.metadata?.entryLabel || "Entry"}
+                          onChange={(e) => updateSelected({ metadata: { ...(selectedField.metadata || {}), entryLabel: e.target.value } })}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-1">Min Entries</label>
+                          <input
+                            type="number"
+                            min={0}
+                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                            value={Number(selectedField.metadata?.minEntries || 0)}
+                            onChange={(e) => updateSelected({ metadata: { ...(selectedField.metadata || {}), minEntries: Math.max(0, Number(e.target.value) || 0) } })}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-1">Max Entries</label>
+                          <input
+                            type="number"
+                            min={1}
+                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                            value={Number(selectedField.metadata?.maxEntries || 20)}
+                            onChange={(e) => updateSelected({ metadata: { ...(selectedField.metadata || {}), maxEntries: Math.max(1, Number(e.target.value) || 20) } })}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -1906,7 +2091,7 @@ const FieldCard = React.memo(({
       {/* Field Preview */}
       <div className={`p-4 rounded-lg border ${field.system ? "bg-slate-800 border-slate-700" : "bg-slate-50 border-slate-200"
         }`}>
-        {field.field_type === 'container' ? (
+        {(field.field_type === 'container' || field.field_type === 'subform') ? (
           <div
             className={`min-h-[100px] border-2 rounded-xl relative p-6 transition-all ${isDragOver ? 'border-blue-500 bg-blue-50 ring-4 ring-blue-100' : 'border-slate-300 bg-slate-50'}`}
             onDragOver={(e) => {
@@ -1929,13 +2114,34 @@ const FieldCard = React.memo(({
               }
             }}
           >
-            <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-200">
-              <Box size={14} className="text-slate-400" />
-              <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Subform Drop Zone</span>
+            <div className="flex items-center justify-between gap-2 mb-4 pb-2 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <Box size={14} className="text-blue-500" />
+                <span className="text-xs text-slate-600 font-bold uppercase tracking-wider">
+                  Subform Drop Zone
+                </span>
+              </div>
+              {field.metadata?.allowMultiple && (
+                <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 font-semibold px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
+                  <Layers size={10} /> Multi-Entry Repeater Enabled
+                </span>
+              )}
             </div>
             <div className="mt-2">
               {renderChildren ? renderChildren(field.id) : <div className="text-sm text-slate-400 text-center py-4">Drag and drop fields here to add to subform</div>}
             </div>
+            {field.metadata?.allowMultiple && (
+              <div className="mt-4 pt-3 border-t border-slate-200 flex items-center justify-between">
+                <span className="text-xs text-slate-400 font-medium">Users can submit multiple records in app</span>
+                <button
+                  type="button"
+                  disabled
+                  className="px-3.5 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold shadow-sm flex items-center gap-1.5 cursor-default hover:bg-blue-700 transition-all"
+                >
+                  <Plus size={14} /> Add {field.metadata?.entryLabel || 'Entry'}
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <FieldPreview field={field} />
@@ -1950,6 +2156,36 @@ FieldCard.displayName = 'FieldCard';
 // Field Preview Component
 const FieldPreview = ({ field }: { field: FormField }) => {
   switch (field.field_type) {
+    case "list":
+      return (
+        <div className="space-y-3 p-3 bg-white border border-slate-300 rounded-lg">
+          <div className="flex items-center justify-between text-xs text-slate-500 pb-1 border-b border-slate-100">
+            <span className="font-semibold uppercase tracking-wider text-slate-700">Dynamic List ({field.metadata?.itemType || 'text'})</span>
+            <span className="text-slate-400">Min: {field.metadata?.minItems || 0} | Max: {field.metadata?.maxItems || 20}</span>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-slate-50 text-slate-600"
+                placeholder={`${field.metadata?.itemLabel || 'Item'} #1`}
+                disabled
+              />
+              <button disabled className="text-slate-300 p-1"><Trash2 size={16} /></button>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-slate-50 text-slate-600"
+                placeholder={`${field.metadata?.itemLabel || 'Item'} #2`}
+                disabled
+              />
+              <button disabled className="text-slate-300 p-1"><Trash2 size={16} /></button>
+            </div>
+          </div>
+          <button disabled className="w-full py-1.5 px-3 bg-blue-50 border border-blue-200 text-blue-600 rounded-lg text-xs font-semibold flex items-center justify-center gap-1">
+            <Plus size={14} /> Add {field.metadata?.itemLabel || 'Item'}
+          </button>
+        </div>
+      );
     case "text":
       return (
         <input

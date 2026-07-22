@@ -37,6 +37,8 @@ export default function AdvanceRequests() {
     const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
     const [statusFilter, setStatusFilter] = useState("");
     const [departmentFilter, setDepartmentFilter] = useState("");
+    const [siteFilter, setSiteFilter] = useState("");
+    const [sites, setSites] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [debouncedSearch, setDebouncedSearch] = useState("");
     const [departments, setDepartments] = useState<Department[]>([]);
@@ -85,6 +87,7 @@ export default function AdvanceRequests() {
     useEffect(() => {
         if (!checkingPerms && canView) {
             fetchDepartments();
+            fetchSites();
         }
     }, [checkingPerms, canView]);
 
@@ -92,7 +95,17 @@ export default function AdvanceRequests() {
         if (!checkingPerms && canView) {
             fetchRequests();
         }
-    }, [currentPage, statusFilter, departmentFilter, debouncedSearch, checkingPerms, canView]);
+    }, [currentPage, statusFilter, departmentFilter, siteFilter, debouncedSearch, checkingPerms, canView]);
+
+    const fetchSites = async () => {
+        try {
+            const res = await apiClient<any>("/sites", { withAuth: true });
+            const list = res.sites || res.data || (Array.isArray(res) ? res : []);
+            setSites(list);
+        } catch (error) {
+            console.error("Failed to fetch sites:", error);
+        }
+    };
 
     const fetchDepartments = async () => {
         try {
@@ -118,6 +131,7 @@ export default function AdvanceRequests() {
 
             if (statusFilter) params.status = statusFilter;
             if (departmentFilter) params.department = departmentFilter;
+            if (siteFilter) params.site_id = siteFilter;
             if (debouncedSearch) params.search = debouncedSearch;
 
             const data = await apiClient<{
@@ -244,6 +258,29 @@ export default function AdvanceRequests() {
                                 <option value="">All Departments</option>
                                 {departments.map(dept => (
                                     <option key={dept.id} value={dept.id}>{dept.name}</option>
+                                ))}
+                            </select>
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                                <Filter className="w-3 h-3 text-gray-400" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Site Filter */}
+                    <div className="w-full md:w-48">
+                        <div className="relative">
+                            <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <select
+                                value={siteFilter}
+                                onChange={(e) => {
+                                    setSiteFilter(e.target.value);
+                                    setCurrentPage(1);
+                                }}
+                                className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none bg-white"
+                            >
+                                <option value="">All Sites</option>
+                                {sites.map(s => (
+                                    <option key={s.id} value={s.id}>{s.name || s.site_name}</option>
                                 ))}
                             </select>
                             <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">

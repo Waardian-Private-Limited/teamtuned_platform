@@ -18,6 +18,8 @@ export type FieldType =
   | "toggle"
   | "section"
   | "container"
+  | "subform"
+  | "list"
   | "autocad"
   | "pdf_viewer"
   | "readonly"
@@ -44,6 +46,17 @@ export interface FieldMeta {
   // Toggle field labels
   toggleOnLabel?: string;
   toggleOffLabel?: string;
+  // Dynamic List widget meta
+  itemType?: FieldType;
+  itemLabel?: string;
+  itemOptions?: FieldOption[];
+  minItems?: number;
+  maxItems?: number;
+  // Subform Container / Repeater meta
+  allowMultiple?: boolean; // when true, subform is repeatable
+  entryLabel?: string;
+  minEntries?: number;
+  maxEntries?: number;
   // Options identifiers management (choice/checkbox/select)
   autoOptionValues?: boolean; // when true, auto-generate option.value from label
   // Server-backed extras

@@ -192,8 +192,49 @@ function getPhysicalCopyStatusColor(status?: string) {
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 
-export default function Reimbusments() {
-  const { role, permissions, employee } = useAuth();
+export default function Advances() {
+  
+  const [showTopUp, setShowTopUp] = useState(false);
+  const [topUpWallet, setTopUpWallet] = useState<any>(null);
+  const [topUpAmount, setTopUpAmount] = useState("");
+  const [topUpMode, setTopUpMode] = useState("Cash");
+  const [topUpRemarks, setTopUpRemarks] = useState("");
+  const [topUpLoading, setTopUpLoading] = useState(false);
+
+  const handleTopUpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedRow || !topUpAmount || parseFloat(topUpAmount) <= 0) return;
+    setTopUpLoading(true);
+    try {
+      const res = await apiClient<any>(`/reimbursements/${selectedRow.id}/disburse`, {
+        method: "PUT",
+        withAuth: true,
+        body: {
+          payment_mode: topUpMode,
+          remarks: topUpRemarks,
+          payment_ref: topUpRemarks,
+        }
+      });
+      if (res.success) {
+        showNotification("Advance topped up successfully", "success");
+        setShowTopUp(false);
+        setSelectedRow(null);
+        setTopUpWallet(null);
+        setTopUpAmount("");
+        setTopUpRemarks("");
+        setTopUpMode("Cash");
+        fetchStats();
+        fetchReimbursements();
+      } else {
+        showNotification(res.message || "Top-up failed", "error");
+      }
+    } catch (err: any) {
+      showNotification(err?.message || "Error occurred during top-up", "error");
+    } finally {
+      setTopUpLoading(false);
+    }
+  };
+const { role, permissions, employee } = useAuth();
   const isOrgAdmin = (role || '').toLowerCase() === 'orgadmin';
   const hasPerm = (code: string) =>
     (permissions || []).some((p) => (p || '').toUpperCase() === code.toUpperCase());
@@ -440,6 +481,7 @@ export default function Reimbusments() {
       if (dateFrom) q.append("from_date", dateFrom);
       if (dateTo) q.append("to_date", dateTo);
       
+      q.append("is_advance", "1");
       const res = await apiClient<any>(`/reimbursements/stats?${q.toString()}`, { method: "GET", withAuth: true });
       if (res.success) {
         setStats(res.data);
@@ -458,6 +500,7 @@ export default function Reimbusments() {
       const q = new URLSearchParams({
         page: page.toString(),
         limit: limit.toString(),
+        is_advance: "1",
       });
 
       if (statusFilter && statusFilter !== "All") {
@@ -817,8 +860,8 @@ export default function Reimbusments() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Wallet Reimbursements</h1>
-          <p className="text-gray-600 mt-1">Review, approve, and track employee reimbursement claims</p>
+          <h1 className="text-2xl font-bold text-gray-900">Wallet Advances</h1>
+          <p className="text-gray-600 mt-1">Review, approve, and track employee wallet advance requests</p>
         </div>
       </div>
 
@@ -1574,12 +1617,23 @@ export default function Reimbusments() {
 
                   {selectedRow.status === "Approved" && selectedRow.payment_status !== "Disbursed" && (
                     <button
-                      onClick={() => handleDisburse(selectedRow.id)}
+                      onClick={() => {
+                        setTopUpWallet({
+                          employee_id: selectedRow.employee_id,
+                          first_name: selectedRow.first_name,
+                          last_name: selectedRow.last_name,
+                          current_balance: 0,
+                          currency: "INR"
+                        });
+                        setTopUpAmount(String(selectedRow.amount));
+                        setTopUpRemarks(selectedRow.reason || "");
+                        setShowTopUp(true);
+                      }}
                       disabled={actionLoading}
                       className="px-4 py-2 text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-50"
                     >
-                      <DollarSign className="w-4 h-4" />
-                      Mark Disbursed
+                      <ArrowUpRight className="w-4 h-4" />
+                      Top Up
                     </button>
                   )}
 
@@ -2286,6 +2340,72 @@ export default function Reimbusments() {
                 />
               )}
             </div>
+          </div>
+        </div>
+      )}
+    
+      {/* ── Top-Up Modal ──────────────────────────────────────────────── */}
+      {showTopUp && topUpWallet && (
+        <div className="fixed inset-0 bg-black/25 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md border border-gray-200 shadow-xl flex flex-col gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Top Up Wallet for Advance</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Disburse approved advance funds for {topUpWallet.first_name} {topUpWallet.last_name}</p>
+            </div>
+
+            <form onSubmit={handleTopUpSubmit} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Amount</label>
+                <input
+                  type="number"
+                  required
+                  disabled
+                  placeholder="0.00"
+                  value={topUpAmount}
+                  className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-600 focus:border-blue-600 text-sm font-semibold text-gray-950 bg-gray-50 cursor-not-allowed"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Payment Mode</label>
+                <select
+                  value={topUpMode}
+                  onChange={e => setTopUpMode(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-600 focus:border-blue-600 text-sm text-gray-950 bg-white"
+                >
+                  <option>Cash</option>
+                  <option value="Bank">Bank Transfer</option>
+                  <option value="UPI">UPI</option>
+                  <option value="Card">Card</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Remarks</label>
+                <textarea
+                  placeholder="Add reason/remarks..."
+                  value={topUpRemarks}
+                  onChange={e => setTopUpRemarks(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-600 focus:border-blue-600 text-xs h-16 resize-none text-gray-950"
+                />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowTopUp(false); setTopUpWallet(null); }}
+                  className="flex-1 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 border border-gray-300 rounded transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={topUpLoading}
+                  className="flex-1 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors flex items-center justify-center gap-1.5 shadow"
+                >
+                  {topUpLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  Top Up & Disburse
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -1129,19 +1129,22 @@ function SubmissionReadOnly({ data, approvals, expandedGps, setExpandedGps, setS
       // It is a container. Ensure type is set so it acts as a Header.
       values.push({ ...v, field_type: v.field_type || 'container' });
 
-      const first = val[0];
       // Map for finding labels
       const labelMap = new Map((viewerFields || []).map((f: any) => [String(f.field_key), String(f.label)]));
 
-      Object.entries(first).forEach(([k, subVal]) => {
-        unpackedKeys.add(k);
-        values.push({
-          field_key: k,
-          field_label: labelMap.get(k) || k,
-          value: subVal,
-          field_type: 'text',
-          parent_field_key: key
-        });
+      val.forEach((entry: any, entryIdx: number) => {
+        if (entry && typeof entry === 'object') {
+          Object.entries(entry).forEach(([k, subVal]) => {
+            unpackedKeys.add(k);
+            values.push({
+              field_key: `${k}_entry_${entryIdx}`,
+              field_label: `${labelMap.get(k) || k} (Entry #${entryIdx + 1})`,
+              value: subVal,
+              field_type: 'text',
+              parent_field_key: key
+            });
+          });
+        }
       });
     } else {
       // Normal field. Check for duplicate/placeholder.
@@ -1431,10 +1434,74 @@ function SubmissionReadOnly({ data, approvals, expandedGps, setExpandedGps, setS
           }
 
           return groups.map((group, gIdx) => {
-            // Updated Styling: Gray/Neutral theme (Black not Blue)
             const isTitled = !!group.title;
             const containerClasses = `rounded-xl ${isTitled ? 'border border-gray-200 bg-white overflow-hidden mb-6' : 'mb-6'}`;
             const gridClasses = `grid grid-cols-1 gap-4 ${isTitled ? 'p-4' : ''}`;
+            const isContainer = group.type === 'container' || group.containerKey;
+
+            const renderFieldCard = (v: any, keySuffix: string | number, isSubcard = false) => {
+              const key = String(v?.field_key || '');
+              if (v.field_type === 'container' || key.startsWith('container_')) return null;
+
+              const rawLabel = String(v?.label || v?.field_label || key);
+              // Remove "(Entry #X)" suffix from the label if it's rendered inside a subcard
+              const label = isSubcard ? rawLabel.replace(/\s*\(Entry\s*#\d+\)\s*$/, '') : rawLabel;
+              const value = v?.value;
+              const strValue = String(value ?? '');
+
+              // Improved type detection
+              const isFile = (v?.field_type === 'file') || (key.includes('file')) ||
+                (Array.isArray(value) && value.some((x: any) => {
+                  const str = String(x);
+                  return str.startsWith('data:application/') || str.startsWith('data:text/') ||
+                    (str.startsWith('http') && /\.(pdf|docx?|xlsx?|txt|csv)$/i.test(str));
+                })) ||
+                (typeof value === 'string' && (value.startsWith('data:application/') || value.startsWith('data:text/') ||
+                  (value.startsWith('http') && /\.(pdf|docx?|xlsx?|txt|csv)$/i.test(value))));
+
+              const isImage = (v?.field_type === 'image') ||
+                (Array.isArray(value) && value.length > 0 && String(value[0]).startsWith('data:image/')) ||
+                (typeof value === 'string' && value.startsWith('data:image/')) ||
+                (key.includes('image') && (strValue.startsWith('http') || strValue.startsWith('data:')));
+
+              const isPhone = (v?.field_type === 'phone') || key.includes('phone');
+              const isSignature = key.includes('signature') || (v?.field_type === 'signature');
+              const isGps = key.includes('gps') || (v?.field_type === 'gps') || (typeof value === 'string' && value.includes(',') && !value.startsWith('data:') && !value.startsWith('http'));
+              const isDate = (v?.field_type === 'date') || (key.includes('date') && typeof value === 'string');
+              const isTime = (v?.field_type === 'time') || (key.includes('time') && typeof value === 'string');
+              const isArray = Array.isArray(value) && !isImage && !isFile;
+
+              const cardClasses = isSubcard
+                ? "border border-gray-150 rounded-xl p-3 bg-white hover:shadow-xs transition-all duration-200"
+                : "border border-gray-200 rounded-xl p-4 bg-white hover:shadow-sm transition-all duration-200";
+
+              const labelClasses = isSubcard
+                ? "text-sm font-semibold text-gray-800"
+                : "text-base font-semibold text-gray-900";
+
+              return (
+                <div key={keySuffix} className={cardClasses}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className={labelClasses}>{label}</div>
+                    {String(v?.field_key || '').startsWith('system_') && (
+                      <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-yellow-50 text-yellow-700 border border-yellow-200">
+                        SYSTEM
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-gray-700">
+                    {isFile ? renderFile(value)
+                      : isImage || isSignature ? renderImage(value, isSignature)
+                        : isPhone ? renderPhone(value)
+                          : isGps ? renderGps(key, value)
+                            : isDate ? renderDateTime(value, true)
+                              : isTime ? <span className="font-medium">{formatTime12h(String(value))}</span>
+                                : isArray ? renderArray(value)
+                                  : <span className="text-gray-900 break-words">{String(value || '-') || '-'}</span>}
+                  </div>
+                </div>
+              );
+            };
 
             return (
               <div key={gIdx} className={containerClasses}>
@@ -1445,62 +1512,34 @@ function SubmissionReadOnly({ data, approvals, expandedGps, setExpandedGps, setS
                   </div>
                 )}
 
-                <div className={gridClasses}>
-                  {group.fields.map((v, idx) => {
-                    const key = String(v?.field_key || '');
+                <div className={isContainer ? "p-4 space-y-4" : gridClasses}>
+                  {isContainer ? (
+                    (() => {
+                      const entryGroups: { [index: number]: any[] } = {};
+                      group.fields.forEach(v => {
+                        const key = String(v?.field_key || '');
+                        if (v.field_type === 'container' || key.startsWith('container_')) return;
+                        const match = key.match(/_entry_(\d+)$/);
+                        const idx = match ? parseInt(match[1]) : 0;
+                        if (!entryGroups[idx]) entryGroups[idx] = [];
+                        entryGroups[idx].push(v);
+                      });
 
-                    // Hide container header from body list (it is shown as title)
-                    if (v.field_type === 'container' || key.startsWith('container_')) return null;
-
-                    const label = String(v?.label || v?.field_label || key);
-                    const value = v?.value;
-                    const strValue = String(value ?? '');
-
-                    // Improved type detection
-                    const isFile = (v?.field_type === 'file') || (key.includes('file')) ||
-                      (Array.isArray(value) && value.some((x: any) => {
-                        const str = String(x);
-                        return str.startsWith('data:application/') || str.startsWith('data:text/') ||
-                          (str.startsWith('http') && /\.(pdf|docx?|xlsx?|txt|csv)$/i.test(str));
-                      })) ||
-                      (typeof value === 'string' && (value.startsWith('data:application/') || value.startsWith('data:text/') ||
-                        (value.startsWith('http') && /\.(pdf|docx?|xlsx?|txt|csv)$/i.test(value))));
-
-                    const isImage = (v?.field_type === 'image') ||
-                      (Array.isArray(value) && value.length > 0 && String(value[0]).startsWith('data:image/')) ||
-                      (typeof value === 'string' && value.startsWith('data:image/')) ||
-                      (key.includes('image') && (strValue.startsWith('http') || strValue.startsWith('data:')));
-
-                    const isPhone = (v?.field_type === 'phone') || key.includes('phone');
-                    const isSignature = key.includes('signature') || (v?.field_type === 'signature');
-                    const isGps = key.includes('gps') || (v?.field_type === 'gps') || (typeof value === 'string' && value.includes(',') && !value.startsWith('data:') && !value.startsWith('http'));
-                    const isDate = (v?.field_type === 'date') || (key.includes('date') && typeof value === 'string');
-                    const isTime = (v?.field_type === 'time') || (key.includes('time') && typeof value === 'string');
-                    const isArray = Array.isArray(value) && !isImage && !isFile;
-
-                    return (
-                      <div key={idx} className="border border-gray-200 rounded-xl p-4 bg-white hover:shadow-sm transition-all duration-200">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="text-base font-semibold text-gray-900">{label}</div>
-                          {String(v?.field_key || '').startsWith('system_') && (
-                            <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-yellow-50 text-yellow-700 border border-yellow-200">
-                              SYSTEM
-                            </span>
-                          )}
+                      return Object.entries(entryGroups).map(([entryIdx, fields]) => (
+                        <div key={entryIdx} className="bg-gray-50/50 border border-gray-150 rounded-xl p-4">
+                          <div className="text-sm font-bold text-gray-700 mb-3 tracking-wide flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 bg-gray-500 rounded-full" />
+                            <span>Entry #{parseInt(entryIdx) + 1}</span>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {fields.map((v, fIdx) => renderFieldCard(v, fIdx, true))}
+                          </div>
                         </div>
-                        <div className="text-gray-700">
-                          {isFile ? renderFile(value)
-                            : isImage || isSignature ? renderImage(value, isSignature)
-                              : isPhone ? renderPhone(value)
-                                : isGps ? renderGps(key, value)
-                                  : isDate ? renderDateTime(value, true)
-                                    : isTime ? <span className="font-medium">{formatTime12h(String(value))}</span>
-                                      : isArray ? renderArray(value)
-                                        : <span className="text-gray-900 break-words">{String(value || '-') || '-'}</span>}
-                        </div>
-                      </div>
-                    );
-                  })}
+                      ));
+                    })()
+                  ) : (
+                    group.fields.map((v, idx) => renderFieldCard(v, idx, false))
+                  )}
                 </div>
               </div>
             );
