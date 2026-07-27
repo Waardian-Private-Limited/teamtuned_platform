@@ -3,9 +3,31 @@
 
 import React, { useState, useEffect } from "react";
 import { apiClient } from "@/lib/apiClient";
-import { X, Check, Search, Filter, Calendar, MapPin, Download, Printer, Eye, ChevronLeft, ChevronRight, MoreVertical, FileText, Phone, Loader2, AlertCircle, User, ChevronDown, ChevronUp, Clock, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
+import { X, Check, Search, Filter, Calendar, MapPin, Download, Printer, Eye, ChevronLeft, ChevronRight, MoreVertical, FileText, Phone, Loader2, AlertCircle, User, ChevronDown, ChevronUp, Clock, CheckCircle, XCircle, RotateCcw, Trash2 } from 'lucide-react';
 
 import { useAuth } from "@/context/AuthContext";
+
+type Assignment = {
+  id: number;
+  task_id: number;
+  site_id?: number | null;
+  user_id?: number | null;
+  occurrence_date?: string;
+  status: string;
+  submitted_at?: string | null;
+  submission_id?: number | null;
+  remarks?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  designation?: string | null;
+  site_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  department_name?: string | null;
+  role_name?: string | null;
+  site_ids?: number[];
+  onboarding_token_expires_at?: string | null;
+};
 
 // useCountUp hook for animated numbers
 function useCountUp(target: number, duration = 800) {
@@ -23,28 +45,6 @@ function useCountUp(target: number, duration = 800) {
   }, [target, duration]);
   return v;
 }
-type Assignment = {
-  id: number;
-  task_id: number;
-  site_id?: number | null;
-  user_id?: number | null;
-  occurrence_date?: string;
-  status: string;
-  submission_id?: number | null;
-  submitted_at?: string | null;
-  remarks?: string | null;
-  first_name?: string | null;
-  last_name?: string | null;
-  designation?: string | null;
-  site_name?: string | null;
-  // Employee Data Fields
-  email?: string | null;
-  phone?: string | null;
-  department_name?: string | null;
-  role_name?: string | null;
-  site_ids?: number[];
-  onboarding_token_expires_at?: string | null;
-};
 
 export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: number; onClose: () => void }) {
   const [assignments, setAssignments] = React.useState<Assignment[]>([]);
@@ -97,7 +97,39 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
   const [showRejectModal, setShowRejectModal] = React.useState(false);
   const [rejectionReason, setRejectionReason] = React.useState('');
 
+  // Assignment Actions (Reset & Delete)
+  const [assignmentActionConfirm, setAssignmentActionConfirm] = React.useState<{ type: 'reset' | 'delete'; assignmentId: number } | null>(null);
+  const [actionLoading, setActionLoading] = React.useState(false);
+
   const { user, employee } = useAuth();
+
+  const handleResetAssignment = async (assignmentId: number) => {
+    setActionLoading(true);
+    try {
+      await apiClient(`/tasks/assignments/${assignmentId}/reset`, { method: "POST", withAuth: true });
+      showToast("Task assignment reset successfully. Form data cleared.", "success");
+      await load();
+    } catch (e: any) {
+      showToast(e?.message || "Failed to reset task assignment", "error");
+    } finally {
+      setActionLoading(false);
+      setAssignmentActionConfirm(null);
+    }
+  };
+
+  const handleDeleteAssignment = async (assignmentId: number) => {
+    setActionLoading(true);
+    try {
+      await apiClient(`/tasks/assignments/${assignmentId}`, { method: "DELETE", withAuth: true });
+      showToast("Task assignment deleted successfully.", "success");
+      await load();
+    } catch (e: any) {
+      showToast(e?.message || "Failed to delete task assignment", "error");
+    } finally {
+      setActionLoading(false);
+      setAssignmentActionConfirm(null);
+    }
+  };
 
 
 
@@ -693,6 +725,23 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
                         {assignment.submission_id && (
                           <DownloadReport taskId={taskId} submissionId={assignment.submission_id!} />
                         )}
+
+                        <button
+                          title="Reset Task Data"
+                          onClick={() => setAssignmentActionConfirm({ type: 'reset', assignmentId: assignment.id })}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors text-xs font-medium border border-amber-200"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          Reset
+                        </button>
+
+                        <button
+                          title="Delete Assignment"
+                          onClick={() => setAssignmentActionConfirm({ type: 'delete', assignmentId: assignment.id })}
+                          className="inline-flex items-center gap-1 px-1.5 py-1 rounded bg-red-50 text-red-700 hover:bg-red-100 transition-colors text-xs font-medium border border-red-200"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -1598,6 +1647,56 @@ function SubmissionReadOnly({ data, approvals, expandedGps, setExpandedGps, setS
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {assignmentActionConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 m-4 animate-in zoom-in-95">
+            <div className="flex items-center gap-4 mb-4">
+              <div className={`p-3 rounded-full ${assignmentActionConfirm.type === 'delete' ? 'bg-red-100' : 'bg-amber-100'}`}>
+                {assignmentActionConfirm.type === 'delete' ? (
+                  <Trash2 className="w-6 h-6 text-red-600" />
+                ) : (
+                  <RotateCcw className="w-6 h-6 text-amber-600" />
+                )}
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {assignmentActionConfirm.type === 'delete' ? 'Delete Assignment' : 'Reset Task Data'}
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  {assignmentActionConfirm.type === 'delete'
+                    ? 'Are you sure you want to delete this assignment? This action cannot be undone.'
+                    : 'Are you sure you want to reset this task? All filled/submitted data will be deleted so the user can fill it again from scratch.'}
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                disabled={actionLoading}
+                onClick={() => setAssignmentActionConfirm(null)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-colors border text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={actionLoading}
+                onClick={() => {
+                  if (assignmentActionConfirm.type === 'delete') {
+                    handleDeleteAssignment(assignmentActionConfirm.assignmentId);
+                  } else {
+                    handleResetAssignment(assignmentActionConfirm.assignmentId);
+                  }
+                }}
+                className={`px-4 py-2 text-white rounded-xl font-medium transition-colors text-sm flex items-center gap-2 ${
+                  assignmentActionConfirm.type === 'delete' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'
+                }`}
+              >
+                {actionLoading ? 'Processing...' : 'Confirm'}
+              </button>
+            </div>
           </div>
         </div>
       )}

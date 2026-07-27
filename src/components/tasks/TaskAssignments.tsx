@@ -146,10 +146,28 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
     })();
   }, [isOrgAdmin, employee]);
 
-  const runScheduler = async () => {
+  // Scheduler Modal state
+  const [showSchedulerModal, setShowSchedulerModal] = React.useState(false);
+  const [selectedSchedulerTaskIds, setSelectedSchedulerTaskIds] = React.useState<number[]>([]);
+  const [schedulerSuccessMsg, setSchedulerSuccessMsg] = React.useState<string | null>(null);
+
+  const openSchedulerModal = () => {
+    setSelectedSchedulerTaskIds(tasks.map(t => t.id));
+    setShowSchedulerModal(true);
+    setSchedulerSuccessMsg(null);
+  };
+
+  const runSchedulerForSelected = async () => {
     setRunning(true);
+    setError(null);
+    setSchedulerSuccessMsg(null);
     try {
-      await apiClient(`/tasks/scheduler/run`, { method: "POST", withAuth: true });
+      const res = await apiClient<any>(`/tasks/scheduler/run`, {
+        method: "POST",
+        withAuth: true,
+        body: { task_ids: selectedSchedulerTaskIds }
+      });
+      setSchedulerSuccessMsg(res?.message || `Generated ${res?.generatedCount || 0} occurrence(s).`);
       await loadTasks();
     } catch (e: any) {
       setError(e?.message || "Failed to run scheduler");
@@ -352,7 +370,7 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
           <div className="flex items-center space-x-2 overflow-x-auto pb-1 md:pb-0">
             {role === "org" && (
               <button
-                onClick={runScheduler}
+                onClick={openSchedulerModal}
                 disabled={running}
                 className="flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 text-sm font-medium text-gray-700 whitespace-nowrap"
               >
@@ -719,6 +737,89 @@ export default function TaskAssignments({ role = "org" }: { role?: "org" | "empl
                 onSaved={() => { setEdit(null); loadTasks(); }}
                 onCancel={() => setEdit(null)}
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSchedulerModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 m-4 flex flex-col animate-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900">Run Task Scheduler</h3>
+              <button onClick={() => setShowSchedulerModal(false)} className="p-1 rounded-lg hover:bg-gray-100">
+                <XCircle className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-500 mt-3 mb-2">
+              Select which active tasks or recurring templates to generate new assignment occurrences for:
+            </p>
+
+            {schedulerSuccessMsg && (
+              <div className="mb-3 p-3 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />
+                <span>{schedulerSuccessMsg}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between text-xs text-gray-600 my-2">
+              <span className="font-medium">Selected: {selectedSchedulerTaskIds.length} of {tasks.length} tasks</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedSchedulerTaskIds.length === tasks.length) {
+                    setSelectedSchedulerTaskIds([]);
+                  } else {
+                    setSelectedSchedulerTaskIds(tasks.map(t => t.id));
+                  }
+                }}
+                className="text-blue-600 font-semibold hover:underline"
+              >
+                {selectedSchedulerTaskIds.length === tasks.length ? "Deselect All" : "Select All"}
+              </button>
+            </div>
+
+            <div className="max-h-60 overflow-y-auto space-y-1.5 border border-gray-200 rounded-xl p-2 mb-4">
+              {tasks.map(t => (
+                <label key={t.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 cursor-pointer text-sm transition-colors border border-transparent hover:border-gray-200">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <input
+                      type="checkbox"
+                      checked={selectedSchedulerTaskIds.includes(t.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedSchedulerTaskIds(prev => [...prev, t.id]);
+                        } else {
+                          setSelectedSchedulerTaskIds(prev => prev.filter(id => id !== t.id));
+                        }
+                      }}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                    />
+                    <span className="font-medium text-gray-900 truncate">{t.title || `Task #${t.id}`}</span>
+                  </div>
+                  <span className="text-xs text-gray-400 capitalize bg-gray-100 px-2 py-0.5 rounded">{t.recurrence}</span>
+                </label>
+              ))}
+              {tasks.length === 0 && (
+                <p className="text-xs text-gray-400 text-center py-6">No tasks available</p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+              <button
+                onClick={() => setShowSchedulerModal(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={runSchedulerForSelected}
+                disabled={running || selectedSchedulerTaskIds.length === 0}
+                className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 text-sm font-medium flex items-center gap-2 transition-colors shadow-sm"
+              >
+                <RefreshCw className={`w-4 h-4 ${running ? 'animate-spin' : ''}`} />
+                <span>{running ? 'Generating...' : 'Generate Occurrences'}</span>
+              </button>
             </div>
           </div>
         </div>

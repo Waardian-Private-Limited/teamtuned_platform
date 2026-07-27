@@ -2,7 +2,7 @@
 
 import React from "react";
 import { apiClient } from "@/lib/apiClient";
-import { Plus, RefreshCw, Shield } from "lucide-react";
+import { Plus, RefreshCw, Shield, Trash2, AlertCircle } from "lucide-react";
 
 import { useAuth } from "@/context/AuthContext";
 type Task = {
@@ -29,6 +29,7 @@ export default function TaskManager({ role }: Props) {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [showCreate, setShowCreate] = React.useState(false);
+  const [deleteConfirmTaskId, setDeleteConfirmTaskId] = React.useState<number | null>(null);
 
   // Permissions
   const [userRole, setUserRole] = React.useState<string | null>(null);
@@ -113,6 +114,16 @@ export default function TaskManager({ role }: Props) {
     }
   };
 
+  const deleteTask = async (id: number) => {
+    try {
+      await apiClient(`/tasks/${id}`, { method: "DELETE", withAuth: true });
+      setDeleteConfirmTaskId(null);
+      await fetchTasks();
+    } catch (e: any) {
+      alert(e?.message || "Failed to delete task");
+    }
+  };
+
   if (checkingPerms) return <div className="p-4 text-sm">Checking permissions...</div>;
 
   if (!canView) {
@@ -156,6 +167,7 @@ export default function TaskManager({ role }: Props) {
               <th className="px-3 py-2 text-left border">Start</th>
               <th className="px-3 py-2 text-left border">End</th>
               <th className="px-3 py-2 text-left border">Status</th>
+              <th className="px-3 py-2 text-left border">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -169,11 +181,20 @@ export default function TaskManager({ role }: Props) {
                 <td className="px-3 py-2 border">{t.start_date || '-'}</td>
                 <td className="px-3 py-2 border">{t.end_date || '-'}</td>
                 <td className="px-3 py-2 border">{t.status}</td>
+                <td className="px-3 py-2 border">
+                  <button
+                    onClick={() => setDeleteConfirmTaskId(t.id)}
+                    className="p-1 rounded text-red-600 hover:bg-red-50"
+                    title="Delete Task"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </td>
               </tr>
             ))}
             {tasks.length === 0 && !loading && (
               <tr>
-                <td colSpan={8} className="px-3 py-4 text-center text-gray-500">No tasks found.</td>
+                <td colSpan={9} className="px-3 py-4 text-center text-gray-500">No tasks found.</td>
               </tr>
             )}
           </tbody>
@@ -236,6 +257,35 @@ export default function TaskManager({ role }: Props) {
             <div className="p-4 flex items-center justify-end gap-2">
               <button className="px-3 py-1.5 rounded border text-black" onClick={() => setShowCreate(false)}>Cancel</button>
               <button className="px-3 py-1.5 rounded bg-black text-white" onClick={saveTask}>Create</button>
+            </div>
+          </div>
+        </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirmTaskId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 text-center">
+            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
+              <AlertCircle size={24} />
+            </div>
+            <h3 className="text-base font-bold text-gray-900 mb-2">Delete Task #{deleteConfirmTaskId}?</h3>
+            <p className="text-xs text-gray-500 mb-6">Are you sure you want to delete this task and its assignments? This cannot be undone.</p>
+            <div className="flex gap-3">
+              <button
+                className="flex-1 py-2 border rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+                onClick={() => setDeleteConfirmTaskId(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="flex-1 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700"
+                onClick={() => deleteTask(deleteConfirmTaskId)}
+              >
+                Delete
+              </button>
             </div>
           </div>
         </div>
