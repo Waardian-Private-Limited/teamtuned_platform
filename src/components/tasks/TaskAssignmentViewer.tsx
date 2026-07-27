@@ -1124,6 +1124,56 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
           </div>
         </div>
       )}
+
+      {assignmentActionConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 m-4 animate-in zoom-in-95">
+            <div className="flex items-center gap-4 mb-4">
+              <div className={`p-3 rounded-full ${assignmentActionConfirm.type === 'delete' ? 'bg-red-100' : 'bg-amber-100'}`}>
+                {assignmentActionConfirm.type === 'delete' ? (
+                  <Trash2 className="w-6 h-6 text-red-600" />
+                ) : (
+                  <RotateCcw className="w-6 h-6 text-amber-600" />
+                )}
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {assignmentActionConfirm.type === 'delete' ? 'Delete Assignment' : 'Reset Task Data'}
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  {assignmentActionConfirm.type === 'delete'
+                    ? 'Are you sure you want to delete this assignment? This action cannot be undone.'
+                    : 'Are you sure you want to reset this task? All filled/submitted data will be deleted so the user can fill it again from scratch.'}
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                disabled={actionLoading}
+                onClick={() => setAssignmentActionConfirm(null)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-colors border text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={actionLoading}
+                onClick={() => {
+                  if (assignmentActionConfirm.type === 'delete') {
+                    handleDeleteAssignment(assignmentActionConfirm.assignmentId);
+                  } else {
+                    handleResetAssignment(assignmentActionConfirm.assignmentId);
+                  }
+                }}
+                className={`px-4 py-2 text-white rounded-xl font-medium transition-colors text-sm flex items-center gap-2 ${
+                  assignmentActionConfirm.type === 'delete' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'
+                }`}
+              >
+                {actionLoading ? 'Processing...' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1647,56 +1697,6 @@ function SubmissionReadOnly({ data, approvals, expandedGps, setExpandedGps, setS
                 </div>
               );
             })}
-          </div>
-        </div>
-      )}
-
-      {assignmentActionConfirm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 m-4 animate-in zoom-in-95">
-            <div className="flex items-center gap-4 mb-4">
-              <div className={`p-3 rounded-full ${assignmentActionConfirm.type === 'delete' ? 'bg-red-100' : 'bg-amber-100'}`}>
-                {assignmentActionConfirm.type === 'delete' ? (
-                  <Trash2 className="w-6 h-6 text-red-600" />
-                ) : (
-                  <RotateCcw className="w-6 h-6 text-amber-600" />
-                )}
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {assignmentActionConfirm.type === 'delete' ? 'Delete Assignment' : 'Reset Task Data'}
-                </h3>
-                <p className="text-sm text-gray-500 mt-1">
-                  {assignmentActionConfirm.type === 'delete'
-                    ? 'Are you sure you want to delete this assignment? This action cannot be undone.'
-                    : 'Are you sure you want to reset this task? All filled/submitted data will be deleted so the user can fill it again from scratch.'}
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                disabled={actionLoading}
-                onClick={() => setAssignmentActionConfirm(null)}
-                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-colors border text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                disabled={actionLoading}
-                onClick={() => {
-                  if (assignmentActionConfirm.type === 'delete') {
-                    handleDeleteAssignment(assignmentActionConfirm.assignmentId);
-                  } else {
-                    handleResetAssignment(assignmentActionConfirm.assignmentId);
-                  }
-                }}
-                className={`px-4 py-2 text-white rounded-xl font-medium transition-colors text-sm flex items-center gap-2 ${
-                  assignmentActionConfirm.type === 'delete' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'
-                }`}
-              >
-                {actionLoading ? 'Processing...' : 'Confirm'}
-              </button>
-            </div>
           </div>
         </div>
       )}

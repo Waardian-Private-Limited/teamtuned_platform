@@ -260,9 +260,6 @@ export default function TaskManager({ role }: Props) {
             </div>
           </div>
         </div>
-            </div>
-          </div>
-        </div>
       )}
 
       {deleteConfirmTaskId !== null && (
