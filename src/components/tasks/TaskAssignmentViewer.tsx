@@ -86,6 +86,7 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
 
   const [showExportModal, setShowExportModal] = React.useState(false);
   const [exportMode, setExportMode] = React.useState<'local' | 'email'>('local');
+  const [exportScope, setExportScope] = React.useState<'all' | 'submitted'>('all');
   const [exportFrom, setExportFrom] = React.useState('');
   const [exportTo, setExportTo] = React.useState('');
   const [exportEmails, setExportEmails] = React.useState('');
@@ -144,7 +145,7 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
-          body: JSON.stringify({ mode: 'local', date_from: exportFrom, date_to: exportTo }),
+          body: JSON.stringify({ mode: 'local', date_from: exportFrom, date_to: exportTo, export_type: exportScope }),
         });
         if (!res.ok) throw new Error(await res.text());
         const blob = await res.blob();
@@ -169,7 +170,7 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
         await apiClient(`/tasks/${taskId}/assignments/export`, {
           method: 'POST',
           withAuth: true,
-          body: { mode: 'email', date_from: exportFrom, date_to: exportTo, emails },
+          body: { mode: 'email', date_from: exportFrom, date_to: exportTo, emails, export_type: exportScope },
         });
         setShowExportModal(false);
         showToast('Export will be sent by email', 'success');
@@ -949,14 +950,28 @@ export default function TaskAssignmentViewer({ taskId, onClose }: { taskId: numb
             </div>
             <div className="p-6 space-y-4">
               <div className="flex items-center gap-4">
-                <label className="flex items-center gap-2">
+                <label className="flex items-center gap-2 cursor-pointer">
                   <input type="radio" name="exportMode" checked={exportMode === 'local'} onChange={() => setExportMode('local')} />
-                  <span className="text-sm text-gray-700">Download locally</span>
+                  <span className="text-sm text-gray-700 font-medium">Download locally</span>
                 </label>
-                <label className="flex items-center gap-2">
+                <label className="flex items-center gap-2 cursor-pointer">
                   <input type="radio" name="exportMode" checked={exportMode === 'email'} onChange={() => setExportMode('email')} />
-                  <span className="text-sm text-gray-700">Send by email</span>
+                  <span className="text-sm text-gray-700 font-medium">Send by email</span>
                 </label>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1.5">Export Scope</label>
+                <div className="flex items-center gap-4 bg-gray-50 p-2.5 rounded-lg border border-gray-200">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="exportScope" checked={exportScope === 'all'} onChange={() => setExportScope('all')} className="text-blue-600 focus:ring-blue-500" />
+                    <span className="text-sm text-gray-700 font-medium">All Tasks (Includes Pending)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="exportScope" checked={exportScope === 'submitted'} onChange={() => setExportScope('submitted')} className="text-blue-600 focus:ring-blue-500" />
+                    <span className="text-sm text-gray-700 font-medium">Only Filled / Submitted</span>
+                  </label>
+                </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
