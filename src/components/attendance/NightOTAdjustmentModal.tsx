@@ -54,12 +54,17 @@ export default function NightOTAdjustmentModal({
     setLoading(true);
     setError(null);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes timeout budget for All Sites query
+
     try {
       const siteParam = siteId === "all" ? "all" : String(siteId);
       const res = await apiClient<any>(
         `/attendance/night-ot-adjustment/preview?month=${month}&site_id=${siteParam}`,
-        { method: "GET", withAuth: true }
+        { method: "GET", withAuth: true, signal: controller.signal }
       );
+
+      clearTimeout(timeoutId);
 
       if (res.success) {
         const list: AdjustmentCandidate[] = res.adjustments || [];
@@ -70,7 +75,12 @@ export default function NightOTAdjustmentModal({
         throw new Error(res.message || "Failed to fetch Night OT adjustments preview");
       }
     } catch (err: any) {
-      setError(err.message || "An unexpected error occurred while fetching preview");
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        setError("The request timed out while scanning all sites. Please try selecting a specific site or narrowing the request.");
+      } else {
+        setError(err.message || "An unexpected error occurred while fetching preview");
+      }
     } finally {
       setLoading(false);
     }
@@ -104,6 +114,9 @@ export default function NightOTAdjustmentModal({
     setApplying(true);
     setError(null);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000);
+
     try {
       const siteParam = siteId === "all" ? "all" : siteId;
       const res = await apiClient<any>("/attendance/night-ot-adjustment/apply", {
@@ -114,7 +127,10 @@ export default function NightOTAdjustmentModal({
           adjustments: selectedList,
         },
         withAuth: true,
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (res.success) {
         onSuccess(res.message || `Successfully applied Night OT adjustments for ${res.updated_count || selectedList.length} records.`);
@@ -123,11 +139,17 @@ export default function NightOTAdjustmentModal({
         throw new Error(res.message || "Failed to apply Night OT adjustments");
       }
     } catch (err: any) {
-      setError(err.message || "An unexpected error occurred while applying adjustments");
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        setError("The operation timed out. Please try selecting fewer items to confirm.");
+      } else {
+        setError(err.message || "An unexpected error occurred while applying adjustments");
+      }
     } finally {
       setApplying(false);
     }
   };
+
 
   const formatTimeStr = (isoStr: string | null) => {
     if (!isoStr) return "N/A";
