@@ -44,6 +44,9 @@ import {
 } from "lucide-react";
 import ResetAttendanceModal from "./ResetAttendanceModal";
 import BulkOverrideModal from "./BulkOverrideModal";
+import NightOTAdjustmentModal from "./NightOTAdjustmentModal";
+import { Moon } from "lucide-react";
+
 
 type EmployeeItem = Record<string, any>;
 
@@ -75,6 +78,8 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
   const [showResetModal, setShowResetModal] = React.useState<boolean>(false);
   const [resetting, setResetting] = React.useState<boolean>(false);
   const [showBulkOverrideModal, setShowBulkOverrideModal] = React.useState<boolean>(false);
+  const [showNightOTModal, setShowNightOTModal] = React.useState<boolean>(false);
+
 
   // Detail views
   const [activeView, setActiveView] = React.useState<"list" | "attendance" | "leaves" | "redeems">("list");
@@ -1004,6 +1009,17 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
                 </button>
               )}
 
+              {role?.toLowerCase() === 'orgadmin' && (
+                <button
+                  onClick={() => setShowNightOTModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all text-sm font-semibold"
+                >
+                  <Moon className="w-3.5 h-3.5" />
+                  <span>Night OT</span>
+                </button>
+              )}
+
+
               {/* Results Count */}
               <div className="ml-auto text-xs text-slate-500">
                 Showing <span className="font-medium text-slate-700">{filteredItems.length}</span> of <span className="font-medium text-slate-700">{totalItems}</span> employees
@@ -1481,6 +1497,20 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
           }}
         />
       )}
+
+      {showNightOTModal && (
+        <NightOTAdjustmentModal
+          currentSiteId={selectedSiteId}
+          siteOptions={canHRMode ? allSites : inchargeSites}
+          onClose={() => setShowNightOTModal(false)}
+          onSuccess={(msg) => {
+            setShowNightOTModal(false);
+            fetchList();
+            setSuccess(msg);
+          }}
+        />
+      )}
+
     </div >
   );
 }
