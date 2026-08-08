@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { X, Moon, CheckCircle, AlertCircle, Loader2, Calendar, MapPin, ArrowRight } from "lucide-react";
+import { X, Moon, CheckCircle, AlertCircle, Loader2, Calendar, MapPin, ArrowRight, Download, FileSpreadsheet } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 
 interface Props {
@@ -46,6 +46,40 @@ export default function NightOTAdjustmentModal({
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const [progress, setProgress] = React.useState<number>(0);
   const [progressMessage, setProgressMessage] = React.useState<string | null>(null);
+
+  const handleDownloadExcel = async () => {
+    if (!month) return;
+    try {
+      const siteParam = siteId === "all" ? "all" : String(siteId);
+      const token = localStorage.getItem("token") || "";
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "https://api.teamtuned.com/api/v1";
+      const url = `${baseUrl}/attendance/night-ot-adjustment/export-excel?month=${month}&site_id=${siteParam}`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download Excel report');
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `Night_OT_Adjustments_${month}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err: any) {
+      setError(err.message || "Failed to download Excel report");
+    }
+  };
+
 
 
   const handleFetchAdjustments = async () => {
@@ -249,9 +283,17 @@ export default function NightOTAdjustmentModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="flex-1 px-4 py-2 border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-all text-sm font-semibold"
+                  className="px-4 py-2 border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-all text-sm font-semibold"
                 >
                   Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadExcel}
+                  className="px-4 py-2 border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-all text-sm font-semibold flex items-center justify-center gap-2 rounded-lg"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                  <span>Download Excel</span>
                 </button>
                 <button
                   type="button"
@@ -296,7 +338,6 @@ export default function NightOTAdjustmentModal({
                   </div>
                 </div>
               )}
-
 
               {adjustments.length === 0 ? (
                 <div className="py-12 text-center text-slate-500 space-y-2">
@@ -372,6 +413,15 @@ export default function NightOTAdjustmentModal({
                   className="px-4 py-2 border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-all text-sm font-semibold"
                 >
                   Back
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadExcel}
+                  disabled={applying}
+                  className="px-4 py-2 border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-all text-sm font-semibold flex items-center justify-center gap-2 rounded-lg"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                  <span>Download Excel</span>
                 </button>
                 <button
                   type="button"
