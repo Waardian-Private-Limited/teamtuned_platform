@@ -44,6 +44,9 @@ export default function NightOTAdjustmentModal({
   const [step, setStep] = React.useState<1 | 2>(1);
   const [adjustments, setAdjustments] = React.useState<AdjustmentCandidate[]>([]);
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+  const [progress, setProgress] = React.useState<number>(0);
+  const [progressMessage, setProgressMessage] = React.useState<string | null>(null);
+
 
   const handleFetchAdjustments = async () => {
     if (!month) {
@@ -113,40 +116,59 @@ export default function NightOTAdjustmentModal({
 
     setApplying(true);
     setError(null);
+    setProgress(0);
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000);
+    const siteParam = siteId === "all" ? "all" : siteId;
+    const BATCH_SIZE = 25;
+    const totalItems = selectedList.length;
+    let totalUpdated = 0;
 
     try {
-      const siteParam = siteId === "all" ? "all" : siteId;
-      const res = await apiClient<any>("/attendance/night-ot-adjustment/apply", {
-        method: "POST",
-        body: {
-          month,
-          site_id: siteParam,
-          adjustments: selectedList,
-        },
-        withAuth: true,
-        signal: controller.signal
-      });
+      for (let i = 0; i < totalItems; i += BATCH_SIZE) {
+        const chunk = selectedList.slice(i, i + BATCH_SIZE);
+        const currentBatch = Math.floor(i / BATCH_SIZE) + 1;
+        const totalBatches = Math.ceil(totalItems / BATCH_SIZE);
+        const processedCount = Math.min(i + chunk.length, totalItems);
+        const percent = Math.round((processedCount / totalItems) * 100);
 
-      clearTimeout(timeoutId);
+        setProgress(percent);
+        setProgressMessage(`Batch ${currentBatch} of ${totalBatches}: Updating ${processedCount} of ${totalItems} records (${percent}%)...`);
 
-      if (res.success) {
-        onSuccess(res.message || `Successfully applied Night OT adjustments for ${res.updated_count || selectedList.length} records.`);
-        onClose();
-      } else {
-        throw new Error(res.message || "Failed to apply Night OT adjustments");
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+        const res = await apiClient<any>("/attendance/night-ot-adjustment/apply", {
+          method: "POST",
+          body: {
+            month,
+            site_id: siteParam,
+            adjustments: chunk,
+          },
+          withAuth: true,
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (res.success) {
+          totalUpdated += (res.updated_count || chunk.length);
+        } else {
+          throw new Error(res.message || `Failed to apply adjustments at batch ${currentBatch}`);
+        }
       }
+
+      onSuccess(`Successfully applied Night OT adjustments for ${totalUpdated} records.`);
+      onClose();
     } catch (err: any) {
-      clearTimeout(timeoutId);
       if (err.name === 'AbortError') {
-        setError("The operation timed out. Please try selecting fewer items to confirm.");
+        setError("A batch request timed out. Some records may have been updated. Please refresh and try again.");
       } else {
-        setError(err.message || "An unexpected error occurred while applying adjustments");
+        setError(err.message || "An unexpected error occurred while applying adjustments.");
       }
     } finally {
       setApplying(false);
+      setProgress(0);
+      setProgressMessage(null);
     }
   };
 
@@ -256,6 +278,25 @@ export default function NightOTAdjustmentModal({
                   Selected: <span className="font-bold text-slate-800">{selectedIds.size}</span> of {adjustments.length}
                 </div>
               </div>
+
+              {applying && progressMessage && (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-semibold text-indigo-900">
+                    <span className="flex items-center gap-1.5">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600" />
+                      {progressMessage}
+                    </span>
+                    <span>{progress}%</span>
+                  </div>
+                  <div className="w-full bg-indigo-200 h-2 rounded-full overflow-hidden">
+                    <div
+                      className="bg-indigo-600 h-full transition-all duration-300 rounded-full"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
 
               {adjustments.length === 0 ? (
                 <div className="py-12 text-center text-slate-500 space-y-2">
