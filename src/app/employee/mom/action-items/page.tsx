@@ -1,6 +1,6 @@
 import React from 'react';
-import MyActionItems from '@/components/mom/MyActionItems';
+import MomDashboardComponent from '@/components/mom/MomDashboard';
 
 export default function EmployeeActionItemsPage() {
-    return <MyActionItems />;
+    return <MomDashboardComponent basePath="/employee/mom" />;
 }

@@ -1,5 +1,5 @@
 import DpsCbdDashboard from '@/components/dps/DpsCbdDashboard';
 
-export default function EmployeeCbdDashboardPage() {
+export default function CbdDashboardPage() {
     return <DpsCbdDashboard />;
 }

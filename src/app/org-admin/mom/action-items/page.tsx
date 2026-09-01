@@ -1,6 +1,6 @@
 import React from 'react';
-import MyActionItems from '@/components/mom/MyActionItems';
+import MomDashboardComponent from '@/components/mom/MomDashboard';
 
 export default function OrgAdminActionItemsPage() {
-    return <MyActionItems />;
+    return <MomDashboardComponent basePath="/org-admin/mom" />;
 }

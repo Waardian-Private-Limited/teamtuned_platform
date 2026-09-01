@@ -8,6 +8,12 @@ import { apiClient } from "@/lib/apiClient";
 import type { FaceDetection as FaceDetectionType, Results } from "@mediapipe/face_detection";
 import toast from "react-hot-toast";
 
+type PunchStatus = "idle" | "capturing" | "processing" | "success" | "duplicate" | "error";
+
+// Hard deadline for a punch request. Beyond this the reply is assumed lost —
+// which does NOT mean the punch was not recorded on the server.
+const PUNCH_TIMEOUT_MS = 20000;
+
 interface BiometricPunchScreenProps {
     siteId: string | number | null;
     siteName?: string | null;
@@ -24,10 +30,10 @@ export default function BiometricPunchScreen({
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [stream, setStream] = useState<MediaStream | null>(null);
-    const [status, setStatusState] = useState<"idle" | "capturing" | "processing" | "success" | "error">("idle");
-    const statusRef = useRef<"idle" | "capturing" | "processing" | "success" | "error">("idle");
+    const [status, setStatusState] = useState<PunchStatus>("idle");
+    const statusRef = useRef<PunchStatus>("idle");
 
-    const setStatus = useCallback((newStatus: "idle" | "capturing" | "processing" | "success" | "error") => {
+    const setStatus = useCallback((newStatus: PunchStatus) => {
         setStatusState(newStatus);
         statusRef.current = newStatus;
     }, []);
@@ -35,6 +41,9 @@ export default function BiometricPunchScreen({
     const [message, setMessage] = useState("Position your face in the frame");
     const [lastPunch, setLastPunch] = useState<{ name: string; type: string; time: string } | null>(null);
     const [error, setError] = useState<string | null>(null);
+    // "ACCESS DENIED" is the wrong headline for a dropped connection or a blurry
+    // frame — the worker did nothing wrong and just needs to scan again.
+    const [errorHeadline, setErrorHeadline] = useState("ACCESS DENIED");
     const captureInterval = useRef<NodeJS.Timeout | null>(null);
     const isMounted = useRef(true);
     const isProcessing = useRef(false);
@@ -81,7 +90,7 @@ export default function BiometricPunchScreen({
 
     const captureAndPunch = useCallback(async () => {
         // Prevent multiple captures and captures during cooldown/success/error states
-        if (!videoRef.current || !canvasRef.current || isProcessing.current || status === "success" || status === "error") {
+        if (!videoRef.current || !canvasRef.current || isProcessing.current || status === "success" || status === "duplicate" || status === "error") {
             return;
         }
 
@@ -116,6 +125,12 @@ export default function BiometricPunchScreen({
         setProgress(100);
         setMessage("RECOGNIZING...");
 
+        // Without a deadline a stalled request hangs the kiosk until the browser
+        // gives up, and the worker is left staring at RECOGNIZING. Abort on our
+        // own terms so the failure can be described honestly.
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), PUNCH_TIMEOUT_MS);
+
         try {
             const response = await apiClient.post("/labor/attendance/biometric/punch", {
                 image: imageData,
@@ -125,7 +140,8 @@ export default function BiometricPunchScreen({
             }, {
                 withAuth: true,
                 tokenKey: 'biometric_token',
-                withCredentials: false // Isolate from Admin cookies
+                withCredentials: false, // Isolate from Admin cookies
+                signal: controller.signal
             });
 
             if (!isMounted.current) return;
@@ -137,8 +153,17 @@ export default function BiometricPunchScreen({
                     type: punch.type,
                     time: new Date(punch.time).toLocaleTimeString()
                 });
-                setStatus("success");
-                setMessage(`${punch.type} SUCCESS`);
+
+                // The server recognised the worker but this scan repeated a punch
+                // already on record. That is a good outcome, not a failure — show
+                // it as a confirmation so nobody keeps re-scanning.
+                if (response.duplicate) {
+                    setStatus("duplicate");
+                    setMessage(`ALREADY ${punch.type} - ${laborer.name}`);
+                } else {
+                    setStatus("success");
+                    setMessage(`${punch.type} SUCCESS`);
+                }
 
                 playBeep(true);
 
@@ -169,14 +194,36 @@ export default function BiometricPunchScreen({
             setProgress(0);
             setStatus("error");
 
-            // If it's a 401/403, we show it clearly as Unauthorized
-            // If it's a 504 (Timeout), we show the specific system message
+            // A request that never got an answer is NOT a recognition failure.
+            // Reporting it as one told enrolled workers they were unknown and
+            // drove the re-scan loop that ended in an unintended punch out.
+            const code = err?.data?.code;
+            const aborted = err?.name === "AbortError" || err?.code === 20;
+            const noAnswer = aborted
+                || err?.name === "TypeError"           // fetch could not reach the server
+                || err?.status === 502 || err?.status === 503 || err?.status === 504;
+
             if (err.status === 401 || err.status === 403) {
+                setErrorHeadline("ACCESS DENIED");
                 setMessage("UNAUTHORIZED: INVALID SITE KEY");
-            } else if (err.status === 504) {
-                setMessage("CONNECTION BUSY: PLEASE RE-SCAN");
+            } else if (code === "LIVENESS_FAILED") {
+                setErrorHeadline("ACCESS DENIED");
+                setMessage("LIVE FACE REQUIRED - NO PHOTOS");
+            } else if (code === "NO_FACE_IN_IMAGE" || code === "BAD_IMAGE") {
+                setErrorHeadline("TRY AGAIN");
+                setMessage("FACE NOT CLEAR - MOVE CLOSER");
+            } else if (code === "FACE_SERVICE_UNAVAILABLE" || noAnswer) {
+                setErrorHeadline("TRY AGAIN");
+                setMessage("NETWORK BUSY - RE-SCAN TO CONFIRM");
+            } else if (code === "NOT_ENROLLED") {
+                setErrorHeadline("NOT ENROLLED");
+                setMessage("NOT ENROLLED - CONTACT SUPERVISOR");
+            } else if (code === "NO_FACE_MATCH") {
+                setErrorHeadline("NOT RECOGNIZED");
+                setMessage("TRY AGAIN OR USE QR");
             } else {
-                setMessage(err.message || "FACE NOT FOUND");
+                setErrorHeadline("TRY AGAIN");
+                setMessage(err.message || "PUNCH FAILED - TRY AGAIN");
             }
 
             // Clear any existing cooldown timer
@@ -197,9 +244,13 @@ export default function BiometricPunchScreen({
                 }
             }, 4000);
 
-            if (!err.message?.includes("RECOGNIZED") && !err.message?.includes("FOUND")) {
+            // Recognition and connectivity outcomes are already on the big screen;
+            // only surface genuinely unexpected failures as a toast.
+            if (!code && !noAnswer && err.status !== 401 && err.status !== 403) {
                 toast.error(err.message || "An error occurred");
             }
+        } finally {
+            clearTimeout(timeoutId);
         }
     }, [siteId, siteName, status]);
 
@@ -261,7 +312,7 @@ export default function BiometricPunchScreen({
 
             faceDetection.onResults((results: Results) => {
                 // Don't process if we're in cooldown, processing, success, or error state
-                if (!isMounted.current || isProcessing.current || status === "success" || status === "error" || status === "processing") {
+                if (!isMounted.current || isProcessing.current || status === "success" || status === "duplicate" || status === "error" || status === "processing") {
                     return;
                 }
 
@@ -398,6 +449,7 @@ export default function BiometricPunchScreen({
 
     const getStatusColor = () => {
         if (status === 'success') return 'text-green-500';
+        if (status === 'duplicate') return 'text-amber-400';
         if (status === 'error') return 'text-red-500';
         return 'text-cyan-400';
     };
@@ -462,7 +514,7 @@ export default function BiometricPunchScreen({
                             ref={videoRef}
                             autoPlay
                             playsInline
-                            className={`absolute inset-0 w-full h-full object-cover transform scale-x-[-1] ${status === 'processing' || status === 'success' || status === 'error' ? 'brightness-50 grayscale-[0.5]' : ''
+                            className={`absolute inset-0 w-full h-full object-cover transform scale-x-[-1] ${status === 'processing' || status === 'success' || status === 'duplicate' || status === 'error' ? 'brightness-50 grayscale-[0.5]' : ''
                                 }`}
                         />
 
@@ -500,10 +552,11 @@ export default function BiometricPunchScreen({
                             )}
 
                             {/* Result Card (Matching py UI) */}
-                            {(status === 'success' || status === 'error' || status === 'processing') && (
+                            {(status === 'success' || status === 'duplicate' || status === 'error' || status === 'processing') && (
                                 <div className={`px-8 md:px-12 py-8 md:py-10 bg-[#1B1C1F] rounded-2xl md:rounded-3xl border-4 md:border-[6px] shadow-2xl flex flex-col items-center justify-center gap-3 md:gap-4 transition-all duration-500 transform scale-100 md:scale-110 w-[85%] max-w-md ${status === 'success' ? 'border-green-500' :
-                                    status === 'error' ? 'border-red-500' :
-                                        'border-cyan-500 animate-pulse'
+                                    status === 'duplicate' ? 'border-amber-400' :
+                                        status === 'error' ? 'border-red-500' :
+                                            'border-cyan-500 animate-pulse'
                                     }`}>
                                     {status === 'success' ? (
                                         <>
@@ -518,9 +571,22 @@ export default function BiometricPunchScreen({
                                             </div>
                                             <div className="text-sm md:text-lg text-gray-400 font-mono tracking-widest">{lastPunch?.time}</div>
                                         </>
+                                    ) : status === 'duplicate' ? (
+                                        <>
+                                            <div className="w-20 md:w-24 h-20 md:h-24 bg-amber-400/10 rounded-full flex items-center justify-center mb-2">
+                                                <CheckCircle2 className="text-amber-400 w-12 md:w-16 h-12 md:h-16" />
+                                            </div>
+                                            <div className="text-2xl sm:text-3xl md:text-5xl font-black text-amber-400 tracking-tighter uppercase text-center leading-tight">
+                                                ALREADY {lastPunch?.type || 'MARKED'}
+                                            </div>
+                                            <div className="text-2xl sm:text-4xl md:text-5xl font-bold text-white tracking-tight text-center mb-1">
+                                                {lastPunch?.name || 'Verified'}
+                                            </div>
+                                            <div className="text-sm md:text-lg text-gray-400 font-mono tracking-widest">{lastPunch?.time}</div>
+                                        </>
                                     ) : status === 'error' ? (
                                         <>
-                                            <div className="text-xl sm:text-2xl md:text-4xl font-black text-red-500 tracking-widest uppercase mb-1 md:mb-2 text-center">ACCESS DENIED</div>
+                                            <div className="text-xl sm:text-2xl md:text-4xl font-black text-red-500 tracking-widest uppercase mb-1 md:mb-2 text-center">{errorHeadline}</div>
                                             <div className="text-lg sm:text-xl md:text-2xl font-bold text-white text-center px-2 md:px-4">{message}</div>
                                         </>
                                     ) : (

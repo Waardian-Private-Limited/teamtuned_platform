@@ -4,6 +4,7 @@ import React, { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+    Bell,
     Home,
     ChevronDown,
     ChevronRight,
@@ -475,10 +476,10 @@ export default function OrgSidebar({
                         <CategoryButton label="DPR" isOpen={dpsOpen} onClick={() => handleToggle(setDpsOpen, dpsOpen)} />
                         {dpsOpen && (
                             <div className="space-y-1 ml-2">
+                                <Item icon={Calendar} label="Planning" href="/org-admin/dps/schedule" active={pathname.startsWith("/org-admin/dps/schedule") || pathname.startsWith("/org-admin/dps/planned-schedules")} />
+                                <Item icon={UserPlus} label="Daily Forms" href="/org-admin/dps/assignments" active={pathname === "/org-admin/dps/assignments"} />
                                 <Item icon={LayoutDashboard} label="Planning Dashboard" href="/org-admin/dps/planning-dashboard" active={pathname === "/org-admin/dps/planning-dashboard"} />
                                 <Item icon={LayoutDashboard} label="CBD Dashboard" href="/org-admin/dps/cbd-dashboard" active={pathname === "/org-admin/dps/cbd-dashboard"} />
-                                <Item icon={UserPlus} label="Assignments" href="/org-admin/dps/assignments" active={pathname === "/org-admin/dps/assignments"} />
-                                <Item icon={Calendar} label="Site Config" href="/org-admin/dps/schedule" active={pathname === "/org-admin/dps/schedule"} />
                             </div>
                         )}
                     </>
@@ -588,8 +589,8 @@ export default function OrgSidebar({
                         {momOpen && (
                             <div className="space-y-1 ml-2">
                                 <Item icon={LayoutDashboard} label="Dashboard" href="/org-admin/mom" active={pathname === "/org-admin/mom"} />
+                                <Item icon={BarChart3} label="Overview" href="/org-admin/mom/overview" active={pathname === "/org-admin/mom/overview"} />
                                 <Item icon={List} label="Meeting List" href="/org-admin/mom/list" active={pathname === "/org-admin/mom/list"} />
-                                <Item icon={CheckSquare} label="My Action Items" href="/org-admin/mom/action-items" active={pathname === "/org-admin/mom/action-items"} />
                             </div>
                         )}
                     </>

@@ -175,44 +175,62 @@ export default function ActionItemChat({ isOpen, onClose, pointId }: ActionItemC
                             <p className="text-[11px] font-bold text-gray-400 uppercase mt-1">Start a conversation</p>
                         </div>
                     ) : (
-                        messages.map((msg) => (
-                            <div key={msg.id} className="flex flex-col gap-1.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-1.5">
-                                        <div className="size-5 rounded-md bg-blue-100 flex items-center justify-center text-blue-700 text-[9px] font-black uppercase">
-                                            {msg.first_name?.[0]}{msg.last_name?.[0]}
+                        messages.map((msg) => {
+                            const isSystem = msg.message?.startsWith('[System]') || msg.first_name === 'System' || msg.message?.startsWith('📌') || msg.message?.startsWith('📅');
+                            if (isSystem) {
+                                const cleanText = msg.message.replace(/^\[System\]\s*/, '').replace(/^[📌📅]\s*/, '');
+                                return (
+                                    <div key={msg.id} className="flex justify-center my-1 animate-in fade-in duration-200">
+                                        <div className="bg-gray-100/90 text-gray-700 text-xs px-3 py-1.5 rounded-lg border border-gray-200/70 flex items-center gap-2 max-w-[95%] shadow-2xs">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                                            <span className="font-medium text-gray-800 leading-snug">{cleanText}</span>
+                                            <span className="text-[10px] text-gray-400 font-normal shrink-0">
+                                                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
                                         </div>
-                                        <span className="text-[12px] font-black text-gray-900 uppercase tracking-tight">{msg.first_name} {msg.last_name}</span>
                                     </div>
-                                    <span className="text-[9px] font-black text-gray-400 uppercase">{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                </div>
-                                <div className="bg-white rounded-md p-3 text-[13px] text-gray-700 leading-relaxed border border-gray-100 shadow-sm group">
-                                    {msg.message && <p className="mb-2 last:mb-0">{msg.message}</p>}
+                                );
+                            }
 
-                                    {msg.attachment_url && (
-                                        <div className="mt-2 pt-2 border-t border-gray-50">
-                                            <a
-                                                href={msg.attachment_url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="flex items-center gap-2 bg-slate-50 p-2 rounded-md border border-slate-200 hover:bg-slate-100 transition-colors group/file"
-                                            >
-                                                <div className="size-8 bg-white rounded border border-slate-200 flex items-center justify-center shrink-0">
-                                                    {msg.attachment_url.match(/\.(jpeg|jpg|png|gif|webp)$/i)
-                                                        ? <ImageIcon size={14} className="text-emerald-500" />
-                                                        : <FileText size={14} className="text-blue-500" />}
-                                                </div>
-                                                <div className="flex-1 overflow-hidden">
-                                                    <p className="text-[11px] font-black text-slate-700 truncate">View Attachment</p>
-                                                    <p className="text-[9px] font-bold text-slate-400 uppercase">Click to open</p>
-                                                </div>
-                                                <Download size={14} className="text-slate-300 group-hover/file:text-slate-600" />
-                                            </a>
+                            return (
+                                <div key={msg.id} className="flex flex-col gap-1.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="size-5 rounded-md bg-blue-100 flex items-center justify-center text-blue-700 text-[9px] font-black uppercase">
+                                                {msg.first_name?.[0]}{msg.last_name?.[0]}
+                                            </div>
+                                            <span className="text-[12px] font-black text-gray-900 uppercase tracking-tight">{msg.first_name} {msg.last_name}</span>
                                         </div>
-                                    )}
+                                        <span className="text-[9px] font-black text-gray-400 uppercase">{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    </div>
+                                    <div className="bg-white rounded-md p-3 text-[13px] text-gray-700 leading-relaxed border border-gray-100 shadow-sm group">
+                                        {msg.message && <p className="mb-2 last:mb-0">{msg.message}</p>}
+
+                                        {msg.attachment_url && (
+                                            <div className="mt-2 pt-2 border-t border-gray-50">
+                                                <a
+                                                    href={msg.attachment_url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="flex items-center gap-2 bg-slate-50 p-2 rounded-md border border-slate-200 hover:bg-slate-100 transition-colors group/file"
+                                                >
+                                                    <div className="size-8 bg-white rounded border border-slate-200 flex items-center justify-center shrink-0">
+                                                        {msg.attachment_url.match(/\.(jpeg|jpg|png|gif|webp)$/i)
+                                                            ? <ImageIcon size={14} className="text-emerald-500" />
+                                                            : <FileText size={14} className="text-blue-500" />}
+                                                    </div>
+                                                    <div className="flex-1 overflow-hidden">
+                                                        <p className="text-[11px] font-black text-slate-700 truncate">View Attachment</p>
+                                                        <p className="text-[9px] font-bold text-slate-400 uppercase">Click to open</p>
+                                                    </div>
+                                                    <Download size={14} className="text-slate-300 group-hover/file:text-slate-600" />
+                                                </a>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        ))
+                            );
+                        })
                     )}
                 </div>
 

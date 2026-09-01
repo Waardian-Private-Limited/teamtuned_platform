@@ -21,6 +21,7 @@ export default function SuperadminBillingProfile() {
         address: "",
         gst_number: "",
         bank_name: "",
+        account_name: "",
         account_number: "",
         ifsc_code: "",
         upi_id: ""
@@ -40,6 +41,7 @@ export default function SuperadminBillingProfile() {
                     address: res.details.address || "",
                     gst_number: res.details.gst_number || "",
                     bank_name: res.details.bank_name || "",
+                    account_name: res.details.account_name || "",
                     account_number: res.details.account_number || "",
                     ifsc_code: res.details.ifsc_code || "",
                     upi_id: res.details.upi_id || ""
@@ -128,6 +130,16 @@ export default function SuperadminBillingProfile() {
                         <CreditCard size={18} className="text-blue-600" /> Payment & Bank Details
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Account Holder Name (A/C Name)</label>
+                            <input 
+                                type="text"
+                                value={details.account_name}
+                                onChange={(e) => setDetails({ ...details, account_name: e.target.value })}
+                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+                                placeholder="e.g. Wardian Private Limited / Kasim Pathan"
+                            />
+                        </div>
                         <div>
                             <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Bank Name</label>
                             <input 

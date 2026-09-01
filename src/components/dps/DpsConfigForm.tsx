@@ -10,11 +10,11 @@ import {
     Building,
     MapPin,
     Users,
-    HardHat,
     Search,
     ChevronDown,
     Globe,
-    Wrench
+    Wrench,
+    AlertCircle
 } from 'lucide-react';
 import { apiClient } from '@/lib/apiClient';
 
@@ -39,16 +39,6 @@ interface StaffEmployee {
     employee_name: string;
 }
 
-interface Staff {
-    name: string;
-    required: number;
-    employees?: StaffEmployee[];
-}
-
-interface LaborType {
-    name: string;
-}
-
 interface Equipment {
     name: string;
 }
@@ -57,13 +47,15 @@ interface SiteConfig {
     site_id: number;
     towers: Tower[];
     areas: OtherArea[];
-    staffList?: Staff[];
-    laborTypes?: LaborType[];
+    staffList?: any[];
+    laborTypes?: any[];
     equipments?: Equipment[];
     cbd_assignees?: StaffEmployee[];
     cbd_reviewers?: StaffEmployee[];
     planning_assignees?: StaffEmployee[];
     planning_reviewers?: StaffEmployee[];
+    material_responsible?: StaffEmployee[];
+    equipment_responsible?: StaffEmployee[];
     totalConcretePlanned?: number;
     concreteCumulativeTillDate?: number;
 }
@@ -125,71 +117,36 @@ export function DpsConfigForm({
         setSiteConfig({ ...siteConfig, areas: a });
     };
 
-    // Staff helpers
-    const addStaff = () => { setSiteConfig({ ...siteConfig, staffList: [...(siteConfig.staffList || []), { name: '', required: 1, employees: [] }] }); };
-    const updateStaff = (i: number, f: keyof Staff, v: any) => { const s = [...(siteConfig.staffList || [])]; s[i] = { ...s[i], [f]: v }; setSiteConfig({ ...siteConfig, staffList: s }); };
-    const addStaffEmployee = (si: number, emp: StaffEmployee) => { const s = [...(siteConfig.staffList || [])]; const existing = s[si].employees || []; if (existing.find(e => e.employee_id === emp.employee_id)) return; s[si] = { ...s[si], employees: [...existing, emp] }; setSiteConfig({ ...siteConfig, staffList: s }); };
-    const removeStaffEmployee = (si: number, empId: number) => { const s = [...(siteConfig.staffList || [])]; s[si] = { ...s[si], employees: (s[si].employees || []).filter(e => e.employee_id !== empId) }; setSiteConfig({ ...siteConfig, staffList: s }); };
-    const removeStaff = (i: number) => { setSiteConfig({ ...siteConfig, staffList: (siteConfig.staffList || []).filter((_, idx) => idx !== i) }); };
-
-    // Labor helpers
-    const addLaborType = () => { setSiteConfig({ ...siteConfig, laborTypes: [...(siteConfig.laborTypes || []), { name: '' }] }); };
-    const updateLaborType = (i: number, v: string) => { const l = [...(siteConfig.laborTypes || [])]; l[i].name = v; setSiteConfig({ ...siteConfig, laborTypes: l }); };
-    const removeLaborType = (i: number) => { setSiteConfig({ ...siteConfig, laborTypes: (siteConfig.laborTypes || []).filter((_, idx) => idx !== i) }); };
-
     // Equipment helpers
     const addEquipment = () => { setSiteConfig({ ...siteConfig, equipments: [...(siteConfig.equipments || []), { name: '' }] }); };
     const updateEquipment = (i: number, v: string) => { const e = [...(siteConfig.equipments || [])]; e[i].name = v; setSiteConfig({ ...siteConfig, equipments: e }); };
     const removeEquipment = (i: number) => { setSiteConfig({ ...siteConfig, equipments: (siteConfig.equipments || []).filter((_, idx) => idx !== i) }); };
 
     // Authority helpers
-    const addAuthority = (type: 'cbd_assignees' | 'cbd_reviewers' | 'planning_assignees' | 'planning_reviewers', emp: StaffEmployee) => {
+    const addAuthority = (type: 'cbd_assignees' | 'cbd_reviewers' | 'planning_assignees' | 'planning_reviewers' | 'material_responsible' | 'equipment_responsible', emp: StaffEmployee) => {
         const list = siteConfig[type] || [];
         if (list.find(e => e.employee_id === emp.employee_id)) return;
         setSiteConfig({ ...siteConfig, [type]: [...list, emp] });
     };
-    const removeAuthority = (type: 'cbd_assignees' | 'cbd_reviewers' | 'planning_assignees' | 'planning_reviewers', empId: number) => {
+    const removeAuthority = (type: 'cbd_assignees' | 'cbd_reviewers' | 'planning_assignees' | 'planning_reviewers' | 'material_responsible' | 'equipment_responsible', empId: number) => {
         const list = siteConfig[type] || [];
         setSiteConfig({ ...siteConfig, [type]: list.filter(e => e.employee_id !== empId) });
     };
 
-    const populateFromMaster = async (type: 'staff' | 'labor' | 'equipment') => {
+    const populateFromMaster = async () => {
         try {
             const res = await apiClient<any>('/dps-schedule/master-config', { method: 'GET', withAuth: true });
             if (!res.config) return;
 
-            if (type === 'staff') {
-                const masterStaff = res.config.staffList || [];
-                const currentStaff = siteConfig.staffList || [];
-                // Merge or replace? Let's append new ones
-                const mergedStaff = [...currentStaff];
-                masterStaff.forEach((ms: any) => {
-                    if (!mergedStaff.find(s => s.name.toLowerCase() === ms.name.toLowerCase())) {
-                        mergedStaff.push({ ...ms, employees: [] });
-                    }
-                });
-                setSiteConfig({ ...siteConfig, staffList: mergedStaff });
-            } else if (type === 'labor') {
-                const masterLabor = res.config.laborTypes || [];
-                const currentLabor = siteConfig.laborTypes || [];
-                const mergedLabor = [...currentLabor];
-                masterLabor.forEach((ml: any) => {
-                    if (!mergedLabor.find(l => l.name.toLowerCase() === ml.name.toLowerCase())) {
-                        mergedLabor.push(ml);
-                    }
-                });
-                setSiteConfig({ ...siteConfig, laborTypes: mergedLabor });
-            } else if (type === 'equipment') {
-                const masterEq = res.config.equipments || [];
-                const currentEq = siteConfig.equipments || [];
-                const mergedEq = [...currentEq];
-                masterEq.forEach((me: any) => {
-                    if (!mergedEq.find(e => e.name.toLowerCase() === me.name.toLowerCase())) {
-                        mergedEq.push(me);
-                    }
-                });
-                setSiteConfig({ ...siteConfig, equipments: mergedEq });
-            }
+            const masterEq = res.config.equipments || [];
+            const currentEq = siteConfig.equipments || [];
+            const mergedEq = [...currentEq];
+            masterEq.forEach((me: any) => {
+                if (!mergedEq.find(e => e.name.toLowerCase() === me.name.toLowerCase())) {
+                    mergedEq.push(me);
+                }
+            });
+            setSiteConfig({ ...siteConfig, equipments: mergedEq });
         } catch (error) {
             console.error('Failed to populate from master:', error);
         }
@@ -348,77 +305,6 @@ export function DpsConfigForm({
                         )}
                     </section>
 
-                    {/* Staff List */}
-                    <section className="space-y-4">
-                        <div className="flex items-center justify-between border-b border-gray-200 pb-2">
-                            <div className="flex items-center gap-2">
-                                <Users size={16} className="text-orange-600" />
-                                <h4 className="font-bold text-gray-800">Master Staff List</h4>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => populateFromMaster('staff')}
-                                    className="flex items-center gap-1 px-3 py-1 bg-gray-50 text-gray-600 hover:bg-gray-100 rounded text-[10px] font-black uppercase tracking-widest border border-gray-200 transition-all"
-                                >
-                                    <Globe size={11} /> Populate from Master
-                                </button>
-                                <button onClick={addStaff} className="flex items-center gap-1 px-3 py-1 bg-orange-50 text-orange-600 hover:bg-orange-100 rounded text-xs font-bold transition-all">
-                                    <Plus size={13} /> Add Staff Role
-                                </button>
-                            </div>
-                        </div>
-                        {siteConfig?.staffList?.map((staff: Staff, idx: number) => (
-                            <div key={idx} className="px-3 py-2 text-sm bg-white rounded border border-gray-200 space-y-3 hover:border-orange-200 transition-all flex flex-col md:flex-row items-end gap-3">
-                                <div className="flex-[2] w-full space-y-1">
-                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Role Name</label>
-                                    <input
-                                        type="text"
-                                        value={staff.name}
-                                        onChange={e => updateStaff(idx, 'name', e.target.value)}
-                                        placeholder="e.g. Site Engineer"
-                                        className="w-full px-3 py-2 border border-gray-200 rounded focus:ring-1 focus:ring-orange-500 outline-none text-sm font-medium"
-                                    />
-                                </div>
-                                <div className="flex-1 w-full space-y-1">
-                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Required Count</label>
-                                    <input
-                                        type="number"
-                                        value={staff.required || 0}
-                                        onChange={e => updateStaff(idx, 'required', parseInt(e.target.value) || 0)}
-                                        className="w-full px-3 py-2 border border-gray-200 rounded focus:ring-1 focus:ring-orange-500 outline-none text-sm font-medium"
-                                        min="0"
-                                    />
-                                </div>
-                                <div className="flex-[2] w-full space-y-1">
-                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Map Employees (Optional)</label>
-                                    <EmployeeSelect
-                                        employees={employees}
-                                        onChange={(id, name) => {
-                                            if (id && name) addStaffEmployee(idx, { employee_id: id, employee_name: name });
-                                        }}
-                                        placeholder="Add Employee..."
-                                    />
-                                    {staff.employees && staff.employees.length > 0 && (
-                                        <div className="flex flex-wrap gap-1.5 mt-2">
-                                            {staff.employees.map(emp => (
-                                                <div key={emp.employee_id} className="flex items-center gap-1 px-2 py-0.5 bg-orange-50 text-orange-700 border border-orange-100 rounded-full text-xs font-medium">
-                                                    <span>{emp.employee_name}</span>
-                                                    <button
-                                                        onClick={() => removeStaffEmployee(idx, emp.employee_id)}
-                                                        className="p-0.5 hover:bg-orange-200 rounded-full transition-colors"
-                                                    >
-                                                        <X size={10} />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                                <button onClick={() => removeStaff(idx)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-all mb-0.5 self-center md:self-end"><Trash2 size={16} /></button>
-                            </div>
-                        ))}
-                    </section>
-
                     {/* Schedule Authorities */}
                     <section className="space-y-4">
                         <div className="flex items-center justify-between border-b border-gray-200 pb-2">
@@ -429,14 +315,24 @@ export function DpsConfigForm({
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {([
-                                { key: 'planning_assignees', label: 'Planning Assignees' },
-                                { key: 'planning_reviewers', label: 'Planning Reviewers' },
-                                { key: 'cbd_assignees', label: 'CBD Assignees' },
-                                { key: 'cbd_reviewers', label: 'CBD Reviewers' }
-                            ] as const).map(({ key, label }) => (
+                                { key: 'planning_assignees', label: 'Planning Assignees', hint: 'Any one of them fills the daily planning form' },
+                                { key: 'planning_reviewers', label: 'Planning Reviewers', hint: 'See every planning form for this site' },
+                                { key: 'cbd_assignees', label: 'CBD Assignees', hint: 'Any one of them fills the daily CBD form' },
+                                { key: 'cbd_reviewers', label: 'CBD Reviewers', hint: 'See every CBD form for this site' },
+                                { key: 'material_responsible', label: 'Material Responsible', hint: 'Accountable for material on this site' },
+                                { key: 'equipment_responsible', label: 'Equipment Responsible', hint: 'Accountable for equipment on this site' }
+                            ] as const).map(({ key, label, hint }) => (
                                 <div key={key} className="px-3 py-3 text-sm bg-white rounded border border-gray-200 space-y-3 hover:border-teal-200 transition-all">
                                     <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{label}</label>
+                                        <div className="flex items-baseline justify-between gap-2">
+                                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{label}</label>
+                                            {siteConfig[key] && siteConfig[key]!.length > 0 && (
+                                                <span className="text-[10px] font-bold text-teal-600 tabular-nums">
+                                                    {siteConfig[key]!.length}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p className="text-[10px] text-gray-400 pb-1">{hint}</p>
                                         <EmployeeSelect
                                             employees={employees}
                                             onChange={(id, name) => {
@@ -459,42 +355,13 @@ export function DpsConfigForm({
                                                 ))}
                                             </div>
                                         )}
+                                        {(!siteConfig[key] || siteConfig[key]!.length === 0) && key.includes('assignees') && (
+                                            <p className="flex items-start gap-1.5 text-[10px] text-amber-700 mt-2">
+                                                <AlertCircle size={11} className="flex-shrink-0 mt-0.5" />
+                                                No assignee — daily forms for this type will not reach anyone.
+                                            </p>
+                                        )}
                                     </div>
-                                </div>
-                            ))}
-                        </div>
-                    </section>
-
-                    {/* Labor Types */}
-                    <section className="space-y-4">
-                        <div className="flex items-center justify-between border-b border-gray-200 pb-2">
-                            <div className="flex items-center gap-2">
-                                <HardHat size={16} className="text-amber-600" />
-                                <h4 className="font-bold text-gray-800">Labor Types</h4>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => populateFromMaster('labor')}
-                                    className="flex items-center gap-1 px-3 py-1 bg-gray-50 text-gray-600 hover:bg-gray-100 rounded text-[10px] font-black uppercase tracking-widest border border-gray-200 transition-all"
-                                >
-                                    <Globe size={11} /> Populate from Master
-                                </button>
-                                <button onClick={addLaborType} className="flex items-center gap-1 px-3 py-1 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded text-xs font-bold transition-all">
-                                    <Plus size={13} /> Add Labor Type
-                                </button>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {siteConfig?.laborTypes?.map((labor: LaborType, idx: number) => (
-                                <div key={idx} className="flex items-center gap-2">
-                                    <input
-                                        type="text"
-                                        value={labor.name}
-                                        onChange={e => updateLaborType(idx, e.target.value)}
-                                        placeholder="e.g. Mason, Helper..."
-                                        className="flex-1 px-3 py-1.5 border border-gray-200 rounded outline-none focus:border-amber-400 text-sm font-medium"
-                                    />
-                                    <button onClick={() => removeLaborType(idx)} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-all"><X size={14} /></button>
                                 </div>
                             ))}
                         </div>
@@ -509,7 +376,7 @@ export function DpsConfigForm({
                             </div>
                             <div className="flex items-center gap-2">
                                 <button
-                                    onClick={() => populateFromMaster('equipment')}
+                                    onClick={() => populateFromMaster()}
                                     className="flex items-center gap-1 px-3 py-1 bg-gray-50 text-gray-600 hover:bg-gray-100 rounded text-[10px] font-black uppercase tracking-widest border border-gray-200 transition-all"
                                 >
                                     <Globe size={11} /> Populate from Master

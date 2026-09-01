@@ -117,7 +117,10 @@ export default function DpsCbdDashboard() {
                 const submissions = response?.data || response || [];
 
                 // Find Latest Submission for the selected date
-                const submissionForDate = submissions.find((s: any) => s.due_date && s.due_date.split('T')[0] === selectedDate);
+                // The day reported on, not the day the form was raised — they
+                // differ whenever a report is filled late.
+                const dayOf = (x: any) => (x.report_date || x.due_date || '').split('T')[0];
+                const submissionForDate = submissions.find((s: any) => dayOf(s) === selectedDate);
                 setLatestSubmission(submissionForDate || null);
 
                 // Process Trends (Aggregates)
@@ -129,17 +132,17 @@ export default function DpsCbdDashboard() {
                 let steelRec = 0, steelBill = 0, steelWIP = 0;
                 let docsReq = 0, docsSub = 0;
 
-                submissions.sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+                submissions.sort((a: any, b: any) => new Date(dayOf(a)).getTime() - new Date(dayOf(b)).getTime());
 
                 submissions.forEach((sub: any) => {
                     if (sub.status === 'pending') return;
-                    const subDate = sub.due_date ? sub.due_date.split('T')[0] : '';
+                    const subDate = dayOf(sub);
                     if (subDate > selectedDate) return; // Only process up to selected date
 
                     const data = sub.submitted_data;
                     if (!data) return;
 
-                    const formattedDate = new Date(sub.due_date).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
+                    const formattedDate = new Date(dayOf(sub)).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
 
                     // Steel
                     if (data.steel_reconciliation) {

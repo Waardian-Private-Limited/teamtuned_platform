@@ -14,7 +14,7 @@ export default function OrgDpsPlannedSchedulesPage() {
             siteId={params.siteId as string}
             unitId={unitId}
             unitName={unitName}
-            backPath="/org-admin/dps"
+            basePath="/org-admin/dps"
         />
     );
 }

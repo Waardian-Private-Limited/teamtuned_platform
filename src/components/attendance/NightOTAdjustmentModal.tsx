@@ -52,7 +52,7 @@ export default function NightOTAdjustmentModal({
     try {
       const siteParam = siteId === "all" ? "all" : String(siteId);
       const token = localStorage.getItem("token") || "";
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "https://api.teamtuned.com/api/v1";
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "https://stress-compacter-splashy.ngrok-free.dev/api/v1";
       const url = `${baseUrl}/attendance/night-ot-adjustment/export-excel?month=${month}&site_id=${siteParam}`;
 
       const response = await fetch(url, {

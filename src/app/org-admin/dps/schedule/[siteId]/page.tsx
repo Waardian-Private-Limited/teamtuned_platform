@@ -8,8 +8,7 @@ export default function OrgDpsSiteSchedulePage() {
     return (
         <DpsSiteSchedule
             siteId={params.siteId as string}
-            backPath="/org-admin/dps/schedule"
-            dailyUpdatePath="/employee/dps/daily-update"
+            basePath="/org-admin/dps"
         />
     );
 }

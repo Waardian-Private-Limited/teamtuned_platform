@@ -19,6 +19,33 @@ import {
     Receipt
 } from "lucide-react";
 
+const getLocalDateString = (d = new Date()) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const formatDateSafe = (val: string | Date | null | undefined) => {
+    if (!val) return 'N/A';
+    if (typeof val === 'string') {
+        const dStr = val.split('T')[0];
+        const parts = dStr.split('-');
+        if (parts.length === 3) {
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const y = parts[0], m = parseInt(parts[1], 10), d = parts[2];
+            if (!isNaN(m) && m >= 1 && m <= 12) {
+                return `${d.padStart(2, '0')} ${months[m - 1]} ${y}`;
+            }
+        }
+    }
+    try {
+        return new Date(val).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' });
+    } catch {
+        return String(val);
+    }
+};
+
 export default function CustomInvoices() {
     const [invoices, setInvoices] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -32,11 +59,12 @@ export default function CustomInvoices() {
     });
 
     const [formData, setFormData] = useState({
+        invoice_date: getLocalDateString(),
         client_name: "",
         client_address: "",
         client_gst: "",
         place_of_supply: "27-MAHARASHTRA",
-        due_date: new Date().toISOString().split('T')[0],
+        due_date: getLocalDateString(),
         paid_amount: "0",
         status: "PENDING",
         without_gst: false,
@@ -110,11 +138,12 @@ export default function CustomInvoices() {
             if (res.success && res.invoice) {
                 setEditingId(inv.id);
                 setFormData({
+                    invoice_date: res.invoice.invoice_date ? res.invoice.invoice_date.split('T')[0] : (res.invoice.created_at ? res.invoice.created_at.split('T')[0] : getLocalDateString()),
                     client_name: res.invoice.client_name,
                     client_address: res.invoice.client_address,
                     client_gst: res.invoice.client_gst || "",
                     place_of_supply: res.invoice.place_of_supply || "27-MAHARASHTRA",
-                    due_date: res.invoice.due_date ? new Date(res.invoice.due_date).toISOString().split('T')[0] : "",
+                    due_date: res.invoice.due_date ? res.invoice.due_date.split('T')[0] : getLocalDateString(),
                     paid_amount: res.invoice.paid_amount?.toString() || "0",
                     status: res.invoice.status,
                     without_gst: !!res.invoice.without_gst,
@@ -136,11 +165,12 @@ export default function CustomInvoices() {
         setShowCreateModal(false);
         setEditingId(null);
         setFormData({
+            invoice_date: getLocalDateString(),
             client_name: "",
             client_address: "",
             client_gst: "",
             place_of_supply: "27-MAHARASHTRA",
-            due_date: new Date().toISOString().split('T')[0],
+            due_date: getLocalDateString(),
             paid_amount: "0",
             status: "PENDING",
             without_gst: false,
@@ -236,13 +266,13 @@ export default function CustomInvoices() {
                                                 </div>
                                                 <div>
                                                     <div className="font-black text-black text-sm tracking-tight">{inv.invoice_number}</div>
-                                                    <div className="text-[10px] text-black/40 font-black uppercase tracking-widest">{new Date(inv.created_at).toLocaleDateString()}</div>
+                                                    <div className="text-[10px] text-black/40 font-black uppercase tracking-widest">{formatDateSafe(inv.invoice_date || inv.created_at)}</div>
                                                 </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 font-bold text-gray-700">{inv.client_name}</td>
                                         <td className="px-6 py-4">
-                                            <div className="text-xs font-bold text-gray-600">{inv.due_date ? new Date(inv.due_date).toLocaleDateString() : 'N/A'}</div>
+                                            <div className="text-xs font-bold text-gray-600">{formatDateSafe(inv.due_date)}</div>
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             <div className="font-black text-gray-900">₹{parseFloat(inv.total_amount).toLocaleString()}</div>
@@ -373,6 +403,15 @@ export default function CustomInvoices() {
                                         <option value="PENDING">Pending (Unpaid)</option>
                                         <option value="PAID">Already Paid</option>
                                     </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Invoice Date</label>
+                                    <input 
+                                        type="date"
+                                        value={formData.invoice_date}
+                                        onChange={(e) => setFormData({...formData, invoice_date: e.target.value})}
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all font-bold text-black"
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Due Date</label>

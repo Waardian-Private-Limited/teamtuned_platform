@@ -1,5 +1,5 @@
 import DpsPlanningDashboard from '@/components/dps/DpsPlanningDashboard';
 
-export default function OrgAdminPlanningDashboardPage() {
+export default function PlanningDashboardPage() {
     return <DpsPlanningDashboard />;
 }

@@ -14,7 +14,7 @@ export default function EmployeeDpsPlannedSchedulesPage() {
             siteId={params.siteId as string}
             unitId={unitId}
             unitName={unitName}
-            backPath="/employee/dps"
+            basePath="/employee/dps"
         />
     );
 }

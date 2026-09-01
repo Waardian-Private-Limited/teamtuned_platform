@@ -10,6 +10,7 @@ import {
     RefreshCw,
     LayoutDashboard,
     ClipboardCheck,
+    CalendarRange,
     MapPin,
     ArrowRight,
     ArrowLeft,
@@ -25,7 +26,7 @@ import {
 } from 'lucide-react';
 import { apiClient } from '@/lib/apiClient';
 import toast from 'react-hot-toast';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 import { DpsConfigForm } from './DpsConfigForm';
 import { DpsMasterConfigForm } from './DpsMasterConfigForm';
@@ -46,6 +47,8 @@ interface SiteUnit {
     has_active_cbd?: number;
     active_planning_version?: number;
     active_cbd_version?: number;
+    next_planning_start?: string | null;
+    next_cbd_start?: string | null;
 }
 
 interface Tower {
@@ -62,6 +65,18 @@ interface Tower {
 interface OtherArea {
     name: string;
     subNames: string[];
+}
+
+interface Department {
+    id: number;
+    name: string;
+    description?: string;
+    status?: string;
+}
+
+interface DeptSelection {
+    name: string;
+    formType: 'planning' | 'cbd';
 }
 
 interface StaffEmployee {
@@ -94,6 +109,8 @@ interface SiteConfig {
     cbd_reviewers?: StaffEmployee[];
     planning_assignees?: StaffEmployee[];
     planning_reviewers?: StaffEmployee[];
+    material_responsible?: StaffEmployee[];
+    equipment_responsible?: StaffEmployee[];
     totalConcretePlanned?: number;
     concreteCumulativeTillDate?: number;
 }
@@ -121,14 +138,17 @@ export default function DpsSchedule({ basePath }: DpsScheduleProps) {
     const [units, setUnits] = useState<SiteUnit[]>([]);
     const [unitsLoading, setUnitsLoading] = useState(false);
 
-    // Add Unit Modal
+    // Add Department picker — all org departments are listed at once and the
+    // admin ticks the ones this site should plan for.
     const [addUnitOpen, setAddUnitOpen] = useState(false);
-    const [newUnitName, setNewUnitName] = useState('');
-    const [newUnitType, setNewUnitType] = useState('');
-    const [newUnitFormType, setNewUnitFormType] = useState<'planning' | 'cbd'>('planning');
     const [savingUnit, setSavingUnit] = useState(false);
-    const [departments, setDepartments] = useState<{ id: number; name: string }[]>([]);
+    const [departments, setDepartments] = useState<Department[]>([]);
     const [deptLoading, setDeptLoading] = useState(false);
+    const [deptSearch, setDeptSearch] = useState('');
+    const [selectedDepts, setSelectedDepts] = useState<Record<string, DeptSelection>>({});
+    const [customUnitName, setCustomUnitName] = useState('');
+    const [customUnitType, setCustomUnitType] = useState('');
+    const [customUnitFormType, setCustomUnitFormType] = useState<'planning' | 'cbd'>('planning');
 
     // Modals & States
     const [configModalOpen, setConfigModalOpen] = useState(false);
@@ -155,8 +175,37 @@ export default function DpsSchedule({ basePath }: DpsScheduleProps) {
     const [employees, setEmployees] = useState<any[]>([]);
 
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const siteIdInUrl = searchParams.get('siteId');
+
+    /** Where a child screen should send you when it is done. */
+    const deptListPath = (siteId: number | string) => `${basePath}/schedule?siteId=${siteId}`;
+    const planPath = (siteId: number | string, unit: SiteUnit, extra = '') =>
+        `${basePath}/schedule/${siteId}?unitId=${unit.id}&unitName=${encodeURIComponent(unit.name)}&type=${unit.form_type || 'planning'}${extra}`;
+    const schedulesPath = (siteId: number | string, unit: SiteUnit) =>
+        `${basePath}/planned-schedules/${siteId}?unitId=${unit.id}&unitName=${encodeURIComponent(unit.name)}&type=${unit.form_type || 'planning'}`;
 
     useEffect(() => { fetchSites(); }, []);
+
+    // Which site is open lives in the URL, not in component state. It used to be
+    // state only, so coming back from a plan screen always dumped you on the
+    // sites list and you had to find your site and department again.
+    useEffect(() => {
+        if (!siteIdInUrl) {
+            setSelectedSite(null);
+            setUnits([]);
+            return;
+        }
+        if (selectedSite && String(selectedSite.id) === String(siteIdInUrl)) return;
+
+        const known = sites.find(s => String(s.id) === String(siteIdInUrl));
+        if (known) {
+            loadUnitsFor(known);
+        } else if (!loading && sites.length > 0) {
+            // Stale/unknown site in the URL — fall back to the list.
+            router.replace(`${basePath}/schedule`);
+        }
+    }, [siteIdInUrl, sites, loading]);
 
     const fetchSites = async () => {
         setLoading(true);
@@ -170,7 +219,9 @@ export default function DpsSchedule({ basePath }: DpsScheduleProps) {
         }
     };
 
-    const openSiteUnits = async (site: any) => {
+    const openSiteUnits = (site: any) => router.push(deptListPath(site.id));
+
+    const loadUnitsFor = async (site: any) => {
         setSelectedSite(site);
         setUnitsLoading(true);
         try {
@@ -187,6 +238,11 @@ export default function DpsSchedule({ basePath }: DpsScheduleProps) {
     const openAddUnit = async () => {
         setDeptLoading(true);
         setAddUnitOpen(true);
+        setDeptSearch('');
+        setSelectedDepts({});
+        setCustomUnitName('');
+        setCustomUnitType('');
+        setCustomUnitFormType('planning');
         try {
             const res = await apiClient<any>('/organization/departments', { method: 'GET', withAuth: true });
             // API may return array directly (legacy) or { departments: [...] }
@@ -199,28 +255,103 @@ export default function DpsSchedule({ basePath }: DpsScheduleProps) {
         }
     };
 
-    const handleAddUnit = async () => {
-        if (!newUnitName.trim() || !newUnitType || !newUnitFormType) {
-            toast.error('Please fill in all fields');
+    // A department is "already planned" once a unit of the same name exists here.
+    const addedDeptNames = useMemo(
+        () => new Set(units.map(u => (u.name || '').trim().toLowerCase())),
+        [units]
+    );
+
+    const toggleDept = (dept: Department) => {
+        setSelectedDepts(prev => {
+            const next = { ...prev };
+            const key = String(dept.id);
+            if (next[key]) delete next[key];
+            else next[key] = { name: dept.name, formType: 'planning' };
+            return next;
+        });
+    };
+
+    const setDeptFormType = (deptId: number, formType: 'planning' | 'cbd') => {
+        setSelectedDepts(prev => {
+            const key = String(deptId);
+            if (!prev[key]) return prev;
+            return { ...prev, [key]: { ...prev[key], formType } };
+        });
+    };
+
+    const visibleDepartments = useMemo(() => {
+        const q = deptSearch.toLowerCase().trim();
+        if (!q) return departments;
+        return departments.filter(d => d.name?.toLowerCase().includes(q));
+    }, [departments, deptSearch]);
+
+    const selectableDepartments = useMemo(
+        () => visibleDepartments.filter(d => !addedDeptNames.has((d.name || '').trim().toLowerCase())),
+        [visibleDepartments, addedDeptNames]
+    );
+
+    const allVisibleSelected = selectableDepartments.length > 0 &&
+        selectableDepartments.every(d => selectedDepts[String(d.id)]);
+
+    const toggleSelectAll = () => {
+        if (allVisibleSelected) {
+            setSelectedDepts(prev => {
+                const next = { ...prev };
+                selectableDepartments.forEach(d => { delete next[String(d.id)]; });
+                return next;
+            });
+        } else {
+            setSelectedDepts(prev => {
+                const next = { ...prev };
+                selectableDepartments.forEach(d => {
+                    if (!next[String(d.id)]) next[String(d.id)] = { name: d.name, formType: 'planning' };
+                });
+                return next;
+            });
+        }
+    };
+
+    const selectedCount = Object.keys(selectedDepts).length;
+
+    const handleAddUnits = async () => {
+        const payload = Object.values(selectedDepts).map(sel => ({
+            name: sel.name,
+            type: sel.name,
+            form_type: sel.formType
+        }));
+
+        const customName = customUnitName.trim();
+        if (customName) {
+            if (!customUnitType) {
+                toast.error('Pick a department type for the custom entry');
+                return;
+            }
+            payload.push({ name: customName, type: customUnitType, form_type: customUnitFormType });
+        }
+
+        if (payload.length === 0) {
+            toast.error('Select at least one department');
             return;
         }
+
         setSavingUnit(true);
         try {
-            await apiClient(`/dps-schedule/${selectedSite.id}/units`, {
+            const res = await apiClient<any>(`/dps-schedule/${selectedSite.id}/units/bulk`, {
                 method: 'POST',
-                body: { name: newUnitName.trim(), type: newUnitType, form_type: newUnitFormType },
+                body: { units: payload },
                 withAuth: true
             });
-            toast.success('Department added!');
+            const createdCount = res?.created?.length ?? payload.length;
+            const skipped = res?.skipped || [];
+            toast.success(`${createdCount} department${createdCount === 1 ? '' : 's'} added`);
+            if (skipped.length > 0) {
+                toast(`Skipped ${skipped.length}: ${skipped.map((s: any) => s.name).join(', ')}`, { icon: '⚠️' });
+            }
             setAddUnitOpen(false);
-            setNewUnitName('');
-            setNewUnitType('');
-            setNewUnitFormType('planning');
-            // Refresh units
-            const res = await apiClient<any>(`/dps-schedule/${selectedSite.id}/units`, { method: 'GET', withAuth: true });
-            setUnits(res.units || []);
+            const unitsRes = await apiClient<any>(`/dps-schedule/${selectedSite.id}/units`, { method: 'GET', withAuth: true });
+            setUnits(unitsRes.units || []);
         } catch {
-            toast.error('Failed to add department');
+            toast.error('Failed to add departments');
         } finally {
             setSavingUnit(false);
         }
@@ -320,6 +451,8 @@ export default function DpsSchedule({ basePath }: DpsScheduleProps) {
                     cbd_reviewers: siteConfig.cbd_reviewers || [],
                     planning_assignees: siteConfig.planning_assignees || [],
                     planning_reviewers: siteConfig.planning_reviewers || [],
+                    material_responsible: siteConfig.material_responsible || [],
+                    equipment_responsible: siteConfig.equipment_responsible || [],
                     totalConcretePlanned: siteConfig.totalConcretePlanned || 0,
                     concreteCumulativeTillDate: siteConfig.concreteCumulativeTillDate || 0
                 },
@@ -358,14 +491,19 @@ export default function DpsSchedule({ basePath }: DpsScheduleProps) {
                 {/* Header */}
                 <div className="flex items-center gap-4">
                     <button
-                        onClick={() => setSelectedSite(null)}
+                        onClick={() => router.push(`${basePath}/schedule`)}
                         className="p-2 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+                        title="Back to sites"
                     >
                         <ArrowLeft size={18} />
                     </button>
                     <div>
                         <h1 className="text-lg font-semibold text-gray-900">{selectedSite.name}</h1>
-                        <p className="text-sm text-gray-500 mt-0.5">Select a department to plan DPR, or add a new one</p>
+                        <p className="text-sm text-gray-500 mt-0.5">
+                            Each department plans one cycle at a time — usually a month. While a plan is active,
+                            a daily report is generated for its assignees every day so progress is recorded
+                            against that plan.
+                        </p>
                     </div>
                     <div className="ml-auto flex items-center gap-2">
                         <button
@@ -380,7 +518,7 @@ export default function DpsSchedule({ basePath }: DpsScheduleProps) {
                             className="flex items-center gap-2 px-3 py-1.5 border border-orange-200 bg-orange-50 rounded text-sm font-medium text-orange-700 hover:bg-orange-100 transition-colors"
                         >
                             <Globe size={16} />
-                            Master Config
+                            Master Lists
                         </button>
                         <button
                             onClick={openAddUnit}
@@ -429,14 +567,26 @@ export default function DpsSchedule({ basePath }: DpsScheduleProps) {
                                                 </span>
                                                 {unit.has_active_planning === 1 && (
                                                     <span className="text-[10px] px-1.5 py-0.5 rounded uppercase font-black tracking-widest bg-green-100 text-green-700 border border-green-200">
-                                                        Active Plan {unit.active_planning_version ? `v${unit.active_planning_version}` : ''}
+                                                        Active Plan
                                                     </span>
                                                 )}
                                                 {unit.has_active_cbd === 1 && (
                                                     <span className="text-[10px] px-1.5 py-0.5 rounded uppercase font-black tracking-widest bg-orange-100 text-orange-700 border border-orange-200">
-                                                        Active CBD {unit.active_cbd_version ? `v${unit.active_cbd_version}` : ''}
+                                                        Active CBD
                                                     </span>
                                                 )}
+                                                {(() => {
+                                                    const nextStart = unit.form_type === 'cbd' ? unit.next_cbd_start : unit.next_planning_start;
+                                                    if (!nextStart) return null;
+                                                    return (
+                                                        <span
+                                                            title="A plan is prepared and will take over on its start date"
+                                                            className="text-[10px] px-1.5 py-0.5 rounded uppercase font-black tracking-widest bg-indigo-50 text-indigo-700 border border-indigo-200"
+                                                        >
+                                                            Next {new Date(nextStart).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                                                        </span>
+                                                    );
+                                                })()}
                                             </div>
                                             <p className="text-xs text-gray-400 mt-0.5">{unit.type}</p>
                                         </div>
@@ -448,100 +598,243 @@ export default function DpsSchedule({ basePath }: DpsScheduleProps) {
                                         <Trash2 size={14} />
                                     </button>
                                 </div>
-                                <div className="flex flex-col gap-2">
-                                    <button
-                                        onClick={() => router.push(`${basePath}/schedule/${selectedSite.id}?unitId=${unit.id}&unitName=${encodeURIComponent(unit.name)}&type=${unit.form_type || 'planning'}`)}
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded text-sm font-bold hover:bg-blue-700 transition-colors"
-                                    >
-                                        Plan DPR
-                                        <ArrowRight size={14} />
-                                    </button>
-                                    <button
-                                        onClick={() => router.push(`${basePath}/planned-schedules/${selectedSite.id}?unitId=${unit.id}&unitName=${encodeURIComponent(unit.name)}&type=${unit.form_type || 'planning'}`)}
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-blue-600 text-blue-600 rounded text-sm font-bold hover:bg-blue-50 transition-colors"
-                                    >
-                                        DPR Schedules
-                                        <ClipboardCheck size={14} />
-                                    </button>
-                                </div>
+                                {(() => {
+                                    // "Create Plan" always starts a fresh cycle; opening the
+                                    // running one is a separate action. The old single button
+                                    // did both depending on state, so you could never tell
+                                    // which one you were about to get.
+                                    const hasPlan = unit.form_type === 'cbd'
+                                        ? unit.has_active_cbd === 1
+                                        : unit.has_active_planning === 1;
+                                    return (
+                                        <div className="flex flex-col gap-2">
+                                            {hasPlan ? (
+                                                <>
+                                                    <button
+                                                        onClick={() => router.push(planPath(selectedSite.id, unit))}
+                                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded text-sm font-bold hover:bg-blue-700 transition-colors"
+                                                    >
+                                                        Open Active Plan
+                                                        <ArrowRight size={14} />
+                                                    </button>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <button
+                                                            onClick={() => router.push(schedulesPath(selectedSite.id, unit))}
+                                                            className="flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-200 text-gray-600 rounded text-xs font-bold hover:border-gray-900 hover:text-gray-900 transition-colors"
+                                                        >
+                                                            <CalendarRange size={13} />
+                                                            Schedules
+                                                        </button>
+                                                        <button
+                                                            onClick={() => router.push(planPath(selectedSite.id, unit, '&new=1'))}
+                                                            className="flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-200 text-gray-600 rounded text-xs font-bold hover:border-gray-900 hover:text-gray-900 transition-colors"
+                                                        >
+                                                            <Plus size={13} />
+                                                            New Plan
+                                                        </button>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <button
+                                                        onClick={() => router.push(planPath(selectedSite.id, unit, '&new=1'))}
+                                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded text-sm font-bold hover:bg-blue-700 transition-colors"
+                                                    >
+                                                        <Plus size={14} />
+                                                        Create Plan
+                                                    </button>
+                                                    <button
+                                                        onClick={() => router.push(schedulesPath(selectedSite.id, unit))}
+                                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded text-sm font-bold hover:border-gray-900 hover:text-gray-900 transition-colors"
+                                                    >
+                                                        <CalendarRange size={14} />
+                                                        Schedules
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         ))}
                     </div>
                 )}
 
-                {/* Add Unit Modal */}
+                {/* Add Departments Picker */}
                 {addUnitOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center px-3 py-2 text-sm bg-black/50 backdrop-blur-sm">
-                        <div className="bg-white rounded w-full max-w-md shadow-2xl border border-gray-200">
-                            <div className="p-5 border-b border-gray-200 flex items-center justify-between">
-                                <h3 className="font-bold text-gray-900">Add Department</h3>
-                                <button onClick={() => setAddUnitOpen(false)} className="p-1.5 text-gray-400 hover:text-gray-700 rounded transition-colors">
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+                        <div className="bg-white w-full max-w-3xl max-h-[88vh] flex flex-col border border-slate-200 shadow-2xl">
+                            <div className="px-6 py-4 border-b border-slate-200 flex items-start justify-between">
+                                <div>
+                                    <h3 className="text-base font-semibold text-slate-900">Add Departments</h3>
+                                    <p className="text-xs text-slate-500 mt-0.5">
+                                        Every department in your organization is listed here. Tick the ones this site should plan DPR for.
+                                    </p>
+                                </div>
+                                <button onClick={() => setAddUnitOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors">
                                     <X size={18} />
                                 </button>
                             </div>
-                            <div className="p-5 space-y-4">
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Department Name</label>
+
+                            <div className="px-6 py-3 border-b border-slate-200 flex items-center gap-3 bg-slate-50/60">
+                                <div className="relative flex-1">
+                                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                                     <input
                                         type="text"
-                                        value={newUnitName}
-                                        onChange={e => setNewUnitName(e.target.value)}
-                                        placeholder="e.g., Civil - Block A"
-                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none text-sm font-medium"
+                                        value={deptSearch}
+                                        onChange={e => setDeptSearch(e.target.value)}
+                                        placeholder="Search departments..."
+                                        className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 text-sm outline-none focus:border-slate-900 transition-colors"
                                         autoFocus
                                     />
                                 </div>
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Department Type</label>
-                                    <select
-                                        value={newUnitType}
-                                        onChange={e => setNewUnitType(e.target.value)}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none text-sm font-medium bg-white"
-                                    >
-                                        <option value="">Select a type...</option>
-                                        {deptLoading
-                                            ? <option disabled>Loading departments...</option>
-                                            : departments.map((d: { id: number; name: string }) => (
-                                                <option key={d.id} value={d.name}>{d.name}</option>
-                                            ))
-                                        }
-                                    </select>
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Form Format</label>
-                                    <div className="flex gap-2 p-1 bg-gray-100 rounded">
-                                        <button
-                                            type="button"
-                                            onClick={() => setNewUnitFormType('planning')}
-                                            className={`flex-1 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all ${newUnitFormType === 'planning' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                                        >
-                                            Planning
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setNewUnitFormType('cbd')}
-                                            className={`flex-1 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all ${newUnitFormType === 'cbd' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                                        >
-                                            CBD
-                                        </button>
+                                <button
+                                    onClick={toggleSelectAll}
+                                    disabled={selectableDepartments.length === 0}
+                                    className="px-3 py-2 border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:border-slate-900 hover:text-slate-900 disabled:opacity-40 disabled:hover:border-slate-200 transition-colors whitespace-nowrap"
+                                >
+                                    {allVisibleSelected ? 'Clear all' : 'Select all'}
+                                </button>
+                                <span className="text-xs font-semibold text-slate-500 tabular-nums whitespace-nowrap">
+                                    {selectedCount} selected
+                                </span>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto">
+                                {deptLoading ? (
+                                    <div className="p-6 space-y-2">
+                                        {[1, 2, 3, 4].map(i => <div key={i} className="h-14 bg-slate-100 animate-pulse" />)}
                                     </div>
-                                    <p className="text-[10px] text-gray-400 mt-1 italic">
-                                        {newUnitFormType === 'planning' ? 'Standard date-wise and monthly planning' : 'Construction-based development format'}
-                                    </p>
+                                ) : visibleDepartments.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                                        <Users className="w-10 h-10 text-slate-200 mb-3" />
+                                        <p className="text-sm font-semibold text-slate-500">No departments found</p>
+                                        <p className="text-xs text-slate-400 mt-1">Add one below, or create it in Organization settings.</p>
+                                    </div>
+                                ) : (
+                                    <div className="divide-y divide-slate-100">
+                                        {visibleDepartments.map(dept => {
+                                            const key = String(dept.id);
+                                            const alreadyAdded = addedDeptNames.has((dept.name || '').trim().toLowerCase());
+                                            const selection = selectedDepts[key];
+                                            return (
+                                                <div
+                                                    key={key}
+                                                    onClick={() => { if (!alreadyAdded) toggleDept(dept); }}
+                                                    className={`px-6 py-3 flex items-center gap-4 transition-colors ${alreadyAdded
+                                                        ? 'bg-slate-50/60 cursor-not-allowed'
+                                                        : selection
+                                                            ? 'bg-blue-50/50 cursor-pointer'
+                                                            : 'hover:bg-slate-50 cursor-pointer'
+                                                        }`}
+                                                >
+                                                    <div className={`w-4 h-4 border flex items-center justify-center flex-shrink-0 transition-colors ${alreadyAdded
+                                                        ? 'border-slate-200 bg-slate-100'
+                                                        : selection
+                                                            ? 'border-blue-600 bg-blue-600'
+                                                            : 'border-slate-300 bg-white'
+                                                        }`}>
+                                                        {(selection || alreadyAdded) && (
+                                                            <svg viewBox="0 0 12 12" className={`w-3 h-3 ${alreadyAdded ? 'text-slate-400' : 'text-white'}`} fill="none" stroke="currentColor" strokeWidth="2">
+                                                                <path d="M2.5 6.5L5 9l4.5-5" strokeLinecap="square" />
+                                                            </svg>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="p-1.5 bg-slate-100 text-slate-500 flex-shrink-0">
+                                                        {getDeptIcon(dept.name)}
+                                                    </div>
+
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="text-sm font-semibold text-slate-900 truncate">{dept.name}</p>
+                                                        {dept.description && (
+                                                            <p className="text-xs text-slate-400 truncate mt-0.5">{dept.description}</p>
+                                                        )}
+                                                    </div>
+
+                                                    {alreadyAdded ? (
+                                                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 border border-slate-200 px-2 py-1 flex-shrink-0">
+                                                            Added
+                                                        </span>
+                                                    ) : selection ? (
+                                                        <div
+                                                            onClick={e => e.stopPropagation()}
+                                                            className="flex border border-slate-200 flex-shrink-0"
+                                                        >
+                                                            {(['planning', 'cbd'] as const).map(ft => (
+                                                                <button
+                                                                    key={ft}
+                                                                    onClick={() => setDeptFormType(dept.id, ft)}
+                                                                    className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors ${selection.formType === ft
+                                                                        ? 'bg-slate-900 text-white'
+                                                                        : 'bg-white text-slate-400 hover:text-slate-700'
+                                                                        }`}
+                                                                >
+                                                                    {ft}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Escape hatch for a department that only exists on this site */}
+                            <div className="px-6 py-4 border-t border-slate-200 bg-slate-50/60 space-y-2">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Or add a custom unit</p>
+                                <div className="flex flex-col sm:flex-row gap-2">
+                                    <input
+                                        type="text"
+                                        value={customUnitName}
+                                        onChange={e => setCustomUnitName(e.target.value)}
+                                        placeholder="e.g. Civil — Block A"
+                                        className="flex-1 px-3 py-2 bg-white border border-slate-200 text-sm outline-none focus:border-slate-900 transition-colors"
+                                    />
+                                    <select
+                                        value={customUnitType}
+                                        onChange={e => setCustomUnitType(e.target.value)}
+                                        className="sm:w-44 px-3 py-2 bg-white border border-slate-200 text-sm outline-none focus:border-slate-900 transition-colors"
+                                    >
+                                        <option value="">Type...</option>
+                                        {departments.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+                                    </select>
+                                    <div className="flex border border-slate-200">
+                                        {(['planning', 'cbd'] as const).map(ft => (
+                                            <button
+                                                key={ft}
+                                                onClick={() => setCustomUnitFormType(ft)}
+                                                className={`px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition-colors ${customUnitFormType === ft
+                                                    ? 'bg-slate-900 text-white'
+                                                    : 'bg-white text-slate-400 hover:text-slate-700'
+                                                    }`}
+                                            >
+                                                {ft}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
-                            <div className="p-5 border-t border-gray-200 flex items-center justify-end gap-3">
-                                <button onClick={() => setAddUnitOpen(false)} className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700 transition-colors">
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleAddUnit}
-                                    disabled={savingUnit}
-                                    className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white rounded text-sm font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                                >
-                                    {savingUnit ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
-                                    Add Department
-                                </button>
+
+                            <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between">
+                                <p className="text-xs text-slate-400">
+                                    Planning = date-wise & monthly targets · CBD = construction-based development
+                                </p>
+                                <div className="flex items-center gap-3">
+                                    <button onClick={() => setAddUnitOpen(false)} className="px-4 py-2 text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors">
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleAddUnits}
+                                        disabled={savingUnit || (selectedCount === 0 && !customUnitName.trim())}
+                                        className="flex items-center gap-2 px-5 py-2 bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 disabled:opacity-40 transition-colors"
+                                    >
+                                        {savingUnit ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
+                                        Add {selectedCount + (customUnitName.trim() ? 1 : 0) || ''} Department{(selectedCount + (customUnitName.trim() ? 1 : 0)) === 1 ? '' : 's'}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -586,17 +879,29 @@ export default function DpsSchedule({ basePath }: DpsScheduleProps) {
             <div className="bg-white rounded border border-gray-200 p-3">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-lg font-semibold text-gray-900">DPR Schedule Management</h1>
-                        <p className="text-sm text-gray-500 mt-0.5">Manage Daily Progress Reporting for all sites</p>
+                        <h1 className="text-lg font-semibold text-gray-900">DPR Planning</h1>
+                        <p className="text-sm text-gray-500 mt-0.5">Pick a site, then plan each department's daily targets.</p>
                     </div>
-                    <button
-                        onClick={() => setFiltersExpanded(!filtersExpanded)}
-                        className="px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 transition-colors flex items-center gap-1.5 text-sm font-medium"
-                    >
-                        <Filter size={15} />
-                        Filters
-                        {filtersExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {/* Master lists are org-wide, so they belong here rather than
+                            two levels down inside a single site's department view. */}
+                        <button
+                            onClick={() => setMasterConfigOpen(true)}
+                            className="px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 transition-colors flex items-center gap-1.5 text-sm font-medium text-gray-600"
+                            title="Staff roles, labour types and equipment shared across every site"
+                        >
+                            <Globe size={15} />
+                            Master Lists
+                        </button>
+                        <button
+                            onClick={() => setFiltersExpanded(!filtersExpanded)}
+                            className="px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 transition-colors flex items-center gap-1.5 text-sm font-medium"
+                        >
+                            <Filter size={15} />
+                            Filters
+                            {filtersExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                        </button>
+                    </div>
                 </div>
                 {filtersExpanded && (
                     <div className="mt-4 pt-4 border-t border-gray-200 flex gap-3">

@@ -83,24 +83,7 @@ const formatDate = (dateString: string) => {
     }
 };
 
-interface DynamicAssignment {
-    id: number;
-    site_id: number;
-    site_name: string;
-    unit_id: number;
-    unit_name: string;
-    schedule_id: number;
-    form_type: 'planning' | 'cbd';
-    assigned_to: number;
-    first_name?: string;
-    last_name?: string;
-    due_date: string;
-    status: 'pending' | 'submitted' | 'reviewed';
-    dynamic_schema: any;
-    submitted_data: any;
-    created_at: string;
-    updated_at: string;
-}
+import type { DynamicAssignment } from './DpsFormBuilders';
 
 function DownloadExcelButton({ taskId, formType }: { taskId: number; formType: string }) {
     const [downloading, setDownloading] = useState(false);
@@ -258,18 +241,19 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
 
     const handleSelectForm = (task: DynamicAssignment) => {
         setSelectedForm(task);
-        if (task.status === 'pending') {
-            const data = JSON.parse(JSON.stringify(task.dynamic_schema));
-            if (data.staff && Array.isArray(data.staff)) {
-                data.staff = data.staff.map((s: any) => ({
-                    ...s,
-                    required_wo: (s.required_wo === undefined || s.required_wo === null || s.required_wo === 0) ? (s.planned || 0) : s.required_wo
-                }));
-            }
-            setFormData(data);
+
+        // A saved draft is the filler's own work and always wins over the blank
+        // schema. This used to load `dynamic_schema` for anything still pending,
+        // which meant Save Draft appeared to work and then quietly threw the
+        // entries away the next time the form was opened. The mobile app has
+        // always preferred the draft; the two now agree.
+        const draft = task.submitted_data;
+        const hasDraft = draft && typeof draft === 'object' && Object.keys(draft).length > 0;
+
+        if (hasDraft) {
+            setFormData(JSON.parse(JSON.stringify(draft)));
         } else {
-            // just view existing submission
-            setFormData(task.submitted_data);
+            setFormData(JSON.parse(JSON.stringify(task.dynamic_schema ?? {})));
         }
     };
 
@@ -280,9 +264,41 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
 
         // Validations for Planning
         if (selectedForm.form_type === 'planning') {
-            if (dataToSave?.concrete_planning && (dataToSave.concrete_planning.achieved_total === undefined || dataToSave.concrete_planning.achieved_total === null || String(dataToSave.concrete_planning.achieved_total).trim() === '')) {
-                showError('Concrete Progress: ACTUAL QTY is required.');
-                return;
+            // The site total is always required, scheduled or not. An explicit 0
+            // is a statement — "nothing was poured" — and a blank is not; the
+            // day's concrete figure is what every downstream total reads.
+            const cp = dataToSave?.concrete_planning;
+            if (cp) {
+                const blank = (v: any) => v === undefined || v === null || String(v).trim() === '';
+                if (blank(cp.achieved_total)) {
+                    showError(cp.has_due_plan === false
+                        ? 'Concrete Progress: enter 0 if nothing was poured.'
+                        : 'Concrete Progress: overall poured is required.');
+                    return;
+                }
+            }
+
+            // Milestones that were answered "not achieved" owe a new date and a
+            // reason — that is the whole point of asking.
+            for (const t of (dataToSave?.monthly_schedule_today || [])) {
+                if (t.achieved === false) {
+                    if (!t.revised_date) {
+                        showError(`Schedule Targets: a next target date is required for ${t.tower_name || 'this milestone'} — ${t.floor || ''}`);
+                        return;
+                    }
+                    if (!String(t.missed_reason || '').trim()) {
+                        showError(`Schedule Targets: a reason for delay is required for ${t.tower_name || 'this milestone'} — ${t.floor || ''}`);
+                        return;
+                    }
+                }
+            }
+
+            // An issue can only be escalated to someone who exists.
+            for (const issue of (dataToSave?.safety_quality?.detailed_issues || [])) {
+                if (!String(issue.description || '').trim()) {
+                    showError('Site Issues: every issue needs a description, or remove the empty row.');
+                    return;
+                }
             }
             if (dataToSave?.staff) {
                 for (let i = 0; i < dataToSave.staff.length; i++) {
@@ -304,10 +320,51 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
             }
             if (dataToSave?.equipments) {
                 for (let i = 0; i < dataToSave.equipments.length; i++) {
-                    const val = dataToSave.equipments[i].actual;
+                    const eq = dataToSave.equipments[i];
+                    const val = eq.actual;
                     if (val === undefined || val === null || val === '') {
-                        showError(`Equipment Tracking: Actual is required for ${dataToSave.equipments[i].type || dataToSave.equipments[i].name}`);
+                        showError(`Equipment Tracking: on-site count is required for ${eq.type || eq.name}`);
                         return;
+                    }
+                    // Fewer machines on site than planned has to say why. A bare
+                    // shortfall is the least useful line in a report: it says
+                    // something went wrong without saying what.
+                    const planned = Number(eq.planned) || 0;
+                    const onSite = Number(val) || 0;
+                    /* Validate where the answers actually live.
+                       When a row splits into machines the reason belongs to each
+                       unit, not to the row — and since a unit edit no longer
+                       mirrors itself up, the row-level field is never populated
+                       at all. Checking it there demanded something the form gave
+                       nowhere to enter. A carried unit is exempt either way: the
+                       breakdown that opened it is already its explanation. */
+                    const who = eq.type || eq.name;
+                    const units = Array.isArray(eq.units) && eq.units.length > 0 ? eq.units : null;
+
+                    if (units) {
+                        for (let u = 0; u < units.length; u++) {
+                            const unit = units[u];
+                            if (unit.breakdown_open) continue;
+                            if (String(unit.status || '').toLowerCase() === 'fixed') continue;
+                            const label = unit.unit_label || `Unit #${u + 1}`;
+                            if (!unit.shortfall_status) {
+                                showError(`Equipment Tracking: pick a status for ${who} — ${label}`);
+                                return;
+                            }
+                            if (!String(unit.shortfall_reason || '').trim()) {
+                                showError(`Equipment Tracking: give a reason for ${who} — ${label}`);
+                                return;
+                            }
+                        }
+                    } else if (onSite < planned && !eq.breakdown_open) {
+                        if (!eq.shortfall_status) {
+                            showError(`Equipment Tracking: pick a status for the shortfall on ${who}`);
+                            return;
+                        }
+                        if (!String(eq.shortfall_reason || '').trim()) {
+                            showError(`Equipment Tracking: give a reason for the shortfall on ${who}`);
+                            return;
+                        }
                     }
                 }
             }
@@ -620,7 +677,7 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
                                         <td className="p-4 border-l border-black/5">
                                             <div className="flex items-center gap-1.5 text-[10px] font-black text-black">
                                                 <Calendar size={12} className="text-gray-400" />
-                                                {formatDate(task.due_date)}
+                                                {formatDate(task.report_date || task.due_date)}
                                             </div>
                                         </td>
                                         <td className="p-4 border-l border-black/5">
@@ -784,7 +841,15 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
                     submitting={submitting}
                     initialData={formData}
                     siteId={selectedForm.site_id}
-                    readOnly={selectedForm.status === 'submitted' || selectedForm.status === 'reviewed'}
+                    // A reviewer sees the form but must not edit it; the server
+                    // enforces the same rule, this keeps the UI honest.
+                    // A submitted report reopens for correction while the day it
+                    // was due is still running; after that it is a record.
+                    readOnly={
+                        selectedForm.can_fill === false ||
+                        ((selectedForm.status === 'submitted' || selectedForm.status === 'reviewed')
+                            && selectedForm.can_edit_submitted !== true)
+                    }
                 />
             )}
         </div>

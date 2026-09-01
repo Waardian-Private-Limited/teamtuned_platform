@@ -4,6 +4,7 @@ import React, { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Bell,
   Home,
   ChevronDown,
   ChevronRight,
@@ -236,6 +237,7 @@ export default function EmployeeSidebar({
         "/employee/reimbursements/categories",
         "/employee/advances"
       ]));
+      setMomOpen(isActive(["/employee/mom"]));
     } else {
       // When collapsed, only keep the active category open to follow "check and fix that open only active category"
       const isActive = (prefixes: string[]) => prefixes.some(p => pathname?.startsWith(p));
@@ -252,6 +254,7 @@ export default function EmployeeSidebar({
       setLaborOpen(isActive(["/employee/labor-attendance", "/employee/labor/"]));
       setHrOperationOpen(isActive(["/employee/department-mapper", "/employee/hr-operation"]));
       setReimbursementsOpen(isActive(["/org/hr-operation/reimbursements", "/org/accounts/reimbursements", "/employee/hr-operation/reimbursements/my", "/employee/hr-operation/reimbursements/all", "/employee/reimbursements", "/employee/reimbursements/wallets", "/employee/reimbursements/categories", "/employee/advances"]));
+      setMomOpen(isActive(["/employee/mom"]));
     }
   }, [isCollapsed, pathname]);
 
@@ -268,6 +271,7 @@ export default function EmployeeSidebar({
     setLaborOpen(false);
     setHrOperationOpen(false);
     setReimbursementsOpen(false);
+    setMomOpen(false);
   };
 
   const handleToggle = (setter: React.Dispatch<React.SetStateAction<boolean>>, currentState: boolean) => {
@@ -438,8 +442,15 @@ export default function EmployeeSidebar({
   const showReimbursements = canViewReimbursementClaims || canViewReimbursementWallets || canViewReimbursementConfig;
 
   // New Sensitive Permission Gates
-  const canViewDPR = isOrgAdmin || hasAnyPerm(["DPR_VIEW", "DPR_ADMIN", "DPR_ADD", "DPR_EDIT"]);
-  const canViewMOM = isOrgAdmin || hasAnyPerm(["MOM_VIEW", "MOM_ADD", "MOM_EDIT"]);
+  const canViewDPR = isOrgAdmin || hasAnyPerm(["DPR_VIEW", "DPR_ADMIN", "DPR_ADD", "DPR_EDIT", "DPR_FILL", "DPR_PLAN", "DPR_CONFIG"]);
+  // Planning, filling and reviewing are different jobs — a site engineer who only
+  // submits the daily form should not be handed the planning screens.
+  const canPlanDPR = isOrgAdmin || hasAnyPerm(["DPR_ADMIN", "DPR_PLAN", "DPR_CONFIG", "DPR_EDIT"]);
+  const canFillDPR = isOrgAdmin || hasAnyPerm(["DPR_ADMIN", "DPR_FILL", "DPR_ADD", "DPR_VIEW"]);
+  const canReviewDPR = isOrgAdmin || hasAnyPerm(["DPR_ADMIN", "DPR_VIEW"]);
+  const canViewMOM = isOrgAdmin || 
+    hasAnyPerm(["MOM_VIEW", "MOM_ADD", "MOM_EDIT", "MOM_DELETE", "MOM_MEETING_VIEW", "MOM_MEETING_CREATE", "MOM_MEETING_EDIT", "MOM_MEETING_DELETE", "MOM_ADMIN", "MOM_POINT_VIEW", "HR_MODE"]) ||
+    (effectivePermissions || []).some((p: any) => String(p || "").toUpperCase().startsWith("MOM_"));
   const canViewHROperation = isOrgAdmin || hasAnyPerm(["HR_VIEW", "RECRUITER_MODE", "HR_MODE", "ONBOARD_VIEW"]);
   const canViewSalaryConfig = isOrgAdmin || hasAnyPerm(["SALARY_CONFIG_VIEW", "SALARY_CONFIG_ADD", "HR_MODE", "PAYROLL_ADMIN"]);
   const canViewDebitRules = isOrgAdmin || hasAnyPerm(["DEBIT_RULE_VIEW", "DEBIT_RULE_ADD", "HR_MODE", "PAYROLL_ADMIN"]);
@@ -1335,30 +1346,38 @@ export default function EmployeeSidebar({
             {dpsOpen && (
               <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
                 <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100"}`}>
-                  <Item
-                    icon={LayoutDashboard}
-                    label="Planning Dashboard"
-                    href="/employee/dps/planning-dashboard"
-                    active={pathname === "/employee/dps/planning-dashboard"}
-                  />
-                  <Item
-                    icon={LayoutDashboard}
-                    label="CBD Dashboard"
-                    href="/employee/dps/cbd-dashboard"
-                    active={pathname === "/employee/dps/cbd-dashboard"}
-                  />
-                  <Item
-                    icon={UserPlus}
-                    label="Assignments"
-                    href="/employee/dps/assignments"
-                    active={pathname === "/employee/dps/assignments"}
-                  />
-                  <Item
-                    icon={Calendar}
-                    label="Site Config"
-                    href="/employee/dps/schedule"
-                    active={pathname === "/employee/dps/schedule"}
-                  />
+                  {canPlanDPR && (
+                    <Item
+                      icon={Calendar}
+                      label="Planning"
+                      href="/employee/dps/schedule"
+                      active={pathname.startsWith("/employee/dps/schedule") || pathname.startsWith("/employee/dps/planned-schedules")}
+                    />
+                  )}
+                  {canFillDPR && (
+                    <Item
+                      icon={UserPlus}
+                      label="Daily Forms"
+                      href="/employee/dps/assignments"
+                      active={pathname === "/employee/dps/assignments"}
+                    />
+                  )}
+                  {canReviewDPR && (
+                    <Item
+                      icon={LayoutDashboard}
+                      label="Planning Dashboard"
+                      href="/employee/dps/planning-dashboard"
+                      active={pathname === "/employee/dps/planning-dashboard"}
+                    />
+                  )}
+                  {canReviewDPR && (
+                    <Item
+                      icon={LayoutDashboard}
+                      label="CBD Dashboard"
+                      href="/employee/dps/cbd-dashboard"
+                      active={pathname === "/employee/dps/cbd-dashboard"}
+                    />
+                  )}
                 </div>
               </div>
             )}
@@ -1602,7 +1621,7 @@ export default function EmployeeSidebar({
           )
         }
 
-        {/* MoM Section */}
+        {/* Minutes of Meeting (MoM) */}
         {canViewMOM && (
           <div className="mt-2">
             {!isCollapsed && (
@@ -1614,12 +1633,26 @@ export default function EmployeeSidebar({
             )}
             {momOpen && (
               <div className={`space-y-1 ${isCollapsed ? "" : "pl-0"}`}>
-                <div className={`relative ${isCollapsed ? "" : "ml-3 pl-3 border-l border-gray-100 space-y-1"}`}>
+                <div className={`relative ${isCollapsed ? "" : "pl-3 border-l border-gray-100"}`}>
                   <Item
                     icon={LayoutDashboard}
                     label="Dashboard"
                     href="/employee/mom"
                     active={pathname === "/employee/mom"}
+                  />
+                  {(isOrgAdmin || hasAnyPerm(["HR_MODE", "MOM_ADMIN"])) && (
+                    <Item
+                      icon={BarChart3}
+                      label="Overview"
+                      href="/employee/mom/overview"
+                      active={pathname === "/employee/mom/overview"}
+                    />
+                  )}
+                  <Item
+                    icon={List}
+                    label="Meeting List"
+                    href="/employee/mom/list"
+                    active={pathname === "/employee/mom/list"}
                   />
                 </div>
               </div>

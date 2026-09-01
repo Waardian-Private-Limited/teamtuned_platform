@@ -16,6 +16,11 @@ import { apiClient } from '@/lib/apiClient';
 import { getSocket } from '@/lib/socket';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
+import { stripTagToken, addAssignee, removeAssignee, NO_TAG_TOKEN } from '@/lib/momComposer';
+import { dueDatePresets, describeDueDate } from '@/lib/momDates';
+import BulkActionBar from './BulkActionBar';
+import PointCard from './PointCard';
+import MinutesBar from './MinutesBar';
 import { useRouter } from 'next/navigation';
 import DiscussionThread from './DiscussionThread';
 
@@ -90,11 +95,18 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
     const [newReviewerId, setNewReviewerId] = useState<number | null>(null);
     const [newReviewerName, setNewReviewerName] = useState<string | null>(null);
     const [newDueDate, setNewDueDate] = useState<string | null>(null);
+    const [showDuePresets, setShowDuePresets] = useState(false);
+    // Points ticked for a bulk action. Distributing work one point at a time is
+    // the slowest part of wrapping up a meeting.
+    const [selectedPointIds, setSelectedPointIds] = useState<number[]>([]);
 
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const socketRef = useRef<any>(null);
     const popoverRef = useRef<HTMLDivElement>(null);
+    // Caret position at the moment the tag popover opened, so selecting from it
+    // removes the typed token from the right place even mid-sentence.
+    const tagCaretRef = useRef<number>(0);
 
     useEffect(() => {
         fetchData();
@@ -224,11 +236,11 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
         if (editingPointId !== null && editingPointId !== -1) setEditText(value);
         else setNewPoint(value);
 
-        // Live sync assignments - remove if not in text anymore
-        setSelectedAssignments(prev => prev.filter(a => {
-            const pattern = a.type === 'department' ? `#${a.name}` : `@${a.name}`;
-            return value.includes(pattern);
-        }));
+        // Assignments deliberately do NOT live in the text. They used to be
+        // kept in sync by checking whether the literal "@Name" still appeared
+        // here, which meant rewording a point silently dropped its owner.
+        // Assignees are removed by clicking the x on their chip, and nothing
+        // else.
 
         // Reset if moving away from mention
         const textBeforeCursor = value.slice(0, cursorPos);
@@ -238,9 +250,11 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
         if (lastChar === '@' || lastChar === '#' || lastChar === '^') {
             setTagType(lastChar as '@' | '#' | '^');
             setTagQuery('');
+            tagCaretRef.current = cursorPos;
             setShowTagPopover(true);
         } else if (showTagPopover && (lastWord.startsWith('@') || lastWord.startsWith('#') || lastWord.startsWith('^'))) {
             setTagQuery(lastWord.slice(1));
+            tagCaretRef.current = cursorPos;
         } else {
             setShowTagPopover(false);
         }
@@ -292,38 +306,33 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
         if (tagType === '^') {
             setNewReviewerId(item.id || item.id_pk);
             setNewReviewerName(name);
+            const text = isEdit ? editText : newPoint;
+            const stripped = stripTagToken(text, tagCaretRef.current);
+            if (isEdit) setEditText(stripped.text); else setNewPoint(stripped.text);
             setShowTagPopover(false);
             setTagQuery('');
             setTimeout(() => inputRef.current?.focus(), 10);
             return;
         }
 
-        setSelectedAssignments(prev => {
-            const id = item.id || item.id_pk;
-            if (!prev.find(a => a.id === id && a.type === type)) {
-                return [...prev, { id, type, name }];
-            }
-            return prev;
-        });
+        setSelectedAssignments(prev => addAssignee(prev, { id: item.id || item.id_pk, type, name }));
 
+        // The name becomes a chip; the text keeps only what the person typed.
+        // "@" is a shortcut for opening this picker, not a storage format - so
+        // the token that opened it is removed rather than completed.
         const currentText = isEdit ? editText : newPoint;
-        const words = currentText.split(/\s/);
-        const lastWord = words[words.length - 1];
-        let newText = '';
-
-        if (lastWord.startsWith(tagType)) {
-            words[words.length - 1] = `${tagType}${name} `;
-            newText = words.join(' ');
-        } else {
-            newText = currentText + (currentText.endsWith(' ') || currentText === '' ? '' : ' ') + `${tagType}${name} `;
-        }
+        const { text: newText, caret: caretAfter } = stripTagToken(currentText, tagCaretRef.current);
 
         if (isEdit) setEditText(newText);
         else setNewPoint(newText);
 
         setShowTagPopover(false);
         setTagQuery('');
-        setTimeout(() => inputRef.current?.focus(), 10);
+        setTimeout(() => {
+            inputRef.current?.focus();
+            // Put the caret back where the token was.
+            try { inputRef.current?.setSelectionRange(caretAfter, caretAfter); } catch { /* older browsers */ }
+        }, 10);
     };
 
     const addPoint = async () => {
@@ -545,6 +554,11 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
     const isOrganizer = me?.role === 'organizer' || isOrgAdmin || (Number(meeting?.created_by) === Number(effectiveEmployeeId) && effectiveEmployeeId > 0);
     const isAttended = (me?.status === 'attended') || isOrgAdmin;
 
+    // Mirrors the server rule: the author or an admin. Showing a button the
+    // server would refuse is worse than not showing it.
+    const canEditPoint = (point: any) =>
+        isOrgAdmin || Number(point?.created_by) === Number(effectiveEmployeeId);
+
     return (
         <div className="flex h-screen bg-white text-black font-['Inter'] overflow-hidden">
 
@@ -738,6 +752,28 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
 
                         </div>
 
+                        <MinutesBar
+                            meetingId={meetingId}
+                            meetingStatus={meeting?.status}
+                            canManage={isOrganizer}
+                            onCarried={() => fetchData()}
+                        />
+
+                        <BulkActionBar
+                            selectedIds={selectedPointIds}
+                            onClear={() => setSelectedPointIds([])}
+                            onDone={() => { setSelectedPointIds([]); fetchData(); }}
+                        />
+
+                        {selectedPointIds.length > 0 && points.length > selectedPointIds.length && (
+                            <button
+                                onClick={() => setSelectedPointIds(points.map((p: any) => p.id))}
+                                className="mb-3 text-[10px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-800"
+                            >
+                                Select all {points.length} points
+                            </button>
+                        )}
+
                         {/* Composer / Points List */}
                         <div className="space-y-4 pb-32">
                             {editingPointId === -1 && isAttended && (
@@ -747,20 +783,20 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
                                             <div className="flex items-center gap-2">
                                                 <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-md text-[9px] font-black uppercase tracking-widest">New Drafting</span>
                                                 <button
-                                                    onClick={() => { setTagType('#'); setTagQuery(''); setShowTagPopover(true); }}
+                                                    onClick={() => { setTagType('#'); setTagQuery(''); tagCaretRef.current = NO_TAG_TOKEN; setShowTagPopover(true); }}
                                                     className="px-2 py-0.5 border border-orange-200 text-orange-600 bg-orange-50 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-orange-100 transition-colors"
                                                 >
                                                     <Building size={10} /> Assign Dept
                                                 </button>
                                                 <button
-                                                    onClick={() => { setTagType('@'); setTagQuery(''); setShowTagPopover(true); }}
+                                                    onClick={() => { setTagType('@'); setTagQuery(''); tagCaretRef.current = NO_TAG_TOKEN; setShowTagPopover(true); }}
                                                     className="px-2 py-0.5 border border-blue-200 text-blue-600 bg-blue-50 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-blue-100 transition-colors"
                                                 >
                                                     <User size={10} /> Assign Employee
                                                 </button>
                                                 <div className="w-px h-3 bg-slate-200 mx-1"></div>
                                                 <button
-                                                    onClick={() => { setTagType('^'); setTagQuery(''); setShowTagPopover(true); }}
+                                                    onClick={() => { setTagType('^'); setTagQuery(''); tagCaretRef.current = NO_TAG_TOKEN; setShowTagPopover(true); }}
                                                     className="px-2 py-0.5 border border-purple-200 text-purple-600 bg-purple-50 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-purple-100 transition-colors"
                                                 >
                                                     <UserPlus size={10} /> Set Reviewer
@@ -770,14 +806,45 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
                                                         type="date"
                                                         id="new-point-date"
                                                         className="hidden"
-                                                        onChange={(e) => setNewDueDate(e.target.value)}
+                                                        onChange={(e) => { setNewDueDate(e.target.value); setShowDuePresets(false); }}
                                                     />
                                                     <button
-                                                        onClick={() => document.getElementById('new-point-date')?.click()}
+                                                        onClick={() => setShowDuePresets(v => !v)}
                                                         className="px-2 py-0.5 border border-amber-200 text-amber-600 bg-amber-50 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-amber-100 transition-colors"
                                                     >
-                                                        <CalendarDays size={10} /> {newDueDate ? formatDate(newDueDate) : 'Set Target'}
+                                                        <CalendarDays size={10} /> {newDueDate ? describeDueDate(newDueDate) : 'Set Target'}
                                                     </button>
+                                                    {showDuePresets && (
+                                                        <>
+                                                            <div className="fixed inset-0 z-20" onClick={() => setShowDuePresets(false)} />
+                                                            <div className="absolute left-0 top-full mt-1 z-30 w-40 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden py-1">
+                                                                {dueDatePresets().map(preset => (
+                                                                    <button
+                                                                        key={preset.key}
+                                                                        onClick={() => { setNewDueDate(preset.value); setShowDuePresets(false); }}
+                                                                        className="w-full text-left px-3 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                                                                    >
+                                                                        {preset.label}
+                                                                    </button>
+                                                                ))}
+                                                                <div className="h-px bg-slate-100 my-1" />
+                                                                <button
+                                                                    onClick={() => document.getElementById('new-point-date')?.click()}
+                                                                    className="w-full text-left px-3 py-1.5 text-[11px] font-bold text-slate-500 hover:bg-slate-50 transition-colors"
+                                                                >
+                                                                    Pick a date…
+                                                                </button>
+                                                                {newDueDate && (
+                                                                    <button
+                                                                        onClick={() => { setNewDueDate(null); setShowDuePresets(false); }}
+                                                                        className="w-full text-left px-3 py-1.5 text-[11px] font-bold text-rose-500 hover:bg-rose-50 transition-colors"
+                                                                    >
+                                                                        Clear target
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-3">
@@ -814,7 +881,7 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
                                             {selectedAssignments.map((a, i) => (
                                                 <span key={i} className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-md text-black text-[9px] font-black uppercase flex items-center gap-1">
                                                     {a.type === 'department' ? <Building size={10} className="text-blue-600" /> : <User size={10} className="text-emerald-600" />}{a.name}
-                                                    <X size={10} className="ml-1 cursor-pointer text-slate-400 hover:text-red-500 transition-colors" onClick={() => setSelectedAssignments(prev => prev.filter((_, idx) => idx !== i))} />
+                                                    <X size={10} className="ml-1 cursor-pointer text-slate-400 hover:text-red-500 transition-colors" onClick={() => setSelectedAssignments(prev => removeAssignee(prev, { id: a.id, type: a.type }))} />
                                                 </span>
                                             ))}
                                         </div>
@@ -896,13 +963,13 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
                                         <div className="flex flex-col gap-4">
                                             <div className="flex items-center justify-between">
                                                 <div className="flex gap-2">
-                                                    <button onClick={() => { setTagType('#'); setTagQuery(''); setShowTagPopover(true); }} className="px-2 py-0.5 border border-blue-200 text-blue-600 bg-blue-50 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-blue-100 transition-colors">
+                                                    <button onClick={() => { setTagType('#'); setTagQuery(''); tagCaretRef.current = NO_TAG_TOKEN; setShowTagPopover(true); }} className="px-2 py-0.5 border border-blue-200 text-blue-600 bg-blue-50 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-blue-100 transition-colors">
                                                         <Building size={10} /> Assign Dept
                                                     </button>
-                                                    <button onClick={() => { setTagType('@'); setTagQuery(''); setShowTagPopover(true); }} className="px-2 py-0.5 border border-emerald-200 text-emerald-600 bg-emerald-50 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-emerald-100 transition-colors">
+                                                    <button onClick={() => { setTagType('@'); setTagQuery(''); tagCaretRef.current = NO_TAG_TOKEN; setShowTagPopover(true); }} className="px-2 py-0.5 border border-emerald-200 text-emerald-600 bg-emerald-50 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-emerald-100 transition-colors">
                                                         <User size={10} /> Assign User
                                                     </button>
-                                                    <button onClick={() => { setTagType('^'); setTagQuery(''); setShowTagPopover(true); }} className="px-2 py-0.5 border border-purple-200 text-purple-600 bg-purple-50 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-purple-100 transition-colors">
+                                                    <button onClick={() => { setTagType('^'); setTagQuery(''); tagCaretRef.current = NO_TAG_TOKEN; setShowTagPopover(true); }} className="px-2 py-0.5 border border-purple-200 text-purple-600 bg-purple-50 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-purple-100 transition-colors">
                                                         <UserPlus size={10} /> Set Reviewer
                                                     </button>
                                                     <div className="relative">
@@ -955,7 +1022,7 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
                                                     <span key={i} className={`px-2 py-1 bg-slate-50 border border-slate-200 rounded-md text-black text-[9px] font-black uppercase flex items-center gap-1 ${a.type === 'reviewer' ? 'bg-purple-50 border-purple-200' : ''}`}>
                                                         {a.type === 'department' ? <Building size={10} className="text-blue-600" /> : a.type === 'reviewer' ? <User size={10} className="text-purple-600" /> : <User size={10} className="text-emerald-600" />}
                                                         {a.type === 'reviewer' ? `Reviewer: ${a.name}` : a.name}
-                                                        <X size={10} className="ml-1 cursor-pointer text-slate-400 hover:text-red-500 transition-colors" onClick={() => setSelectedAssignments(prev => prev.filter((_, idx) => idx !== i))} />
+                                                        <X size={10} className="ml-1 cursor-pointer text-slate-400 hover:text-red-500 transition-colors" onClick={() => setSelectedAssignments(prev => removeAssignee(prev, { id: a.id, type: a.type }))} />
                                                     </span>
                                                 ))}
                                             </div>
@@ -1012,261 +1079,44 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
                                 );
 
                                 return (
-                                    <div key={point.id} className="bg-white rounded-md shadow-sm border border-slate-200 hover:shadow-md transition-all group overflow-hidden">
-                                        <div className="p-4 flex flex-col gap-3">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-1.5">
-                                                    <div className={`px-2 py-0.5 rounded-md ${isAssigned ? 'bg-blue-50 text-blue-700 font-black border border-blue-100' : 'bg-rose-50 text-rose-700 font-black border border-rose-100'} text-[9px] uppercase tracking-widest`}>
-                                                        {isAssigned ? 'ASSIGNED' : 'UNASSIGNED'}
-                                                    </div>
-                                                    {point.status !== 'assigned' && point.status !== 'unassigned' && (
-                                                        <div className="px-2 py-0.5 rounded-md bg-slate-50 text-slate-600 font-black border border-slate-100 text-[9px] uppercase tracking-widest">
-                                                            {point.status?.replace('_', ' ').toUpperCase()}
-                                                        </div>
-                                                    )}
-                                                    {point.added_post_meeting ? (
-                                                        <div className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-600 font-black border border-amber-100 text-[9px] uppercase tracking-widest flex items-center gap-1">
-                                                            <Clock size={10} /> Added Later
-                                                        </div>
-                                                    ) : null}
-                                                    {meeting.reopened_at && new Date(point.created_at) > new Date(meeting.reopened_at) && (
-                                                        <div className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-600 font-black border border-emerald-100 text-[9px] uppercase tracking-widest flex items-center gap-1">
-                                                            <RefreshCcw size={10} /> After Reopen
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="flex gap-1 opacity-100 transition-opacity">
-                                                    {(Number(point.created_by) === Number(effectiveEmployeeId) ||
-                                                        Number(user?.id) === Number(point.created_by) ||
-                                                        Number(employee?.employee_id) === Number(point.created_by) ||
-                                                        Number(employee?.id) === Number(point.created_by) ||
-                                                        isOrganizer) && (
-                                                            <>
-                                                                <button onClick={() => {
-                                                                    setEditingPointId(point.id);
-                                                                    setEditText(point.point_text);
-                                                                    setNewReviewerId(point.reviewer_id || null);
-                                                                    setNewReviewerName(point.reviewer_name || null);
-                                                                    setNewDueDate(point.due_date ? new Date(point.due_date).toISOString().split('T')[0] : null);
-                                                                    const initialAssignments = point.assignments ? point.assignments.map((a: any) => ({
-                                                                        id: a.assignee_id || a.id,
-                                                                        type: a.assignee_type || a.type,
-                                                                        name: a.assignee_name || a.name
-                                                                    })) : [];
-                                                                    setSelectedAssignments(initialAssignments);
-                                                                }} className="p-1.5 rounded-md text-blue-600 hover:bg-blue-50 transition-colors"><Edit3 size={15} /></button>
-                                                                <button onClick={() => setPointToDelete(point.id)} className="p-1.5 rounded-md text-red-600 hover:bg-red-50 transition-colors"><Trash2 size={15} /></button>
-                                                            </>
-                                                        )}
-                                                </div>
-                                            </div>
-
-                                            <p className={`text-[14px] font-black leading-relaxed tracking-tight break-words ${point.status === 'closed' ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
-                                                {point.point_text}
-                                            </p>
-
-                                            {point.attachments && point.attachments.length > 0 && (
-                                                <div className="flex flex-col gap-1.5 pt-1">
-                                                    {(expandedAttachmentsPointId === point.id ? point.attachments : point.attachments.slice(0, 3)).map((file: any, i: number) => (
-                                                        <a key={i} href={file.file_url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between bg-white px-2.5 py-2 rounded-md border border-slate-200 shadow-sm transition-all hover:bg-slate-50 group">
-                                                            <div className="flex items-center gap-2.5 overflow-hidden">
-                                                                <div className="size-7 bg-slate-50 rounded border border-slate-100 flex items-center justify-center shrink-0">
-                                                                    {file.file_url.match(/\.(jpeg|jpg|png|gif|webp)$/i) ? <ImageIcon size={12} className="text-emerald-500" /> : <Paperclip size={12} className="text-blue-500" />}
-                                                                </div>
-                                                                <span className="text-[11px] font-black text-slate-700 truncate uppercase tracking-tight">{file.file_name || 'Attachment'}</span>
-                                                            </div>
-                                                            <div className="p-1 text-slate-400 group-hover:text-blue-600 transition-all shrink-0">
-                                                                <Download size={12} />
-                                                            </div>
-                                                        </a>
-                                                    ))}
-                                                    {point.attachments.length > 3 && (
-                                                        <button
-                                                            onClick={() => setExpandedAttachmentsPointId(expandedAttachmentsPointId === point.id ? null : point.id)}
-                                                            className="text-[9px] font-black uppercase tracking-widest text-blue-600 hover:bg-blue-50 py-1 px-2 rounded-md self-start flex items-center gap-1.5 transition-colors"
-                                                        >
-                                                            {expandedAttachmentsPointId === point.id ? (
-                                                                <>Show Less <ChevronDown size={10} className="rotate-180" /></>
-                                                            ) : (
-                                                                <>+{point.attachments.length - 3} More <ChevronDown size={10} /></>
-                                                            )}
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            )}
-
-                                            {expandedHistoryPointId === point.id && ((point.history && point.history.length > 0) || (point.due_date_history && point.due_date_history.length > 0)) && (
-                                                <div className="mt-2 p-4 bg-white/60 rounded-xl border border-slate-100 flex flex-col gap-4 animate-in slide-in-from-top-2 fade-in duration-200 shadow-sm backdrop-blur-sm">
-                                                    {point.history && point.history.length > 0 && (
-                                                        <div className="flex flex-col gap-3">
-                                                            <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5 border-b border-slate-50 pb-2">
-                                                                <History size={12} /> Edit History
-                                                            </h4>
-                                                            <div className="flex flex-col gap-3">
-                                                                {point.history.map((h: any) => (
-                                                                    <div key={h.id} className="text-sm bg-white/80 p-3 rounded-lg border border-slate-100/50 shadow-sm">
-                                                                        <div className="flex justify-between items-center mb-1.5">
-                                                                            <div className="flex items-center gap-1.5">
-                                                                                <div className="size-5 rounded-full bg-slate-100/80 flex items-center justify-center text-slate-500">
-                                                                                    <User size={10} />
-                                                                                </div>
-                                                                                <span className="font-bold text-slate-700 text-[11px] uppercase tracking-wider">{h.editor_name || 'Anonymous'}</span>
-                                                                            </div>
-                                                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{getRelativeTime(h.created_at)}</span>
-                                                                        </div>
-                                                                        <p className="text-slate-400 font-medium text-[13px] line-through decoration-slate-300 leading-relaxed italic">
-                                                                            {h.old_text}
-                                                                        </p>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    )}
-
-                                                    {point.due_date_history && point.due_date_history.length > 0 && (
-                                                        <div className="flex flex-col gap-3">
-                                                            <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5 border-b border-slate-50 pb-2 mt-1">
-                                                                <Calendar size={12} /> Target Date History
-                                                            </h4>
-                                                            <div className="flex flex-col gap-2">
-                                                                {point.due_date_history.map((h: any, idx: number) => (
-                                                                    <div key={idx} className="text-[11px] bg-amber-50/50 p-2.5 rounded-lg border border-amber-100/50">
-                                                                        <div className="flex justify-between items-center mb-1">
-                                                                            <span className="font-bold text-amber-900 flex items-center gap-1.5 capitalize">
-                                                                                {h.changed_by_name?.split(' ')[0] || 'User'}
-                                                                            </span>
-                                                                            <span className="text-[9px] font-black text-amber-500/60 uppercase tracking-widest">{getRelativeTime(h.changed_at)}</span>
-                                                                        </div>
-                                                                        <div className="flex items-center gap-2 text-amber-800/80 font-medium">
-                                                                            <span className={h.old_date ? "line-through opacity-50" : ""}>{h.old_date ? formatDate(h.old_date) : 'No date'}</span>
-                                                                            <ChevronRight size={10} className="text-amber-400" />
-                                                                            <span className="font-black text-amber-600">{h.new_date ? formatDate(h.new_date) : 'Cleared'}</span>
-                                                                        </div>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-
-                                            <div className="flex items-center justify-between pt-3 border-t border-slate-50 mt-1">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="flex flex-col gap-1 min-h-[28px] justify-center">
-                                                        {isAssigned ? (
-                                                            <div className="flex flex-wrap gap-1.5">
-                                                                <div className="flex items-center gap-1">
-                                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">A:</span>
-                                                                    <div className="flex flex-wrap gap-1">
-                                                                        {point.assignments.map((a: any, i: number) => (
-                                                                            <div key={i} className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md border shadow-sm shrink-0 ${(a.assignee_type || a.type) === 'department' ? 'bg-blue-50 border-blue-100 text-blue-700' : 'bg-emerald-50 border-emerald-100 text-emerald-700'}`}>
-                                                                                {(a.assignee_type || a.type) === 'department' ? <Building size={10} /> : <User size={10} />}
-                                                                                <span className="text-[9px] font-black uppercase tracking-tight">{a.assignee_name || a.name}</span>
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
-                                                                </div>
-                                                                {point.reviewer_id && (
-                                                                    <div className="flex items-center gap-1">
-                                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">R:</span>
-                                                                        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-purple-100 shadow-sm shrink-0 bg-purple-50 text-purple-700">
-                                                                            <User size={10} />
-                                                                            <span className="text-[9px] font-black uppercase tracking-tight">{point.reviewer_name || 'Assigned'}</span>
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        ) : point.reviewer_id ? (
-                                                            <div className="flex items-center gap-1">
-                                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">R:</span>
-                                                                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-purple-100 shadow-sm shrink-0 bg-purple-50 text-purple-700 w-fit">
-                                                                    <User size={10} />
-                                                                    <span className="text-[9px] font-black uppercase tracking-tight">{point.reviewer_name || 'Assigned'}</span>
-                                                                </div>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="flex items-center gap-2">
-                                                                <div className="size-5 rounded-md bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-500 shadow-sm shrink-0">
-                                                                    <AlertCircle size={10} />
-                                                                </div>
-                                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                                                    No assignee
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest shrink-0">
-                                                    {((point.history && point.history.length > 0) || (point.due_date_history && point.due_date_history.length > 0)) && (
-                                                        <button
-                                                            onClick={() => setExpandedHistoryPointId(expandedHistoryPointId === point.id ? null : point.id)}
-                                                            className={`flex items-center gap-1.5 transition-colors ${expandedHistoryPointId === point.id ? 'text-blue-600' : 'hover:text-blue-500'}`}
-                                                            title="View edit/date history"
-                                                        >
-                                                            <History size={12} className={expandedHistoryPointId === point.id ? "animate-pulse" : ""} />
-                                                            History ({(point.history?.length || 0) + (point.due_date_history?.length || 0)})
-                                                        </button>
-                                                    )}
-                                                    <div className="w-px h-3 bg-slate-200"></div>
-                                                    {/* Due Date Inline Picker */}
-                                                    {editingDueDatePointId === point.id && point.status !== 'closed' && meeting.status !== 'completed' ? (
-                                                        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                                                            <input
-                                                                type="date"
-                                                                defaultValue={point.due_date ? new Date(point.due_date).toISOString().split('T')[0] : ''}
-                                                                className="text-[10px] border border-blue-300 rounded px-1.5 py-0.5 text-blue-700 bg-blue-50 outline-none focus:ring-1 focus:ring-blue-400"
-                                                                autoFocus
-                                                                onBlur={async (e) => {
-                                                                    const val = e.target.value;
-                                                                    setEditingDueDatePointId(null);
-                                                                    const res = await apiClient.patch(`/mom/point/due-date/${point.id}`, { due_date: val || null }, { withAuth: true });
-                                                                    if (res.success) {
-                                                                        setMeeting((prev: any) => ({
-                                                                            ...prev,
-                                                                            points: prev.points.map((p: any) => p.id === point.id ? {
-                                                                                ...p,
-                                                                                due_date: val || null,
-                                                                                due_date_history: res.history || p.due_date_history,
-                                                                                due_date_set_by_name: res.due_date_set_by_name || p.due_date_set_by_name
-                                                                            } : p)
-                                                                        }));
-                                                                        toast.success(val ? 'Target date set' : 'Target date cleared');
-                                                                    }
-                                                                }}
-                                                                onKeyDown={(e) => { if (e.key === 'Escape') setEditingDueDatePointId(null); }}
-                                                            />
-                                                        </div>
-                                                    ) : (
-                                                        <button
-                                                            onClick={(e) => {
-                                                                if (point.status === 'closed' || meeting.status === 'completed') return;
-                                                                e.stopPropagation();
-                                                                setEditingDueDatePointId(point.id);
-                                                            }}
-                                                            className={`flex items-center gap-1 transition-colors ${point.status === 'closed' || meeting.status === 'completed' ? 'cursor-default opacity-80' : 'cursor-pointer'} ${point.due_date
-                                                                ? (new Date(point.due_date) < new Date() && point.status !== 'closed' ? 'text-rose-500 hover:text-rose-600' : 'text-amber-500 hover:text-amber-600')
-                                                                : 'hover:text-blue-500'}`}
-                                                            title={point.due_date ? `Target: ${new Date(point.due_date).toLocaleDateString()}${point.due_date_set_by_name ? ` (Set by ${point.due_date_set_by_name})` : ''}` : 'Set target date'}
-                                                        >
-                                                            <CalendarDays size={12} />
-                                                            <div className="flex flex-col items-start leading-none">
-                                                                {point.due_date
-                                                                    ? <span>{new Date(point.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                                                                    : <span className="text-slate-300">{point.status === 'closed' || meeting.status === 'completed' ? 'No date' : 'Set date'}</span>
-                                                                }
-                                                                {point.due_date && point.due_date_set_by_name && (
-                                                                    <span className="text-[7px] opacity-60 normal-case tracking-normal">by {point.due_date_set_by_name.split(' ')[0]}</span>
-                                                                )}
-                                                            </div>
-                                                        </button>
-                                                    )}
-                                                    <div className="w-px h-3 bg-slate-200"></div>
-                                                    <span>{getRelativeTime(point.updated_at || point.created_at)}</span>
-                                                    <button onClick={() => setSelectedPoint(point)} className="p-1.5 rounded-full hover:bg-slate-50 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"><MessageSquare size={14} /></button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <PointCard
+                                        key={point.id}
+                                        point={point}
+                                        compact
+                                        selected={selectedPointIds.includes(point.id)}
+                                        onSelect={() => setSelectedPointIds(prev =>
+                                            prev.includes(point.id)
+                                                ? prev.filter(id => id !== point.id)
+                                                : [...prev, point.id])}
+                                        onOpen={() => setSelectedPoint(point)}
+                                        viewerIsReviewer={
+                                            Number(point.reviewer_id || point.created_by) === Number(effectiveEmployeeId)
+                                        }
+                                        actions={[
+                                            ...(canEditPoint(point) ? [{
+                                                key: 'edit',
+                                                label: 'Edit',
+                                                kind: 'quiet' as const,
+                                                icon: Edit3,
+                                                onClick: (e: React.MouseEvent) => {
+                                                    e.stopPropagation();
+                                                    setEditingPointId(point.id);
+                                                    setEditText(point.point_text);
+                                                    setSelectedAssignments((point.assignments || []).map((a: any) => ({
+                                                        id: a.assignee_id, type: a.assignee_type, name: a.assignee_name,
+                                                    })));
+                                                    setNewDueDate(point.due_date ? String(point.due_date).slice(0, 10) : null);
+                                                },
+                                            }] : []),
+                                            ...(canEditPoint(point) ? [{
+                                                key: 'delete',
+                                                label: 'Delete',
+                                                kind: 'quiet' as const,
+                                                icon: Trash2,
+                                                onClick: (e: React.MouseEvent) => { e.stopPropagation(); setPointToDelete(point.id); },
+                                            }] : []),
+                                        ]}
+                                    />
                                 );
                             })}
                         </div>

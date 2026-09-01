@@ -108,10 +108,7 @@ export default function DiscussionThread({
                 setMessages(prev => [...prev, msgObj]);
                 setNewMessage('');
 
-                // Also update status to 'acknowledged' if it was 'open' and sender is assignee
-                if (status === 'open') {
-                    handleUpdateStatus('acknowledged');
-                }
+
             }
         } catch (error) {
             console.error('Error sending message:', error);
