@@ -9,7 +9,8 @@ import {
     TrendingUp,
     Edit,
     Lock,
-    Trash2
+    Trash2,
+    Moon
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/apiClient";
@@ -230,6 +231,21 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
             return "—";
         }
     };
+
+    /* The punch segments belonging to the night OT stretch, and only those that
+       actually carry a photo. The server flags them, since it is the side that
+       knows when night OT began; the time window is re-checked here only as a
+       fallback for payloads predating that flag. */
+    const nightOtPhotos: any[] = React.useMemo(() => {
+        const segments: any[] = Array.isArray(record?.punch_sessions) ? record.punch_sessions : [];
+        const nightStart = record?.night_ot_start_time ? new Date(record.night_ot_start_time).getTime() : null;
+        return segments.filter((p: any) => {
+            if (!p?.punch_in_image && !p?.punch_out_image) return false;
+            if (typeof p.is_night_ot === 'boolean') return p.is_night_ot;
+            if (!nightStart || !p.punch_in_time) return false;
+            return new Date(p.punch_in_time).getTime() >= nightStart;
+        });
+    }, [record]);
 
     const formatDate = (dateStr?: string) => {
         if (!dateStr) return "—";
@@ -811,6 +827,47 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                             </div>
                                         )}
                                     </div>
+                                </div>
+                            )}
+
+                            {/* Night OT photos.
+                                The day-level record only keeps the first punch-in and the last
+                                punch-out image, so the night OT segment's own photos never showed
+                                here. They come from that segment's punch session. */}
+                            {nightOtPhotos.length > 0 && (
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-1.5">
+                                        <Moon className="w-3.5 h-3.5 text-indigo-600" />
+                                        <div className="text-xs font-semibold text-indigo-700 uppercase">Night OT Photos</div>
+                                    </div>
+                                    {nightOtPhotos.map((seg, i) => (
+                                        <div key={i} className="grid grid-cols-2 gap-2">
+                                            {!!seg.punch_in_image && (
+                                                <div>
+                                                    <div className="text-xs text-slate-500 mb-1">
+                                                        Check In{seg.punch_in_time ? ` · ${formatTime(seg.punch_in_time)}` : ''}
+                                                    </div>
+                                                    <img
+                                                        src={seg.punch_in_image}
+                                                        alt="Night OT Check In"
+                                                        className="w-full h-28 object-contain rounded-lg border border-indigo-200 bg-indigo-50/40"
+                                                    />
+                                                </div>
+                                            )}
+                                            {!!seg.punch_out_image && (
+                                                <div>
+                                                    <div className="text-xs text-slate-500 mb-1">
+                                                        Check Out{seg.punch_out_time ? ` · ${formatTime(seg.punch_out_time)}` : ''}
+                                                    </div>
+                                                    <img
+                                                        src={seg.punch_out_image}
+                                                        alt="Night OT Check Out"
+                                                        className="w-full h-28 object-contain rounded-lg border border-indigo-200 bg-indigo-50/40"
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
                                 </div>
                             )}
 
