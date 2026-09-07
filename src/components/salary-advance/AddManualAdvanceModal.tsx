@@ -45,6 +45,10 @@ export default function AddManualAdvanceModal({ isOpen, onClose, onSuccess }: Ad
     const [reason, setReason] = useState("Direct Import");
     const [splitType, setSplitType] = useState<"equal" | "custom">("equal");
     const [deductInCurrentMonth, setDeductInCurrentMonth] = useState(false);
+    /* Off by default: an advance entered a month late has not been deducted
+       from anything yet, so its backdated installments have to stay due. Only
+       tick this when the money really was taken off a past payslip. */
+    const [markPastAsPaid, setMarkPastAsPaid] = useState(false);
 
     // Consolidate logic state
     const [outstandingBalance, setOutstandingBalance] = useState(0);
@@ -175,6 +179,12 @@ export default function AddManualAdvanceModal({ isOpen, onClose, onSuccess }: Ad
     const customTotal = customEmis.reduce((s, row) => s + row.amount, 0);
     const customDifference = Math.round((remainingAmount - customTotal) * 100) / 100;
 
+    const todayStr = new Date().toISOString().split("T")[0];
+    // Backdating is the normal case here, not an edge one: payroll runs a month
+    // behind, so an advance taken in August is entered in September. Counting
+    // the affected rows lets the form say plainly what will happen to them.
+    const pastDueCount = customEmis.filter(r => r.due_date <= todayStr).length;
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedEmployee) {
@@ -201,11 +211,15 @@ export default function AddManualAdvanceModal({ isOpen, onClose, onSuccess }: Ad
                 start_month: startMonth,
                 reason,
                 deduct_in_current_month: deductInCurrentMonth,
+                mark_past_as_paid: markPastAsPaid,
                 combine_old_advances: combineOldAdvances,
-                emi_schedule: splitType === "custom" ? customEmis.map(e => ({
+                // Always sent, for either split. The dates on screen are
+                // editable in both modes now, so posting only the amounts would
+                // silently discard whatever the user had just adjusted.
+                emi_schedule: customEmis.map(e => ({
                     amount: e.amount,
                     due_date: e.due_date
-                })) : []
+                }))
             };
 
             await apiClient("/salary-advance/manual-advance", {
@@ -487,19 +501,18 @@ export default function AddManualAdvanceModal({ isOpen, onClose, onSuccess }: Ad
                                     </div>
 
                                     <div className="flex flex-1 sm:justify-end gap-3">
-                                        {/* Date */}
-                                        <div className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-gray-50/50 text-gray-600">
+                                        {/* Date — editable in both split modes. An equal
+                                            split still needs its dates moved when payroll
+                                            runs a month behind; only the amounts are fixed
+                                            by the split. */}
+                                        <div className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-xs ${row.due_date <= todayStr ? "border-amber-300 bg-amber-50 text-amber-800" : "border-gray-200 bg-gray-50/50 text-gray-600"}`}>
                                             <Calendar className="w-3.5 h-3.5" />
-                                            {splitType === "equal" ? (
-                                                row.due_date
-                                            ) : (
-                                                <input
-                                                    type="date"
-                                                    value={row.due_date}
-                                                    onChange={(e) => handleCustomEmiChange(index, "due_date", e.target.value)}
-                                                    className="border-0 bg-transparent p-0 text-xs focus:ring-0 w-28 text-gray-700"
-                                                />
-                                            )}
+                                            <input
+                                                type="date"
+                                                value={row.due_date}
+                                                onChange={(e) => handleCustomEmiChange(index, "due_date", e.target.value)}
+                                                className="border-0 bg-transparent p-0 text-xs focus:ring-0 w-28 text-inherit"
+                                            />
                                         </div>
 
                                         {/* Amount */}
@@ -547,12 +560,43 @@ export default function AddManualAdvanceModal({ isOpen, onClose, onSuccess }: Ad
                             className="w-4.5 h-4.5 text-indigo-600 rounded focus:ring-indigo-500 mt-0.5"
                         />
                         <div>
-                            <span className="text-sm font-semibold text-gray-900">Deduct from current month's salary</span>
+                            <span className="text-sm font-semibold text-gray-900">Deduct from current month&apos;s salary</span>
                             <p className="text-xs text-gray-500 mt-0.5">
                                 If enabled, the first EMI installment due date will align with the current payroll cycle deduction start day.
                             </p>
                         </div>
                     </label>
+
+                    {/* Only meaningful when the plan reaches back before today,
+                        which is exactly the late-entry case this screen exists
+                        for. Hidden otherwise rather than sitting there inert. */}
+                    {pastDueCount > 0 && (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 space-y-2">
+                            <div className="flex items-start gap-2">
+                                <Calendar className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                                <p className="text-xs text-amber-900">
+                                    <span className="font-semibold">{pastDueCount} installment{pastDueCount > 1 ? "s are" : " is"} dated on or before today.</span>{" "}
+                                    {markPastAsPaid
+                                        ? "They will be recorded as already collected, so no further deduction is made for them."
+                                        : "They stay due, so the next payroll run will deduct them. This is what you want when the advance was taken in a previous month and is only being entered now."}
+                                </p>
+                            </div>
+                            <label className="flex items-start gap-3 p-2 rounded-lg hover:bg-amber-100/50 cursor-pointer transition-colors">
+                                <input
+                                    type="checkbox"
+                                    checked={markPastAsPaid}
+                                    onChange={(e) => setMarkPastAsPaid(e.target.checked)}
+                                    className="w-4.5 h-4.5 text-amber-600 rounded focus:ring-amber-500 mt-0.5"
+                                />
+                                <div>
+                                    <span className="text-sm font-semibold text-amber-900">These were already deducted from past salaries</span>
+                                    <p className="text-xs text-amber-700 mt-0.5">
+                                        Tick only if the money has genuinely already come off a payslip. It marks them paid and they will never be collected again.
+                                    </p>
+                                </div>
+                            </label>
+                        </div>
+                    )}
                 </form>
 
                 {/* Footer Actions */}

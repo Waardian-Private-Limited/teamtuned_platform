@@ -100,6 +100,9 @@ export default function RepaymentScheduleList() {
 
     // Form inputs
     const [editAmount, setEditAmount] = useState("");
+    // Which payroll run collects this instalment. Separate from the amount so a
+    // plan can be moved without being re-split.
+    const [editDueDate, setEditDueDate] = useState("");
     const [adjustType, setAdjustType] = useState("distribute"); // 'distribute', 'next_emi', 'last_emi', 'none'
     const [payAmount, setPayAmount] = useState("");
     const [paymentMode, setPaymentMode] = useState("cash");
@@ -284,6 +287,12 @@ export default function RepaymentScheduleList() {
                 withAuth: true,
                 body: {
                     emi_amount: Number(editAmount),
+                    // Only sent when actually moved. Passing the unchanged date
+                    // back would be harmless but makes the intent muddier in
+                    // the logs when something later needs explaining.
+                    ...(editDueDate && editDueDate !== selectedEmi.due_date?.slice(0, 10)
+                        ? { due_date: editDueDate }
+                        : {}),
                     adjust_type: adjustType
                 }
             });
@@ -738,6 +747,7 @@ export default function RepaymentScheduleList() {
                                                                                                             onClick={() => {
                                                                                                                 setSelectedEmi(emi);
                                                                                                                 setEditAmount(String(emi.emi_amount));
+                                                                                                                setEditDueDate(String(emi.due_date || "").slice(0, 10));
                                                                                                                 setAdjustType("distribute");
                                                                                                                 setShowEditModal(true);
                                                                                                             }}
@@ -827,7 +837,7 @@ export default function RepaymentScheduleList() {
                                 <div className="p-6 space-y-4">
                                     <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                                         <DollarSign className="w-5 h-5 text-blue-500 animate-bounce" />
-                                        Customize EMI Amount
+                                        Customize EMI
                                     </h3>
                                     <div className="space-y-1.5">
                                         <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">EMI #{selectedEmi.emi_number} Amount</label>
@@ -838,6 +848,20 @@ export default function RepaymentScheduleList() {
                                             className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
                                             placeholder="e.g. 5000"
                                         />
+                                    </div>
+                                    {/* Moving the date decides which payroll run picks the
+                                        instalment up — the amount is untouched by it. */}
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Due Date</label>
+                                        <input
+                                            type="date"
+                                            value={editDueDate}
+                                            onChange={(e) => setEditDueDate(e.target.value)}
+                                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
+                                        />
+                                        <p className="text-[11px] text-slate-500">
+                                            Sets which payroll month deducts this installment. A past date means the next run collects it.
+                                        </p>
                                     </div>
                                     <div className="space-y-1.5">
                                         <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Reallocate Difference</label>
