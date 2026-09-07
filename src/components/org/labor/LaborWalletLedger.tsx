@@ -48,6 +48,13 @@ export default function LaborWalletLedger() {
     const [contractors, setContractors] = useState<any[]>([]);
     const [contractorId, setContractorId] = useState<string>("");
 
+    /* Date range for the list. Empty means every row ever, which is what this
+       screen always showed - the difference is that the export can now be run
+       over the same window, so its row count and the total shown here describe
+       the same set instead of quietly disagreeing. */
+    const [ledgerFrom, setLedgerFrom] = useState<string>("");
+    const [ledgerTo, setLedgerTo] = useState<string>("");
+
     const { role } = useAuth();
     const isOrgAdmin = role?.toLowerCase() === 'orgadmin';
 
@@ -139,7 +146,7 @@ export default function LaborWalletLedger() {
         fetchLedger();
         fetchInvoices();
         fetchStats();
-    }, [pagination.page, pagination.limit, invPagination.page, invPagination.limit, search, laborerId, siteId, contractorId, activeTab]);
+    }, [pagination.page, pagination.limit, invPagination.page, invPagination.limit, search, laborerId, siteId, contractorId, ledgerFrom, ledgerTo, activeTab]);
 
     useEffect(() => {
         fetchAllLaborers();
@@ -195,7 +202,9 @@ export default function LaborWalletLedger() {
                 search,
                 laborer_id: laborerId || undefined,
                 site_id: siteId || undefined,
-                contractor_id: contractorId || undefined
+                contractor_id: contractorId || undefined,
+                from_date: ledgerFrom || undefined,
+                to_date: ledgerTo || undefined
             });
             if (res.success) {
                 setLedger(res.ledger);
@@ -586,6 +595,37 @@ export default function LaborWalletLedger() {
                         }}
                         className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-sm font-medium outline-none"
                     />
+                </div>
+
+                {/* Date range — the same window the export accepts, so the
+                    total below and the exported row count agree. */}
+                <div className="flex items-center gap-2 w-full lg:w-auto">
+                    <input
+                        type="date"
+                        value={ledgerFrom}
+                        max={ledgerTo || undefined}
+                        onChange={(e) => { setLedgerFrom(e.target.value); setPagination(prev => ({ ...prev, page: 1 })); }}
+                        className="w-full lg:w-40 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-sm font-medium outline-none"
+                        title="From date"
+                    />
+                    <span className="text-gray-400 text-sm">→</span>
+                    <input
+                        type="date"
+                        value={ledgerTo}
+                        min={ledgerFrom || undefined}
+                        onChange={(e) => { setLedgerTo(e.target.value); setPagination(prev => ({ ...prev, page: 1 })); }}
+                        className="w-full lg:w-40 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-sm font-medium outline-none"
+                        title="To date"
+                    />
+                    {(ledgerFrom || ledgerTo) && (
+                        <button
+                            onClick={() => { setLedgerFrom(""); setLedgerTo(""); setPagination(prev => ({ ...prev, page: 1 })); }}
+                            className="px-2 py-2 text-xs text-gray-500 hover:text-gray-700 whitespace-nowrap"
+                            title="Clear date range"
+                        >
+                            Clear
+                        </button>
+                    )}
                 </div>
 
                 {/* Site Filter */}
@@ -1413,6 +1453,12 @@ export default function LaborWalletLedger() {
             {showExportModal && (
                 <LedgerExportModal
                     onClose={() => setShowExportModal(false)}
+                    // Opens on whatever the list is currently showing, so the
+                    // sheet covers the rows the total on screen was counting.
+                    initialFrom={ledgerFrom}
+                    initialTo={ledgerTo}
+                    initialSiteId={siteId}
+                    initialContractorId={contractorId}
                 />
             )}
         </div>
@@ -1420,12 +1466,23 @@ export default function LaborWalletLedger() {
 }
 
 // Ledger Export Modal Component
-function LedgerExportModal({ onClose }: { onClose: () => void }) {
+function LedgerExportModal({ onClose, initialFrom, initialTo, initialSiteId, initialContractorId }: {
+    onClose: () => void;
+    initialFrom?: string;
+    initialTo?: string;
+    initialSiteId?: string;
+    initialContractorId?: string;
+}) {
+    /* Seeded from the list's own filters. This used to default to the current
+       month regardless of what was on screen, so the obvious comparison -
+       "the list says 32,405, the sheet has 32,313" - was between two different
+       periods. Falling back to the current month only when the list has no
+       range set. */
     const [fromDate, setFromDate] = useState(
-        new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
+        initialFrom || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
     );
     const [toDate, setToDate] = useState(
-        new Date().toISOString().split('T')[0]
+        initialTo || new Date().toISOString().split('T')[0]
     );
     const [type, setType] = useState<'all' | 'attendance' | 'registration'>('all');
     const [exportFormat, setExportFormat] = useState<'excel' | 'pdf'>('excel');
@@ -1434,9 +1491,9 @@ function LedgerExportModal({ onClose }: { onClose: () => void }) {
 
     // Site & Contractor selections inside export
     const [sites, setSites] = useState<any[]>([]);
-    const [selectedSiteId, setSelectedSiteId] = useState<string>("");
+    const [selectedSiteId, setSelectedSiteId] = useState<string>(initialSiteId || "");
     const [contractors, setContractors] = useState<any[]>([]);
-    const [selectedContractorId, setSelectedContractorId] = useState<string>("");
+    const [selectedContractorId, setSelectedContractorId] = useState<string>(initialContractorId || "");
 
     useEffect(() => {
         fetchSites();
