@@ -30,6 +30,66 @@ export function toLifecycle(status?: string | null, lifecycle?: string | null): 
     }
 }
 
+/**
+ * The legacy `status` word each lifecycle state writes, mirroring
+ * LEGACY_FOR_STATE in the backend's momLifecycle.js. The two must agree: this
+ * is what keeps an optimistic local update indistinguishable from what the
+ * server would have written.
+ */
+export const LEGACY_FOR_LIFECYCLE: Record<Lifecycle, string> = {
+    open: 'open',
+    in_progress: 'acknowledged',
+    submitted: 'completed',
+    done: 'closed',
+    cancelled: 'closed',
+};
+
+/**
+ * Move a point to a lifecycle state, setting *both* status fields together.
+ *
+ * Never assign `status` on its own. `toLifecycle` gives `lifecycle_status`
+ * precedence, so a point patched with `{ status: 'acknowledged' }` alone keeps
+ * whatever `lifecycle_status` it already had — which is how an acknowledged
+ * point went on offering its Acknowledge button.
+ */
+export function applyLifecycle<T extends { status?: string | null; lifecycle_status?: string | null }>(
+    point: T,
+    lifecycle: Lifecycle,
+): T {
+    return {
+        ...point,
+        lifecycle_status: lifecycle,
+        status: LEGACY_FOR_LIFECYCLE[lifecycle],
+        closed_at: lifecycle === 'done' ? new Date().toISOString() : null,
+    };
+}
+
+/**
+ * Merge the authoritative point a lifecycle endpoint returned.
+ *
+ * Prefers the server's `point` envelope; falls back to the flat `status` key
+ * (which carries the *lifecycle* value on those endpoints) so this still does
+ * the right thing against a backend that has not been redeployed yet.
+ */
+export function mergePointState<T extends { status?: string | null; lifecycle_status?: string | null }>(
+    point: T,
+    response: unknown,
+): T {
+    const res = (response || {}) as Record<string, unknown>;
+    const envelope = res.point as Record<string, unknown> | undefined;
+
+    if (envelope && typeof envelope.lifecycle_status === 'string') {
+        return { ...point, ...envelope } as T;
+    }
+
+    const flat = typeof res.status === 'string' ? res.status : null;
+    if (flat) {
+        // `status` on a transition response is the lifecycle value, not a legacy word.
+        return applyLifecycle(point, toLifecycle(null, flat));
+    }
+    return point;
+}
+
 export const TONE_CLASSES: Record<Tone, { stripe: string; chip: string; dot: string }> = {
     neutral: { stripe: 'bg-slate-300', chip: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' },
     active: { stripe: 'bg-blue-500', chip: 'bg-blue-50 text-blue-700', dot: 'bg-blue-500' },
@@ -137,6 +197,143 @@ export function derivedBadges(point: PointLike, from = new Date()): Badge[] {
     }
 
     return badges.slice(0, 3);
+}
+
+/** Who is looking, in the terms the guards below actually care about. */
+export interface Viewer {
+    employeeId?: string | number | null;
+    /** Org admin or HR mode: may review anything in the organisation. */
+    isAdmin?: boolean;
+    /**
+     * The viewer's department, for points pooled to a whole team.
+     *
+     * Optional, and only a *fallback*. The server sends `is_pool_member` and
+     * `is_claimable` on every point precisely so neither client has to own a
+     * copy of the site and Head Office rules; this is here for the payloads
+     * that predate those flags, where matching on department alone is closer
+     * to right than showing nothing.
+     */
+    departmentId?: string | number | null;
+}
+
+/**
+ * What this person can do to this point, right now.
+ *
+ * One implementation, mirroring `abilityFor` in `mom_status.dart` and the
+ * guards in the backend's momAccess.js. Three screens each carried their own
+ * copy of this before, drifting apart on exactly the checks that decide whether
+ * a button is showing, and each one ORed a raw legacy-status test against the
+ * lifecycle test — so a half-updated point satisfied two branches at once and
+ * rendered Acknowledge and Mark Done side by side.
+ */
+export interface Ability {
+    isAssignee: boolean;
+    isOwner: boolean;
+    isReviewer: boolean;
+    /** In the department this point is pooled to, and allowed to see it. */
+    isPoolMember: boolean;
+    canStart: boolean;
+    /**
+     * Unclaimed pool work this person may take. Renders the same Acknowledge
+     * button as `canStart`, but it means something different and the copy
+     * around it should say so: whoever presses it first becomes the owner and
+     * it disappears for everybody else.
+     */
+    canClaim: boolean;
+    canSubmit: boolean;
+    canVerify: boolean;
+    canReturn: boolean;
+    canHandOff: boolean;
+    canReassign: boolean;
+    canSetDueDate: boolean;
+}
+
+interface AbilityPoint extends PointLike {
+    assignments?: { role?: string; state?: string; assignee_type?: string; assignee_id?: string | number }[];
+    assigned_to_id?: string | number | null;
+    reviewer_id?: string | number | null;
+    created_by?: string | number | null;
+    meeting_created_by?: string | number | null;
+    is_raised?: number | boolean;
+    /** Server-computed pool flags: authoritative when present. */
+    is_pool_member?: number | boolean;
+    is_claimable?: number | boolean;
+}
+
+export function abilityFor(point: AbilityPoint, viewer: Viewer): Ability {
+    const me = viewer.employeeId != null && String(viewer.employeeId).trim() !== ''
+        ? String(viewer.employeeId).trim()
+        : null;
+    const same = (v: unknown) => me != null && v != null && String(v).trim() === me;
+
+    // A verifier is not an assignee: the reviewer must never be able to submit
+    // work to themselves. Declined rows are nobody's responsibility.
+    const working = (point.assignments || []).filter(
+        a => (a.state || 'active') === 'active' && a.role !== 'verifier'
+    );
+
+    const isAssignee = working.some(a => a.assignee_type === 'employee' && same(a.assignee_id))
+        || same(point.assigned_to_id);
+    const isOwner = working.some(
+        a => a.assignee_type === 'employee' && same(a.assignee_id) && (a.role === 'owner' || !a.role)
+    );
+    const isReviewer = Boolean(viewer.isAdmin)
+        || point.is_raised === 1 || point.is_raised === true
+        || same(point.reviewer_id) || same(point.created_by) || same(point.meeting_created_by);
+
+    // A point assigned to a department is a pool, not an owner: everyone in
+    // that team sees it and the first to acknowledge takes it. This is
+    // deliberately *not* folded into `isAssignee` - a pool member who has not
+    // claimed yet must not be offered Submit or a target-date edit on work
+    // that is still nobody's.
+    //
+    // Prefer the server's flags. They are the only thing that knows the org's
+    // Head Office policy and which sites the meeting is held at, and under the
+    // `view` policy the two answers genuinely differ: an HQ member of the
+    // department is shown the point with no Acknowledge button on it.
+    const hasOwner = working.some(a => a.assignee_type === 'employee' && (a.role === 'owner' || !a.role));
+    const inPoolDept = viewer.departmentId != null && String(viewer.departmentId).trim() !== ''
+        && working.some(a => a.assignee_type === 'department'
+            && String(a.assignee_id ?? '').trim() === String(viewer.departmentId).trim());
+
+    const isPoolMember = point.is_pool_member !== undefined
+        ? (point.is_pool_member === 1 || point.is_pool_member === true)
+        : inPoolDept;
+
+    const { lifecycle } = readStatus(point);
+    const terminal = lifecycle === 'done' || lifecycle === 'cancelled';
+
+    const claimable = point.is_claimable !== undefined
+        ? (point.is_claimable === 1 || point.is_claimable === true)
+        : (inPoolDept && !hasOwner);
+
+    return {
+        isAssignee,
+        isOwner,
+        isReviewer,
+        isPoolMember,
+        canStart: !terminal && lifecycle === 'open' && isAssignee,
+        canClaim: !terminal && lifecycle === 'open' && !isAssignee && claimable,
+        canSubmit: !terminal && lifecycle === 'in_progress' && isAssignee,
+        canVerify: !terminal && lifecycle === 'submitted' && isReviewer,
+        canReturn: !terminal && lifecycle === 'submitted' && isReviewer,
+        canHandOff: !terminal && isOwner,
+        canReassign: !terminal && !isOwner && isReviewer,
+        canSetDueDate: !terminal && (isAssignee || isReviewer),
+    };
+}
+
+/**
+ * The department a point is pooled to, if any - for the "Open to Maintenance"
+ * line on a card. Returns the name the server hydrated, never an id.
+ */
+export function poolDepartment(point: AbilityPoint): { id?: string | number; name: string } | null {
+    const dept = (point.assignments || []).find(
+        (a: { role?: string; state?: string; assignee_type?: string; assignee_id?: string | number; assignee_name?: string }) =>
+            (a.state || 'active') === 'active' && a.assignee_type === 'department'
+    ) as { assignee_id?: string | number; assignee_name?: string } | undefined;
+    if (!dept) return null;
+    return { id: dept.assignee_id, name: dept.assignee_name || 'a department' };
 }
 
 /** Initials for an avatar chip, from whatever shape the name arrives in. */

@@ -16,12 +16,13 @@ import ActionItemChat from './ActionItemChat';
 import HandoffInbox from './HandoffInbox';
 import HandoffDialog from './HandoffDialog';
 import PointCard, { PointAction } from './PointCard';
-import { toLifecycle } from '@/lib/momStatus';
+import { abilityFor, mergePointState, poolDepartment } from '@/lib/momStatus';
 import { dueDatePresets } from '@/lib/momDates';
 import { useUserStore } from '@/lib/store/userStore';
 
 export default function MyActionItems() {
     const [points, setPoints] = useState<any[]>([]);
+    const [viewer, setViewer] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState('All Status');
     const [meetingFilter, setMeetingFilter] = useState('All Meetings');
@@ -61,6 +62,7 @@ export default function MyActionItems() {
 
             const res = await apiClient.get('/mom/my-points', params, { withAuth: true });
             if (res.success) {
+                if (res.viewer) setViewer(res.viewer);
                 const newPoints = res.points || [];
                 if (isInitial) {
                     setPoints(newPoints);
@@ -85,15 +87,28 @@ export default function MyActionItems() {
         fetchMyPoints(nextPage);
     };
 
-    const handleAcknowledge = async (id: number, e: React.MouseEvent) => {
+    const handleAcknowledge = async (id: number, e: React.MouseEvent, claiming = false) => {
         e.stopPropagation();
         try {
             const res = await apiClient.put(`/mom/point/acknowledge/${id}`, {}, { withAuth: true });
             if (res.success) {
-                toast.success('Point acknowledged');
-                setPoints(prev => prev.map(p => p.id === id ? { ...p, status: 'acknowledged' } : p));
+                toast.success(res.claimed_from_pool || claiming ? 'You have taken this on' : 'Point acknowledged');
+                // Claiming also settles who owns it, so the pool flags the
+                // server sent with the list are now stale on this row.
+                setPoints(prev => prev.map(p => p.id === id
+                    ? { ...mergePointState(p, res), is_claimable: 0 }
+                    : p));
             }
         } catch (err: any) {
+            // Losing the race for a pooled point is a normal outcome: someone
+            // else pressed first. Retract the button rather than reporting a
+            // failure the person can do nothing about.
+            const claimedBy = err?.data?.claimed_by || err?.claimed_by;
+            if (err?.status === 409 || err?.data?.code === 'already_claimed') {
+                toast(claimedBy ? `${claimedBy} picked this up first.` : 'Someone else picked this up first.');
+                setPoints(prev => prev.map(p => p.id === id ? { ...p, is_claimable: 0 } : p));
+                return;
+            }
             toast.error(err.message || 'Failed to acknowledge');
         }
     };
@@ -104,7 +119,7 @@ export default function MyActionItems() {
             const res = await apiClient.put(`/mom/point/complete/${id}`, {}, { withAuth: true });
             if (res.success) {
                 toast.success('Point marked as completed');
-                setPoints(prev => prev.map(p => p.id === id ? { ...p, status: 'completed' } : p));
+                setPoints(prev => prev.map(p => p.id === id ? mergePointState(p, res) : p));
             }
         } catch (err) {
             toast.error('Failed to mark done');
@@ -131,7 +146,7 @@ export default function MyActionItems() {
             const res = await apiClient.put(`/mom/point/reject/${id}`, {}, { withAuth: true });
             if (res.success) {
                 toast.error('Point rejected & reopened');
-                setPoints(prev => prev.map(p => p.id === id ? { ...p, status: 'rejected' } : p));
+                setPoints(prev => prev.map(p => p.id === id ? mergePointState(p, res) : p));
             }
         } catch (err) {
             toast.error('Failed to reject');
@@ -329,56 +344,63 @@ export default function MyActionItems() {
             ) : (
                 <div className="flex flex-col gap-5">
                     {filteredPoints.map((point: any) => {
-                        const myId = String(user?.employeeId || user?.id);
-                        const assignments = (point.assignments || []).filter(
-                            (a: any) => (a.state || 'active') === 'active' && a.role !== 'verifier'
-                        );
-                        const isOwner = assignments.some((a: any) =>
-                            a.assignee_type === 'employee' && String(a.assignee_id) === myId && (a.role === 'owner' || !a.role));
-                        const isAssignedToMe = assignments.some((a: any) =>
-                            a.assignee_type === 'employee' && String(a.assignee_id) === myId) ||
-                            (point.assigned_to_id && String(point.assigned_to_id) === myId);
-                        const lifecycle = toLifecycle(point.status, point.lifecycle_status);
-                        const isReviewer = !!point.is_raised;
+                        // One source for who may do what. See momStatus.ts.
+                        const ability = abilityFor(point, {
+                            employeeId: user?.employeeId || user?.id,
+                            departmentId: viewer?.department_id,
+                        });
+                        const isReviewer = ability.isReviewer;
+                        const pool = poolDepartment(point);
 
                         // Only what this person can actually do next, so the row
                         // is a decision rather than a menu.
                         const actions: PointAction[] = [];
 
-                        if (lifecycle === 'open' && isAssignedToMe) {
+                        if (ability.canStart) {
                             actions.push({
                                 key: 'start', label: 'Acknowledge', kind: 'primary',
                                 onClick: (e: React.MouseEvent) => handleAcknowledge(point.id, e),
                             });
                         }
-                        if (lifecycle === 'in_progress' && isAssignedToMe) {
+                        // Pooled to this person's department and still nobody's.
+                        // Worded as a claim, because pressing it takes the work
+                        // off everyone else who can see it.
+                        if (ability.canClaim) {
+                            actions.push({
+                                key: 'claim', label: "I'll take this", kind: 'primary',
+                                onClick: (e: React.MouseEvent) => handleAcknowledge(point.id, e, true),
+                            });
+                        }
+                        if (ability.canSubmit) {
                             actions.push({
                                 key: 'done', label: 'Mark done', kind: 'primary', icon: Check,
                                 onClick: (e: React.MouseEvent) => handleMarkDone(point.id, e),
                             });
                         }
-                        if (lifecycle === 'submitted' && isReviewer) {
+                        if (ability.canVerify) {
                             actions.push({
                                 key: 'approve', label: 'Approve', kind: 'primary', icon: Check,
                                 onClick: (e: React.MouseEvent) => handleApprove(point.id, e),
                             });
+                        }
+                        if (ability.canReturn) {
                             actions.push({
                                 key: 'return', label: 'Send back', kind: 'danger',
                                 onClick: (e: React.MouseEvent) => handleReject(point.id, e),
                             });
                         }
-                        if (lifecycle !== 'done' && lifecycle !== 'cancelled') {
-                            if (isOwner) {
-                                actions.push({
-                                    key: 'handoff', label: 'Hand over', icon: ArrowRightLeft,
-                                    onClick: (e: React.MouseEvent) => { e.stopPropagation(); setHandoffTarget({ id: point.id, text: point.point_text, mode: 'handoff' }); },
-                                });
-                            } else if (isReviewer) {
-                                actions.push({
-                                    key: 'reassign', label: 'Reassign', icon: ArrowRightLeft,
-                                    onClick: (e: React.MouseEvent) => { e.stopPropagation(); setHandoffTarget({ id: point.id, text: point.point_text, mode: 'reassign' }); },
-                                });
-                            }
+                        if (ability.canHandOff) {
+                            actions.push({
+                                key: 'handoff', label: 'Hand over', icon: ArrowRightLeft,
+                                onClick: (e: React.MouseEvent) => { e.stopPropagation(); setHandoffTarget({ id: point.id, text: point.point_text, mode: 'handoff' }); },
+                            });
+                        } else if (ability.canReassign) {
+                            actions.push({
+                                key: 'reassign', label: 'Reassign', icon: ArrowRightLeft,
+                                onClick: (e: React.MouseEvent) => { e.stopPropagation(); setHandoffTarget({ id: point.id, text: point.point_text, mode: 'reassign' }); },
+                            });
+                        }
+                        if (ability.canSetDueDate) {
                             actions.push({
                                 key: 'due', label: point.due_date ? 'Target' : 'Set target', kind: 'quiet', icon: CalendarDays,
                                 onClick: (e: React.MouseEvent) => { e.stopPropagation(); setEditingDueDatePointId(editingDueDatePointId === point.id ? null : point.id); },

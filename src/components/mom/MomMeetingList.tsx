@@ -270,7 +270,17 @@ export default function MomMeetingList({ basePath }: MomMeetingListProps) {
                     meeting_notes: fullMeeting.meeting_notes || '',
                     meeting_date: formatDateForInput(fullMeeting.meeting_date),
                     end_time: formatDateForInput(fullMeeting.end_time),
-                    locations: fullMeeting.location ? fullMeeting.location.split(', ').map((name: string, idx: number) => ({ id: idx + 9999, name })) : [],
+                    // Real site rows, from meeting.sites. This used to split the
+                    // free-text `location` string and invent ids (idx + 9999),
+                    // which the create/edit payload then sent back as `site_ids`
+                    // - so every edit posted site ids that belong to no site.
+                    // The fallback keeps the names visible for a meeting saved
+                    // before meeting_sites existed, with no id to send back.
+                    locations: Array.isArray(fullMeeting.sites) && fullMeeting.sites.length > 0
+                        ? fullMeeting.sites.map((site: any) => ({ id: site.id, name: site.name }))
+                        : (fullMeeting.location
+                            ? fullMeeting.location.split(', ').map((name: string) => ({ id: null, name }))
+                            : []),
                     attendees: (fullMeeting.attendees || []).map((a: any) => ({
                         employee_id: a.employee_id,
                         name: a.name || 'Unknown',
@@ -343,8 +353,11 @@ export default function MomMeetingList({ basePath }: MomMeetingListProps) {
                 meeting_date: meetingData.meeting_date ? new Date(meetingData.meeting_date).toISOString() : '',
                 end_time: meetingData.end_time ? new Date(meetingData.end_time).toISOString() : null,
                 location: meetingData.locations.map(l => l.name).join(', '),
-                site_id: meetingData.locations.length > 0 ? meetingData.locations[0].id : null,
-                site_ids: meetingData.locations.map(l => l.id)
+                // Only rows that carry a real site id. A name recovered from
+                // the old free-text `location` has none, and sending it would
+                // write a meeting_sites row pointing at nothing.
+                site_id: meetingData.locations.find(l => l.id != null)?.id ?? null,
+                site_ids: meetingData.locations.map(l => l.id).filter(id => id != null)
             };
 
             const url = editingMeetingId ? `/mom/edit/${editingMeetingId}` : '/mom/create';

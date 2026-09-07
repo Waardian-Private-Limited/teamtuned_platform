@@ -591,6 +591,7 @@ export default function OrgSidebar({
                                 <Item icon={LayoutDashboard} label="Dashboard" href="/org-admin/mom" active={pathname === "/org-admin/mom"} />
                                 <Item icon={BarChart3} label="Overview" href="/org-admin/mom/overview" active={pathname === "/org-admin/mom/overview"} />
                                 <Item icon={List} label="Meeting List" href="/org-admin/mom/list" active={pathname === "/org-admin/mom/list"} />
+                                <Item icon={Cog} label="MoM Settings" href="/org-admin/mom/settings" active={pathname === "/org-admin/mom/settings"} />
                             </div>
                         )}
                     </>

@@ -4,9 +4,9 @@ import React from 'react';
 import {
     MessageSquare, Paperclip, CalendarDays, ArrowRightLeft,
     Check, ChevronRight, Building, User, Calendar, History,
-    Image as ImageIcon, FileText, ExternalLink,
+    Image as ImageIcon, FileText, ExternalLink, Users,
 } from 'lucide-react';
-import { readStatus, derivedBadges, TONE_CLASSES, initials } from '@/lib/momStatus';
+import { readStatus, derivedBadges, TONE_CLASSES, initials, poolDepartment } from '@/lib/momStatus';
 import { describeDueDate } from '@/lib/momDates';
 
 export interface PointAction {
@@ -56,6 +56,16 @@ export default function PointCard({
     const attachments = point.attachments || [];
     const isDone = status.lifecycle === 'done' || status.lifecycle === 'cancelled';
 
+    // A point pooled to a department reads as "Assigned to: Maintenance",
+    // which sounds like it is already somebody's job. Say what is actually
+    // true - and say it to everyone who can see the card, not only to the
+    // people the button is offered to.
+    const pool = poolDepartment(point);
+    const poolClaimed = (point.assignments || []).some(
+        (a: any) => (a.state || 'active') === 'active' && a.assignee_type === 'employee' && (a.role === 'owner' || !a.role)
+    );
+    const showPool = pool && !poolClaimed && !isDone;
+
     return (
         <div
             className={`group grid grid-cols-[4px_1fr] rounded-xl border overflow-hidden transition-all bg-white shadow-xs ${
@@ -103,6 +113,20 @@ export default function PointCard({
                             >
                                 {point.point_text}
                             </button>
+
+                            {showPool && (
+                                <div className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-indigo-100 bg-indigo-50 px-2 py-1 text-[11px] text-indigo-700">
+                                    <Users className="w-3 h-3 shrink-0" />
+                                    <span>
+                                        Open to <span className="font-semibold">{pool!.name}</span>
+                                        {point.is_claimable === 1 || point.is_claimable === true
+                                            ? ' — first to accept owns it'
+                                            : point.is_pool_member === 1 || point.is_pool_member === true
+                                                ? ' — you can follow this, but only the site team can take it on'
+                                                : ' — nobody has picked it up yet'}
+                                    </span>
+                                </div>
+                            )}
 
                             {/* Metadata Row: Assignee, Reviewer, Target Date, Meeting */}
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2.5 text-xs text-gray-600">

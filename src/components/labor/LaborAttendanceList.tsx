@@ -1527,7 +1527,86 @@ function LaborExportModal({
         }
     }, [local.categoryId]);
 
+    /* A month or a date range across a large workforce is minutes of work on
+       the server, so those go through a background job: queue it, poll the row,
+       and hand over a link when the file exists. A daily report is small and
+       still downloads directly. */
+    const isLongExport = exportType === 'month' || exportType === 'date_range';
+
+    const [job, setJob] = React.useState<any>(null);
+    const [jobError, setJobError] = React.useState<string | null>(null);
+
+    // Poll while a job is outstanding. Five seconds is often enough to look
+    // responsive without adding meaningful load to a server that is, by
+    // definition, already busy building the report.
+    React.useEffect(() => {
+        if (!job || !['queued', 'running'].includes(job.status)) return;
+        const t = setInterval(async () => {
+            try {
+                const res = await apiClient<any>(`/labor/attendance/export/jobs/${job.id}`, { withAuth: true });
+                if (res?.success && res.data) setJob({ ...res.data, id: res.data.id });
+            } catch {
+                /* A failed poll is not a failed export; the next tick retries. */
+            }
+        }, 5000);
+        return () => clearInterval(t);
+    }, [job]);
+
+    // Pick up an export already running from an earlier visit, so closing the
+    // dialog (or the tab) does not lose track of it.
+    React.useEffect(() => {
+        (async () => {
+            try {
+                const res = await apiClient<any>('/labor/attendance/export/jobs?limit=1', { withAuth: true });
+                const latest = res?.data?.[0];
+                if (latest && ['queued', 'running'].includes(latest.status)) setJob(latest);
+            } catch { /* nothing running, or no permission - either way, nothing to show */ }
+        })();
+    }, []);
+
+    const queueExport = async () => {
+        setJobError(null);
+        setSubmitting(true);
+        try {
+            const body: any = {
+                site_id: local.siteId,
+                contractor_id: local.contractorId,
+                category_id: local.categoryId,
+                subcategory_id: local.subcategoryId,
+                status: local.status === 'all' ? '' : local.status,
+                search: local.search,
+                format: exportFormat,
+                export_type: exportType,
+            };
+            if (exportType === 'month') body.month = selectedMonth;
+            else { body.start_date = startDate; body.end_date = endDate; }
+
+            const res = await apiClient<any>('/labor/attendance/export/async', {
+                method: 'POST', withAuth: true, body,
+            });
+            setJob({ id: res.job_id, status: 'queued', progress: 0, processed: 0, total: 0 });
+        } catch (err: any) {
+            setJobError(err?.message || 'Could not queue the export');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const cancelExport = async () => {
+        if (!job) return;
+        try {
+            await apiClient(`/labor/attendance/export/jobs/${job.id}`, { method: 'DELETE', withAuth: true });
+            setJob({ ...job, status: 'cancelled' });
+        } catch (err: any) {
+            setJobError(err?.message || 'Could not cancel');
+        }
+    };
+
     const downloadLocal = async () => {
+        // Month and date-range exports never reach the rest of this function -
+        // they are queued instead, so what follows only ever builds the
+        // single-day report, which is small enough to stream back inline.
+        if (isLongExport) return queueExport();
         try {
             setSubmitting(true);
             const token = localStorage.getItem('token');
@@ -1541,17 +1620,9 @@ function LaborExportModal({
                 status: local.status === 'all' ? '' : local.status,
                 search: local.search,
                 format: exportFormat,
-                export_type: exportType
+                export_type: exportType,
+                date: local.date,
             };
-
-            if (exportType === 'month') {
-                body.month = selectedMonth;
-            } else if (exportType === 'date_range') {
-                body.start_date = startDate;
-                body.end_date = endDate;
-            } else {
-                body.date = local.date;
-            }
 
             const res = await fetch(`${baseUrl}/labor/attendance/export`, {
                 method: 'POST',
@@ -1569,10 +1640,7 @@ function LaborExportModal({
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            let filename = `Labor_Daily_${local.date}`;
-            if (exportType === 'month') filename = `Labor_Monthly_${selectedMonth}`;
-            if (exportType === 'date_range') filename = `Labor_Range_${startDate}_to_${endDate}`;
-            a.download = `${filename}.${exportFormat === 'pdf' ? 'pdf' : 'xlsx'}`;
+            a.download = `Labor_Daily_${local.date}.${exportFormat === 'pdf' ? 'pdf' : 'xlsx'}`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -1852,27 +1920,98 @@ function LaborExportModal({
                     </div>
                 </div>
 
+                {/* Background export status. Only long exports produce a job;
+                    a daily report still downloads straight away. */}
+                {isLongExport && job && (
+                    <div className="mt-5 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                        {['queued', 'running'].includes(job.status) && (
+                            <>
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                                        <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
+                                        {job.status === 'queued' ? 'Waiting to start…' : 'Building your report…'}
+                                    </span>
+                                    <button onClick={cancelExport} className="text-xs text-red-600 hover:underline">Cancel</button>
+                                </div>
+                                <div className="h-2 w-full rounded-full bg-gray-200 overflow-hidden">
+                                    <div
+                                        className="h-full bg-blue-600 transition-all duration-500"
+                                        style={{ width: `${Math.max(3, job.progress || 0)}%` }}
+                                    />
+                                </div>
+                                <p className="text-xs text-gray-500 mt-2">
+                                    {job.progress_note || 'Preparing…'}
+                                    {job.total > 0 && ` · ${job.progress}%`}
+                                </p>
+                                <p className="text-[11px] text-gray-400 mt-1">
+                                    This runs on the server at a deliberately gentle pace and can take 10–15 minutes for a long
+                                    period. You can close this dialog — the download will be waiting when you come back.
+                                </p>
+                            </>
+                        )}
+
+                        {job.status === 'done' && (
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <p className="text-sm font-semibold text-green-700">Your report is ready</p>
+                                    <p className="text-xs text-gray-500">
+                                        {job.file_name}
+                                        {job.file_size ? ` · ${(job.file_size / 1024 / 1024).toFixed(1)} MB` : ''}
+                                    </p>
+                                </div>
+                                <a
+                                    href={job.file_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm shrink-0"
+                                >
+                                    <Download className="w-4 h-4" /> Download
+                                </a>
+                            </div>
+                        )}
+
+                        {job.status === 'failed' && (
+                            <div>
+                                <p className="text-sm font-semibold text-red-700">Export failed</p>
+                                <p className="text-xs text-gray-600 mt-1">{job.error || 'Something went wrong building the report.'}</p>
+                                <button onClick={() => setJob(null)} className="text-xs text-blue-600 hover:underline mt-2">Try again</button>
+                            </div>
+                        )}
+
+                        {job.status === 'cancelled' && (
+                            <div className="flex items-center justify-between">
+                                <p className="text-sm text-gray-600">Export cancelled.</p>
+                                <button onClick={() => setJob(null)} className="text-xs text-blue-600 hover:underline">Start another</button>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {jobError && (
+                    <p className="mt-3 text-xs text-red-600">{jobError}</p>
+                )}
+
                 <div className="flex items-center justify-end mt-6 gap-2">
                     <button
                         onClick={onClose}
                         className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
                     >
-                        Cancel
+                        Close
                     </button>
                     <button
                         onClick={downloadLocal}
-                        disabled={submitting}
+                        disabled={submitting || (isLongExport && !!job && ['queued', 'running'].includes(job.status))}
                         className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
                     >
                         {submitting ? (
                             <>
                                 <RefreshCw className="w-4 h-4 animate-spin" />
-                                Downloading...
+                                {isLongExport ? 'Queueing...' : 'Downloading...'}
                             </>
                         ) : (
                             <>
                                 <Download className="w-4 h-4" />
-                                Download
+                                {isLongExport ? 'Start Export' : 'Download'}
                             </>
                         )}
                     </button>

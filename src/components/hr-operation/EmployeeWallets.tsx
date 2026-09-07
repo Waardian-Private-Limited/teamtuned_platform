@@ -5,7 +5,7 @@ import {
     Search, Loader2, ArrowUpRight, ArrowDownLeft, Lock, Unlock, Plus,
     RefreshCw, FileText, ChevronLeft, ChevronRight, X, DollarSign,
     Wallet, Users, TrendingUp, AlertCircle, CheckCircle, Info,
-    Filter, ChevronDown, ChevronUp, Building, ShieldOff
+    Filter, ChevronDown, ChevronUp, Building, ShieldOff, Scale
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
@@ -121,6 +121,9 @@ export default function EmployeeWallets() {
     const canCreate     = isReimbAdmin || hasPerm('EMP_WALLET_CREATE') || hasPerm('REIMBUSMENT_WALLET_CREATE');
     const canTopUp      = isReimbAdmin || hasPerm('EMP_WALLET_TOPUP') || hasPerm('REIMBUSMENT_WALLET_TOPOP');
     const canLock       = isReimbAdmin || hasPerm('EMP_WALLET_LOCK') || hasPerm('REIMBUSMENT_WALLET_EDIT');
+    // Settling overwrites the balance outright, so it sits with the edit-level
+    // rights rather than the top-up ones.
+    const canAdjust     = isReimbAdmin || hasPerm('EMP_WALLET_ADJUST') || hasPerm('REIMBUSMENT_WALLET_EDIT');
 
     // Wallets (employees WITH wallets)
     const [wallets, setWallets] = useState<EmployeeWallet[]>([]);
@@ -172,6 +175,13 @@ export default function EmployeeWallets() {
     const [topUpMode, setTopUpMode] = useState("Cash");
     const [topUpRemarks, setTopUpRemarks] = useState("");
     const [topUpLoading, setTopUpLoading] = useState(false);
+
+    // Settle / adjust modal
+    const [showAdjust, setShowAdjust] = useState(false);
+    const [adjustWallet, setAdjustWallet] = useState<EmployeeWallet | null>(null);
+    const [adjustNewBalance, setAdjustNewBalance] = useState("");
+    const [adjustRemarks, setAdjustRemarks] = useState("");
+    const [adjustLoading, setAdjustLoading] = useState(false);
 
     // Ledger modal
     const [showLedger, setShowLedger] = useState(false);
@@ -306,6 +316,63 @@ export default function EmployeeWallets() {
         }
     };
 
+    // ── Settle / adjust ───────────────────────────────────────────────────────
+    /**
+     * What the balance becomes minus what it is now, rounded to paise. Drives
+     * the preview so the operator sees the Credit or Debit their entry implies
+     * before committing it; the server recomputes this from its own reading of
+     * the balance and is the one that decides.
+     */
+    const adjustDelta = (() => {
+        if (!adjustWallet || adjustNewBalance.trim() === "") return null;
+        const target = parseFloat(adjustNewBalance);
+        if (!Number.isFinite(target)) return null;
+        const before = Number(adjustWallet.current_balance || 0);
+        return Math.round((target - before) * 100) / 100;
+    })();
+
+    const openAdjust = (w: EmployeeWallet) => {
+        setAdjustWallet(w);
+        // Seeded with the current balance so the operator edits a real number
+        // rather than typing one into an empty box.
+        setAdjustNewBalance(Number(w.current_balance || 0).toFixed(2));
+        setAdjustRemarks("");
+        setShowAdjust(true);
+    };
+
+    const closeAdjust = () => {
+        setShowAdjust(false);
+        setAdjustWallet(null);
+        setAdjustNewBalance("");
+        setAdjustRemarks("");
+    };
+
+    const handleAdjust = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!adjustWallet || adjustLoading) return;
+        if (adjustDelta === null || adjustDelta === 0) return;
+        if (!adjustRemarks.trim()) return;
+        setAdjustLoading(true);
+        try {
+            const res = await apiClient<any>(`/reimbursements/wallets/${adjustWallet.employee_id}/adjust`, {
+                method: "POST", withAuth: true,
+                body: { new_balance: parseFloat(adjustNewBalance), remarks: adjustRemarks.trim() },
+            });
+            if (res.success) {
+                showNotification(
+                    `${res.type === "Credit" ? "Credited" : "Debited"} ${formatCurrency(Number(res.amount), adjustWallet.currency)} — balance is now ${formatCurrency(Number(res.balance_after), adjustWallet.currency)}`,
+                    "success"
+                );
+                closeAdjust();
+                fetchWallets();
+            }
+        } catch (err: any) {
+            showNotification(err?.message || "Adjustment failed", "error");
+        } finally {
+            setAdjustLoading(false);
+        }
+    };
+
     // ── Toggle lock ───────────────────────────────────────────────────────────
     const toggleLock = async (w: EmployeeWallet) => {
         try {
@@ -436,6 +503,14 @@ export default function EmployeeWallets() {
                                                             "bg-red-50 text-red-700 border border-red-200"
                                                         }`}>
                                                             {tx.status === "Pending" ? "Pending Acknowledgment" : tx.status === "Approved" ? "Acknowledged" : "Rejected"}
+                                                        </span>
+                                                    )}
+                                                    {/* A settlement is a correction, not ordinary wallet
+                                                        activity - worth telling apart at a glance when
+                                                        someone is auditing the ledger later. */}
+                                                    {tx.reference_type === "Adjustment" && (
+                                                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-50 text-violet-700 border border-violet-200">
+                                                            Manual Settlement
                                                         </span>
                                                     )}
                                                 </div>
@@ -768,6 +843,15 @@ export default function EmployeeWallets() {
                                                         <Plus className="w-3.5 h-3.5" /> Top Up
                                                     </button>
                                                 )}
+                                                {canAdjust && (
+                                                    <button
+                                                        onClick={() => openAdjust(w)}
+                                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
+                                                        title="Set the balance to a stated figure and post the difference to the ledger"
+                                                    >
+                                                        <Scale className="w-3.5 h-3.5" /> Settle
+                                                    </button>
+                                                )}
                                                 {canLock && (
                                                     <button
                                                         onClick={() => toggleLock(w)}
@@ -886,6 +970,93 @@ export default function EmployeeWallets() {
                                 {createLoading ? "Creating..." : "Create Wallet"}
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Settle / Adjust Modal ─────────────────────────────────────── */}
+            {showAdjust && adjustWallet && (
+                <div className="fixed inset-0 bg-black/25 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-md border border-gray-200 shadow-xl flex flex-col gap-4">
+                        <div>
+                            <h2 className="text-lg font-bold text-gray-900">Settle Wallet</h2>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                                Enter what {adjustWallet.first_name} {adjustWallet.last_name}&apos;s balance should be. The difference is posted to the ledger as a single entry.
+                            </p>
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs text-gray-700 bg-gray-50 px-3 py-2.5 rounded border border-gray-200 font-medium">
+                            <span className="text-gray-500">Current Balance</span>
+                            <span className="font-bold text-gray-900">{formatCurrency(Number(adjustWallet.current_balance || 0), adjustWallet.currency)}</span>
+                        </div>
+
+                        <form onSubmit={handleAdjust} className="space-y-4">
+                            <div>
+                                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">New Balance</label>
+                                <input
+                                    type="number"
+                                    required
+                                    step="0.01"
+                                    placeholder="0.00"
+                                    value={adjustNewBalance}
+                                    onChange={e => setAdjustNewBalance(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-violet-600 focus:border-violet-600 text-sm font-semibold text-gray-950"
+                                />
+                            </div>
+
+                            {/* The whole point of the screen: show which way the ledger moves. */}
+                            {adjustDelta !== null && adjustDelta !== 0 && (
+                                <div className={`flex items-center justify-between px-3 py-2.5 rounded border text-xs font-medium ${adjustDelta > 0 ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-red-50 border-red-200 text-red-800"}`}>
+                                    <span className="inline-flex items-center gap-1.5">
+                                        {adjustDelta > 0
+                                            ? <><ArrowUpRight className="w-3.5 h-3.5" /> Credit to wallet</>
+                                            : <><ArrowDownLeft className="w-3.5 h-3.5" /> Debit from wallet</>}
+                                    </span>
+                                    <span className="font-bold">{formatCurrency(Math.abs(adjustDelta), adjustWallet.currency)}</span>
+                                </div>
+                            )}
+                            {adjustDelta === 0 && (
+                                <div className="flex items-center gap-1.5 px-3 py-2.5 rounded border border-gray-200 bg-gray-50 text-xs text-gray-500">
+                                    <Info className="w-3.5 h-3.5" /> Same as the current balance — nothing to post.
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Reason <span className="text-red-500">*</span></label>
+                                <textarea
+                                    required
+                                    placeholder="Why is the balance being corrected?"
+                                    value={adjustRemarks}
+                                    onChange={e => setAdjustRemarks(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-violet-600 focus:border-violet-600 text-xs h-16 resize-none text-gray-950"
+                                />
+                            </div>
+
+                            {adjustWallet.is_locked === 1 && (
+                                <div className="flex items-start gap-1.5 px-3 py-2.5 rounded border border-amber-200 bg-amber-50 text-[11px] text-amber-800">
+                                    <Lock className="w-3.5 h-3.5 mt-px shrink-0" />
+                                    <span>This wallet is locked. Settling is still allowed so a final balance can be recorded.</span>
+                                </div>
+                            )}
+
+                            <div className="flex gap-2 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={closeAdjust}
+                                    className="flex-1 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 border border-gray-300 rounded transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={adjustLoading || adjustDelta === null || adjustDelta === 0 || !adjustRemarks.trim()}
+                                    className="flex-1 py-2 text-xs font-semibold text-white bg-violet-600 hover:bg-violet-700 disabled:bg-violet-300 disabled:cursor-not-allowed rounded transition-colors flex items-center justify-center gap-1.5 shadow"
+                                >
+                                    {adjustLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                                    Post Adjustment
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

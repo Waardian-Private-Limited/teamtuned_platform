@@ -7,7 +7,7 @@ import {
   Wallet, Users, TrendingUp, AlertCircle, CheckCircle, Info,
   Filter, ChevronDown, ChevronUp, Download, Eye, CheckCircle2,
   Trash2, ZoomIn, Ban, Clock, MoreVertical, Edit, Save,
-  Building2, Banknote, Calendar
+  Building2, Banknote, Calendar, Sparkles
 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
@@ -190,6 +190,258 @@ function getPhysicalCopyStatusColor(status?: string) {
   }
 }
 
+/**
+ * Roll the invoice breakdown up into a grand total.
+ *
+ * Subtotal comes from qty x rate rather than each row's stored `total`, so a
+ * hand-edited quantity is reflected even when the row was seeded by a scan that
+ * carried its own total.
+ */
+function recalculateTotals(payload: any) {
+  const subtotal = (payload.items || []).reduce((sum: number, it: any) => sum + (Number(it.qty || 0) * Number(it.rate || 0)), 0);
+  const taxesSum = (payload.taxes || []).reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
+  const chargesSum = (payload.charges || []).reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0);
+  const grandTotal = subtotal + taxesSum + chargesSum;
+  return {
+    ...payload,
+    subtotal,
+    amount: grandTotal > 0 ? grandTotal : payload.amount,
+  };
+}
+
+/**
+ * The line items / taxes / charges editor, shared by the edit-claim modal and
+ * the Add Expense modal so the two cannot drift apart in field names or in how
+ * they total up. Emits the whole payload back, already recalculated.
+ */
+function LineItemsEditor({ value, onChange }: { value: any; onChange: (next: any) => void }) {
+  const set = (patch: any) => onChange(recalculateTotals({ ...value, ...patch }));
+  const items = value.items || [];
+  const taxes = value.taxes || [];
+  const charges = value.charges || [];
+
+  return (
+    <div className="space-y-4 animate-fade-in">
+      <div className="flex justify-between items-center">
+        <h4 className="text-sm font-bold text-gray-700">Line Items</h4>
+        <button
+          type="button"
+          onClick={() => set({ items: [...items, { item_name: "", qty: 1, rate: 0, discount: 0, total: 0 }] })}
+          className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" /> Add Item
+        </button>
+      </div>
+
+      <div className="space-y-3 max-h-[200px] overflow-y-auto pr-1">
+        {items.map((item: any, idx: number) => (
+          <div key={idx} className="flex gap-3 items-end bg-gray-50 p-3 rounded-lg border border-gray-200">
+            <div className="flex-1">
+              <label className="block text-xs text-gray-500 mb-0.5">Item Name</label>
+              <input
+                type="text"
+                value={item.item_name || ""}
+                onChange={(e) => {
+                  const next = [...items];
+                  next[idx] = { ...next[idx], item_name: e.target.value };
+                  set({ items: next });
+                }}
+                required
+                placeholder="e.g. Purchase item"
+                className="w-full px-2.5 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white text-xs text-gray-900 font-medium"
+              />
+            </div>
+            <div className="w-20">
+              <label className="block text-xs text-gray-500 mb-0.5">Qty</label>
+              <input
+                type="number"
+                value={item.qty ?? 1}
+                onChange={(e) => {
+                  const q = Number(e.target.value || 0);
+                  const next = [...items];
+                  next[idx] = { ...next[idx], qty: q, total: q * (next[idx].rate || 0) - (next[idx].discount || 0) };
+                  set({ items: next });
+                }}
+                required
+                className="w-full px-2.5 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white text-xs text-right text-gray-900 font-medium"
+              />
+            </div>
+            <div className="w-24">
+              <label className="block text-xs text-gray-500 mb-0.5">Rate</label>
+              <input
+                type="number"
+                step="0.01"
+                value={item.rate ?? 0}
+                onChange={(e) => {
+                  const r = parseFloat(e.target.value || "0");
+                  const next = [...items];
+                  next[idx] = { ...next[idx], rate: r, total: (next[idx].qty || 0) * r - (next[idx].discount || 0) };
+                  set({ items: next });
+                }}
+                required
+                className="w-full px-2.5 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white text-xs text-right text-gray-900 font-medium"
+              />
+            </div>
+            <div className="w-24">
+              <label className="block text-xs text-gray-500 mb-0.5">Total</label>
+              <div className="w-full px-2.5 py-1.5 bg-gray-100 border border-gray-200 rounded text-xs text-right font-medium text-gray-700">
+                {formatCurrency((item.qty || 0) * (item.rate || 0))}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => set({ items: items.filter((_: any, i: number) => i !== idx) })}
+              className="p-2 text-red-500 hover:bg-red-50 rounded transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
+        {items.length === 0 && (
+          <div className="text-center py-6 text-gray-500 italic bg-gray-50 rounded-lg border border-dashed border-gray-200">
+            No items added. Click &ldquo;Add Item&rdquo; above.
+          </div>
+        )}
+      </div>
+
+      {/* Taxes & Charges */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-100">
+        {/* Taxes */}
+        <div className="space-y-3">
+          <div className="flex justify-between items-center">
+            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Taxes</h4>
+            <button
+              type="button"
+              onClick={() => {
+                // Seed the amount from the current subtotal, the way the mobile
+                // tax dialog does, so a percentage is useful the moment it lands.
+                const subtotal = (items || []).reduce((s: number, it: any) => s + Number(it.qty || 0) * Number(it.rate || 0), 0);
+                set({ taxes: [...taxes, { label: "GST", percent: 18, amount: Number(((subtotal * 18) / 100).toFixed(2)) }] });
+              }}
+              className="px-2.5 py-1 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded text-xs font-medium flex items-center gap-1 transition-colors"
+            >
+              <Plus className="w-3 h-3" /> Add Tax
+            </button>
+          </div>
+          <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
+            {taxes.map((t: any, idx: number) => (
+              <div key={idx} className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  value={t.label || ""}
+                  onChange={(e) => {
+                    const next = [...taxes];
+                    next[idx] = { ...next[idx], label: e.target.value };
+                    set({ taxes: next });
+                  }}
+                  placeholder="GST"
+                  className="w-20 px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white text-xs text-gray-900 font-medium"
+                />
+                <input
+                  type="number"
+                  value={t.percent ?? 0}
+                  onChange={(e) => {
+                    const pct = parseFloat(e.target.value || "0");
+                    const subtotal = (items || []).reduce((s: number, it: any) => s + Number(it.qty || 0) * Number(it.rate || 0), 0);
+                    const next = [...taxes];
+                    // Re-derive the amount from the percentage: typing 18 and
+                    // then having to work out the rupees by hand is the step
+                    // people get wrong.
+                    next[idx] = { ...next[idx], percent: pct, amount: Number(((subtotal * pct) / 100).toFixed(2)) };
+                    set({ taxes: next });
+                  }}
+                  placeholder="%"
+                  className="w-16 px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white text-xs text-right text-gray-900 font-medium"
+                />
+                <input
+                  type="number"
+                  value={t.amount ?? 0}
+                  onChange={(e) => {
+                    const amt = parseFloat(e.target.value || "0");
+                    const next = [...taxes];
+                    next[idx] = { ...next[idx], amount: amt };
+                    set({ taxes: next });
+                  }}
+                  placeholder="Amount"
+                  className="flex-1 px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white text-xs text-right text-gray-900 font-medium"
+                />
+                <button
+                  type="button"
+                  onClick={() => set({ taxes: taxes.filter((_: any, i: number) => i !== idx) })}
+                  className="p-1 text-red-500 hover:bg-red-50 rounded"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Charges */}
+        <div className="space-y-3">
+          <div className="flex justify-between items-center">
+            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Charges / Discounts</h4>
+            <button
+              type="button"
+              onClick={() => set({ charges: [...charges, { label: "Delivery", amount: 0 }] })}
+              className="px-2.5 py-1 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded text-xs font-medium flex items-center gap-1 transition-colors"
+            >
+              <Plus className="w-3 h-3" /> Add Charge
+            </button>
+          </div>
+          <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
+            {charges.map((c: any, idx: number) => (
+              <div key={idx} className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  value={c.label || ""}
+                  onChange={(e) => {
+                    const next = [...charges];
+                    next[idx] = { ...next[idx], label: e.target.value };
+                    set({ charges: next });
+                  }}
+                  placeholder="Delivery"
+                  className="flex-1 px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white text-xs text-gray-900 font-medium"
+                />
+                <input
+                  type="number"
+                  value={c.amount ?? 0}
+                  onChange={(e) => {
+                    const amt = parseFloat(e.target.value || "0");
+                    const next = [...charges];
+                    next[idx] = { ...next[idx], amount: amt };
+                    set({ charges: next });
+                  }}
+                  placeholder="Amount"
+                  className="w-28 px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white text-xs text-right text-gray-900 font-medium"
+                />
+                <button
+                  type="button"
+                  onClick={() => set({ charges: charges.filter((_: any, i: number) => i !== idx) })}
+                  className="p-1 text-red-500 hover:bg-red-50 rounded"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Total summary */}
+      <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-100 flex justify-between items-center mt-6">
+        <div>
+          <span className="text-xs font-semibold text-blue-700 uppercase tracking-wider">Calculated Grand Total</span>
+          <div className="text-sm text-gray-500">Subtotal + Taxes + Charges</div>
+        </div>
+        <div className="text-xl font-black text-blue-700">
+          {formatCurrency(value.amount)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 export default function Reimbusments() {
@@ -228,6 +480,41 @@ export default function Reimbusments() {
   const [walletsList, setWalletsList] = useState<EmployeeWallet[]>([]);
   const [selectedWallet, setSelectedWallet] = useState<EmployeeWallet | null>(null);
   const [showWalletDropdown, setShowWalletDropdown] = useState(false);
+
+  // Add Expense modal (record spend that never came through the employee app).
+  // It carries its own employee picker rather than reusing the filter's, so
+  // opening the modal does not silently re-filter the table behind it.
+  const [showAddExpense, setShowAddExpense] = useState(false);
+  const [expEmp, setExpEmp] = useState<EmployeeWallet | null>(null);
+  const [expSearch, setExpSearch] = useState("");
+  const [expList, setExpList] = useState<EmployeeWallet[]>([]);
+  const [expDropdown, setExpDropdown] = useState(false);
+  const [expReason, setExpReason] = useState("");
+  const [expCategory, setExpCategory] = useState("");
+  const [expAmount, setExpAmount] = useState("");
+  const [expInvoiceNo, setExpInvoiceNo] = useState("");
+  const [expInvoiceDate, setExpInvoiceDate] = useState("");
+  const [expFile, setExpFile] = useState<File | null>(null);
+  const [expLoading, setExpLoading] = useState(false);
+  const [expTab, setExpTab] = useState<'basic' | 'vendor' | 'items'>('basic');
+  const [expInvoiceName, setExpInvoiceName] = useState("");
+  const [expTxnId, setExpTxnId] = useState("");
+  const [expSeller, setExpSeller] = useState<any>({ name: "", address: "", phone: "", gstin: "" });
+  const [expBuyer, setExpBuyer] = useState<any>({ name: "", address: "", phone: "", gstin: "" });
+  // items / taxes / charges / subtotal / amount, in the shape LineItemsEditor
+  // and recalculateTotals expect.
+  const [expBreakdown, setExpBreakdown] = useState<any>({ items: [], taxes: [], charges: [], subtotal: 0, amount: 0 });
+  // AI extraction
+  const [expScanning, setExpScanning] = useState(false);
+  const [expAiUsed, setExpAiUsed] = useState(false);
+  const [expOcrUrl, setExpOcrUrl] = useState<string | null>(null);
+  const [expScannedName, setExpScannedName] = useState<string | null>(null);
+
+  /* Once there are line items the grand total is the authority and the amount
+     box goes read-only, so the header can never disagree with the rows under
+     it. With no items the operator is entering a bare figure and types it. */
+  const expHasItems = (expBreakdown.items || []).length > 0;
+  const expEffectiveAmount = expHasItems ? Number(expBreakdown.amount || 0) : parseFloat(expAmount || "0");
 
   // Detail Modal
   const [selectedRow, setSelectedRow] = useState<ReimbursementRow | null>(null);
@@ -373,18 +660,6 @@ export default function Reimbusments() {
     }
   }, [editingRow]);
 
-  const recalculateEditTotals = (payload: any) => {
-    const subtotal = (payload.items || []).reduce((sum: number, it: any) => sum + (Number(it.qty || 0) * Number(it.rate || 0)), 0);
-    const taxesSum = (payload.taxes || []).reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
-    const chargesSum = (payload.charges || []).reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0);
-    const grandTotal = subtotal + taxesSum + chargesSum;
-    return {
-      ...payload,
-      subtotal,
-      amount: grandTotal > 0 ? grandTotal : payload.amount,
-    };
-  };
-
   const categoryOptions = useMemo(() => {
     const list = categories.map((c: any) => c.name);
     const defaults = ["Food & Beverage", "Travel & Transport", "Office Supplies", "Tools & Hardware", "Other"];
@@ -420,6 +695,21 @@ export default function Reimbusments() {
     return () => clearTimeout(delayDebounce);
   }, [walletSearchQuery]);
 
+  // ── Fetch wallets for the Add Expense picker ────────────────────────────────
+  useEffect(() => {
+    if (!showAddExpense) return;
+    const t = setTimeout(async () => {
+      if (!expSearch) { setExpList([]); return; }
+      try {
+        const res = await apiClient<any>(`/reimbursements/wallets?search=${encodeURIComponent(expSearch)}&limit=10`, { method: "GET", withAuth: true });
+        if (res.success) setExpList(res.data || []);
+      } catch (err) {
+        console.error("Error searching wallets", err);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [expSearch, showAddExpense]);
+
   // ── Fetch Stats ─────────────────────────────────────────────────────────────
     const fetchSites = useCallback(async () => {
     try {
@@ -450,6 +740,174 @@ export default function Reimbusments() {
       setStatsLoading(false);
     }
   }, [selectedWallet, dateFrom, dateTo, selectedSite]);
+
+  // ── Add Expense (record already-incurred spend against a wallet) ────────────
+  const closeAddExpense = () => {
+    setShowAddExpense(false);
+    setExpEmp(null); setExpSearch(""); setExpList([]); setExpDropdown(false);
+    setExpReason(""); setExpCategory(""); setExpAmount("");
+    setExpInvoiceNo(""); setExpInvoiceDate(""); setExpFile(null);
+    setExpTab('basic'); setExpInvoiceName(""); setExpTxnId("");
+    setExpSeller({ name: "", address: "", phone: "", gstin: "" });
+    setExpBuyer({ name: "", address: "", phone: "", gstin: "" });
+    setExpBreakdown({ items: [], taxes: [], charges: [], subtotal: 0, amount: 0 });
+    setExpAiUsed(false); setExpOcrUrl(null); setExpScannedName(null); setExpScanning(false);
+  };
+
+  /**
+   * Read the uploaded receipt with the same OCR endpoint the mobile form uses,
+   * then fill the form from what came back.
+   *
+   * The response speaks the OCR's own field names (`item_name`, `label`,
+   * `percent`); everything downstream of here speaks the edit form's, so the
+   * rows are normalised once, on arrival, rather than being special-cased in
+   * the editor and again at submit.
+   */
+  const handleExpExtract = async () => {
+    if (!expFile || expScanning) return;
+    if (expAiUsed && expScannedName === expFile.name) {
+      showNotification("This receipt has already been extracted.", "error");
+      return;
+    }
+    setExpScanning(true);
+    try {
+      const fd = new FormData();
+      fd.append("attachment", expFile);
+      const res = await apiClient<any>("/reimbursements/ocr", { method: "POST", withAuth: true, body: fd });
+      if (!res?.success || !res?.data) {
+        showNotification(res?.message || "Could not read that receipt", "error");
+        return;
+      }
+      const d = res.data;
+      const exp = d.expense || {};
+
+      const items = (d.items || []).map((it: any) => {
+        const qty = Number(it.qty ?? 1) || 0;
+        const rate = Number(it.rate ?? 0) || 0;
+        const discount = Number(it.discount ?? 0) || 0;
+        const existing = Number(it.total ?? 0) || 0;
+        return {
+          item_name: it.item_name || it.name || "",
+          qty, rate, discount,
+          // Trust the scan's own total; only compute one when it is missing.
+          total: existing > 0 ? existing : Math.max(qty * rate - discount, 0),
+        };
+      });
+      const taxes = (d.taxes || []).map((t: any) => ({
+        label: t.label || t.name || "Tax",
+        percent: Number(t.percent ?? t.rate ?? 0) || 0,
+        amount: Number(t.amount ?? 0) || 0,
+      }));
+      const charges = (d.charges || []).map((c: any) => ({
+        label: c.label || c.name || "Charge",
+        amount: Number(c.amount ?? 0) || 0,
+      }));
+
+      setExpBreakdown(recalculateTotals({ items, taxes, charges, subtotal: 0, amount: Number(exp.grand_total ?? 0) || 0 }));
+      if (exp.invoice_no) setExpInvoiceNo(String(exp.invoice_no));
+      if (exp.invoice_name) setExpInvoiceName(String(exp.invoice_name));
+      if (exp.description) setExpReason(String(exp.description));
+      if (exp.date) setExpInvoiceDate(formatToYYYYMMDD(String(exp.date)));
+      if (exp.transaction_id) setExpTxnId(String(exp.transaction_id));
+      // The scan's expense_type only wins if it is a category this org actually
+      // has; an invented one would show as a blank select.
+      if (exp.expense_type && categoryOptions.includes(String(exp.expense_type))) setExpCategory(String(exp.expense_type));
+
+      /* The endpoint returns the two parties as flat fields on `expense`
+         (seller_name, buyer_gst, ...), not as nested objects. */
+      setExpSeller({
+        name: exp.seller_name || "",
+        address: exp.seller_address || "",
+        phone: exp.seller_contact || "",
+        gstin: exp.seller_gst || "",
+      });
+      // Buyer is prefilled from the org/sub-org profile, so only fill blanks -
+      // the scan reading the buyer off the invoice is less reliable than the
+      // organisation's own record of itself.
+      setExpBuyer((prev: any) => ({
+        name: prev.name || exp.buyer_name || "",
+        address: prev.address || exp.buyer_address || "",
+        phone: prev.phone || exp.buyer_contact || "",
+        gstin: prev.gstin || exp.buyer_gst || "",
+      }));
+
+      // The endpoint stores the file it read, so the claim can point at that
+      // copy instead of the browser re-uploading the same bytes on submit.
+      if (res.attachment_url) setExpOcrUrl(String(res.attachment_url));
+      if (res.note) showNotification(String(res.note), "error");
+
+      setExpAiUsed(true);
+      setExpScannedName(expFile.name);
+      setExpTab('items');
+      showNotification("Extracted from receipt. AI can make mistakes — check every figure before saving.", "success");
+    } catch (err: any) {
+      showNotification(err?.message || "AI extraction failed", "error");
+    } finally {
+      setExpScanning(false);
+    }
+  };
+
+  const handleAddExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (expLoading) return;
+    if (!expEmp || !expReason.trim() || !(expEffectiveAmount > 0)) return;
+    setExpLoading(true);
+    try {
+      const grandTotal = expEffectiveAmount;
+      const taxTotal = (expBreakdown.taxes || []).reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+      const chargesTotal = (expBreakdown.charges || []).reduce((s: number, c: any) => s + Number(c.amount || 0), 0);
+
+      // Same envelope the mobile form posts, so a claim raised here is stored
+      // and rendered exactly like one raised in the app.
+      const structured = {
+        invoice: {
+          invoice_no: expInvoiceNo || null,
+          invoice_name: expInvoiceName || null,
+          date: expInvoiceDate || null,
+          description: expReason.trim(),
+          subtotal: Number(expBreakdown.subtotal || 0),
+          total_tax: taxTotal,
+          charges_total: chargesTotal,
+          grand_total: grandTotal,
+          payment_mode: "Wallet",
+          transaction_id: expTxnId || null,
+        },
+        items: expBreakdown.items || [],
+        taxes: expBreakdown.taxes || [],
+        charges: expBreakdown.charges || [],
+        seller: expSeller,
+        buyer: expBuyer,
+      };
+
+      const fd = new FormData();
+      fd.append("reason", expReason.trim());
+      fd.append("category", expCategory || "Other");
+      fd.append("amount", String(grandTotal));
+      if (expInvoiceNo) fd.append("invoice_no", expInvoiceNo);
+      if (expInvoiceDate) fd.append("invoice_date", expInvoiceDate);
+      fd.append("ai_extracted", expAiUsed ? "1" : "0");
+      fd.append("extracted_data", JSON.stringify(structured));
+      if (expOcrUrl) fd.append("attachment_url", expOcrUrl);
+      else if (expFile) fd.append("attachment", expFile);
+
+      const res = await apiClient<any>(`/reimbursements/wallets/${expEmp.employee_id}/expense`, {
+        method: "POST", withAuth: true, body: fd,
+      });
+      if (res.success) {
+        showNotification(
+          `Expense recorded — ${expEmp.first_name} ${expEmp.last_name}'s balance is now ${formatCurrency(Number(res.balance_after))}`,
+          "success"
+        );
+        closeAddExpense();
+        fetchReimbursements();
+        fetchStats();
+      }
+    } catch (err: any) {
+      showNotification(err?.message || "Failed to record expense", "error");
+    } finally {
+      setExpLoading(false);
+    }
+  };
 
   // ── Fetch Reimbursements ────────────────────────────────────────────────────
   const fetchReimbursements = useCallback(async () => {
@@ -820,6 +1278,14 @@ export default function Reimbusments() {
           <h1 className="text-2xl font-bold text-gray-900">Wallet Reimbursements</h1>
           <p className="text-gray-600 mt-1">Review, approve, and track employee reimbursement claims</p>
         </div>
+        {canEdit && (
+          <button
+            onClick={() => setShowAddExpense(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Add Expense
+          </button>
+        )}
       </div>
 
       {/* 4 Stats Cards */}
@@ -1818,233 +2284,10 @@ export default function Reimbusments() {
                 )}
 
                 {editActiveTab === 'items' && (
-                  <div className="space-y-4 animate-fade-in">
-                    <div className="flex justify-between items-center">
-                      <h4 className="text-sm font-bold text-gray-700">Line Items</h4>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const nextItems = [...(editPayload.items || []), { item_name: "", qty: 1, rate: 0, total: 0 }];
-                          setEditPayload((p: any) => recalculateEditTotals({ ...p, items: nextItems }));
-                        }}
-                        className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
-                      >
-                        <Plus className="w-3.5 h-3.5" /> Add Item
-                      </button>
-                    </div>
-                    
-                    <div className="space-y-3 max-h-[200px] overflow-y-auto pr-1">
-                      {(editPayload.items || []).map((item: any, idx: number) => (
-                        <div key={idx} className="flex gap-3 items-end bg-gray-50 p-3 rounded-lg border border-gray-200">
-                          <div className="flex-1">
-                            <label className="block text-xs text-gray-500 mb-0.5">Item Name</label>
-                            <input
-                              type="text"
-                              value={item.item_name || ""}
-                              onChange={(e) => {
-                                const nextItems = [...editPayload.items];
-                                nextItems[idx] = { ...nextItems[idx], item_name: e.target.value };
-                                setEditPayload((p: any) => ({ ...p, items: nextItems }));
-                              }}
-                              required
-                              placeholder="e.g. Purchase item"
-                              className="w-full px-2.5 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white text-xs text-gray-900 font-medium"
-                            />
-                          </div>
-                          <div className="w-20">
-                            <label className="block text-xs text-gray-500 mb-0.5">Qty</label>
-                            <input
-                              type="number"
-                              value={item.qty ?? 1}
-                              onChange={(e) => {
-                                const q = Number(e.target.value || 0);
-                                const nextItems = [...editPayload.items];
-                                nextItems[idx] = { ...nextItems[idx], qty: q, total: q * (nextItems[idx].rate || 0) };
-                                setEditPayload((p: any) => recalculateEditTotals({ ...p, items: nextItems }));
-                              }}
-                              required
-                              className="w-full px-2.5 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white text-xs text-right text-gray-900 font-medium"
-                            />
-                          </div>
-                          <div className="w-24">
-                            <label className="block text-xs text-gray-500 mb-0.5">Rate</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={item.rate ?? 0}
-                              onChange={(e) => {
-                                const r = parseFloat(e.target.value || "0");
-                                const nextItems = [...editPayload.items];
-                                nextItems[idx] = { ...nextItems[idx], rate: r, total: (nextItems[idx].qty || 0) * r };
-                                setEditPayload((p: any) => recalculateEditTotals({ ...p, items: nextItems }));
-                              }}
-                              required
-                              className="w-full px-2.5 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white text-xs text-right text-gray-900 font-medium"
-                            />
-                          </div>
-                          <div className="w-24">
-                            <label className="block text-xs text-gray-500 mb-0.5">Total</label>
-                            <div className="w-full px-2.5 py-1.5 bg-gray-100 border border-gray-200 rounded text-xs text-right font-medium text-gray-700">
-                              {formatCurrency((item.qty || 0) * (item.rate || 0))}
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const nextItems = editPayload.items.filter((_: any, i: number) => i !== idx);
-                              setEditPayload((p: any) => recalculateEditTotals({ ...p, items: nextItems }));
-                            }}
-                            className="p-2 text-red-500 hover:bg-red-50 rounded transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                      {(editPayload.items || []).length === 0 && (
-                        <div className="text-center py-6 text-gray-500 italic bg-gray-50 rounded-lg border border-dashed border-gray-200">
-                          No items added. Click &ldquo;Add Item&rdquo; above.
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Taxes & Charges */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-100">
-                      {/* Taxes */}
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Taxes</h4>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const nextTaxes = [...(editPayload.taxes || []), { label: "GST", percent: 18, amount: 0 }];
-                              setEditPayload((p: any) => recalculateEditTotals({ ...p, taxes: nextTaxes }));
-                            }}
-                            className="px-2.5 py-1 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded text-xs font-medium flex items-center gap-1 transition-colors"
-                          >
-                            <Plus className="w-3 h-3" /> Add Tax
-                          </button>
-                        </div>
-                        <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
-                          {(editPayload.taxes || []).map((t: any, idx: number) => (
-                            <div key={idx} className="flex gap-2 items-center">
-                              <input
-                                type="text"
-                                value={t.label || ""}
-                                onChange={(e) => {
-                                  const next = [...editPayload.taxes];
-                                  next[idx] = { ...next[idx], label: e.target.value };
-                                  setEditPayload((p: any) => ({ ...p, taxes: next }));
-                                }}
-                                placeholder="GST"
-                                className="w-20 px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white text-xs text-gray-900 font-medium"
-                              />
-                              <input
-                                type="number"
-                                value={t.percent ?? 0}
-                                onChange={(e) => {
-                                  const pct = parseFloat(e.target.value || "0");
-                                  const next = [...editPayload.taxes];
-                                  next[idx] = { ...next[idx], percent: pct };
-                                  setEditPayload((p: any) => ({ ...p, taxes: next }));
-                                }}
-                                placeholder="%"
-                                className="w-16 px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white text-xs text-right text-gray-900 font-medium"
-                              />
-                              <input
-                                type="number"
-                                value={t.amount ?? 0}
-                                onChange={(e) => {
-                                  const amt = parseFloat(e.target.value || "0");
-                                  const next = [...editPayload.taxes];
-                                  next[idx] = { ...next[idx], amount: amt };
-                                  setEditPayload((p: any) => recalculateEditTotals({ ...p, taxes: next }));
-                                }}
-                                placeholder="Amount"
-                                className="flex-1 px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white text-xs text-right text-gray-900 font-medium"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const next = editPayload.taxes.filter((_: any, i: number) => i !== idx);
-                                  setEditPayload((p: any) => recalculateEditTotals({ ...p, taxes: next }));
-                                }}
-                                className="p-1 text-red-500 hover:bg-red-50 rounded"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Charges */}
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Charges / Discounts</h4>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const nextCharges = [...(editPayload.charges || []), { label: "Delivery", amount: 0 }];
-                              setEditPayload((p: any) => recalculateEditTotals({ ...p, charges: nextCharges }));
-                            }}
-                            className="px-2.5 py-1 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded text-xs font-medium flex items-center gap-1 transition-colors"
-                          >
-                            <Plus className="w-3 h-3" /> Add Charge
-                          </button>
-                        </div>
-                        <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
-                          {(editPayload.charges || []).map((c: any, idx: number) => (
-                            <div key={idx} className="flex gap-2 items-center">
-                              <input
-                                type="text"
-                                value={c.label || ""}
-                                onChange={(e) => {
-                                  const next = [...editPayload.charges];
-                                  next[idx] = { ...next[idx], label: e.target.value };
-                                  setEditPayload((p: any) => ({ ...p, charges: next }));
-                                }}
-                                placeholder="Delivery"
-                                className="flex-1 px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white text-xs text-gray-900 font-medium"
-                              />
-                              <input
-                                type="number"
-                                value={c.amount ?? 0}
-                                onChange={(e) => {
-                                  const amt = parseFloat(e.target.value || "0");
-                                  const next = [...editPayload.charges];
-                                  next[idx] = { ...next[idx], amount: amt };
-                                  setEditPayload((p: any) => recalculateEditTotals({ ...p, charges: next }));
-                                }}
-                                placeholder="Amount"
-                                className="w-28 px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none bg-white text-xs text-right text-gray-900 font-medium"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const next = editPayload.charges.filter((_: any, i: number) => i !== idx);
-                                  setEditPayload((p: any) => recalculateEditTotals({ ...p, charges: next }));
-                                }}
-                                className="p-1 text-red-500 hover:bg-red-50 rounded"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Total summary */}
-                    <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-100 flex justify-between items-center mt-6">
-                      <div>
-                        <span className="text-xs font-semibold text-blue-700 uppercase tracking-wider">Calculated Grand Total</span>
-                        <div className="text-sm text-gray-500">Subtotal + Taxes + Charges</div>
-                      </div>
-                      <div className="text-xl font-black text-blue-700">
-                        {formatCurrency(editPayload.amount)}
-                      </div>
-                    </div>
-                  </div>
+                  <LineItemsEditor
+                    value={editPayload}
+                    onChange={(next) => setEditPayload(next)}
+                  />
                 )}
               </div>
 
@@ -2286,6 +2529,318 @@ export default function Reimbusments() {
                 />
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Add Expense Modal ────────────────────────────────────────────────
+          Mirrors the mobile claim form - receipt scan, invoice header, vendor
+          and buyer, line items with taxes and charges - but records the result
+          the way a petty cash entry does: it debits the wallet on submit rather
+          than opening an approval chain only this operator could sign off. */}
+      {showAddExpense && (
+        <div className="fixed inset-0 bg-black/25 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-3xl border border-gray-200 shadow-xl max-h-[92vh] flex flex-col">
+            <div className="flex items-start justify-between p-5 border-b border-gray-100 shrink-0">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Add Expense</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Debits the employee&apos;s wallet straight away and files the claim as approved.</p>
+              </div>
+              <button onClick={closeAddExpense} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddExpense} className="flex flex-col flex-1 min-h-0">
+              {/* Employee + receipt: needed whichever tab you are on, so they
+                  sit above the tabs rather than inside one of them. */}
+              <div className="p-5 pb-4 space-y-4 border-b border-gray-100 shrink-0">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="relative">
+                    <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Employee Wallet <span className="text-red-500">*</span></label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Search employee name..."
+                        value={expEmp ? `${expEmp.first_name} ${expEmp.last_name}` : expSearch}
+                        onChange={(e) => {
+                          if (expEmp) setExpEmp(null);
+                          setExpSearch(e.target.value);
+                          setExpDropdown(true);
+                        }}
+                        onFocus={() => setExpDropdown(true)}
+                        className="w-full pl-9 pr-8 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-600 focus:border-blue-600 text-gray-950"
+                      />
+                      {expEmp && (
+                        <button
+                          type="button"
+                          onClick={() => { setExpEmp(null); setExpSearch(""); }}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    {expDropdown && !expEmp && expList.length > 0 && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setExpDropdown(false)} />
+                        <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-y-auto z-20">
+                          {expList.map((w) => (
+                            <button
+                              key={w.employee_id}
+                              type="button"
+                              onClick={() => { setExpEmp(w); setExpDropdown(false); setExpSearch(""); }}
+                              className="w-full text-left px-3 py-2 hover:bg-blue-50 flex items-center justify-between gap-3"
+                            >
+                              <span className="text-sm text-gray-800">
+                                {w.first_name} {w.last_name}
+                                {w.department_name && <span className="text-gray-400 text-xs"> · {w.department_name}</span>}
+                              </span>
+                              <span className="text-xs font-semibold text-gray-600 shrink-0">{formatCurrency(Number(w.current_balance || 0))}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                    {expEmp && (
+                      <div className="flex items-center justify-between text-xs mt-2 bg-gray-50 px-3 py-2 rounded border border-gray-200">
+                        <span className="text-gray-500">Wallet Balance</span>
+                        <span className="font-bold text-gray-900">{formatCurrency(Number(expEmp.current_balance || 0))}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Receipt</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        onChange={(e) => {
+                          setExpFile(e.target.files?.[0] || null);
+                          // A new file invalidates the previous scan, so the
+                          // Extract button becomes usable again.
+                          setExpOcrUrl(null);
+                          setExpScannedName(null);
+                        }}
+                        className="flex-1 min-w-0 text-xs text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleExpExtract}
+                        disabled={!expFile || expScanning || (expAiUsed && expScannedName === expFile?.name)}
+                        className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold bg-violet-600 text-white hover:bg-violet-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
+                        title="Read the receipt and fill this form from it"
+                      >
+                        {expScanning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                        {expScanning ? "Reading..." : "Extract with AI"}
+                      </button>
+                    </div>
+                    {expAiUsed && (
+                      <div className="flex items-start gap-1.5 mt-2 px-2.5 py-1.5 rounded border border-amber-200 bg-amber-50 text-[11px] text-amber-800">
+                        <AlertCircle className="w-3.5 h-3.5 mt-px shrink-0" />
+                        <span>Filled by AI. Check every figure — extraction can be wrong.</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabs */}
+              <div className="flex border-b border-gray-200 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setExpTab('basic')}
+                  className={`flex-1 py-3 text-sm font-medium text-center border-b-2 transition-colors ${expTab === 'basic' ? 'border-blue-500 text-blue-600 bg-blue-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+                >
+                  Basic
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExpTab('vendor')}
+                  className={`flex-1 py-3 text-sm font-medium text-center border-b-2 transition-colors ${expTab === 'vendor' ? 'border-blue-500 text-blue-600 bg-blue-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+                >
+                  Vendor &amp; Buyer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExpTab('items')}
+                  className={`flex-1 py-3 text-sm font-medium text-center border-b-2 transition-colors ${expTab === 'items' ? 'border-blue-500 text-blue-600 bg-blue-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+                >
+                  Items {expHasItems ? `(${expBreakdown.items.length})` : ""}
+                </button>
+              </div>
+
+              <div className="p-5 overflow-y-auto flex-1 min-h-0">
+                {expTab === 'basic' && (
+                  <div className="space-y-4 animate-fade-in">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Amount <span className="text-red-500">*</span></label>
+                        {expHasItems ? (
+                          <div className="w-full px-3 py-2 bg-gray-100 border border-gray-200 rounded text-sm font-bold text-gray-800 flex items-center justify-between">
+                            <span>{formatCurrency(expEffectiveAmount)}</span>
+                            <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">from items</span>
+                          </div>
+                        ) : (
+                          <input
+                            type="number" min="0.01" step="0.01" placeholder="0.00"
+                            value={expAmount}
+                            onChange={(e) => setExpAmount(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-600 focus:border-blue-600 text-sm font-semibold text-gray-950"
+                          />
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Category</label>
+                        <select
+                          value={expCategory}
+                          onChange={(e) => setExpCategory(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-600 focus:border-blue-600 text-sm text-gray-950 bg-white"
+                        >
+                          <option value="">Other</option>
+                          {categoryOptions.map((name: string) => (
+                            <option key={name} value={name}>{name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Invoice No.</label>
+                        <input
+                          type="text" placeholder="Optional"
+                          value={expInvoiceNo}
+                          onChange={(e) => setExpInvoiceNo(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-600 focus:border-blue-600 text-sm text-gray-950"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Invoice Date</label>
+                        <input
+                          type="date"
+                          value={expInvoiceDate}
+                          onChange={(e) => setExpInvoiceDate(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-600 focus:border-blue-600 text-sm text-gray-950"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Invoice Name</label>
+                        <input
+                          type="text" placeholder="Optional"
+                          value={expInvoiceName}
+                          onChange={(e) => setExpInvoiceName(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-600 focus:border-blue-600 text-sm text-gray-950"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Transaction Ref</label>
+                        <input
+                          type="text" placeholder="Optional"
+                          value={expTxnId}
+                          onChange={(e) => setExpTxnId(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-600 focus:border-blue-600 text-sm text-gray-950"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Description / Reason <span className="text-red-500">*</span></label>
+                      <textarea
+                        required placeholder="What was this spent on?"
+                        value={expReason}
+                        onChange={(e) => setExpReason(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-600 focus:border-blue-600 text-xs h-20 resize-none text-gray-950"
+                      />
+                    </div>
+
+                    {expEmp && expEffectiveAmount > 0 && (
+                      <div className="flex items-center justify-between px-3 py-2.5 rounded border border-red-200 bg-red-50 text-xs font-medium text-red-800">
+                        <span className="inline-flex items-center gap-1.5"><ArrowDownLeft className="w-3.5 h-3.5" /> Wallet after this expense</span>
+                        <span className="font-bold">{formatCurrency(Number(expEmp.current_balance || 0) - expEffectiveAmount)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {expTab === 'vendor' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 animate-fade-in">
+                    <div className="md:col-span-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Vendor / Seller</div>
+                    {([
+                      ["Name", "name", "text"],
+                      ["GSTIN", "gstin", "text"],
+                      ["Contact", "phone", "text"],
+                    ] as const).map(([label, key]) => (
+                      <div key={`s-${key}`}>
+                        <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">{label}</label>
+                        <input
+                          type="text"
+                          value={expSeller[key] || ""}
+                          onChange={(e) => setExpSeller((p: any) => ({ ...p, [key]: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-600 focus:border-blue-600 text-sm text-gray-950"
+                        />
+                      </div>
+                    ))}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Address</label>
+                      <input
+                        type="text"
+                        value={expSeller.address || ""}
+                        onChange={(e) => setExpSeller((p: any) => ({ ...p, address: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-600 focus:border-blue-600 text-sm text-gray-950"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2 text-xs font-bold text-gray-500 uppercase tracking-wider pt-3 border-t border-gray-100">Buyer</div>
+                    {([
+                      ["Name", "name"],
+                      ["GSTIN", "gstin"],
+                      ["Contact", "phone"],
+                      ["Address", "address"],
+                    ] as const).map(([label, key]) => (
+                      <div key={`b-${key}`}>
+                        <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">{label}</label>
+                        <input
+                          type="text"
+                          value={expBuyer[key] || ""}
+                          onChange={(e) => setExpBuyer((p: any) => ({ ...p, [key]: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-600 focus:border-blue-600 text-sm text-gray-950"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {expTab === 'items' && (
+                  <LineItemsEditor
+                    value={expBreakdown}
+                    onChange={(next) => setExpBreakdown(next)}
+                  />
+                )}
+              </div>
+
+              <div className="p-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between gap-3 shrink-0 rounded-b-xl">
+                <div className="text-xs text-gray-500">
+                  Total <span className="font-bold text-gray-900">{formatCurrency(expEffectiveAmount || 0)}</span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={closeAddExpense}
+                    className="px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 border border-gray-300 rounded transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={expLoading || !expEmp || !expReason.trim() || !(expEffectiveAmount > 0)}
+                    className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed rounded transition-colors flex items-center justify-center gap-1.5 shadow"
+                  >
+                    {expLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    Record Expense
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       )}

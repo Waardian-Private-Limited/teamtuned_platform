@@ -35,7 +35,7 @@ import ActionItemChat from './ActionItemChat';
 import HandoffInbox from './HandoffInbox';
 import HandoffDialog from './HandoffDialog';
 import PointCard, { PointAction } from './PointCard';
-import { toLifecycle } from '@/lib/momStatus';
+import { abilityFor, mergePointState } from '@/lib/momStatus';
 
 interface MomDashboardProps {
   basePath?: string;
@@ -114,6 +114,7 @@ function MomDashboardInner({ basePath = '/employee/mom' }: MomDashboardProps) {
   // Action Items State
   const [actionSubTab, setActiveSubTab] = useState<'all' | 'assigned' | 'raised'>('assigned');
   const [points, setPoints] = useState<any[]>([]);
+  const [pointsViewer, setPointsViewer] = useState<any>(null);
   const [pointsLoading, setPointsLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -188,6 +189,7 @@ function MomDashboardInner({ basePath = '/employee/mom' }: MomDashboardProps) {
 
       const res = await apiClient.get('/mom/my-points', params, { withAuth: true });
       if (res?.success) {
+        if (res.viewer) setPointsViewer(res.viewer);
         setPoints(res.points || []);
         setTotalCount(res.total || 0);
       } else {
@@ -230,16 +232,26 @@ function MomDashboardInner({ basePath = '/employee/mom' }: MomDashboardProps) {
   };
 
   // Action item handlers
-  const handleAcknowledge = async (id: number, e: React.MouseEvent) => {
+  const handleAcknowledge = async (id: number, e: React.MouseEvent, claiming = false) => {
     e.stopPropagation();
     try {
       const res = await apiClient.put(`/mom/point/acknowledge/${id}`, {}, { withAuth: true });
       if (res?.success) {
-        toast.success('Point acknowledged');
-        setPoints(prev => prev.map(p => p.id === id ? { ...p, status: 'acknowledged' } : p));
+        toast.success(res.claimed_from_pool || claiming ? 'You have taken this on' : 'Point acknowledged');
+        // Claiming settles ownership, so the pool flags on this row are stale.
+        setPoints(prev => prev.map(p => p.id === id
+          ? { ...mergePointState(p, res), is_claimable: 0 }
+          : p));
         fetchSummary();
       }
     } catch (err: any) {
+      // Losing the race for a pooled point is a normal outcome, not a failure.
+      const claimedBy = err?.data?.claimed_by || err?.claimed_by;
+      if (err?.status === 409 || err?.data?.code === 'already_claimed') {
+        toast(claimedBy ? `${claimedBy} picked this up first.` : 'Someone else picked this up first.');
+        setPoints(prev => prev.map(p => p.id === id ? { ...p, is_claimable: 0 } : p));
+        return;
+      }
       toast.error(err?.message || 'Failed to acknowledge');
     }
   };
@@ -250,7 +262,7 @@ function MomDashboardInner({ basePath = '/employee/mom' }: MomDashboardProps) {
       const res = await apiClient.put(`/mom/point/complete/${id}`, {}, { withAuth: true });
       if (res?.success) {
         toast.success('Point marked as completed');
-        setPoints(prev => prev.map(p => p.id === id ? { ...p, status: 'completed' } : p));
+        setPoints(prev => prev.map(p => p.id === id ? mergePointState(p, res) : p));
         fetchSummary();
       }
     } catch {
@@ -278,7 +290,7 @@ function MomDashboardInner({ basePath = '/employee/mom' }: MomDashboardProps) {
       const res = await apiClient.put(`/mom/point/reject/${id}`, {}, { withAuth: true });
       if (res?.success) {
         toast.success('Point sent back for rework');
-        setPoints(prev => prev.map(p => p.id === id ? { ...p, status: 'in_progress' } : p));
+        setPoints(prev => prev.map(p => p.id === id ? mergePointState(p, res) : p));
         fetchSummary();
       }
     } catch {
@@ -650,32 +662,21 @@ function MomDashboardInner({ basePath = '/employee/mom' }: MomDashboardProps) {
           ) : (
             <div className="space-y-3">
               {points.map((point) => {
-                const s = (point.status || 'open').toLowerCase();
-                const lifecycle = toLifecycle(point.status, point.lifecycle_status);
-                // Only the employee actually assigned to this point can acknowledge it.
-                // Reviewer, creator, meeting organizer, or admin cannot acknowledge unless they are assigned.
-                const activeAssignments = (point.assignments || []).filter(
-                  (a: any) => (a.state || 'active') !== 'declined' && a.role !== 'verifier'
-                );
-                const isAssignedToMe = Boolean(
-                  (currentEmpId && point.assigned_to_id && Number(point.assigned_to_id) === Number(currentEmpId)) ||
-                  (currentEmpId && activeAssignments.some((a: any) => Number(a.assignee_id || a.id) === Number(currentEmpId) && a.assignee_type !== 'department')) ||
-                  (point.is_assigned === 1 && !point.is_raised && Number(point.reviewer_id) !== Number(currentEmpId) && Number(point.created_by) !== Number(currentEmpId))
-                );
-                const isReviewer = Boolean(
-                  isOrgAdmin ||
-                  isHRMode ||
-                  point.meeting_created_by === currentEmpId ||
-                  point.created_by === currentEmpId ||
-                  point.reviewer_id === currentEmpId ||
-                  point.is_raised === 1
-                );
-                const isOwner = isAssignedToMe;
+                // One source for who may do what. See momStatus.ts — the three
+                // screens used to carry three drifting copies of this, each
+                // ORing a raw legacy-status test against the lifecycle test.
+                const ability = abilityFor(point, {
+                  employeeId: currentEmpId,
+                  isAdmin: isOrgAdmin || isHRMode,
+                  departmentId: pointsViewer?.department_id,
+                });
+                const isReviewer = ability.isReviewer;
 
                 const actions: PointAction[] = [];
 
-                // 1. If open/planned: show Acknowledge only
-                if (((['open', 'planned'].includes(s)) || lifecycle === 'open') && isAssignedToMe) {
+                // Each state offers exactly one next step to the person who
+                // owns it, so these branches are mutually exclusive.
+                if (ability.canStart) {
                   actions.push({
                     key: 'ack',
                     label: 'Acknowledge',
@@ -684,8 +685,19 @@ function MomDashboardInner({ basePath = '/employee/mom' }: MomDashboardProps) {
                     onClick: (e: React.MouseEvent) => handleAcknowledge(point.id, e),
                   });
                 }
-                // 2. If acknowledged or in_progress: HIDE Acknowledge, show Mark Done only!
-                if (((['acknowledged', 'in_progress', 'doing'].includes(s)) || lifecycle === 'in_progress') && isAssignedToMe) {
+                // Pooled to this person's department and still nobody's.
+                // Worded as a claim: pressing it takes the work off everyone
+                // else who can see it.
+                if (ability.canClaim) {
+                  actions.push({
+                    key: 'claim',
+                    label: "I'll take this",
+                    kind: 'primary',
+                    icon: Check,
+                    onClick: (e: React.MouseEvent) => handleAcknowledge(point.id, e, true),
+                  });
+                }
+                if (ability.canSubmit) {
                   actions.push({
                     key: 'done',
                     label: 'Mark Done',
@@ -694,8 +706,7 @@ function MomDashboardInner({ basePath = '/employee/mom' }: MomDashboardProps) {
                     onClick: (e: React.MouseEvent) => handleMarkDone(point.id, e),
                   });
                 }
-                // 3. If submitted or completed: show Approve & Return for Reviewer
-                if (((['submitted', 'completed'].includes(s)) || lifecycle === 'submitted') && isReviewer) {
+                if (ability.canVerify) {
                   actions.push({
                     key: 'approve',
                     label: 'Approve',
@@ -703,6 +714,8 @@ function MomDashboardInner({ basePath = '/employee/mom' }: MomDashboardProps) {
                     icon: Check,
                     onClick: (e: React.MouseEvent) => handleApprove(point.id, e),
                   });
+                }
+                if (ability.canReturn) {
                   actions.push({
                     key: 'return',
                     label: 'Return',
@@ -710,28 +723,26 @@ function MomDashboardInner({ basePath = '/employee/mom' }: MomDashboardProps) {
                     onClick: (e: React.MouseEvent) => handleReject(point.id, e),
                   });
                 }
-                if (lifecycle !== 'done' && lifecycle !== 'cancelled') {
-                  if (isOwner) {
-                    actions.push({
-                      key: 'handoff',
-                      label: 'Hand over',
-                      icon: ArrowRightLeft,
-                      onClick: (e: React.MouseEvent) => {
-                        e.stopPropagation();
-                        setHandoffTarget({ id: point.id, text: point.point_text, mode: 'handoff' });
-                      },
-                    });
-                  } else if (isReviewer) {
-                    actions.push({
-                      key: 'reassign',
-                      label: 'Reassign',
-                      icon: ArrowRightLeft,
-                      onClick: (e: React.MouseEvent) => {
-                        e.stopPropagation();
-                        setHandoffTarget({ id: point.id, text: point.point_text, mode: 'reassign' });
-                      },
-                    });
-                  }
+                if (ability.canHandOff) {
+                  actions.push({
+                    key: 'handoff',
+                    label: 'Hand over',
+                    icon: ArrowRightLeft,
+                    onClick: (e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      setHandoffTarget({ id: point.id, text: point.point_text, mode: 'handoff' });
+                    },
+                  });
+                } else if (ability.canReassign) {
+                  actions.push({
+                    key: 'reassign',
+                    label: 'Reassign',
+                    icon: ArrowRightLeft,
+                    onClick: (e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      setHandoffTarget({ id: point.id, text: point.point_text, mode: 'reassign' });
+                    },
+                  });
                 }
 
                 return (

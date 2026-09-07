@@ -946,6 +946,11 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                              const isOutside = session.session_type === 'outside_work';
                                              const isNightOT = session.session_type === 'night_ot';
                                              const duration = session.duration_minutes || 0;
+                                             /* An auto-terminated night OT has an end time and a duration the
+                                                employee never worked — the 6 AM job stamped them to close a
+                                                session nobody closed. Showing those reads as hours put in, so
+                                                the row says what happened instead. */
+                                             const autoTerminated = isNightOT && Boolean(record?.night_ot_auto_terminated);
 
                                              return (
                                                  <div key={idx} className={`relative pl-4 border-l-2 ${isBreak ? 'border-amber-200' : isNightOT ? 'border-indigo-200' : 'border-cyan-200'} pb-4 last:pb-0`}>
@@ -956,14 +961,21 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                                                  {isBreak ? 'Break' : isNightOT ? 'Night OT Session' : 'Outside Work'}
                                                              </div>
                                                              <div className="text-xs text-slate-500 mt-0.5">
-                                                                 {formatTime(session.start_time)} - {session.end_time ? formatTime(session.end_time) : 'Ongoing'}
+                                                                 {autoTerminated
+                                                                     ? `${formatTime(session.start_time)} — not closed`
+                                                                     : `${formatTime(session.start_time)} - ${session.end_time ? formatTime(session.end_time) : 'Ongoing'}`}
                                                              </div>
+                                                             {autoTerminated && (
+                                                                 <div className="text-[11px] font-semibold text-amber-700 mt-1">
+                                                                     Auto-closed at 6:00 AM — not counted
+                                                                 </div>
+                                                             )}
                                                              {!!session.notes && (
                                                                  <div className="text-xs text-slate-600 mt-1 italic">"{session.notes}"</div>
                                                              )}
                                                          </div>
-                                                         <div className="text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-1 rounded">
-                                                             {Math.floor(duration / 60)}h {duration % 60}m
+                                                         <div className={`text-xs font-semibold px-2 py-1 rounded ${autoTerminated ? 'text-amber-700 bg-amber-50' : 'text-slate-700 bg-slate-100'}`}>
+                                                             {autoTerminated ? '—' : `${Math.floor(duration / 60)}h ${duration % 60}m`}
                                                          </div>
                                                      </div>
 

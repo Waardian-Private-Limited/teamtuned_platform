@@ -25,6 +25,7 @@ import {
     Download,
     AlertCircle,
     RefreshCw,
+    Users,
     X
 } from 'lucide-react';
 import Link from 'next/link';
@@ -34,6 +35,7 @@ import toast from 'react-hot-toast';
 import ActionItemChat from './ActionItemChat';
 import { getSocket } from '@/lib/socket';
 import { useAuth } from '@/context/AuthContext';
+import { abilityFor, readStatus, poolDepartment } from '@/lib/momStatus';
 
 export interface Breadcrumb {
     label: string;
@@ -396,8 +398,9 @@ export default function MeetingDetailView({
 
     // Point Status Toggle (open -> done -> open)
     const handleTogglePointStatus = async (point: any) => {
-        const currentStatus = (point.lifecycle_status || point.status || 'open').toLowerCase();
-        const isClosed = ['closed', 'completed', 'done', 'approved'].includes(currentStatus);
+        // Mixing lifecycle and legacy words in one variable is what made this
+        // fragile: 'completed' is the legacy word for *submitted*, not done.
+        const isClosed = readStatus(point).lifecycle === 'done';
         const targetState = isClosed ? 'open' : 'done';
 
         try {
@@ -414,14 +417,23 @@ export default function MeetingDetailView({
         }
     };
 
-    const handleAcknowledgePoint = async (pointId: number) => {
+    const handleAcknowledgePoint = async (pointId: number, claiming = false) => {
         try {
             const res = await apiClient.put(`/mom/point/acknowledge/${pointId}`, {}, { withAuth: true });
             if (res?.success) {
-                toast.success('Point acknowledged');
+                toast.success(res.claimed_from_pool || claiming ? 'You have taken this on' : 'Point acknowledged');
                 fetchMeetingDetails();
             }
         } catch (err: any) {
+            // Losing the race for a pooled point is a normal outcome, not a
+            // failure: someone else pressed Acknowledge first. Refresh so the
+            // button goes away and the new owner's name appears.
+            const claimedBy = err?.data?.claimed_by || err?.claimed_by;
+            if (err?.status === 409 || err?.data?.code === 'already_claimed') {
+                toast(claimedBy ? `${claimedBy} picked this up first.` : 'Someone else picked this up first.');
+                fetchMeetingDetails();
+                return;
+            }
             toast.error(err.message || 'Failed to acknowledge');
         }
     };
@@ -1050,8 +1062,13 @@ export default function MeetingDetailView({
                         </div>
                     ) : (
                         filteredPoints.map((point: any, idx: number) => {
-                            const currentStatus = (point.lifecycle_status || point.status || 'open').toLowerCase();
-                            const isClosed = ['closed', 'completed', 'done', 'approved'].includes(currentStatus);
+                            // `isClosed` used to include the legacy word
+                            // 'completed', which is what a *submitted* point
+                            // writes — so a point awaiting review rendered as
+                            // done and its Approve button, nested under
+                            // !isClosed, could never appear.
+                            const pointStatus = readStatus(point);
+                            const isClosed = pointStatus.lifecycle === 'done' || pointStatus.lifecycle === 'cancelled';
                             const assignments = (point.assignments || []).filter((a: any) => a.role !== 'verifier');
                             const pointAttachments = point.attachments || [];
 
@@ -1061,15 +1078,21 @@ export default function MeetingDetailView({
                                 : 'No Assignee';
 
                             const reviewerText = point.reviewer_name || null;
-                            const isAssignedToMe = Boolean(
-                                (currentEmployeeId && point.assigned_to_id && Number(point.assigned_to_id) === Number(currentEmployeeId)) ||
-                                (currentEmployeeId && assignments.some((a: any) => 
-                                    (a.state || 'active') !== 'declined' && 
-                                    a.role !== 'verifier' && 
-                                    a.assignee_type !== 'department' && 
-                                    Number(a.assignee_id || a.id) === Number(currentEmployeeId)
-                                ))
+                            const ability = abilityFor(point, {
+                                employeeId: currentEmployeeId,
+                                isAdmin: canManageMeeting,
+                                departmentId: meeting?.viewer?.department_id,
+                            });
+                            const pool = poolDepartment(point);
+                            // Once somebody has claimed it, it is their point:
+                            // the pool line would otherwise keep saying nobody
+                            // had picked it up next to the new owner's name.
+                            const poolClaimed = assignments.some(
+                                (a: any) => (a.state || 'active') === 'active'
+                                    && a.assignee_type === 'employee'
+                                    && (a.role === 'owner' || !a.role)
                             );
+                            const showPool = !!pool && !poolClaimed && !isClosed;
 
                             return (
                                 <div
@@ -1109,6 +1132,24 @@ export default function MeetingDetailView({
                                                     {point.point_text}
                                                 </p>
                                             </div>
+
+                                            {/* An unclaimed pool reads as "Assigned to: Maintenance",
+                                                which sounds like it is somebody's job already. Say what
+                                                is actually true instead - and say it to the whole team,
+                                                not only to the people who can press the button. */}
+                                            {showPool && (
+                                                <div className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-indigo-50 px-2 py-1 text-[11px] text-indigo-700 border border-indigo-100">
+                                                    <Users className="w-3 h-3 shrink-0" />
+                                                    <span>
+                                                        Open to <span className="font-semibold">{pool!.name}</span>
+                                                        {ability.canClaim
+                                                            ? ' — first to accept owns it'
+                                                            : ability.isPoolMember
+                                                                ? ' — you can follow this, but only the site team can take it on'
+                                                                : ' — waiting for someone to pick it up'}
+                                                    </span>
+                                                </div>
+                                            )}
 
                                             {/* Clean Details Line (No clutter, no heavy badges) */}
                                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-600 pt-0.5">
@@ -1184,7 +1225,7 @@ export default function MeetingDetailView({
                                         {/* Status Workflow Action Buttons */}
                                         {!isClosed && (
                                             <>
-                                                {(currentStatus === 'open' || currentStatus === 'planned') && isAssignedToMe && (
+                                                {ability.canStart && (
                                                     <button
                                                         type="button"
                                                         onClick={() => handleAcknowledgePoint(point.id)}
@@ -1194,7 +1235,21 @@ export default function MeetingDetailView({
                                                     </button>
                                                 )}
 
-                                                {(currentStatus === 'acknowledged' || currentStatus === 'in_progress') && isAssignedToMe && (
+                                                {/* Pooled to this viewer's department and still unclaimed.
+                                                    Worded differently from Acknowledge on purpose: pressing
+                                                    it takes ownership away from everyone else who can see it. */}
+                                                {ability.canClaim && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleAcknowledgePoint(point.id, true)}
+                                                        title={`Open to everyone in ${pool?.name || 'the department'} — the first to accept owns it`}
+                                                        className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs font-bold transition-all shadow-xs"
+                                                    >
+                                                        I&apos;ll take this
+                                                    </button>
+                                                )}
+
+                                                {ability.canSubmit && (
                                                     <button
                                                         type="button"
                                                         onClick={() => handleMarkPointDone(point.id)}
@@ -1204,7 +1259,7 @@ export default function MeetingDetailView({
                                                     </button>
                                                 )}
 
-                                                {(currentStatus === 'submitted' || currentStatus === 'completed') && (canManageMeeting || Number(point.reviewer_id) === Number(currentEmployeeId)) && (
+                                                {ability.canVerify && (
                                                     <button
                                                         type="button"
                                                         onClick={() => handleApprovePoint(point.id)}
