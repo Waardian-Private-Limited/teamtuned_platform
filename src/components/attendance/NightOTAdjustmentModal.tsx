@@ -74,6 +74,9 @@ export interface AdjustmentCandidate {
   target_date: string;
   current_status: string;
   proposed_status: string;
+  /* Set only where a full-day stretch lands on a half day: the half repairs the
+     day and the rest banks. Absent days consume the whole credit. */
+  leftover_compoff?: number;
   shift_start: string;
   shift_end: string;
   att_id: number | null;
@@ -133,6 +136,50 @@ export default function NightOTAdjustmentModal({
 
 
 
+  /* Walks the employee list a page at a time.
+     A whole site in one request was coming back 504 — the gateway timing the
+     scan out before it finished, which nothing on the client can wait longer
+     for. Several small requests each answer well inside that limit, and the
+     progress bar means a long scan looks like progress rather than a hang. */
+  const scanMonth = async (): Promise<AdjustmentCandidate[]> => {
+    const siteParam = siteId === "all" ? "all" : String(siteId);
+    const PAGE = 50;
+    const collected: AdjustmentCandidate[] = [];
+    let offset = 0;
+    let total: number | null = null;
+
+    for (;;) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 90000);
+      let res: any;
+      try {
+        res = await apiClient<any>(
+          `/attendance/night-ot-adjustment/preview?month=${month}&site_id=${siteParam}&offset=${offset}&limit=${PAGE}`,
+          { method: "GET", withAuth: true, signal: controller.signal }
+        );
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      if (!res?.success) throw new Error(res?.message || "Failed to fetch Night OT adjustments preview");
+
+      collected.push(...(res.adjustments || []));
+      if (total === null) total = res.total_employees ?? 0;
+
+      const scannedSoFar = Math.min(offset + (res.scanned || 0), total || 0);
+      const pct = total ? Math.round((scannedSoFar / total) * 100) : 0;
+      setProgress(pct);
+      setProgressMessage(`Scanning ${scannedSoFar} of ${total} employees (${pct}%) — ${collected.length} day${collected.length === 1 ? "" : "s"} found so far.`);
+
+      if (!res.has_more || res.next_offset == null) break;
+      offset = res.next_offset;
+      // Same reasoning as the apply loop: leave the server room to breathe.
+      await new Promise((r) => setTimeout(r, 150));
+    }
+
+    return collected;
+  };
+
   const handleFetchAdjustments = async () => {
     if (!month) {
       setError("Please select a valid month.");
@@ -141,36 +188,23 @@ export default function NightOTAdjustmentModal({
 
     setLoading(true);
     setError(null);
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes timeout budget for All Sites query
+    setProgress(0);
 
     try {
-      const siteParam = siteId === "all" ? "all" : String(siteId);
-      const res = await apiClient<any>(
-        `/attendance/night-ot-adjustment/preview?month=${month}&site_id=${siteParam}`,
-        { method: "GET", withAuth: true, signal: controller.signal }
-      );
-
-      clearTimeout(timeoutId);
-
-      if (res.success) {
-        const list: AdjustmentCandidate[] = res.adjustments || [];
-        setAdjustments(list);
-        setSelectedIds(new Set(list.map((item) => item.id)));
-        setStep(2);
-      } else {
-        throw new Error(res.message || "Failed to fetch Night OT adjustments preview");
-      }
+      const list = await scanMonth();
+      setAdjustments(list);
+      setSelectedIds(new Set(list.map((item) => item.id)));
+      setStep(2);
     } catch (err: any) {
-      clearTimeout(timeoutId);
-      if (err.name === 'AbortError') {
-        setError("The request timed out while scanning all sites. Please try selecting a specific site or narrowing the request.");
+      if (err.name === "AbortError") {
+        setError("A page of the scan timed out. Try a single site, or a month with fewer employees.");
       } else {
         setError(err.message || "An unexpected error occurred while fetching preview");
       }
     } finally {
       setLoading(false);
+      setProgress(0);
+      setProgressMessage(null);
     }
   };
 
@@ -189,18 +223,7 @@ export default function NightOTAdjustmentModal({
     setProgressMessage("Scanning the month for night OT days to settle…");
 
     try {
-      const siteParam = siteId === "all" ? "all" : String(siteId);
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 300000);
-      const res = await apiClient<any>(
-        `/attendance/night-ot-adjustment/preview?month=${month}&site_id=${siteParam}`,
-        { method: "GET", withAuth: true, signal: controller.signal }
-      );
-      clearTimeout(timeoutId);
-
-      if (!res.success) throw new Error(res.message || "Failed to scan for Night OT adjustments");
-
-      const list: AdjustmentCandidate[] = res.adjustments || [];
+      const list = await scanMonth();
       if (list.length === 0) {
         onSuccess("Nothing to settle — no night OT days in this month need adjusting.");
         onClose();
@@ -541,9 +564,9 @@ export default function NightOTAdjustmentModal({
                 </select>
               </div>
 
-              {/* Fetch & Fix stays on this step, so it needs its own progress
-                  readout — otherwise a long run looks like nothing happening. */}
-              {applying && progressMessage && (
+              {/* Covers both the paged scan and the apply run — either can take
+                  a while on a large site, and both stay on this step. */}
+              {(applying || loading) && progressMessage && (
                 <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 space-y-2">
                   <div className="flex items-start justify-between gap-3 text-xs font-semibold text-indigo-900">
                     <span className="flex items-start gap-1.5">
