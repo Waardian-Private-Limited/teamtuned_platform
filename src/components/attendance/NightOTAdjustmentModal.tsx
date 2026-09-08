@@ -11,6 +11,55 @@ interface Props {
   onSuccess: (msg: string) => void;
 }
 
+/* A night the system would not credit because it could not verify the employee
+   actually finished the session. Held back for HR rather than silently dropped:
+   each one is somebody's day or comp-off. */
+export interface NightOTReviewItem {
+  employee_id: number;
+  employee_name: string | null;
+  target_date: string;
+  night_ot_date: string | null;
+  reason: string;
+  auto_terminated: boolean | null;
+  has_checkout_photo: boolean | null;
+  has_punch_out: boolean | null;
+}
+
+/* Plain-English for each reason. The raw codes are fine in a log but useless to
+   the person who has to act on the row. */
+const REVIEW_REASON_LABELS: Record<string, string> = {
+  auto_terminated: "Session auto-closed by system",
+  no_checkout_evidence: "No checkout photo or punch-out",
+  incomplete_night_ot: "Night OT start or end missing",
+  night_ot_rejected: "Night OT was rejected",
+};
+
+/* The list is the point of the screen, so it has to be able to leave it —
+   payroll gets worked in a spreadsheet, not in a modal. */
+function downloadReviewCsv(items: NightOTReviewItem[], month: string) {
+  const header = ["Employee ID", "Employee", "Night OT date", "Day affected", "Reason", "Auto-closed", "Checkout photo", "Punch-out"];
+  const esc = (v: any) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const rows = items.map((r) => [
+    r.employee_id,
+    r.employee_name || `Employee #${r.employee_id}`,
+    r.night_ot_date || "",
+    r.target_date,
+    REVIEW_REASON_LABELS[r.reason] || r.reason.replace(/_/g, " "),
+    r.auto_terminated ? "Yes" : "No",
+    r.has_checkout_photo ? "Yes" : "No",
+    r.has_punch_out ? "Yes" : "No",
+  ].map(esc).join(","));
+  const blob = new Blob([[header.map(esc).join(","), ...rows].join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Night_OT_Needs_Review_${month}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export interface AdjustmentCandidate {
   id: string;
   employee_id: number;
@@ -41,7 +90,9 @@ export default function NightOTAdjustmentModal({
   const [loading, setLoading] = React.useState<boolean>(false);
   const [applying, setApplying] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [step, setStep] = React.useState<1 | 2>(1);
+  const [step, setStep] = React.useState<1 | 2 | 3>(1);
+  const [reviewItems, setReviewItems] = React.useState<NightOTReviewItem[]>([]);
+  const [resultMessage, setResultMessage] = React.useState<string>("");
   const [adjustments, setAdjustments] = React.useState<AdjustmentCandidate[]>([]);
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const [progress, setProgress] = React.useState<number>(0);
@@ -123,6 +174,54 @@ export default function NightOTAdjustmentModal({
     }
   };
 
+  /* Scan and settle in one go, for the common case where the whole month is
+     being processed and there is nothing to pick over. It still goes through
+     the same preview and the same apply, so the rules and the pacing are
+     identical — the only thing skipped is the review step. */
+  const handleFetchAndFix = async () => {
+    if (!month) {
+      setError("Please select a valid month.");
+      return;
+    }
+    setError(null);
+    setApplying(true);
+    setProgress(0);
+    setProgressMessage("Scanning the month for night OT days to settle…");
+
+    try {
+      const siteParam = siteId === "all" ? "all" : String(siteId);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 300000);
+      const res = await apiClient<any>(
+        `/attendance/night-ot-adjustment/preview?month=${month}&site_id=${siteParam}`,
+        { method: "GET", withAuth: true, signal: controller.signal }
+      );
+      clearTimeout(timeoutId);
+
+      if (!res.success) throw new Error(res.message || "Failed to scan for Night OT adjustments");
+
+      const list: AdjustmentCandidate[] = res.adjustments || [];
+      if (list.length === 0) {
+        onSuccess("Nothing to settle — no night OT days in this month need adjusting.");
+        onClose();
+        return;
+      }
+
+      setAdjustments(list);
+      setSelectedIds(new Set(list.map((i) => i.id)));
+      await handleApplyAdjustments(list);
+    } catch (err: any) {
+      if (err.name === "AbortError") {
+        setError("The scan timed out. Try one site at a time, or use Fetch Adjustments to review in smaller pieces.");
+      } else {
+        setError(err.message || "An unexpected error occurred.");
+      }
+      setApplying(false);
+      setProgress(0);
+      setProgressMessage(null);
+    }
+  };
+
   const handleToggleSelectAll = () => {
     if (selectedIds.size === adjustments.length) {
       setSelectedIds(new Set());
@@ -141,8 +240,27 @@ export default function NightOTAdjustmentModal({
     setSelectedIds(next);
   };
 
-  const handleApplyAdjustments = async () => {
-    const selectedList = adjustments.filter((a) => selectedIds.has(a.id));
+  /* One line describing what actually happened, built from the server's own
+     tally rather than a row count. "Applied 240 adjustments" says nothing about
+     whether anyone was made Present, lifted from a half day, or paid in
+     comp-off — and those are the three things the person running this is
+     accountable for explaining afterwards. */
+  const describeOutcome = (o: any, credits: number): string => {
+    const parts: string[] = [];
+    if (o.absent_to_present) parts.push(`${o.absent_to_present} absent day${o.absent_to_present > 1 ? "s" : ""} → Present`);
+    if (o.absent_to_halfday) parts.push(`${o.absent_to_halfday} absent day${o.absent_to_halfday > 1 ? "s" : ""} → Half-Day`);
+    if (o.halfday_upgraded) parts.push(`${o.halfday_upgraded} half-day${o.halfday_upgraded > 1 ? "s" : ""} → Full day`);
+    if (o.compoff_only) parts.push(`${o.compoff_only} credited as comp-off`);
+    if (!parts.length) return "No records needed adjusting.";
+    let msg = parts.join(", ") + ".";
+    if (credits > 0) {
+      msg += ` ${credits} comp-off credit${credits === 1 ? "" : "s"} banked against ${new Date(`${month}-01T00:00:00`).toLocaleString(undefined, { month: "long", year: "numeric" })}.`;
+    }
+    return msg;
+  };
+
+  const handleApplyAdjustments = async (list?: AdjustmentCandidate[]) => {
+    const selectedList = list ?? adjustments.filter((a) => selectedIds.has(a.id));
     if (selectedList.length === 0) {
       setError("Please select at least one adjustment item to confirm.");
       return;
@@ -153,9 +271,21 @@ export default function NightOTAdjustmentModal({
     setProgress(0);
 
     const siteParam = siteId === "all" ? "all" : siteId;
-    const BATCH_SIZE = 25;
+    /* Smaller batches, and a breather between them. The server settles each day
+       individually - reading two attendance rows, sometimes writing one and
+       awarding a comp-off - so a large month is thousands of round trips. Sent
+       in one rush they saturate the connection pool and every other user waits
+       behind them. This is slower on purpose. */
+    const BATCH_SIZE = 15;
+    const BATCH_PAUSE_MS = 250;
     const totalItems = selectedList.length;
-    let totalUpdated = 0;
+
+    const tally = {
+      absent_to_present: 0, absent_to_halfday: 0, halfday_upgraded: 0,
+      compoff_only: 0, compoff_credits: 0, skipped: 0,
+      skipped_reasons: {} as Record<string, number>,
+    };
+    const collectedReview: NightOTReviewItem[] = [];
 
     try {
       for (let i = 0; i < totalItems; i += BATCH_SIZE) {
@@ -166,36 +296,77 @@ export default function NightOTAdjustmentModal({
         const percent = Math.round((processedCount / totalItems) * 100);
 
         setProgress(percent);
-        setProgressMessage(`Batch ${currentBatch} of ${totalBatches}: Updating ${processedCount} of ${totalItems} records (${percent}%)...`);
+        setProgressMessage(`Batch ${currentBatch} of ${totalBatches} — ${processedCount} of ${totalItems} records (${percent}%). Running gently to keep the system responsive.`);
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000);
+        // Generous: the server paces itself, so a slow batch is expected rather
+        // than a sign anything is wrong.
+        const timeoutId = setTimeout(() => controller.abort(), 180000);
 
         const res = await apiClient<any>("/attendance/night-ot-adjustment/apply", {
           method: "POST",
-          body: {
-            month,
-            site_id: siteParam,
-            adjustments: chunk,
-          },
+          body: { month, site_id: siteParam, adjustments: chunk },
           withAuth: true,
           signal: controller.signal
         });
 
         clearTimeout(timeoutId);
 
-        if (res.success) {
-          totalUpdated += (res.updated_count || chunk.length);
-        } else {
+        if (!res.success) {
           throw new Error(res.message || `Failed to apply adjustments at batch ${currentBatch}`);
         }
+
+        const o = res.outcome || {};
+        tally.absent_to_present += o.absent_to_present || 0;
+        tally.absent_to_halfday += o.absent_to_halfday || 0;
+        tally.halfday_upgraded += o.halfday_upgraded || 0;
+        tally.compoff_only += o.compoff_only || 0;
+        tally.compoff_credits += o.compoff_credits || 0;
+        tally.skipped += o.skipped || 0;
+        for (const [k, v] of Object.entries(o.skipped_reasons || {})) {
+          tally.skipped_reasons[k] = (tally.skipped_reasons[k] || 0) + (v as number);
+        }
+        if (Array.isArray(res.review_items)) collectedReview.push(...res.review_items);
+
+        if (i + BATCH_SIZE < totalItems) await new Promise(r => setTimeout(r, BATCH_PAUSE_MS));
       }
 
-      onSuccess(`Successfully applied Night OT adjustments for ${totalUpdated} records.`);
-      onClose();
+      let msg = describeOutcome(tally, tally.compoff_credits);
+      if (tally.skipped > 0) {
+        // Naming the reasons matters: "already settled" is the system working,
+        // "manually overridden" means someone's decision was respected, and
+        // both look identical if the count is reported bare.
+        const reasonLabels: Record<string, string> = {
+          already_settled: "already settled",
+          manually_overridden: "manually overridden by HR",
+          auto_adjust_disabled: "auto-adjust off in policy",
+          invalid_night_ot: "night OT not valid",
+          auto_terminated: "night OT auto-closed, not worked",
+          below_threshold: "below the qualifying threshold",
+          no_previous_day: "no night OT the day before",
+          no_policy: "no attendance policy",
+        };
+        const detail = Object.entries(tally.skipped_reasons)
+          .map(([k, v]) => `${v} ${reasonLabels[k] || k.replace(/_/g, " ")}`)
+          .join(", ");
+        msg += ` ${tally.skipped} left unchanged (${detail}).`;
+      }
+
+      /* Closing straight away would put this list behind a toast that
+         disappears. Anything a human has to decide stays on screen until they
+         have seen it. */
+      if (collectedReview.length > 0) {
+        setResultMessage(msg);
+        setReviewItems(collectedReview);
+        setStep(3);
+        onSuccess(msg);
+      } else {
+        onSuccess(msg);
+        onClose();
+      }
     } catch (err: any) {
       if (err.name === 'AbortError') {
-        setError("A batch request timed out. Some records may have been updated. Please refresh and try again.");
+        setError("A batch timed out. Anything already applied has been saved — re-run for the same month and settled days will be skipped automatically.");
       } else {
         setError(err.message || "An unexpected error occurred while applying adjustments.");
       }
@@ -220,7 +391,9 @@ export default function NightOTAdjustmentModal({
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-      <div className={`bg-white rounded-xl shadow-2xl border border-slate-200 w-full ${step === 2 ? 'max-w-4xl' : 'max-w-md'} overflow-hidden transition-all duration-200`}>
+      {/* The review list is a table too, so it needs the wide layout — at
+          max-w-md the columns are unreadable. */}
+      <div className={`bg-white rounded-xl shadow-2xl border border-slate-200 w-full ${step === 2 ? 'max-w-4xl' : step === 3 ? 'max-w-3xl' : 'max-w-md'} overflow-hidden transition-all duration-200`}>
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-indigo-50/50">
           <div className="flex items-center gap-2.5 text-indigo-700">
@@ -241,10 +414,99 @@ export default function NightOTAdjustmentModal({
             </div>
           )}
 
-          {step === 1 ? (
+          {step === 3 ? (
+            /* What the run could not verify. Shown after the fact rather than
+               folded into the summary toast: these are days somebody has to
+               look at, and a toast is gone before anyone can write them down. */
+            <div className="space-y-4">
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-800 flex items-start gap-2">
+                <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{resultMessage}</span>
+              </div>
+
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="flex items-start gap-2 text-sm text-amber-900">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold">{reviewItems.length} night{reviewItems.length === 1 ? "" : "s"} left for you to decide</p>
+                    <p className="text-xs mt-0.5 leading-relaxed">
+                      Nothing was changed for these. The system could not confirm the employee finished the
+                      session themselves &mdash; either it was auto-closed by the 6 AM job, or there is no
+                      checkout photo and no punch-out against it. Credit them by hand if the work did happen.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="max-h-[45vh] overflow-y-auto border border-slate-200 rounded-lg">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 sticky top-0">
+                    <tr className="text-left text-slate-500 uppercase tracking-wider text-[10px]">
+                      <th className="p-2.5">Employee</th>
+                      <th className="p-2.5">Night OT date</th>
+                      <th className="p-2.5">Day affected</th>
+                      <th className="p-2.5">Why it was held back</th>
+                      <th className="p-2.5">Evidence</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {reviewItems.map((r, idx) => (
+                      <tr key={`${r.employee_id}-${r.target_date}-${idx}`} className="hover:bg-slate-50">
+                        <td className="p-2.5 font-semibold text-slate-800">
+                          {r.employee_name || `Employee #${r.employee_id}`}
+                          <div className="text-[10px] text-slate-400 font-normal">ID: {r.employee_id}</div>
+                        </td>
+                        <td className="p-2.5 text-slate-700">{r.night_ot_date || "\u2014"}</td>
+                        <td className="p-2.5 text-slate-700">{r.target_date}</td>
+                        <td className="p-2.5">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                            {REVIEW_REASON_LABELS[r.reason] || r.reason.replace(/_/g, " ")}
+                          </span>
+                        </td>
+                        <td className="p-2.5 text-[10px] text-slate-600 space-y-0.5">
+                          <div>{r.auto_terminated ? "Auto-closed by system" : "Closed normally"}</div>
+                          <div>Checkout photo: {r.has_checkout_photo ? "yes" : "no"}</div>
+                          <div>Punch-out: {r.has_punch_out ? "yes" : "no"}</div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex gap-3 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => downloadReviewCsv(reviewItems, month)}
+                  className="px-4 py-2 border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-all text-sm font-semibold flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Download list
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all text-sm font-semibold"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          ) : step === 1 ? (
             <div className="space-y-4">
               <p className="text-xs text-slate-600 leading-relaxed">
-                Scan all employees for the selected month who worked a <strong>Night OT</strong> shift on date D and were marked <strong>Absent</strong> on date D+1. Review candidates before confirming overrides.
+                Scans the selected month for employees who worked a <strong>Night OT</strong> stretch, and settles the day after it against what they earned:
+              </p>
+              <ul className="text-[11px] text-slate-600 space-y-1 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                <li>&bull; <strong>Absent</strong> after a full-day stretch &rarr; marked <strong>Present</strong></li>
+                <li>&bull; <strong>Absent</strong> after a half-day stretch &rarr; marked <strong>Half-Day</strong></li>
+                <li>&bull; <strong>Half-Day</strong> after a half-day stretch &rarr; <strong>Full day</strong> (half + half)</li>
+                <li>&bull; <strong>Half-Day</strong> after a full-day stretch &rarr; Full day, and the leftover half banks as <strong>comp-off</strong></li>
+                <li>&bull; Already <strong>Present</strong>, or a week off &rarr; the whole credit banks as <strong>comp-off</strong></li>
+              </ul>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Comp-off is credited against the month being processed, not the current month. Days HR has already
+                overridden by hand, and days already settled, are left alone.
               </p>
 
               <div>
@@ -279,11 +541,32 @@ export default function NightOTAdjustmentModal({
                 </select>
               </div>
 
+              {/* Fetch & Fix stays on this step, so it needs its own progress
+                  readout — otherwise a long run looks like nothing happening. */}
+              {applying && progressMessage && (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-3 text-xs font-semibold text-indigo-900">
+                    <span className="flex items-start gap-1.5">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600 mt-px shrink-0" />
+                      <span className="font-medium leading-relaxed">{progressMessage}</span>
+                    </span>
+                    <span className="shrink-0">{progress}%</span>
+                  </div>
+                  <div className="w-full bg-indigo-200 h-2 rounded-full overflow-hidden">
+                    <div className="bg-indigo-600 h-full transition-all duration-300 rounded-full" style={{ width: `${progress}%` }} />
+                  </div>
+                  <p className="text-[11px] text-indigo-700">
+                    Safe to leave running. Days already settled are skipped, so re-running never double-counts.
+                  </p>
+                </div>
+              )}
+
               <div className="flex gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-all text-sm font-semibold"
+                  disabled={applying}
+                  className="px-4 py-2 border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-all text-sm font-semibold disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -298,11 +581,23 @@ export default function NightOTAdjustmentModal({
                 <button
                   type="button"
                   onClick={handleFetchAdjustments}
-                  disabled={loading}
-                  className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                  disabled={loading || applying}
+                  className="flex-1 px-4 py-2 border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
-                  <span>Fetch Adjustments</span>
+                  <span>Review First</span>
+                </button>
+                {/* The usual path when a whole month is being closed off and
+                    there is nothing to pick over. Same rules, same pacing —
+                    only the review step is skipped. */}
+                <button
+                  type="button"
+                  onClick={handleFetchAndFix}
+                  disabled={loading || applying}
+                  className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {applying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Moon className="w-4 h-4" />}
+                  <span>Fetch &amp; Fix All</span>
                 </button>
               </div>
             </div>
@@ -425,7 +720,7 @@ export default function NightOTAdjustmentModal({
                 </button>
                 <button
                   type="button"
-                  onClick={handleApplyAdjustments}
+                  onClick={() => handleApplyAdjustments()}
                   disabled={applying || selectedIds.size === 0 || adjustments.length === 0}
                   className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
                 >
