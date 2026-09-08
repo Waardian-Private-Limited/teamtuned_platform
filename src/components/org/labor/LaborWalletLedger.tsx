@@ -27,7 +27,8 @@ import {
     Receipt,
     Building2,
     Briefcase,
-    Trash2
+    Trash2,
+    Pencil
 } from "lucide-react";
 
 export default function LaborWalletLedger() {
@@ -141,6 +142,21 @@ export default function LaborWalletLedger() {
         notes: ""
     });
     const [showExportModal, setShowExportModal] = useState(false);
+
+    /* Editing an unpaid invoice's counts by hand. The counts are the only
+       input; the line totals, the invoice total and the GST on the PDF all
+       follow from them, and are recomputed on the server so what is saved can
+       never disagree with what is shown here. */
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editInvoice, setEditInvoice] = useState<any>(null);
+    const [editForm, setEditForm] = useState({
+        subscription_count: "",
+        punch_count: "",
+        subscription_rate: "",
+        attendance_rate: "",
+        reason: "",
+    });
+    const [savingEdit, setSavingEdit] = useState(false);
 
     useEffect(() => {
         fetchLedger();
@@ -444,6 +460,81 @@ export default function LaborWalletLedger() {
             toast.error(error.message || "Failed to download invoice");
         } finally {
             setDownloadingInvoiceId(null);
+        }
+    };
+
+    const openEditInvoice = (inv: any) => {
+        setEditInvoice(inv);
+        setEditForm({
+            subscription_count: String(inv.subscription_count ?? 0),
+            punch_count: String(inv.punch_count ?? 0),
+            subscription_rate: String(inv.subscription_rate ?? 0),
+            attendance_rate: String(inv.attendance_rate ?? 0),
+            reason: "",
+        });
+        setShowEditModal(true);
+    };
+
+    /* The same arithmetic the server will do, so the dialog can show the new
+       total as it is typed. It is a preview only - the saved figures are the
+       ones the server computes, never these. */
+    const editPreview = React.useMemo(() => {
+        const num = (v: string) => {
+            const n = Number(v);
+            return Number.isFinite(n) && n >= 0 ? n : 0;
+        };
+        const r2 = (n: number) => Math.round(n * 100) / 100;
+        const subCount = num(editForm.subscription_count);
+        const attCount = num(editForm.punch_count);
+        const subRate = num(editForm.subscription_rate);
+        const attRate = num(editForm.attendance_rate);
+        const subTotal = r2(subCount * subRate);
+        const attTotal = r2(attCount * attRate);
+        const total = r2(subTotal + attTotal);
+        // GST is not stored; the PDF adds 18% on top and rounds. Mirrored here
+        // so the figure on screen is the figure that ends up on the invoice.
+        const gst = r2(total * 0.18);
+        const grand = Math.round(total + gst);
+        const was = Number(editInvoice?.total_amount || 0);
+        return {
+            subCount, attCount, subTotal, attTotal, total, gst, grand,
+            delta: r2(total - was),
+            countsValid:
+                Number.isInteger(Number(editForm.subscription_count)) && num(editForm.subscription_count) >= 0 &&
+                Number.isInteger(Number(editForm.punch_count)) && num(editForm.punch_count) >= 0 &&
+                editForm.subscription_count !== "" && editForm.punch_count !== "",
+        };
+    }, [editForm, editInvoice]);
+
+    const handleSaveInvoiceEdit = async () => {
+        if (!editInvoice) return;
+        if (!editPreview.countsValid) {
+            toast.error("Counts must be whole numbers of zero or more.");
+            return;
+        }
+        if (editPreview.total <= 0) {
+            toast.error("Those counts leave the invoice at zero. Delete it instead.");
+            return;
+        }
+        try {
+            setSavingEdit(true);
+            const res: any = await apiClient.put(`/labor/billing/invoice/${editInvoice.id}/counts`, {
+                subscription_count: Number(editForm.subscription_count),
+                punch_count: Number(editForm.punch_count),
+                subscription_rate: Number(editForm.subscription_rate),
+                attendance_rate: Number(editForm.attendance_rate),
+                reason: editForm.reason,
+            }, { withAuth: true });
+
+            if (!res?.success) throw new Error(res?.message || "Could not update the invoice");
+            toast.success(res.message, { duration: 6000 });
+            setShowEditModal(false);
+            setEditInvoice(null);
+            fetchInvoices();
+        } catch (error: any) {
+            toast.error(error.message || "Failed to update the invoice");
+        } finally {
+            setSavingEdit(false);
         }
     };
 
@@ -938,6 +1029,17 @@ export default function LaborWalletLedger() {
                                                     <div className="flex flex-col gap-1">
                                                         <span className="text-[10px] font-semibold text-gray-500 uppercase">Subs: {inv.subscription_count}</span>
                                                         <span className="text-[10px] font-semibold text-gray-500 uppercase">Attendance: {inv.punch_count}</span>
+                                                        {/* An invoice whose figures were overridden no longer matches
+                                                            the ledger, which is the first thing anyone reconciling it
+                                                            needs to know. */}
+                                                        {inv.edited_at && (
+                                                            <span
+                                                                className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 w-fit uppercase"
+                                                                title={`Edited by ${inv.edited_by_name || 'an admin'} on ${new Date(inv.edited_at).toLocaleString()}${inv.edit_reason ? ` — ${inv.edit_reason}` : ''}. Originally ${inv.original_punch_count ?? '?'} attendance / ₹${formatCurrency(inv.original_total_amount ?? 0)}.`}
+                                                            >
+                                                                <AlertCircle size={9} /> Edited
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 text-right text-sm font-bold text-gray-900">
@@ -953,8 +1055,21 @@ export default function LaborWalletLedger() {
                                                             {downloadingInvoiceId === inv.id ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
                                                             Download
                                                         </button>
+                                                        {/* Unpaid only: a paid invoice records a settled
+                                                            transaction, so it is corrected with a credit note
+                                                            rather than edited. */}
                                                         {inv.status === 'PENDING' && isOrgAdmin && (
-                                                            <button 
+                                                            <button
+                                                                onClick={() => openEditInvoice(inv)}
+                                                                className="p-2 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 transition-all border border-amber-200 flex items-center gap-2 font-bold text-[10px] uppercase"
+                                                                title="Correct the counts on this invoice"
+                                                            >
+                                                                <Pencil size={14} />
+                                                                Edit
+                                                            </button>
+                                                        )}
+                                                        {inv.status === 'PENDING' && isOrgAdmin && (
+                                                            <button
                                                                 onClick={() => {
                                                                     setSelectedInvoice(inv);
                                                                     setShowPaidModal(true);
@@ -1366,6 +1481,183 @@ export default function LaborWalletLedger() {
                                     )}
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Invoice Counts */}
+            {showEditModal && editInvoice && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+                    <div
+                        className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm transition-opacity"
+                        onClick={() => !savingEdit && setShowEditModal(false)}
+                    />
+                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+                        <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-4">
+                            <div>
+                                <h3 className="text-lg font-black text-gray-900 tracking-tight">Edit Invoice</h3>
+                                <p className="text-xs text-gray-500 font-medium mt-0.5">
+                                    {editInvoice.invoice_number} &middot; {new Date(editInvoice.from_date).toLocaleDateString()} – {new Date(editInvoice.to_date).toLocaleDateString()}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => !savingEdit && setShowEditModal(false)}
+                                className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <div className="px-6 py-5 space-y-5">
+                            <div className="flex items-start gap-2 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                                <AlertCircle size={14} className="shrink-0 mt-px" />
+                                <p>
+                                    Changing these counts makes the invoice differ from the ledger it was raised
+                                    from. The change is recorded against your name, and the ledger itself is not
+                                    touched &mdash; fix that separately if the counts there are wrong too.
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">
+                                        Registrations
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        step={1}
+                                        value={editForm.subscription_count}
+                                        onChange={(e) => setEditForm({ ...editForm, subscription_count: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                    <p className="text-[10px] text-gray-400 mt-1">was {editInvoice.subscription_count}</p>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">
+                                        Attendance Days
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        step={1}
+                                        value={editForm.punch_count}
+                                        onChange={(e) => setEditForm({ ...editForm, punch_count: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                    <p className="text-[10px] text-gray-400 mt-1">was {editInvoice.punch_count}</p>
+                                </div>
+                            </div>
+
+                            {/* Prefilled from what this invoice actually charged, so a
+                                corrected count reprices at the rate it was raised at
+                                rather than at today's configured rate. */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">
+                                        Rate per Registration
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        step="0.01"
+                                        value={editForm.subscription_rate}
+                                        onChange={(e) => setEditForm({ ...editForm, subscription_rate: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                    {editInvoice.subscription_rate_blended && (
+                                        <p className="text-[10px] text-amber-600 mt-1 font-semibold">Average — this period spans a rate change</p>
+                                    )}
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">
+                                        Rate per Attendance Day
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        step="0.01"
+                                        value={editForm.attendance_rate}
+                                        onChange={(e) => setEditForm({ ...editForm, attendance_rate: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                    {editInvoice.attendance_rate_blended && (
+                                        <p className="text-[10px] text-amber-600 mt-1 font-semibold">Average — this period spans a rate change</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">
+                                    Reason <span className="text-gray-300 normal-case font-medium">(shown on the audit trail)</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={editForm.reason}
+                                    onChange={(e) => setEditForm({ ...editForm, reason: e.target.value })}
+                                    placeholder="e.g. Client disputes 92 duplicate attendance days"
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                            </div>
+
+                            {/* Everything below is derived, never typed - the same sums
+                                the server recomputes on save. */}
+                            <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 space-y-2">
+                                <div className="flex items-center justify-between text-xs">
+                                    <span className="text-gray-500 font-semibold">Registrations ({editPreview.subCount} × ₹{formatCurrency(editForm.subscription_rate || 0)})</span>
+                                    <span className="font-bold text-gray-900">₹{formatCurrency(editPreview.subTotal)}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-xs">
+                                    <span className="text-gray-500 font-semibold">Attendance ({editPreview.attCount} × ₹{formatCurrency(editForm.attendance_rate || 0)})</span>
+                                    <span className="font-bold text-gray-900">₹{formatCurrency(editPreview.attTotal)}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-xs pt-2 border-t border-gray-200">
+                                    <span className="text-gray-600 font-black uppercase tracking-wide">Subtotal</span>
+                                    <span className="font-black text-gray-900">₹{formatCurrency(editPreview.total)}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-xs">
+                                    <span className="text-gray-500 font-semibold">GST 18% (CGST + SGST)</span>
+                                    <span className="font-bold text-gray-700">₹{formatCurrency(editPreview.gst)}</span>
+                                </div>
+                                <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                                    <span className="text-gray-600 font-black uppercase tracking-wide text-xs">Invoice Total</span>
+                                    <span className="text-xl font-black text-blue-600 tracking-tighter">₹{formatCurrency(editPreview.grand)}</span>
+                                </div>
+                                {editPreview.delta !== 0 && (
+                                    <div className={`flex items-center gap-1.5 text-[11px] font-bold pt-1 ${editPreview.delta > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                        {editPreview.delta > 0 ? <ArrowUpRight size={13} /> : <ArrowDownLeft size={13} />}
+                                        Subtotal {editPreview.delta > 0 ? 'up' : 'down'} ₹{formatCurrency(Math.abs(editPreview.delta))} from ₹{formatCurrency(editInvoice.total_amount)}
+                                    </div>
+                                )}
+                            </div>
+
+                            {!editPreview.countsValid && (
+                                <p className="text-[11px] font-bold text-red-600">Counts must be whole numbers of zero or more.</p>
+                            )}
+                            {editPreview.countsValid && editPreview.total <= 0 && (
+                                <p className="text-[11px] font-bold text-red-600">
+                                    That leaves the invoice at zero. Delete the invoice instead if nothing is billable.
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3">
+                            <button
+                                onClick={() => setShowEditModal(false)}
+                                disabled={savingEdit}
+                                className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSaveInvoiceEdit}
+                                disabled={savingEdit || !editPreview.countsValid || editPreview.total <= 0}
+                                className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-bold uppercase tracking-wider transition-all shadow-sm disabled:opacity-40 flex items-center gap-2"
+                            >
+                                {savingEdit && <Loader2 size={14} className="animate-spin" />}
+                                Save Changes
+                            </button>
                         </div>
                     </div>
                 </div>
