@@ -100,6 +100,7 @@ export default function NightOTAdjustmentModal({
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const [progress, setProgress] = React.useState<number>(0);
   const [progressMessage, setProgressMessage] = React.useState<string | null>(null);
+  const [activeJobId, setActiveJobId] = React.useState<number | null>(null);
 
   const handleDownloadExcel = async () => {
     if (!month) return;
@@ -136,113 +137,111 @@ export default function NightOTAdjustmentModal({
 
 
 
-  /* Walks the employee list a page at a time.
-     A whole site in one request was coming back 504 — the gateway timing the
-     scan out before it finished, which nothing on the client can wait longer
-     for. Several small requests each answer well inside that limit, and the
-     progress bar means a long scan looks like progress rather than a hang. */
-  const scanMonth = async (): Promise<AdjustmentCandidate[]> => {
-    const siteParam = siteId === "all" ? "all" : String(siteId);
-    const PAGE = 50;
-    const collected: AdjustmentCandidate[] = [];
-    let offset = 0;
-    let total: number | null = null;
-
+  /* Runs the month as a background job.
+     Paging the scan into many small requests still failed — a burst of
+     requests is its own kind of load, and the browser gave up with "Failed to
+     fetch" long before the work was done. Nothing about this belongs on an
+     HTTP connection somebody is waiting on: the server now walks the employees
+     one at a time at its own pace and records progress as it goes, and this
+     just watches that row. It can take as long as it needs. */
+  const pollJob = async (jobId: number): Promise<any> => {
     for (;;) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 90000);
+      await new Promise((r) => setTimeout(r, 3000));
       let res: any;
       try {
-        res = await apiClient<any>(
-          `/attendance/night-ot-adjustment/preview?month=${month}&site_id=${siteParam}&offset=${offset}&limit=${PAGE}`,
-          { method: "GET", withAuth: true, signal: controller.signal }
-        );
-      } finally {
-        clearTimeout(timeoutId);
+        res = await apiClient<any>(`/attendance/night-ot-adjustment/job/${jobId}`, { method: "GET", withAuth: true });
+      } catch {
+        // A dropped poll says nothing about the run, which is server-side and
+        // still going. Try again on the next tick.
+        continue;
       }
+      if (!res?.success) continue;
 
-      if (!res?.success) throw new Error(res?.message || "Failed to fetch Night OT adjustments preview");
+      const j = res.job;
+      setProgress(j.progress || 0);
+      setProgressMessage(j.progress_note || (j.status === "queued" ? "Queued — starting shortly…" : "Working…"));
 
-      collected.push(...(res.adjustments || []));
-      if (total === null) total = res.total_employees ?? 0;
-
-      const scannedSoFar = Math.min(offset + (res.scanned || 0), total || 0);
-      const pct = total ? Math.round((scannedSoFar / total) * 100) : 0;
-      setProgress(pct);
-      setProgressMessage(`Scanning ${scannedSoFar} of ${total} employees (${pct}%) — ${collected.length} day${collected.length === 1 ? "" : "s"} found so far.`);
-
-      if (!res.has_more || res.next_offset == null) break;
-      offset = res.next_offset;
-      // Same reasoning as the apply loop: leave the server room to breathe.
-      await new Promise((r) => setTimeout(r, 150));
+      if (j.status === "done") return res.result;
+      if (j.status === "failed") throw new Error(j.error || "The run failed.");
+      if (j.status === "cancelled") throw new Error("The run was cancelled.");
     }
+  };
 
-    return collected;
+  const startRun = async (mode: "preview" | "apply") => {
+    if (!month) {
+      setError("Please select a valid month.");
+      return null;
+    }
+    const res = await apiClient<any>("/attendance/night-ot-adjustment/job", {
+      method: "POST",
+      withAuth: true,
+      body: { month, site_id: siteId === "all" ? "all" : siteId, mode },
+    });
+    if (!res?.success) throw new Error(res?.message || "Could not start the run.");
+    setActiveJobId(res.job_id);
+    return await pollJob(res.job_id);
   };
 
   const handleFetchAdjustments = async () => {
-    if (!month) {
-      setError("Please select a valid month.");
-      return;
-    }
-
     setLoading(true);
     setError(null);
     setProgress(0);
-
+    setProgressMessage("Queued — starting shortly…");
     try {
-      const list = await scanMonth();
+      const result = await startRun("preview");
+      if (!result) return;
+      const list: AdjustmentCandidate[] = result.candidates || [];
       setAdjustments(list);
-      setSelectedIds(new Set(list.map((item) => item.id)));
+      setSelectedIds(new Set(list.map((i) => i.id)));
+      if (Array.isArray(result.review_items)) setReviewItems(result.review_items);
       setStep(2);
     } catch (err: any) {
-      if (err.name === "AbortError") {
-        setError("A page of the scan timed out. Try a single site, or a month with fewer employees.");
-      } else {
-        setError(err.message || "An unexpected error occurred while fetching preview");
-      }
+      setError(err.message || "An unexpected error occurred while scanning.");
     } finally {
       setLoading(false);
+      setActiveJobId(null);
       setProgress(0);
       setProgressMessage(null);
     }
   };
 
-  /* Scan and settle in one go, for the common case where the whole month is
-     being processed and there is nothing to pick over. It still goes through
-     the same preview and the same apply, so the rules and the pacing are
-     identical — the only thing skipped is the review step. */
   const handleFetchAndFix = async () => {
-    if (!month) {
-      setError("Please select a valid month.");
-      return;
-    }
     setError(null);
     setApplying(true);
     setProgress(0);
-    setProgressMessage("Scanning the month for night OT days to settle…");
-
+    setProgressMessage("Queued — starting shortly…");
     try {
-      const list = await scanMonth();
-      if (list.length === 0) {
-        onSuccess("Nothing to settle — no night OT days in this month need adjusting.");
-        onClose();
-        return;
-      }
+      const result = await startRun("apply");
+      if (!result) return;
 
-      setAdjustments(list);
-      setSelectedIds(new Set(list.map((i) => i.id)));
-      await handleApplyAdjustments(list);
-    } catch (err: any) {
-      if (err.name === "AbortError") {
-        setError("The scan timed out. Try one site at a time, or use Fetch Adjustments to review in smaller pieces.");
+      const o = result.outcome || {};
+      let msg = describeOutcome(o, o.compoff_credits || 0);
+      if (o.skipped > 0) msg += ` ${o.skipped} left unchanged.`;
+      setResultMessage(msg);
+      onSuccess(msg);
+
+      const review: NightOTReviewItem[] = result.review_items || [];
+      if (review.length > 0) {
+        setReviewItems(review);
+        setStep(3);
       } else {
-        setError(err.message || "An unexpected error occurred.");
+        onClose();
       }
+    } catch (err: any) {
+      setError(err.message || "An unexpected error occurred.");
+    } finally {
       setApplying(false);
+      setActiveJobId(null);
       setProgress(0);
       setProgressMessage(null);
     }
+  };
+
+  const handleCancelRun = async () => {
+    if (!activeJobId) return;
+    try {
+      await apiClient(`/attendance/night-ot-adjustment/job/${activeJobId}`, { method: "DELETE", withAuth: true });
+    } catch { /* it may have finished in the meantime; the poll will say so */ }
   };
 
   const handleToggleSelectAll = () => {
@@ -564,8 +563,8 @@ export default function NightOTAdjustmentModal({
                 </select>
               </div>
 
-              {/* Covers both the paged scan and the apply run — either can take
-                  a while on a large site, and both stay on this step. */}
+              {/* The run is server-side, so this is a view onto it rather than
+                  the work itself — closing the browser does not stop it. */}
               {(applying || loading) && progressMessage && (
                 <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 space-y-2">
                   <div className="flex items-start justify-between gap-3 text-xs font-semibold text-indigo-900">
@@ -578,9 +577,21 @@ export default function NightOTAdjustmentModal({
                   <div className="w-full bg-indigo-200 h-2 rounded-full overflow-hidden">
                     <div className="bg-indigo-600 h-full transition-all duration-300 rounded-full" style={{ width: `${progress}%` }} />
                   </div>
-                  <p className="text-[11px] text-indigo-700">
-                    Safe to leave running. Days already settled are skipped, so re-running never double-counts.
-                  </p>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[11px] text-indigo-700">
+                      Runs on the server, one employee at a time. Days already settled are skipped, so
+                      re-running never double-counts.
+                    </p>
+                    {activeJobId && (
+                      <button
+                        type="button"
+                        onClick={handleCancelRun}
+                        className="shrink-0 text-[11px] font-semibold text-rose-600 hover:text-rose-700 hover:underline"
+                      >
+                        Stop
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
 
