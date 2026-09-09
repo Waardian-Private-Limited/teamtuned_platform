@@ -38,7 +38,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
   const [search, setSearch] = React.useState<string>("");
   const [department, setDepartment] = React.useState<string>("");
   const [lockStatus, setLockStatus] = React.useState<string>("all");
-  const [employeeStatus, setEmployeeStatus] = React.useState<string>("all");
+  const [employeeStatus, setEmployeeStatus] = React.useState<string>("active");
   const isEmployee = (role || "").toLowerCase() === "employee";
   const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
   const canHRMode = !isEmployee || hasPerm("HR_MODE");
@@ -192,7 +192,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
     setSearch("");
     setDepartment("");
     setLockStatus("all");
-    setEmployeeStatus("all");
+    setEmployeeStatus("active");
     setNow(new Date());
     setPage(1);
     fetchList();
@@ -640,9 +640,9 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
             <div className="lg:col-span-1">
               <label className="block text-xs font-medium text-slate-500 mb-1">Emp Status</label>
               <select className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all" value={employeeStatus} onChange={(e) => { setEmployeeStatus(e.target.value); setPage(1); }}>
-                <option value="all">All</option>
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
+                <option value="all">All</option>
               </select>
             </div>
             <div className="lg:col-span-1">

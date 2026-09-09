@@ -50,7 +50,7 @@ const SalarySlipGenerator = () => {
     const [month, setMonth] = useState(new Date().getMonth() + 1);
     const [year, setYear] = useState(new Date().getFullYear());
     const [slipStatus, setSlipStatus] = useState("all"); // Generated, Not Generated, Held
-    const [employeeStatus, setEmployeeStatus] = useState("all"); // all, active, inactive
+    const [employeeStatus, setEmployeeStatus] = useState("active"); // active, inactive, all
 
     // Selection
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -387,9 +387,9 @@ const SalarySlipGenerator = () => {
                                 setPagination(prev => ({ ...prev, page: 1 }));
                             }}
                         >
-                            <option value="all">All Employees</option>
                             <option value="active">Active Only</option>
                             <option value="inactive">Inactive Only</option>
+                            <option value="all">All Employees</option>
                         </select>
                     </div>
 
