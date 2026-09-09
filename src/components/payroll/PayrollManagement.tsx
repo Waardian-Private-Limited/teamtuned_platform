@@ -38,6 +38,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
   const [search, setSearch] = React.useState<string>("");
   const [department, setDepartment] = React.useState<string>("");
   const [lockStatus, setLockStatus] = React.useState<string>("all");
+  const [employeeStatus, setEmployeeStatus] = React.useState<string>("all");
   const isEmployee = (role || "").toLowerCase() === "employee";
   const hasPerm = (code: string) => (permissions || []).some((p) => (p || "").toUpperCase() === code.toUpperCase());
   const canHRMode = !isEmployee || hasPerm("HR_MODE");
@@ -191,6 +192,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
     setSearch("");
     setDepartment("");
     setLockStatus("all");
+    setEmployeeStatus("all");
     setNow(new Date());
     setPage(1);
     fetchList();
@@ -309,6 +311,9 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
       if (lockStatus !== "all") {
         params["is_locked"] = lockStatus === "locked" ? "1" : "0";
       }
+      if (employeeStatus) {
+        params["status"] = employeeStatus;
+      }
       params["page"] = String(page);
       params["limit"] = String(pageSize);
 
@@ -328,7 +333,7 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
     } finally {
       setLoading(false);
     }
-  }, [hqMode, selectedSiteId, canHRMode, externalControl, extHq, extSiteId, startKey, endKey, search, department, page, pageSize, departments]);
+  }, [hqMode, selectedSiteId, canHRMode, externalControl, extHq, extSiteId, startKey, endKey, search, department, lockStatus, employeeStatus, page, pageSize, departments]);
 
   const handleLockUnlock = async (ids: number[], action: 'lock' | 'unlock') => {
     try {
@@ -633,8 +638,16 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
               </div>
             </div>
             <div className="lg:col-span-1">
+              <label className="block text-xs font-medium text-slate-500 mb-1">Emp Status</label>
+              <select className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all" value={employeeStatus} onChange={(e) => { setEmployeeStatus(e.target.value); setPage(1); }}>
+                <option value="all">All</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+            <div className="lg:col-span-1">
               <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
-              <select className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all" value={lockStatus} onChange={(e) => setLockStatus(e.target.value)}>
+              <select className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all" value={lockStatus} onChange={(e) => { setLockStatus(e.target.value); setPage(1); }}>
                 <option value="all">All Status</option>
                 <option value="locked">Locked</option>
                 <option value="unlocked">Unlocked</option>
@@ -867,6 +880,11 @@ export default function PayrollManagement({ defaultHQ = true, showHQToggle = tru
                           <div className="min-w-0">
                             <div className="text-sm font-medium text-slate-900 truncate flex items-center gap-1.5">
                               {employee.first_name} {employee.last_name}
+                              {employee.status && employee.status.toLowerCase() !== "active" && (
+                                <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-50 text-amber-700 border border-amber-200">
+                                  {employee.status}
+                                </span>
+                              )}
                               {employee.is_locked === 1 && (
                                 <Lock className="w-3 h-3 text-blue-600" />
                               )}

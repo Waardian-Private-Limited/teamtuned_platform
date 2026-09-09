@@ -50,7 +50,7 @@ const SalarySlipGenerator = () => {
     const [month, setMonth] = useState(new Date().getMonth() + 1);
     const [year, setYear] = useState(new Date().getFullYear());
     const [slipStatus, setSlipStatus] = useState("all"); // Generated, Not Generated, Held
-    const [employeeStatus, setEmployeeStatus] = useState("active"); // active, inactive, all
+    const [employeeStatus, setEmployeeStatus] = useState("all"); // all, active, inactive
 
     // Selection
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -382,11 +382,14 @@ const SalarySlipGenerator = () => {
                         <select
                             className="w-full px-2 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                             value={employeeStatus}
-                            onChange={(e) => setEmployeeStatus(e.target.value)}
+                            onChange={(e) => {
+                                setEmployeeStatus(e.target.value);
+                                setPagination(prev => ({ ...prev, page: 1 }));
+                            }}
                         >
+                            <option value="all">All Employees</option>
                             <option value="active">Active Only</option>
                             <option value="inactive">Inactive Only</option>
-                            <option value="all">All Employees</option>
                         </select>
                     </div>
 
@@ -464,7 +467,14 @@ const SalarySlipGenerator = () => {
                                                     </div>
                                                 )}
                                                 <div>
-                                                    <p className="font-semibold text-gray-900">{emp.first_name} {emp.last_name}</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="font-semibold text-gray-900">{emp.first_name} {emp.last_name}</p>
+                                                        {emp.status && emp.status.toLowerCase() !== "active" && (
+                                                            <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-50 text-amber-700 border border-amber-200">
+                                                                {emp.status}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                     <p className="text-xs text-gray-500">ID: TT-{emp.id}</p>
                                                 </div>
                                             </div>
