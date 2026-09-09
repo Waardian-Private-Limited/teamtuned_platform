@@ -313,7 +313,7 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
     } finally {
       setLoading(false);
     }
-  }, [hqMode, selectedSiteId, selectedOtherLocationId, canHRMode, externalControl, extHq, extSiteId, date, debouncedSearch, department, statusFilter, departments]);
+  }, [hqMode, selectedSiteId, selectedOtherLocationId, canHRMode, externalControl, extHq, extSiteId, date, showTerminated, debouncedSearch, department, statusFilter, departments]);
 
   React.useEffect(() => {
     fetchList();
@@ -1166,8 +1166,17 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
                           )}
                         </div>
                         <div className="min-w-0">
-                          <div className="text-sm font-medium text-slate-900 truncate">
-                            {employee.first_name} {employee.last_name}
+                          <div className="text-sm font-medium text-slate-900 truncate flex items-center gap-1.5">
+                            <span>{employee.first_name} {employee.last_name}</span>
+                            {employee.status && ['inactive', 'terminated'].includes(String(employee.status).toLowerCase()) && (
+                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                                String(employee.status).toLowerCase() === 'terminated'
+                                  ? 'bg-rose-100 text-rose-700 border border-rose-200'
+                                  : 'bg-amber-100 text-amber-700 border border-amber-200'
+                              }`}>
+                                {employee.status}
+                              </span>
+                            )}
                           </div>
                           <div className="text-xs text-slate-500 mt-0.5 space-y-0.5">
                             {employee.attendance?.punch_in_time ? (
