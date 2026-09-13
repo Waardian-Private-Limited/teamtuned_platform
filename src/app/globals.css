@@ -1,26 +1,107 @@
 @import "tailwindcss";
 
+/* =============================================================================
+   TeamTuned design tokens — the ONE place colors, radii and shadows are set.
+   Change a value here and every screen follows. Component recipes that consume
+   these live in src/theme/tokens.ts.
+   ========================================================================== */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Surfaces */
+  --tt-bg: #ffffff;
+  --tt-bg-subtle: #f4f4f5;
+  --tt-surface: #ffffff;
+  --tt-surface-raised: #fafafa;
+  --tt-overlay: rgba(10, 10, 10, 0.55);
+
+  /* Text */
+  --tt-fg: #0a0a0a;
+  --tt-fg-muted: #6b7280;
+  --tt-fg-subtle: #9ca3af;
+  --tt-fg-inverted: #ffffff;
+
+  /* Lines */
+  --tt-border: #e5e7eb;
+  --tt-border-strong: #d1d5db;
+  --tt-ring: rgba(10, 10, 10, 0.12);
+
+  /* Brand — monochrome primary, Waardian blue reserved as an accent */
+  --tt-primary: #111111;
+  --tt-primary-hover: #000000;
+  --tt-on-primary: #ffffff;
+  --tt-accent: #0066ff; /* sampled from the logo wordmark */
+  --tt-accent-soft: #eef4ff;
+
+  /* Status */
+  --tt-success: #16a34a;
+  --tt-success-soft: #f0fdf4;
+  --tt-warning: #f59e0b;
+  --tt-danger: #dc2626;
+  --tt-danger-soft: #fef2f2;
+
+  /* Shape */
+  --tt-radius-sm: 6px;
+  --tt-radius-md: 8px;
+  --tt-radius-lg: 16px;
+  --tt-radius-xl: 24px;
+
+  /* Elevation */
+  --tt-shadow-sm: 0 1px 2px rgba(10, 10, 10, 0.05);
+  --tt-shadow-md: 0 8px 24px rgba(10, 10, 10, 0.08);
+  --tt-shadow-lg: 0 24px 64px rgba(10, 10, 10, 0.12);
 }
 
+/* Expose the tokens to Tailwind utilities (bg-bg, text-fg-muted, ...) */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--tt-bg);
+  --color-bg-subtle: var(--tt-bg-subtle);
+  --color-surface: var(--tt-surface);
+  --color-surface-raised: var(--tt-surface-raised);
+  --color-fg: var(--tt-fg);
+  --color-fg-muted: var(--tt-fg-muted);
+  --color-fg-subtle: var(--tt-fg-subtle);
+  --color-fg-inverted: var(--tt-fg-inverted);
+  --color-line: var(--tt-border);
+  --color-line-strong: var(--tt-border-strong);
+  --color-primary: var(--tt-primary);
+  --color-accent: var(--tt-accent);
+  --color-success: var(--tt-success);
+  --color-warning: var(--tt-warning);
+  --color-danger: var(--tt-danger);
+  --font-sans: var(--font-exo), ui-sans-serif, system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--tt-bg);
+  color: var(--tt-fg);
+  font-family: var(--font-exo), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollable region with no visible scrollbar. The area still scrolls by wheel,
+   trackpad, touch and keyboard — only the bar is hidden, so nothing becomes
+   unreachable. Consumed via `scroll.hidden` in src/theme/tokens.ts. */
+.tt-scroll-hidden {
+  scrollbar-width: none;        /* Firefox */
+  -ms-overflow-style: none;     /* legacy Edge */
+}
+
+.tt-scroll-hidden::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;                /* Chrome, Safari */
+}
+
+/* Respect users who ask for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

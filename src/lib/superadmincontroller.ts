@@ -1,19 +1,6 @@
 import { apiClient } from './apiClient';
 
-export async function checkSession(): Promise<{ isAuthenticated: boolean; role?: string; user?: any }> {
-  try {
-    const data = await apiClient<{ authenticated: boolean; role?: string; user?: any }>('/auth/session', {
-      method: 'GET',
-    });
-    return {
-      isAuthenticated: !!data.authenticated,
-      role: data.role,
-      user: data.user,
-    };
-  } catch (e) {
-    return { isAuthenticated: false };
-  }
-}
+// Superadmin analytics endpoints. Session checks live in features/auth/api.
 
 export async function fetchGlobalShiftAnalytics() {
   return await apiClient<{
