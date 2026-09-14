@@ -10,6 +10,14 @@ type OrgForm = {
   trialEnabled: boolean;
   trialMonths: number | "";
   featureCodes: string[]; // selected features
+  subscriptionStartsOn: string;
+  subscriptionEndsOn: string;
+  paymentAmount: number | "";
+  paymentGstAmount: number | "";
+  paymentTdsAmount: number | "";
+  paymentStatus: "pending" | "paid" | "failed" | "refunded";
+  paymentMode: string;
+  transactionId: string;
 };
 
 type Feature = {
@@ -65,6 +73,14 @@ export default function SuperadminOrganizations() {
     trialEnabled: false,
     trialMonths: "",
     featureCodes: [],
+    subscriptionStartsOn: "",
+    subscriptionEndsOn: "",
+    paymentAmount: "",
+    paymentGstAmount: "",
+    paymentTdsAmount: "",
+    paymentStatus: "pending",
+    paymentMode: "",
+    transactionId: "",
   });
 
   const [features, setFeatures] = React.useState<Feature[]>([]);
@@ -117,24 +133,59 @@ export default function SuperadminOrganizations() {
     });
   };
 
+  const deriveEndsOn = () => {
+    if (form.subscriptionEndsOn) return form.subscriptionEndsOn;
+    if (form.trialEnabled && form.trialMonths && form.subscriptionStartsOn) {
+      const d = new Date(form.subscriptionStartsOn);
+      d.setMonth(d.getMonth() + Number(form.trialMonths));
+      return d.toISOString().split("T")[0];
+    }
+    return "";
+  };
+
   const handleSubmit = async () => {
     if (!isValid() || submitting) return;
     setSubmitting(true);
     setError(null);
     try {
-      const payload = {
+      const startsOn = form.subscriptionStartsOn;
+      const endsOn = deriveEndsOn();
+      const payload: any = {
         name: form.name.trim(),
         email: form.email.trim(),
         contact: form.contact.trim(),
         featureCodes: form.featureCodes,
       };
+      if (startsOn && endsOn) {
+        payload.subscription = {
+          status: form.trialEnabled ? "active" : form.paymentStatus === "paid" ? "active" : "pending",
+          isTrial: form.trialEnabled,
+          startsOn,
+          endsOn,
+        };
+        if (form.paymentAmount !== "") {
+          payload.payment = {
+            amount: Number(form.paymentAmount),
+            gstAmount: form.paymentGstAmount === "" ? 0 : Number(form.paymentGstAmount),
+            tdsAmount: form.paymentTdsAmount === "" ? 0 : Number(form.paymentTdsAmount),
+            currency: "INR",
+            paymentStatus: form.paymentStatus,
+            paymentMode: form.paymentMode || null,
+            transactionId: form.transactionId || null,
+          };
+        }
+      }
       const res = await apiClient<{ success: boolean; onboardingLink: string; emailSent: boolean }>(
         "/superadmin/organizations/invite",
         { method: "POST", body: payload }
       );
       const link = res?.onboardingLink;
       setShowModal(false);
-      setForm({ name: "", email: "", contact: "", trialEnabled: false, trialMonths: "", featureCodes: [] });
+      setForm({
+        name: "", email: "", contact: "", trialEnabled: false, trialMonths: "", featureCodes: [],
+        subscriptionStartsOn: "", subscriptionEndsOn: "", paymentAmount: "", paymentGstAmount: "",
+        paymentTdsAmount: "", paymentStatus: "pending", paymentMode: "", transactionId: "",
+      });
       showToast(
         "success",
         `Organization invited. ${res?.emailSent ? "Email sent." : "Share onboarding link."}`
@@ -358,6 +409,111 @@ export default function SuperadminOrganizations() {
                   />
                 </div>
               )}
+
+              {/* Subscription */}
+              <div className="border-t pt-4">
+                <div className="text-sm font-semibold text-black mb-2">Subscription (optional)</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-black">Starts On</label>
+                    <input
+                      type="date"
+                      className="mt-1 w-full rounded border px-3 py-2 text-black"
+                      value={form.subscriptionStartsOn}
+                      onChange={(e) => onChange("subscriptionStartsOn", e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-black">
+                      Ends On {form.trialEnabled && form.trialMonths ? "(auto from trial)" : ""}
+                    </label>
+                    <input
+                      type="date"
+                      className="mt-1 w-full rounded border px-3 py-2 text-black"
+                      value={form.subscriptionEndsOn}
+                      onChange={(e) => onChange("subscriptionEndsOn", e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment */}
+              <div>
+                <div className="text-sm font-semibold text-black mb-2">Payment (optional)</div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-black">Amount (₹)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      className="mt-1 w-full rounded border px-3 py-2 text-black placeholder-gray-400"
+                      value={form.paymentAmount}
+                      onChange={(e) => onChange("paymentAmount", e.target.value === "" ? "" : Number(e.target.value))}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-black">GST (₹)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      className="mt-1 w-full rounded border px-3 py-2 text-black placeholder-gray-400"
+                      value={form.paymentGstAmount}
+                      onChange={(e) => onChange("paymentGstAmount", e.target.value === "" ? "" : Number(e.target.value))}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-black">TDS (₹)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      className="mt-1 w-full rounded border px-3 py-2 text-black placeholder-gray-400"
+                      value={form.paymentTdsAmount}
+                      onChange={(e) => onChange("paymentTdsAmount", e.target.value === "" ? "" : Number(e.target.value))}
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div>
+                    <label className="block text-sm font-medium text-black">Payment Status</label>
+                    <select
+                      className="mt-1 w-full rounded border px-3 py-2 text-black"
+                      value={form.paymentStatus}
+                      onChange={(e) => onChange("paymentStatus", e.target.value)}
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="paid">Paid</option>
+                      <option value="failed">Failed</option>
+                      <option value="refunded">Refunded</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-black">Payment Mode</label>
+                    <input
+                      type="text"
+                      className="mt-1 w-full rounded border px-3 py-2 text-black placeholder-gray-400"
+                      value={form.paymentMode}
+                      onChange={(e) => onChange("paymentMode", e.target.value)}
+                      placeholder="upi / card / bank_transfer"
+                    />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <label className="block text-sm font-medium text-black">Transaction ID</label>
+                  <input
+                    type="text"
+                    className="mt-1 w-full rounded border px-3 py-2 text-black placeholder-gray-400"
+                    value={form.transactionId}
+                    onChange={(e) => onChange("transactionId", e.target.value)}
+                    placeholder="optional"
+                  />
+                </div>
+              </div>
 
               {/* Features Checkbox List */}
               <div>

@@ -82,6 +82,7 @@ export default function SuperadminSidebar({
             <div className="mt-2 space-y-1">
               <Item icon={Home} label="Dashboard" href="/superadmin/dashboard" active={pathname === "/superadmin/dashboard"} />
               <Item icon={Building2} label="Organizations Management" href="/superadmin/organizations" active={pathname === "/superadmin/organizations"} />
+              <Item icon={CreditCard} label="Subscriptions" href="/superadmin/subscriptions" active={pathname === "/superadmin/subscriptions"} />
               <Item icon={Smartphone} label="App Versions" href="/superadmin/app-versions" active={pathname === "/superadmin/app-versions"} />
               <Item icon={BarChart2} label="Analytics" href="/superadmin/analytics" active={pathname === "/superadmin/analytics"} />
             </div>
