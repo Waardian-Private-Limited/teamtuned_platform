@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import {
     Calendar, CheckCircle2, Clock, MapPin, Search, UploadCloud, Save,
     ChevronRight, ChevronLeft, FileDown, Plus, Users, Filter, RefreshCw,
-    AlertCircle, FileText, Check, Eye, MoreVertical, ChevronDown, ChevronUp
+    AlertCircle, FileText, Check, Eye, MoreVertical, ChevronDown, ChevronUp, Trash2
 } from 'lucide-react';
 import { FormEvent } from 'react';
 import { apiClient } from '@/lib/apiClient';
@@ -146,6 +146,11 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
     const [fromDate, setFromDate] = useState('');
     const [toDate, setToDate] = useState('');
 
+    // Delete confirmation. Org admin only here; the server enforces the same
+    // rule, so hiding the button is a courtesy, not the check.
+    const [deleteTarget, setDeleteTarget] = useState<DynamicAssignment | null>(null);
+    const [deleting, setDeleting] = useState(false);
+
     // Generate Form Modal State
     const [showGenerateModal, setShowGenerateModal] = useState(false);
     const [sites, setSites] = useState<any[]>([]);
@@ -236,6 +241,27 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
             fetchAssignments();
         } catch (e: any) {
             showError('Error updating assignee: ' + (e?.message || 'Unknown Error'));
+        }
+    };
+
+    const handleDeleteAssignment = async () => {
+        if (!deleteTarget) return;
+        setDeleting(true);
+        try {
+            await apiClient(`/dps-schedule/dynamic-assignments/${deleteTarget.id}`, {
+                method: 'DELETE',
+                withAuth: true
+            });
+            showSuccess('Assignment deleted');
+            const wasLastOnPage = assignments.length === 1 && page > 1;
+            setDeleteTarget(null);
+            // Removing the only row on a page would otherwise show an empty table.
+            if (wasLastOnPage) setPage(p => p - 1);
+            else fetchAssignments();
+        } catch (e: any) {
+            showError('Error deleting assignment: ' + (e?.message || 'Unknown Error'));
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -712,6 +738,15 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
                                                         <DownloadExcelButton taskId={task.id} formType={task.form_type} />
                                                     </>
                                                 )}
+                                                {isOrgAdmin && (
+                                                    <button
+                                                        onClick={() => setDeleteTarget(task)}
+                                                        title="Delete assignment"
+                                                        className="p-2 border border-red-600 text-red-600 hover:bg-red-50 transition-all active:scale-95"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
@@ -779,6 +814,63 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
                     )}
                 </div>
             </div>
+
+            {/* Delete Confirmation Modal */}
+            {deleteTarget && (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-red-50/60">
+                            <h2 className="text-xl font-bold text-red-700">Delete Assignment</h2>
+                            <button
+                                onClick={() => setDeleteTarget(null)}
+                                className="p-2 hover:bg-red-100 rounded-full transition-colors text-red-500"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <p className="text-sm text-gray-700">
+                                Delete <span className="font-bold">SR-REF-{deleteTarget.id}</span> —{' '}
+                                <span className="font-bold uppercase">{deleteTarget.form_type}</span> for{' '}
+                                <span className="font-bold">{deleteTarget.site_name}</span>
+                                {deleteTarget.unit_name ? ` / ${deleteTarget.unit_name}` : ''} dated{' '}
+                                <span className="font-bold">{formatDate(deleteTarget.report_date || deleteTarget.due_date)}</span>?
+                            </p>
+
+                            {/* Say plainly what goes, so this is not discovered afterwards. */}
+                            <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-2">
+                                <p className="text-xs font-bold text-red-700 uppercase tracking-wider">This cannot be undone</p>
+                                <ul className="text-xs text-red-700 list-disc pl-4 space-y-1">
+                                    <li>Any submitted data on this form is removed.</li>
+                                    <li>Its revision history and concrete / manpower demand logs go with it.</li>
+                                    <li>Site concrete totals are recalculated without it.</li>
+                                </ul>
+                            </div>
+
+                            {deleteTarget.status !== 'pending' && (
+                                <p className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                                    This report has already been {deleteTarget.status}. Deleting it removes a submitted record.
+                                </p>
+                            )}
+                        </div>
+                        <div className="p-6 bg-gray-50 border-t border-gray-100 flex gap-3 justify-end">
+                            <button
+                                onClick={() => setDeleteTarget(null)}
+                                className="px-5 py-2.5 rounded-xl font-bold text-sm text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                disabled={deleting}
+                                onClick={handleDeleteAssignment}
+                                className="px-5 py-2.5 rounded-xl font-bold text-sm text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-50"
+                            >
+                                {deleting ? 'Deleting...' : 'Delete Assignment'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Generate Form Modal */}
             {showGenerateModal && (
