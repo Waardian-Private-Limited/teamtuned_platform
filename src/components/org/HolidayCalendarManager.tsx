@@ -31,7 +31,34 @@ type Holiday = {
   is_optional?: number | boolean;
   description?: string | null;
   status?: "active" | "inactive";
+  /* A half-day holiday leaves one half of the shift still owed. half_session
+     names the half that is OFF; start_time/end_time optionally pin that window
+     to exact clock times instead of splitting each employee's own shift. */
+  session_type?: "Full Day" | "Half Day";
+  half_session?: "Morning" | "Afternoon" | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  applies_to_all_sites?: number | boolean;
+  site_ids?: number[];
 };
+
+type SiteOption = { id: number; name: string };
+
+// A new holiday defaults to the pre-existing behaviour: a full day, everywhere.
+const emptyHolidayForm = (): Holiday => ({
+  holiday_date: "",
+  name: "",
+  type: "",
+  is_optional: false,
+  description: "",
+  status: "active",
+  session_type: "Full Day",
+  half_session: null,
+  start_time: "",
+  end_time: "",
+  applies_to_all_sites: true,
+  site_ids: [],
+});
 
 export default function HolidayCalendarManager() {
   const [holidays, setHolidays] = React.useState<Holiday[]>([]);
@@ -40,6 +67,7 @@ export default function HolidayCalendarManager() {
   const [success, setSuccess] = React.useState<string | null>(null);
   const [successTimer, setSuccessTimer] = React.useState<number>(0);
   const [orgTimezone, setOrgTimezone] = React.useState<string>('Asia/Kolkata');
+  const [sites, setSites] = React.useState<SiteOption[]>([]);
 
   // Filters & UI State
   const [searchTerm, setSearchTerm] = React.useState<string>("");
@@ -62,14 +90,7 @@ export default function HolidayCalendarManager() {
   const [showDeleteModal, setShowDeleteModal] = React.useState(false);
 
   // Form states
-  const [form, setForm] = React.useState<Holiday>({
-    holiday_date: "",
-    name: "",
-    type: "",
-    is_optional: false,
-    description: "",
-    status: "active"
-  });
+  const [form, setForm] = React.useState<Holiday>(emptyHolidayForm);
   const [saving, setSaving] = React.useState(false);
   const [selectedHoliday, setSelectedHoliday] = React.useState<Holiday | null>(null);
   const [actionLoading, setActionLoading] = React.useState<string | null>(null);
@@ -149,6 +170,23 @@ export default function HolidayCalendarManager() {
   }, []);
 
   React.useEffect(() => {
+    // Sites are needed to scope a holiday to specific locations.
+    (async () => {
+      try {
+        const res = await apiClient<{ sites?: any[]; data?: any[] }>("/sites", {
+          method: "GET",
+          withAuth: true,
+          params: { incharge_only: "0" },
+        });
+        const list = res?.sites || res?.data || [];
+        setSites(list.map((s: any) => ({ id: Number(s.id), name: String(s.name || `Site ${s.id}`) })));
+      } catch (_) {
+        setSites([]);
+      }
+    })();
+  }, []);
+
+  React.useEffect(() => {
     fetchHolidays();
   }, [fetchHolidays]);
 
@@ -193,15 +231,40 @@ export default function HolidayCalendarManager() {
   };
 
   const resetForm = () => {
-    setForm({
-      holiday_date: "",
-      name: "",
-      type: "",
-      is_optional: false,
-      description: "",
-      status: "active"
-    });
+    setForm(emptyHolidayForm());
   };
+
+  /* Validation shared by create and edit. A half-day holiday that does not say
+     which half is off cannot be applied — check-out, the reports and payroll all
+     need to know which part of the shift is still worked. */
+  const validateForm = (): string | null => {
+    if (!form.holiday_date) return "Holiday date is required";
+    if (!form.name.trim()) return "Holiday name is required";
+    if (form.session_type === "Half Day" && !form.half_session) {
+      return "Select which half of the day is the holiday";
+    }
+    if ((form.start_time && !form.end_time) || (form.end_time && !form.start_time)) {
+      return "Provide both start and end time, or leave both blank";
+    }
+    if (form.start_time && form.end_time && form.end_time <= form.start_time) {
+      return "End time must be after start time";
+    }
+    if (!form.applies_to_all_sites && !(form.site_ids || []).length) {
+      return "Select at least one site, or choose All sites";
+    }
+    return null;
+  };
+
+  // Fields the backend needs for half-day and site-scoped holidays. A full-day
+  // holiday clears the half-day fields so a leftover session cannot linger.
+  const schedulePayload = () => ({
+    session_type: form.session_type || "Full Day",
+    half_session: form.session_type === "Half Day" ? form.half_session : null,
+    start_time: form.session_type === "Half Day" ? (form.start_time || null) : null,
+    end_time: form.session_type === "Half Day" ? (form.end_time || null) : null,
+    applies_to_all_sites: !!form.applies_to_all_sites,
+    site_ids: form.applies_to_all_sites ? [] : (form.site_ids || []),
+  });
 
 
 
@@ -209,12 +272,9 @@ export default function HolidayCalendarManager() {
     if (e) e.preventDefault();
 
     // Validation
-    if (!form.holiday_date) {
-      setError("Holiday date is required");
-      return;
-    }
-    if (!form.name.trim()) {
-      setError("Holiday name is required");
+    const invalid = validateForm();
+    if (invalid) {
+      setError(invalid);
       return;
     }
 
@@ -228,7 +288,8 @@ export default function HolidayCalendarManager() {
         type: form.type || null,
         is_optional: !!form.is_optional,
         description: form.description?.trim() || null,
-        status: form.status || "active"
+        status: form.status || "active",
+        ...schedulePayload(),
       };
 
       await apiClient(`/holiday`, {
@@ -282,7 +343,14 @@ export default function HolidayCalendarManager() {
       type: holiday.type || "",
       is_optional: !!holiday.is_optional,
       description: holiday.description || "",
-      status: holiday.status || "active"
+      status: holiday.status || "active",
+      session_type: holiday.session_type === "Half Day" ? "Half Day" : "Full Day",
+      half_session: holiday.half_session || null,
+      // TIME columns come back as HH:MM:SS; the time input wants HH:MM.
+      start_time: holiday.start_time ? String(holiday.start_time).slice(0, 5) : "",
+      end_time: holiday.end_time ? String(holiday.end_time).slice(0, 5) : "",
+      applies_to_all_sites: holiday.applies_to_all_sites === undefined ? true : !!holiday.applies_to_all_sites,
+      site_ids: holiday.site_ids || [],
     });
     setShowEditModal(true);
   };
@@ -291,12 +359,9 @@ export default function HolidayCalendarManager() {
     if (!selectedHoliday?.id) return;
 
     // Validation
-    if (!form.holiday_date) {
-      setError("Holiday date is required");
-      return;
-    }
-    if (!form.name.trim()) {
-      setError("Holiday name is required");
+    const invalid = validateForm();
+    if (invalid) {
+      setError(invalid);
       return;
     }
 
@@ -310,7 +375,8 @@ export default function HolidayCalendarManager() {
         type: form.type || null,
         is_optional: !!form.is_optional,
         description: form.description?.trim() || null,
-        status: form.status || "active"
+        status: form.status || "active",
+        ...schedulePayload(),
       };
 
       await apiClient(`/holiday/${selectedHoliday.id}`, {
@@ -447,6 +513,154 @@ export default function HolidayCalendarManager() {
     }
   };
 
+  // How a holiday's day type and reach read in lists and detail views.
+  const dayTypeLabel = (h: Holiday) =>
+    h.session_type === "Half Day"
+      ? `Half Day (${h.half_session || "—"} off)`
+      : "Full Day";
+
+  const scopeLabel = (h: Holiday) => {
+    if (h.applies_to_all_sites === undefined || h.applies_to_all_sites) return "All sites";
+    const ids = h.site_ids || [];
+    if (!ids.length) return "No sites";
+    return ids.map((id) => sites.find((s) => s.id === id)?.name || `Site ${id}`).join(", ");
+  };
+
+  /* Shared by the create and edit modals. Called as a function rather than
+     rendered as a component: a component declared inside render is a new type
+     on every keystroke, which would remount these inputs and drop focus. */
+  const renderScheduleAndScope = () => (
+    <>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Day Type
+          </label>
+          <select
+            name="session_type"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            value={form.session_type || "Full Day"}
+            onChange={handleChange}
+          >
+            <option value="Full Day">Full Day</option>
+            <option value="Half Day">Half Day</option>
+          </select>
+          <p className="mt-1 text-xs text-gray-500">On a half day employees still work the other half.</p>
+        </div>
+
+        {form.session_type === "Half Day" && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Which half is off<span className="text-red-500 ml-1">*</span>
+            </label>
+            <select
+              name="half_session"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              value={form.half_session || ""}
+              onChange={handleChange}
+            >
+              <option value="">Select session</option>
+              <option value="Morning">Morning off (afternoon is worked)</option>
+              <option value="Afternoon">Afternoon off (morning is worked)</option>
+            </select>
+            <p className="mt-1 text-xs text-gray-500">Missing the worked half counts as half a day absent.</p>
+          </div>
+        )}
+      </div>
+
+      {form.session_type === "Half Day" && (
+        <div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Holiday starts
+              </label>
+              <input
+                name="start_time"
+                type="time"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value={form.start_time || ""}
+                onChange={handleChange}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Holiday ends
+              </label>
+              <input
+                name="end_time"
+                type="time"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value={form.end_time || ""}
+                onChange={handleChange}
+              />
+            </div>
+          </div>
+          <p className="mt-1 text-xs text-gray-500">
+            Leave both blank to split each employee&apos;s own shift in half — correct when people work different shifts.
+            Set both to pin the off window to the same clock times for everyone.
+          </p>
+        </div>
+      )}
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Applies To
+        </label>
+        <div className="flex items-center space-x-6">
+          <label className="flex items-center space-x-2 text-sm text-gray-700">
+            <input
+              type="radio"
+              name="holiday_scope"
+              checked={!!form.applies_to_all_sites}
+              onChange={() => setForm((p) => ({ ...p, applies_to_all_sites: true, site_ids: [] }))}
+              className="text-blue-600 focus:ring-blue-500"
+            />
+            <span>All sites</span>
+          </label>
+          <label className="flex items-center space-x-2 text-sm text-gray-700">
+            <input
+              type="radio"
+              name="holiday_scope"
+              checked={!form.applies_to_all_sites}
+              onChange={() => setForm((p) => ({ ...p, applies_to_all_sites: false }))}
+              className="text-blue-600 focus:ring-blue-500"
+            />
+            <span>Specific sites</span>
+          </label>
+        </div>
+
+        {!form.applies_to_all_sites && (
+          <div className="mt-2 max-h-40 overflow-y-auto border border-gray-300 rounded-lg p-2 space-y-1">
+            {sites.map((s) => (
+              <label key={s.id} className="flex items-center space-x-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={(form.site_ids || []).includes(s.id)}
+                  onChange={(ev) =>
+                    setForm((p) => {
+                      const cur = p.site_ids || [];
+                      return {
+                        ...p,
+                        site_ids: ev.target.checked ? [...cur, s.id] : cur.filter((x) => x !== s.id),
+                      };
+                    })
+                  }
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span>{s.name}</span>
+              </label>
+            ))}
+            {sites.length === 0 && (
+              <p className="text-xs text-gray-500">No sites available.</p>
+            )}
+          </div>
+        )}
+        <p className="mt-1 text-xs text-gray-500">Employees are matched by their primary site.</p>
+      </div>
+    </>
+  );
+
   // Action Dropdown Component
   const ActionDropdown = ({ holiday }: { holiday: Holiday }) => {
     const [isOpen, setIsOpen] = React.useState(false);
@@ -577,15 +791,15 @@ export default function HolidayCalendarManager() {
 
         <div className="bg-white rounded-xl border border-gray-200 p-0 overflow-hidden">
           <div className="bg-gray-50">
-            <div className="grid grid-cols-6 gap-4 px-4 py-3">
-              {[...Array(6)].map((_, i) => (
+            <div className="grid grid-cols-8 gap-4 px-4 py-3">
+              {[...Array(8)].map((_, i) => (
                 <div key={i} className="h-3 bg-gray-200 rounded w-24"></div>
               ))}
             </div>
           </div>
           <div className="divide-y divide-gray-200">
             {[...Array(5)].map((_, i) => (
-              <div key={i} className="grid grid-cols-6 gap-4 px-4 py-3 animate-pulse">
+              <div key={i} className="grid grid-cols-8 gap-4 px-4 py-3 animate-pulse">
                 <div className="h-5 bg-gray-200 rounded w-32"></div>
                 <div className="space-y-2">
                   <div className="h-3 bg-gray-200 rounded w-48"></div>
@@ -688,6 +902,25 @@ export default function HolidayCalendarManager() {
                         {selectedHoliday.is_optional ? 'Yes' : 'No'}
                       </span>
                     </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500">Day Type</h4>
+                    <p className="mt-1 text-gray-900">{dayTypeLabel(selectedHoliday)}</p>
+                    {selectedHoliday.session_type === "Half Day" && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        {selectedHoliday.start_time && selectedHoliday.end_time
+                          ? `Off ${String(selectedHoliday.start_time).slice(0, 5)} - ${String(selectedHoliday.end_time).slice(0, 5)}`
+                          : "Splits each employee's own shift in half"}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500">Applies To</h4>
+                    <p className="mt-1 text-gray-900">{scopeLabel(selectedHoliday)}</p>
                   </div>
                 </div>
 
@@ -825,6 +1058,8 @@ export default function HolidayCalendarManager() {
                     </label>
                   </div>
                 </div>
+
+                {renderScheduleAndScope()}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -976,6 +1211,8 @@ export default function HolidayCalendarManager() {
                     </label>
                   </div>
                 </div>
+
+                {renderScheduleAndScope()}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1216,6 +1453,8 @@ export default function HolidayCalendarManager() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Holiday</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Day Type</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sites</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Optional</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -1242,6 +1481,19 @@ export default function HolidayCalendarManager() {
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getTypeColor(holiday.type ?? null)} capitalize`}>
                       {holiday.type || 'Not specified'}
                     </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${holiday.session_type === 'Half Day'
+                      ? 'text-amber-700 bg-amber-50 border border-amber-200'
+                      : 'text-gray-700 bg-gray-50 border border-gray-200'
+                      }`}>
+                      {dayTypeLabel(holiday)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="text-xs text-gray-700 truncate max-w-[12rem]" title={scopeLabel(holiday)}>
+                      {scopeLabel(holiday)}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getOptionalColor(!!holiday.is_optional)}`}>
