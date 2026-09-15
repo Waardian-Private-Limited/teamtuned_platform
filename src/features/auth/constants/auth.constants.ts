@@ -15,13 +15,11 @@ export type LoginTab = 'password' | 'otp';
 
 export type QrStatus = 'pending' | 'scanned' | 'confirmed' | 'expired';
 
-export const STEPS_WITH_TABS: readonly LoginStep[] = [
-  'email',
-  'password',
-  'superadmin-password',
-  'otp',
-  'verify',
-];
+// Method tabs + "scan to sign in" QR only make sense before an account is
+// resolved. Once a specific account is found (password / OTP-code entry),
+// that chrome adds height with nowhere to go and pushes the form past the
+// card's max height — so it drops off here.
+export const STEPS_WITH_TABS: readonly LoginStep[] = ['email', 'otp'];
 
 export const STORAGE_KEYS = {
   rememberedAccounts: 'tt_remembered_accounts',

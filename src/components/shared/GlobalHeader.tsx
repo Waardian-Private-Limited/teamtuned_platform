@@ -27,12 +27,12 @@ export default function GlobalHeader({
     const fullName = [firstName, lastName].filter(Boolean).join(" ") || "User";
 
     return (
-        <header className="sticky top-0 z-40 bg-transparent px-4 py-3 flex items-center justify-between transition-all duration-200">
+        <header className="sticky top-0 z-30 bg-transparent px-4 py-3 flex items-center justify-between gap-3 transition-all duration-200">
             {/* Dynamic Page Title & Description */}
-            <div className="flex flex-col">
-                <h1 className="text-xl font-bold text-gray-900 tracking-tight">{title}</h1>
+            <div className="flex flex-col min-w-0">
+                <h1 className="text-xl font-bold text-gray-900 tracking-tight truncate">{title}</h1>
                 {description && (
-                    <p className="text-xs text-gray-500 font-medium mt-0.5">{description}</p>
+                    <p className="text-xs text-gray-500 font-medium mt-0.5 truncate">{description}</p>
                 )}
             </div>
 

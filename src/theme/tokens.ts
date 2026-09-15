@@ -69,6 +69,30 @@ export const scroll = {
   hidden: 'overflow-y-auto tt-scroll-hidden',
 } as const;
 
+// App-shell navigation (src/features/navigation). Kept separate from the
+// auth `field`/`button` recipes above since it styles a persistent shell
+// rather than a form.
+export const nav = {
+  // No border-r — the sidebar is its own rounded card now (AppShell adds
+  // rounded-3xl), separated from the content card by the shell's gap, not
+  // a shared edge line.
+  shell: 'flex h-full flex-col bg-surface shadow-[var(--tt-shadow-sm)]',
+  // 14px medium, uniform for idle and active — the standard sidebar-item
+  // size (GitHub/Linear/Vercel all sit at 13–14px); active is marked by the
+  // background pill, not by extra weight on top of it.
+  item: 'group flex w-full items-center gap-3 rounded-[var(--tt-radius-control)] px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--tt-ring)]',
+  // Full black at rest — high-contrast body text is correct here, not a
+  // concession; text-fg-muted measures ~4.8:1 on white, which is fine for
+  // body copy but this is 14px UI text where more contrast reads better.
+  itemIdle: 'text-fg hover:bg-bg-subtle',
+  itemActive: 'bg-[var(--tt-primary)] text-[var(--tt-on-primary)]',
+  // Black by explicit request — text-fg-subtle (the original color here)
+  // failed contrast outright (~2.5:1 on white) and read as invisible on
+  // some monitors; full black is the safest fix.
+  groupLabel: 'text-xs font-semibold uppercase tracking-wider text-fg',
+  backdrop: 'fixed inset-0 z-40 bg-[var(--tt-overlay)]',
+} as const;
+
 export const alert = {
   error: 'rounded-[var(--tt-radius-md)] border border-[var(--tt-danger)]/25 bg-[var(--tt-danger-soft)] px-4 py-3 text-sm text-[var(--tt-danger)]',
   success: 'rounded-[var(--tt-radius-md)] border border-[var(--tt-success)]/25 bg-[var(--tt-success-soft)] px-4 py-3 text-sm text-[var(--tt-success)]',

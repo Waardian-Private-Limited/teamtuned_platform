@@ -2,9 +2,8 @@
 
 import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import OrgSidebar from "@/components/org/OrgSidebar";
-import GlobalHeader from "@/components/shared/GlobalHeader";
-import GlobalFooter from "@/components/shared/GlobalFooter";
+import { AppShell } from "@/features/navigation/components/AppShell";
+import { orgNav } from "@/features/navigation/constants/org.nav";
 import { OrgProvider } from "@/components/shared/OrgContext";
 import { InventoryStoreProvider } from "@/components/inventory/InventoryStoreContext";
 import { useAuth } from "@/context/AuthContext";
@@ -12,7 +11,6 @@ import { useUserStore } from "@/lib/store/userStore";
 
 export default function OrgAdminLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
-    const [isCollapsed, setIsCollapsed] = React.useState(false);
     const { setUser } = useUserStore();
 
     // Use centralized auth context
@@ -65,8 +63,8 @@ export default function OrgAdminLayout({ children }: { children: React.ReactNode
 
     if (loading) {
         return (
-            <div className="flex h-screen w-full items-center justify-center bg-gray-50">
-                <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600" />
+            <div className="flex h-[100dvh] w-full items-center justify-center bg-bg-subtle">
+                <div className="h-10 w-10 animate-spin rounded-full border-4 border-line border-t-[var(--tt-primary)]" />
             </div>
         );
     }
@@ -74,33 +72,25 @@ export default function OrgAdminLayout({ children }: { children: React.ReactNode
     return (
         <OrgProvider defaultHQ={true}>
             <InventoryStoreProvider>
-                <div className="h-screen flex bg-gray-50 text-black">
-                    <OrgSidebar
-                        isCollapsed={isCollapsed}
-                        setIsCollapsed={setIsCollapsed}
-                        orgName={organization?.name}
-                        orgLogoUrl={organization?.logo_url}
-                        onLogout={handleLogout}
-                        permissions={permissions}
-                        role={role || undefined}
-                        features={features}
-                    />
-                    <div className="flex-1 flex flex-col h-screen overflow-hidden">
-                        <GlobalHeader
-                            role="org-admin"
-                            firstName={user?.first_name}
-                            lastName={user?.last_name}
-                            userRole={role}
-                            onLogout={handleLogout}
-                        />
-                        <main className="flex-1 overflow-auto p-2">
-                            <div className="h-full w-full bg-white rounded-3xl shadow-sm overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 p-6">
-                                {children}
-                            </div>
-                        </main>
-                        <GlobalFooter orgName={organization?.name} />
-                    </div>
-                </div>
+                <AppShell
+                    storageRole="org-admin"
+                    headerRole="org-admin"
+                    nodes={orgNav}
+                    ctx={{
+                        isOrgAdmin: (role || "").toLowerCase() === "orgadmin",
+                        permissions: permissions || [],
+                        features,
+                    }}
+                    orgName={organization?.name}
+                    orgLogoUrl={organization?.logo_url}
+                    subtitle="Organization"
+                    firstName={user?.first_name}
+                    lastName={user?.last_name}
+                    userRole={role}
+                    onLogout={handleLogout}
+                >
+                    {children}
+                </AppShell>
             </InventoryStoreProvider>
         </OrgProvider>
     );
