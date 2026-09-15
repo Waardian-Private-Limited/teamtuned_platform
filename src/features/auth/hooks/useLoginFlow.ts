@@ -2,51 +2,47 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as authApi from '../api/auth.api';
-import { toAccountLookup, toAuthOutcome } from '../model/auth.mapper';
-import type { Account } from '../model/auth.model';
+import { toAccountLookup, toAccounts, toAuthOutcome } from '../types/auth.mapper';
+import type { Account, RememberedAccount } from '../types/auth.model';
+import type { AuthResultDto } from '../types/auth.dto';
 import type { FieldError, FieldName, LoginStep, LoginTab } from '../constants/auth.constants';
-import { isValidEmail, isValidMobile } from '../constants/auth.constants';
+import { RESEND_COOLDOWN_SECONDS } from '../constants/auth.constants';
+import { isValidEmail, isValidMobile } from '../utils/validators';
+import { isRejectedInput, messageOf, statusOf } from '@/lib/api/errors';
 import { useAuthSuccess } from './useAuthSuccess';
 import { useRememberedAccounts } from './useRememberedAccounts';
 
-/** Indian numbers are stored E.164; accept the bare 10 digits users actually type. */
-function toE164(mobile: string): string {
-  const trimmed = mobile.trim();
-  if (trimmed.startsWith('+')) return trimmed;
-  if (trimmed.startsWith('91')) return `+${trimmed}`;
-  return `+91${trimmed}`;
-}
-
-function messageOf(err: unknown): string {
-  return err instanceof Error ? err.message : 'Something went wrong. Please try again.';
-}
-
-/**
- * An error that belongs under a specific input rather than in the banner at the
- * top of the card. `run` unpacks it and routes the message to that field.
- */
 class FieldValidationError extends Error {
   constructor(readonly field: FieldName, message: string) {
     super(message);
   }
 }
 
-/**
- * Statuses that mean "the value you typed is wrong", as opposed to "the request
- * failed". These belong under the input; anything else is a card-level banner.
- */
-const REJECTED_INPUT_STATUSES = new Set([400, 404, 422]);
-
-function isRejectedInput(err: unknown): boolean {
-  const status = (err as { status?: number })?.status;
-  return status !== undefined && REJECTED_INPUT_STATUSES.has(status);
+function asFieldError(err: unknown, field: FieldName, extraStatuses: number[] = []): never {
+  const status = statusOf(err);
+  const belongsToField =
+    isRejectedInput(err) || (status !== undefined && extraStatuses.includes(status));
+  if (belongsToField) throw new FieldValidationError(field, messageOf(err));
+  throw err;
 }
 
-/**
- * The whole login state machine: which step is on screen, the values typed into
- * it, and the handlers that move between steps. Owns no markup — the UI layer
- * renders whatever `step` says.
- */
+function accountFromResult(dto: AuthResultDto, phone: string): Account | null {
+  if (!dto.user) return null;
+  const role = (dto.role || '').toLowerCase();
+  return {
+    id: `acc-${dto.user.id}`,
+    username: dto.user.email,
+    email: dto.user.email,
+    phone,
+    displayName: dto.user.name || dto.user.email,
+    userType: role,
+    organizationId: dto.user.societyId || '',
+    organizationName: dto.organization?.name || 'Account',
+    status: 'active',
+    isSuperAdmin: role === 'superadmin',
+  };
+}
+
 export function useLoginFlow() {
   const [tab, setTab] = useState<LoginTab>('password');
   const [step, setStep] = useState<LoginStep>('email');
@@ -58,12 +54,14 @@ export function useLoginFlow() {
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
+  const [isOtpAccountChoice, setIsOtpAccountChoice] = useState(false);
 
   const [error, setError] = useState('');
   const [fieldError, setFieldError] = useState<FieldError | null>(null);
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   const onAuthSuccess = useAuthSuccess();
   const {
@@ -74,24 +72,34 @@ export function useLoginFlow() {
     forgetAll,
   } = useRememberedAccounts();
 
-  /** True while the user is signing in via a saved account rather than an email. */
   const [isRememberedLogin, setIsRememberedLogin] = useState(false);
 
-  // Open on the saved accounts once storage has been read. One saved account
-  // goes straight to its password step; several show the picker.
+  const appliedRememberedRef = useRef(false);
   useEffect(() => {
-    if (!isRestored || !rememberedAccounts.length) return;
+    if (!isRestored || appliedRememberedRef.current) return;
+    appliedRememberedRef.current = true;
+    if (!rememberedAccounts.length) return;
+
     setIsRememberedLogin(true);
     setRememberMe(true);
     if (rememberedAccounts.length === 1) {
       const only = rememberedAccounts[0];
       setSelectedAccount(only.account);
       setEmail(only.email || only.account.email);
-      setStep('password');
+      if (only.phone) setMobile(only.phone);
+      setStep(only.method === 'otp' ? 'account-otp' : 'password');
     } else {
       setStep('remembered');
     }
   }, [isRestored, rememberedAccounts]);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => setResendCooldown((s) => (s <= 1 ? 0 : s - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  const startResendCooldown = useCallback(() => setResendCooldown(RESEND_COOLDOWN_SECONDS), []);
 
   const clearFeedback = useCallback(() => {
     setError('');
@@ -99,11 +107,8 @@ export function useLoginFlow() {
     setFieldError(null);
   }, []);
 
-  // Guards against a second submission landing before isLoading has rendered —
-  // the OTP step can auto-submit and be tapped in the same frame.
   const inFlightRef = useRef(false);
 
-  /** Wraps a handler with the loading flag and one error surface. */
   const run = useCallback(async (action: () => Promise<void>) => {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
@@ -112,7 +117,6 @@ export function useLoginFlow() {
     try {
       await action();
     } catch (err) {
-      // Validation lands under its input; anything else is a card-level banner.
       if (err instanceof FieldValidationError) setFieldError({ field: err.field, message: err.message });
       else setError(messageOf(err));
     } finally {
@@ -123,6 +127,7 @@ export function useLoginFlow() {
 
   const resetToStart = useCallback(() => {
     setIsRememberedLogin(false);
+    setIsOtpAccountChoice(false);
     setStep(tab === 'otp' ? 'otp' : 'email');
     setAccounts([]);
     setSelectedAccount(null);
@@ -130,11 +135,13 @@ export function useLoginFlow() {
     setOtp('');
     setMobile('');
     setEmail('');
+    setResendCooldown(0);
     clearFeedback();
   }, [clearFeedback, tab]);
 
   const switchTab = useCallback((next: LoginTab) => {
     setIsRememberedLogin(false);
+    setIsOtpAccountChoice(false);
     setTab(next);
     setStep(next === 'otp' ? 'otp' : 'email');
     setAccounts([]);
@@ -143,39 +150,35 @@ export function useLoginFlow() {
     setPassword('');
     setOtp('');
     setMobile('');
+    setResendCooldown(0);
     clearFeedback();
   }, [clearFeedback]);
 
-  /** Picks one of the saved accounts and jumps to its password step. */
-  const useRemembered = useCallback((entry: (typeof rememberedAccounts)[number]) => {
+  const useRemembered = useCallback((entry: RememberedAccount) => {
     setSelectedAccount(entry.account);
     setEmail(entry.email || entry.account.email);
+    if (entry.phone) setMobile(entry.phone);
     setIsRememberedLogin(true);
     setRememberMe(true);
-    setStep('password');
+    setStep(entry.method === 'otp' ? 'account-otp' : 'password');
     clearFeedback();
   }, [clearFeedback]);
 
-  /** Removes one saved account; returns to the email step if none are left. */
   const forgetRemembered = useCallback((accountId: string) => {
-    forget(accountId);
-    if (rememberedAccounts.length <= 1) {
+    const next = forget(accountId);
+    if (!next.length) {
       setRememberMe(false);
       setSelectedAccount(null);
       resetToStart();
     }
-  }, [forget, rememberedAccounts.length, resetToStart]);
+  }, [forget, resetToStart]);
 
-  /** "Use a different account" — keeps the saved list, goes back to email entry. */
   const addAnotherAccount = useCallback(() => {
     setRememberMe(true);
     resetToStart();
   }, [resetToStart]);
 
-  /** Back from a password step to whichever screen the user came from.
-   *  Any saved account routes to the list, including a single one — that list
-   *  is the only place an account can be removed. */
-  const backFromPassword = useCallback(() => {
+  const backFromRememberedAccount = useCallback(() => {
     if (isRememberedLogin && rememberedAccounts.length > 0) {
       setSelectedAccount(null);
       setPassword('');
@@ -186,9 +189,9 @@ export function useLoginFlow() {
     resetToStart();
   }, [clearFeedback, isRememberedLogin, rememberedAccounts.length, resetToStart]);
 
-  /** Routes to the picker, the superadmin step, or straight to credentials. */
   const applyAccounts = useCallback((found: Account[], nextTab: LoginTab) => {
     if (found.length > 1) {
+      setIsOtpAccountChoice(false);
       setAccounts(found);
       setStep('accounts');
       return;
@@ -205,8 +208,6 @@ export function useLoginFlow() {
     if (!value) throw new FieldValidationError('email', 'Enter your email address');
     if (!isValidEmail(value)) throw new FieldValidationError('email', 'Enter a valid email address');
 
-    // The backend answers an unknown address with 404, so a rejected lookup is
-    // a validation result, not a failure — it belongs under the field.
     const response = await authApi.checkAccounts(value).catch((err: unknown) => {
       if (isRejectedInput(err)) return null;
       throw err;
@@ -234,39 +235,53 @@ export function useLoginFlow() {
     clearFeedback();
   }, [clearFeedback]);
 
-  /** Shared tail for every credential submission. */
-  const settle = useCallback((result: Awaited<ReturnType<typeof authApi.loginWithAccount>>, fallbackName: string) => {
+  const settle = useCallback((
+    result: AuthResultDto,
+    fallbackName: string,
+    method: 'password' | 'otp',
+    accountOverride?: Account
+  ) => {
     const outcome = toAuthOutcome(result, fallbackName);
     if (outcome.kind === 'authenticated') {
       onAuthSuccess(outcome.user, outcome.token, outcome.raw);
+
+      const account = accountOverride ?? selectedAccount ?? accountFromResult(result, mobile);
+      if (rememberMe) {
+        if (account) remember(account, outcome.user.email, method, mobile || account.phone);
+      } else if (account) {
+        forget(account.id);
+      }
       return true;
     }
     if (outcome.kind === 'account-choice') {
+      setIsOtpAccountChoice(false);
       setAccounts(outcome.accounts);
       setStep('accounts');
       return false;
     }
     setError(outcome.message);
     return false;
-  }, [onAuthSuccess]);
+  }, [onAuthSuccess, rememberMe, selectedAccount, remember, forget, mobile]);
 
   const submitSuperAdminPassword = useCallback(() => run(async () => {
-    if (!email || !password) throw new Error('Please enter email and password');
-    settle(await authApi.loginWithEmail(email, password), email);
+    if (!email) throw new FieldValidationError('email', 'Enter your email address');
+    if (!password) throw new FieldValidationError('password', 'Enter your password');
+    const result = await authApi
+      .loginWithEmail(email, password)
+      .catch((err: unknown) => asFieldError(err, 'password', [401]));
+    settle(result, email, 'password');
   }), [email, password, run, settle]);
 
   const submitPassword = useCallback(() => run(async () => {
     if (!selectedAccount) throw new Error('Select an account first');
     if (!password) throw new FieldValidationError('password', 'Enter your password');
 
-    const result = await authApi.loginWithAccount(selectedAccount.id, password);
-    const loggedIn = settle(result, selectedAccount.username);
-    // Persist the choice only once the credentials are known good.
-    if (loggedIn) {
-      if (rememberMe) remember(selectedAccount, email || selectedAccount.email);
-      else forget(selectedAccount.id);
-    }
-  }), [email, forget, password, remember, rememberMe, run, selectedAccount, settle]);
+    const result = await authApi
+      .loginWithAccount(selectedAccount.id, password)
+      .catch((err: unknown) => asFieldError(err, 'password', [401]));
+
+    settle(result, selectedAccount.username, 'password');
+  }), [password, run, selectedAccount, settle]);
 
   const requestMobileOtp = useCallback(() => run(async () => {
     if (!mobile.trim()) throw new FieldValidationError('mobile', 'Enter your mobile number');
@@ -275,12 +290,15 @@ export function useLoginFlow() {
     }
     const cleanDigits = mobile.replace(/\D/g, '').slice(-10);
     const formatted = `+91${cleanDigits}`;
-    const result = await authApi.sendOtpToMobile(formatted, '+91');
-    if (!result.success) throw new Error(result.message || 'Failed to send OTP');
+    const result = await authApi
+      .sendOtpToMobile(formatted, '+91')
+      .catch((err: unknown) => asFieldError(err, 'mobile'));
+    if (!result.success) throw new FieldValidationError('mobile', result.message || 'Failed to send OTP');
     setMobile(formatted);
     setOtp('');
     setStep('verify');
-  }), [mobile, run]);
+    startResendCooldown();
+  }), [mobile, run, startResendCooldown]);
 
   const requestAccountOtp = useCallback(() => run(async () => {
     if (!selectedAccount) throw new Error('Select an account first');
@@ -288,17 +306,37 @@ export function useLoginFlow() {
     if (!result.success) throw new Error(result.message || 'Failed to send OTP');
     setOtp('');
     setStep('verify');
-  }), [run, selectedAccount]);
+    startResendCooldown();
+  }), [run, selectedAccount, startResendCooldown]);
 
-  /** `code` lets the OTP input auto-submit before its state update lands. */
   const verifyOtp = useCallback((code?: string) => run(async () => {
     const value = code || otp;
-    if (!value) throw new Error('Please enter the OTP');
+    if (!value) throw new FieldValidationError('otp', 'Enter the code we sent you');
+
     const result = selectedAccount
-      ? await authApi.verifyAccountOtp(selectedAccount.id, value, '+91')
-      : await authApi.verifyMobileOtp(mobile, value, '+91');
-    settle(result, selectedAccount?.username || '');
+      ? await authApi
+          .verifyAccountOtp(selectedAccount.id, value, '+91')
+          .catch((err: unknown) => asFieldError(err, 'otp'))
+      : await authApi
+          .verifyMobileOtp(mobile, value, '+91')
+          .catch((err: unknown) => asFieldError(err, 'otp'));
+
+    if (result.accounts && result.accounts.length > 1) {
+      setIsOtpAccountChoice(true);
+      setAccounts(toAccounts(result.accounts));
+      setStep('accounts');
+      return;
+    }
+    settle(result, selectedAccount?.username || '', 'otp');
   }), [mobile, otp, run, selectedAccount, settle]);
+
+  const chooseOtpAccount = useCallback((account: Account) => run(async () => {
+    const result = await authApi
+      .verifyMobileOtp(mobile, otp, '+91', account.id)
+      .catch((err: unknown) => asFieldError(err, 'otp'));
+    setIsOtpAccountChoice(false);
+    settle(result, account.username, 'otp', account);
+  }), [mobile, otp, run, settle]);
 
   const resendOtp = useCallback(() => run(async () => {
     const result = selectedAccount
@@ -307,9 +345,8 @@ export function useLoginFlow() {
     if (!result.success) throw new Error(result.message || 'Failed to resend OTP');
     setOtp('');
     setSuccess(result.message || 'OTP sent again.');
-  }), [mobile, run, selectedAccount]);
-
-  /* ---------- Forgot password ---------- */
+    startResendCooldown();
+  }), [mobile, run, selectedAccount, startResendCooldown]);
 
   const startForgotPassword = useCallback(() => {
     setOtp('');
@@ -323,7 +360,8 @@ export function useLoginFlow() {
     const result = await authApi.sendForgotPasswordOtp(email);
     if (!result.success) throw new Error(result.message || 'Failed to send reset code');
     setStep('forgot-otp');
-  }), [email, run]);
+    startResendCooldown();
+  }), [email, run, startResendCooldown]);
 
   const submitForgotOtp = useCallback(() => run(async () => {
     if (!otp) throw new Error('Please enter the reset code');
@@ -343,19 +381,17 @@ export function useLoginFlow() {
   }), [email, otp, password, run]);
 
   return {
-    // state
     tab, step, email, password, mobile, otp,
     accounts, selectedAccount, error, fieldError, success, isLoading,
     rememberMe, isRememberedLogin, rememberedAccounts,
-    // setters used by controlled inputs
+    isOtpAccountChoice, resendCooldown,
     setEmail, setPassword, setMobile, setOtp, setRememberMe, setStep,
-    // actions
     switchTab, resetToStart, clearFeedback,
     useRemembered, forgetRemembered, forgetAllRemembered: forgetAll,
-    addAnotherAccount, backFromPassword,
+    addAnotherAccount, backFromPassword: backFromRememberedAccount,
     submitEmail, selectAccount, selectAccountForOtp,
     submitPassword, submitSuperAdminPassword,
-    requestMobileOtp, requestAccountOtp, verifyOtp, resendOtp,
+    requestMobileOtp, requestAccountOtp, verifyOtp, chooseOtpAccount, resendOtp,
     startForgotPassword, submitForgotEmail, submitForgotOtp, submitNewPassword,
   };
 }

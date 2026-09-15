@@ -25,18 +25,20 @@ export const text = {
   error: 'text-xs font-medium text-[var(--tt-danger)]',
 } as const;
 
-// Shared button geometry; variants only swap color.
+// Shared button geometry; variants only swap color. Height and radius match
+// `field.wrapper` exactly, so a button stacked under an input reads as one
+// control family rather than two.
 const buttonBase =
-  'inline-flex w-full items-center justify-center gap-2 rounded-md ' +
-  'px-4 py-2.5 sm:py-3 text-sm font-semibold transition-colors duration-200 ' +
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--tt-ring)] focus-visible:ring-offset-2 ' +
-  'disabled:cursor-not-allowed disabled:opacity-50';
+  'inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-[var(--tt-radius-control)] ' +
+  'px-4 text-[15px] font-semibold tracking-[-0.01em] transition-all duration-150 ' +
+  'active:scale-[0.99] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--tt-ring)] ' +
+  'disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100';
 
 export const button = {
   primary: `${buttonBase} bg-[var(--tt-primary)] text-[var(--tt-on-primary)] hover:bg-[var(--tt-primary-hover)]`,
-  secondary: `${buttonBase} border border-[var(--tt-border-strong)] bg-surface text-fg hover:bg-bg-subtle`,
-  ghost: `${buttonBase} text-fg-muted hover:bg-bg-subtle hover:text-fg`,
-  link: 'text-sm font-semibold text-fg underline-offset-4 hover:underline disabled:opacity-50',
+  secondary: `${buttonBase} border border-line-strong bg-surface text-fg hover:bg-bg-subtle`,
+  ghost: `${buttonBase} h-11 text-fg-muted hover:bg-bg-subtle hover:text-fg`,
+  link: 'text-sm font-semibold text-fg underline-offset-4 transition-opacity hover:underline disabled:opacity-50',
 } as const;
 
 export const surface = {
@@ -48,14 +50,18 @@ export const surface = {
 export const field = {
   // Wrapper flips border color on focus; the input itself stays transparent.
   wrapper:
-    'flex items-center gap-2.5 rounded-md border bg-surface px-3.5 py-2.5 sm:py-3 transition-colors duration-200',
+    'flex h-[52px] items-center gap-3 rounded-[var(--tt-radius-control)] border bg-surface px-4 transition-all duration-150',
   wrapperIdle: 'border-line hover:border-line-strong',
-  wrapperFocused: 'border-[var(--tt-primary)] shadow-[var(--tt-shadow-sm)]',
+  wrapperFocused: 'border-[var(--tt-primary)] ring-4 ring-[var(--tt-ring)]',
   wrapperDisabled: 'opacity-50 bg-bg-subtle cursor-not-allowed',
-  wrapperError: 'border-[var(--tt-danger)] bg-[var(--tt-danger-soft)]',
+  // Validation is shown on the field itself — a red border plus the message
+  // underneath — never as a banner above the form.
+  wrapperError: 'border-[var(--tt-danger)] ring-4 ring-[var(--tt-danger)]/10',
   // 16px minimum stops iOS Safari zooming the page on focus.
   input:
     'flex-1 min-w-0 bg-transparent text-base text-fg placeholder:text-fg-subtle outline-none border-none focus:ring-0',
+  // Label sits tight above its control, not floating a full line away.
+  label: 'mb-2 block text-[13px] font-semibold text-fg',
 } as const;
 
 export const scroll = {

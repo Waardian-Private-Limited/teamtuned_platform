@@ -3,15 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getSocket, disconnectSocket } from '@/lib/socket';
 import * as authApi from '../api/auth.api';
-import { toAuthOutcome } from '../model/auth.mapper';
+import { toAuthOutcome } from '../types/auth.mapper';
 import { QR, type QrStatus } from '../constants/auth.constants';
 import { useAuthSuccess } from './useAuthSuccess';
 
-/**
- * QR sign-in: mint a session token, render it, and wait for the mobile app to
- * confirm. A socket carries the confirmation; HTTP polling only starts if the
- * socket fails to connect, so the happy path makes no polling requests.
- */
 export function useQrLogin() {
   const [token, setToken] = useState<string | null>(null);
   const [status, setStatus] = useState<QrStatus>('pending');
@@ -20,7 +15,6 @@ export function useQrLogin() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const expiryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const graceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Identifies the live token so responses from a refreshed-away session are dropped.
   const activeTokenRef = useRef<string | null>(null);
   const requestSeqRef = useRef(0);
 
@@ -40,11 +34,9 @@ export function useQrLogin() {
       const outcome = toAuthOutcome(payload);
       if (outcome.kind !== 'authenticated') return;
       if (outcome.token) {
-        // Mirror the bearer token into an httpOnly cookie so middleware sees it.
         try {
           await authApi.exchangeQrTokenForCookie(outcome.token);
         } catch {
-          // Cookie is a convenience; the bearer token alone still authenticates.
         }
       }
       onAuthSuccess(outcome.user, outcome.token, payload);
@@ -71,7 +63,6 @@ export function useQrLogin() {
           }
         } catch (err) {
           if (activeTokenRef.current !== sessionToken) return stop();
-          // Only a definitive "this session is gone" ends the loop; keep retrying transient errors.
           const httpStatus = (err as { status?: number })?.status;
           if (httpStatus === 400 || httpStatus === 404 || httpStatus === 410) {
             setStatus('expired');
@@ -91,7 +82,6 @@ export function useQrLogin() {
 
     try {
       const data = await authApi.generateQrSession();
-      // A newer refresh started while this request was in flight — discard it.
       if (seq !== requestSeqRef.current || !data.success) return;
 
       activeTokenRef.current = data.token;
@@ -131,7 +121,6 @@ export function useQrLogin() {
     }
   }, [complete, startPolling, stop]);
 
-  // Mint one session on mount and tear everything down on unmount.
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
 

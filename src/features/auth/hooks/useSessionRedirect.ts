@@ -4,13 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUserStore } from '@/lib/store/userStore';
 import { fetchSession } from '../api/auth.api';
-import { toSessionSnapshot } from '../model/auth.mapper';
-import { routeForRole } from '../constants/auth.constants';
+import { toSessionSnapshot } from '../types/auth.mapper';
+import { routeForRole } from '@/config/routes';
 
-/**
- * Sends an already-signed-in visitor straight to their dashboard instead of
- * showing them the login form. Returns false once the check has finished.
- */
 export function useSessionRedirect() {
   const router = useRouter();
   const setUser = useUserStore((state) => state.setUser);

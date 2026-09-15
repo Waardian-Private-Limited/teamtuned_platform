@@ -1,8 +1,9 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/providers/auth-provider';
+import { routeForRole } from '@/config/routes';
 
 export default function Home() {
   const router = useRouter();
@@ -10,23 +11,9 @@ export default function Home() {
 
   useEffect(() => {
     if (loading) return;
-
-    if (!isAuthenticated) {
-      router.push("/login");
-      return;
-    }
-
-    const roleRoutes: Record<string, string> = {
-      superAdmin: "/superadmin",
-      OrgAdmin: "/org-admin",
-      Employee: "/employee",
-    };
-
-    const targetRoute = roleRoutes[role ?? ""] ?? "/login";
-    router.push(targetRoute);
+    router.push(isAuthenticated ? routeForRole(role ?? undefined) : '/login');
   }, [isAuthenticated, role, loading, router]);
 
-  // Show loading state
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">

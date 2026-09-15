@@ -1,7 +1,7 @@
 import localFont from 'next/font/local';
 import './globals.css';
 import { Toaster } from 'react-hot-toast';
-import { AuthProvider } from '@/context/AuthContext';
+import { AuthProvider } from '@/providers/auth-provider';
 
 // Exo is the brand face, self-hosted so it matches the mobile app exactly.
 const exo = localFont({

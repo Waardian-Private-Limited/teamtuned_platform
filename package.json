@@ -6,6 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
+    "typecheck": "tsc --noEmit",
     "electron": "electron ./electron/main.js",
     "dev:electron": "APP_URL=http://localhost:$PORT electron ./electron/main.js",
     "dev:desktop": "PORT=${PORT:-3000} concurrently -k -n WEB,ELECTRON \"npm run dev\" \"wait-on http://localhost:$PORT && npm run dev:electron\""

@@ -3,14 +3,11 @@
 import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUserStore } from '@/lib/store/userStore';
-import { useAuth } from '@/context/AuthContext';
-import { STORAGE_KEYS, routeForRole } from '../constants/auth.constants';
-import type { AuthenticatedUser } from '../model/auth.model';
+import { useAuth } from '@/providers/auth-provider';
+import { setToken } from '@/lib/auth/session';
+import { routeForRole } from '@/config/routes';
+import type { AuthenticatedUser } from '../types/auth.model';
 
-/**
- * The one path a successful login takes, whichever flow produced it:
- * persist the token, populate both auth stores, then route by role.
- */
 export function useAuthSuccess() {
   const router = useRouter();
   const setUser = useUserStore((state) => state.setUser);
@@ -20,7 +17,7 @@ export function useAuthSuccess() {
 
   return useCallback(
     (user: AuthenticatedUser, token: string | undefined, raw: unknown) => {
-      if (token) localStorage.setItem(STORAGE_KEYS.token, token);
+      if (token) setToken(token);
       setUser({
         id: user.id,
         email: user.email,
@@ -29,7 +26,6 @@ export function useAuthSuccess() {
         societyId: user.organizationId,
         features: user.features,
       });
-      // The raw login response doubles as a session payload for AuthContext.
       setAuthState(raw as SessionPayload);
       router.push(routeForRole(user.role));
     },

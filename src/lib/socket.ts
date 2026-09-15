@@ -1,12 +1,13 @@
 import { io, Socket } from 'socket.io-client';
 import { getBackendUrl } from './apiClient';
+import { getToken } from './auth/session';
 
 let socket: Socket | null = null;
 
 export const getSocket = (token?: string, isQr?: boolean) => {
     if (!socket && typeof window !== 'undefined') {
         const backendUrl = getBackendUrl();
-        const authToken = token || localStorage.getItem('token');
+        const authToken = token || getToken();
 
         const authOptions: any = {};
         if (authToken) {
