@@ -1,8 +1,8 @@
 'use client';
 
 import { Lock, Mail } from 'lucide-react';
-import { AuthField } from '../components/AuthField';
-import { AuthButton } from '../components/AuthButton';
+import { Field } from '@/components/ui/Field';
+import { Button } from '@/components/ui/Button';
 import { OtpCodeInput } from '../components/OtpCodeInput';
 import { StepShell } from './StepShell';
 import { FORGOT_OTP_LENGTH } from '../../constants/auth.constants';
@@ -25,7 +25,7 @@ export function ForgotEmailStep({
 }) {
   return (
     <StepShell title="Reset your password" subtitle="We'll email you a verification code." onSubmit={onSubmit}>
-      <AuthField
+      <Field
         label="Email"
         icon={<Mail className="h-5 w-5" />}
         type="email"
@@ -36,9 +36,9 @@ export function ForgotEmailStep({
         disabled={isLoading}
         onChange={(e) => onEmailChange(e.target.value)}
       />
-      <AuthButton type="submit" loading={isLoading} loadingLabel="Sending…">
+      <Button type="submit" loading={isLoading} loadingLabel="Sending…">
         Send code
-      </AuthButton>
+      </Button>
       <button type="button" onClick={onBack} className={`${button.link} w-full`} disabled={isLoading}>
         Back to sign in
       </button>
@@ -73,9 +73,9 @@ export function ForgotOtpStep({
         error={error}
         onComplete={onSubmit}
       />
-      <AuthButton type="submit" loading={isLoading} loadingLabel="Verifying…">
+      <Button type="submit" loading={isLoading} loadingLabel="Verifying…">
         Verify code
-      </AuthButton>
+      </Button>
       <button type="button" onClick={onBack} className={`${button.link} w-full`} disabled={isLoading}>
         Back
       </button>
@@ -100,7 +100,7 @@ export function ForgotResetStep({
 }) {
   return (
     <StepShell title="Set a new password" onSubmit={onSubmit}>
-      <AuthField
+      <Field
         label="New password"
         icon={<Lock className="h-5 w-5" />}
         type="password"
@@ -111,9 +111,9 @@ export function ForgotResetStep({
         disabled={isLoading}
         onChange={(e) => onPasswordChange(e.target.value)}
       />
-      <AuthButton type="submit" loading={isLoading} loadingLabel="Updating…">
+      <Button type="submit" loading={isLoading} loadingLabel="Updating…">
         Update password
-      </AuthButton>
+      </Button>
       <button type="button" onClick={onBack} className={`${button.link} w-full`} disabled={isLoading}>
         Back
       </button>

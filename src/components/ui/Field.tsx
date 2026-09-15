@@ -4,7 +4,7 @@ import { useId, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { cx, field, text } from '@/theme/tokens';
 
-interface AuthFieldProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'className' | 'prefix'> {
+interface FieldProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'className' | 'prefix'> {
   label: string;
   icon?: React.ReactNode;
   prefix?: React.ReactNode;
@@ -12,7 +12,7 @@ interface AuthFieldProps extends Omit<React.InputHTMLAttributes<HTMLInputElement
   error?: string;
 }
 
-export function AuthField({ label, icon, prefix, hint, error, type = 'text', disabled, ...rest }: AuthFieldProps) {
+export function Field({ label, icon, prefix, hint, error, type = 'text', disabled, ...rest }: FieldProps) {
   const id = useId();
   const messageId = `${id}-message`;
   const [isFocused, setIsFocused] = useState(false);

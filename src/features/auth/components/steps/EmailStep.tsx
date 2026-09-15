@@ -1,8 +1,8 @@
 'use client';
 
 import { Mail } from 'lucide-react';
-import { AuthField } from '../components/AuthField';
-import { AuthButton } from '../components/AuthButton';
+import { Field } from '@/components/ui/Field';
+import { Button } from '@/components/ui/Button';
 import { StepShell } from './StepShell';
 
 export function EmailStep({
@@ -20,7 +20,7 @@ export function EmailStep({
 }) {
   return (
     <StepShell onSubmit={onSubmit}>
-      <AuthField
+      <Field
         label="Email"
         icon={<Mail className="h-5 w-5" />}
         type="email"
@@ -32,9 +32,9 @@ export function EmailStep({
         disabled={isLoading}
         onChange={(e) => onEmailChange(e.target.value)}
       />
-      <AuthButton type="submit" loading={isLoading} loadingLabel="Checking…">
+      <Button type="submit" loading={isLoading} loadingLabel="Checking…">
         Continue
-      </AuthButton>
+      </Button>
     </StepShell>
   );
 }

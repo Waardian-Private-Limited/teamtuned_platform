@@ -1,12 +1,7 @@
 "use client";
 
-import React from "react";
-import DepartmentsManager from "@/components/org/DepartmentsManager";
+import { DepartmentsPage } from "@/features/departments/components/DepartmentsPage";
 
 export default function OrgAdminDepartmentsPage() {
-  return (
-    <div>
-      <DepartmentsManager />
-    </div>
-  );
+  return <DepartmentsPage />;
 }

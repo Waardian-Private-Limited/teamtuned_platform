@@ -1,8 +1,8 @@
 'use client';
 
 import { Smartphone } from 'lucide-react';
-import { AuthField } from '../components/AuthField';
-import { AuthButton } from '../components/AuthButton';
+import { Field } from '@/components/ui/Field';
+import { Button } from '@/components/ui/Button';
 import { RememberMeField } from '../components/RememberMeField';
 import { StepShell } from './StepShell';
 
@@ -27,7 +27,7 @@ export function OtpRequestStep({
 
   return (
     <StepShell onSubmit={onSubmit}>
-      <AuthField
+      <Field
         label="Mobile number"
         icon={<Smartphone className="h-5 w-5" />}
         prefix="+91"
@@ -48,9 +48,9 @@ export function OtpRequestStep({
         }}
       />
       <RememberMeField checked={rememberMe} onChange={onRememberMeChange} disabled={isLoading} />
-      <AuthButton type="submit" loading={isLoading} loadingLabel="Sending…">
+      <Button type="submit" loading={isLoading} loadingLabel="Sending…">
         Send code
-      </AuthButton>
+      </Button>
     </StepShell>
   );
 }

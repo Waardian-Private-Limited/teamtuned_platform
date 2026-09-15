@@ -2,13 +2,13 @@ import { button } from '@/theme/tokens';
 
 type Variant = keyof typeof button;
 
-interface AuthButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   loading?: boolean;
   loadingLabel?: string;
 }
 
-export function AuthButton({
+export function Button({
   variant = 'primary',
   loading = false,
   loadingLabel,
@@ -16,7 +16,7 @@ export function AuthButton({
   children,
   className,
   ...rest
-}: AuthButtonProps) {
+}: ButtonProps) {
   return (
     <button
       {...rest}

@@ -1,6 +1,6 @@
 'use client';
 
-import { AuthButton } from '../components/AuthButton';
+import { Button } from '@/components/ui/Button';
 import { StepShell } from './StepShell';
 import { surface, text } from '@/theme/tokens';
 import type { Account } from '../../types/auth.model';
@@ -43,26 +43,26 @@ export function AccountsStep({
             <p className={`${text.caption} truncate`}>{account.organizationName}</p>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row">
               {isOtpContinue ? (
-                <AuthButton onClick={() => onContinue(account)} disabled={isLoading}>
+                <Button onClick={() => onContinue(account)} disabled={isLoading}>
                   Continue
-                </AuthButton>
+                </Button>
               ) : (
                 <>
-                  <AuthButton onClick={() => onSelect(account)} disabled={isLoading}>
+                  <Button onClick={() => onSelect(account)} disabled={isLoading}>
                     Use password
-                  </AuthButton>
-                  <AuthButton variant="secondary" onClick={() => onSelectForOtp(account)} disabled={isLoading}>
+                  </Button>
+                  <Button variant="secondary" onClick={() => onSelectForOtp(account)} disabled={isLoading}>
                     Use OTP
-                  </AuthButton>
+                  </Button>
                 </>
               )}
             </div>
           </li>
         ))}
       </ul>
-      <AuthButton variant="ghost" onClick={onBack} disabled={isLoading}>
+      <Button variant="ghost" onClick={onBack} disabled={isLoading}>
         Back
-      </AuthButton>
+      </Button>
     </StepShell>
   );
 }

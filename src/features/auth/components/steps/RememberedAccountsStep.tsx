@@ -2,7 +2,7 @@
 
 import { ChevronRight, UserRound, X } from 'lucide-react';
 import { StepShell } from './StepShell';
-import { AuthButton } from '../components/AuthButton';
+import { Button } from '@/components/ui/Button';
 import { cx, surface, text } from '@/theme/tokens';
 import type { RememberedAccount } from '../../types/auth.model';
 
@@ -59,9 +59,9 @@ export function RememberedAccountsStep({
         })}
       </ul>
 
-      <AuthButton variant="secondary" onClick={onUseAnother} disabled={isLoading}>
+      <Button variant="secondary" onClick={onUseAnother} disabled={isLoading}>
         Use a different account
-      </AuthButton>
+      </Button>
     </StepShell>
   );
 }

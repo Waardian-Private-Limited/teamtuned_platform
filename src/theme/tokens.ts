@@ -39,6 +39,10 @@ export const button = {
   secondary: `${buttonBase} border border-line-strong bg-surface text-fg hover:bg-bg-subtle`,
   ghost: `${buttonBase} h-11 text-fg-muted hover:bg-bg-subtle hover:text-fg`,
   link: 'text-sm font-semibold text-fg underline-offset-4 transition-opacity hover:underline disabled:opacity-50',
+  // For a destructive confirmation (delete, revoke, etc). Not composed on top
+  // of `primary` — two conflicting `bg-*` utilities in one class string race
+  // on CSS source order, not on which comes later in the string.
+  danger: `${buttonBase} bg-[var(--tt-danger)] text-[var(--tt-on-primary)] hover:bg-[var(--tt-danger)]/90`,
 } as const;
 
 export const surface = {

@@ -7,6 +7,7 @@ const PAGE_TITLES: Record<string, { title: string; category: string }> = {
     '/employee/orgProfile': { title: 'Organization Profile', category: 'Main' },
     '/employee/sites': { title: 'Sites', category: 'Main' },
     '/employee/departments': { title: 'Departments', category: 'Main' },
+    '/org-admin/departments': { title: 'Departments', category: 'Main' },
     '/employee/roles': { title: 'Roles', category: 'Main' },
     '/employee/attendance-rules': { title: 'Policies', category: 'Main' },
     '/employee/attendance-config': { title: 'Attendance Config', category: 'Main' },

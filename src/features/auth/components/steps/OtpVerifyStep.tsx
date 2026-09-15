@@ -1,6 +1,6 @@
 'use client';
 
-import { AuthButton } from '../components/AuthButton';
+import { Button } from '@/components/ui/Button';
 import { OtpCodeInput } from '../components/OtpCodeInput';
 import { RememberMeField } from '../components/RememberMeField';
 import { StepShell } from './StepShell';
@@ -49,9 +49,9 @@ export function OtpVerifyStep({
         onComplete={(code) => onSubmit(code)}
       />
       <RememberMeField checked={rememberMe} onChange={onRememberMeChange} disabled={isLoading} />
-      <AuthButton type="submit" loading={isLoading} loadingLabel="Verifying…">
+      <Button type="submit" loading={isLoading} loadingLabel="Verifying…">
         Verify
-      </AuthButton>
+      </Button>
       <div className="flex items-center justify-between">
         <button type="button" onClick={onBack} className={button.link} disabled={isLoading}>
           Back

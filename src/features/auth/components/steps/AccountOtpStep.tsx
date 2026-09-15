@@ -1,6 +1,6 @@
 'use client';
 
-import { AuthButton } from '../components/AuthButton';
+import { Button } from '@/components/ui/Button';
 import { AccountSummary } from '../components/AccountSummary';
 import { RememberMeField } from '../components/RememberMeField';
 import { StepShell } from './StepShell';
@@ -25,12 +25,12 @@ export function AccountOtpStep({
     <StepShell title="Send a one-time code" subtitle="We'll send it to the mobile number on this account.">
       <AccountSummary account={account} />
       <RememberMeField checked={rememberMe} onChange={onRememberMeChange} disabled={isLoading} />
-      <AuthButton onClick={onSubmit} loading={isLoading} loadingLabel="Sending…">
+      <Button onClick={onSubmit} loading={isLoading} loadingLabel="Sending…">
         Send code
-      </AuthButton>
-      <AuthButton variant="ghost" onClick={onBack} disabled={isLoading}>
+      </Button>
+      <Button variant="ghost" onClick={onBack} disabled={isLoading}>
         Back
-      </AuthButton>
+      </Button>
     </StepShell>
   );
 }

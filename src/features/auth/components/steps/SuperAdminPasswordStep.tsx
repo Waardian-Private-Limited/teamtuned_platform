@@ -1,8 +1,8 @@
 'use client';
 
 import { Lock, ShieldCheck } from 'lucide-react';
-import { AuthField } from '../components/AuthField';
-import { AuthButton } from '../components/AuthButton';
+import { Field } from '@/components/ui/Field';
+import { Button } from '@/components/ui/Button';
 import { RememberMeField } from '../components/RememberMeField';
 import { StepShell } from './StepShell';
 import { button, surface, text } from '@/theme/tokens';
@@ -39,7 +39,7 @@ export function SuperAdminPasswordStep({
           <p className={`${text.caption} truncate`}>{email}</p>
         </div>
       </div>
-      <AuthField
+      <Field
         label="Password"
         icon={<Lock className="h-5 w-5" />}
         type="password"
@@ -56,12 +56,12 @@ export function SuperAdminPasswordStep({
           Forgot password?
         </button>
       </div>
-      <AuthButton type="submit" loading={isLoading} loadingLabel="Signing in…">
+      <Button type="submit" loading={isLoading} loadingLabel="Signing in…">
         Sign in
-      </AuthButton>
-      <AuthButton variant="ghost" onClick={onBack} disabled={isLoading}>
+      </Button>
+      <Button variant="ghost" onClick={onBack} disabled={isLoading}>
         Back
-      </AuthButton>
+      </Button>
     </StepShell>
   );
 }

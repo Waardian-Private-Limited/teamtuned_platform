@@ -3,7 +3,7 @@
 import { useLoginFlow } from '../hooks/useLoginFlow';
 import { useQrLogin } from '../hooks/useQrLogin';
 import { STEPS_WITH_TABS, STEP_PRIMARY_FIELD, type FieldName } from '../constants/auth.constants';
-import { AuthAlert } from './components/AuthAlert';
+import { Alert } from '@/components/ui/Alert';
 import { AuthTabs } from './components/AuthTabs';
 import { QrLoginPanel } from './components/QrLoginPanel';
 import { EmailStep } from './steps/EmailStep';
@@ -39,8 +39,8 @@ export function LoginCard() {
         <AuthTabs value={flow.tab} onChange={flow.switchTab} disabled={flow.isLoading} />
       )}
 
-      <AuthAlert message={unattachedError} tone="error" />
-      <AuthAlert message={flow.success} tone="success" />
+      <Alert message={unattachedError} tone="error" />
+      <Alert message={flow.success} tone="success" />
 
       <div key={flow.step} className="tt-fade-in">
         {flow.step === 'remembered' && (

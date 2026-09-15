@@ -1,8 +1,8 @@
 'use client';
 
 import { Lock } from 'lucide-react';
-import { AuthField } from '../components/AuthField';
-import { AuthButton } from '../components/AuthButton';
+import { Field } from '@/components/ui/Field';
+import { Button } from '@/components/ui/Button';
 import { AccountSummary } from '../components/AccountSummary';
 import { RememberMeField } from '../components/RememberMeField';
 import { StepShell } from './StepShell';
@@ -46,7 +46,7 @@ export function PasswordStep({
           ) : undefined
         }
       />
-      <AuthField
+      <Field
         label="Password"
         icon={<Lock className="h-5 w-5" />}
         type="password"
@@ -63,13 +63,13 @@ export function PasswordStep({
           Forgot password?
         </button>
       </div>
-      <AuthButton type="submit" loading={isLoading} loadingLabel="Signing in…">
+      <Button type="submit" loading={isLoading} loadingLabel="Signing in…">
         Sign in
-      </AuthButton>
+      </Button>
       {!isRemembered && (
-        <AuthButton variant="ghost" onClick={onBack} disabled={isLoading}>
+        <Button variant="ghost" onClick={onBack} disabled={isLoading}>
           Back
-        </AuthButton>
+        </Button>
       )}
     </StepShell>
   );
