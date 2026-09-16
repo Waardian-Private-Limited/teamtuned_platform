@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { usePermission } from '@/lib/hooks/usePermission';
 import { cx } from '@/theme/tokens';
 import { Alert } from '@/components/ui/Alert';
 import { Pagination } from '@/components/ui/Pagination';
@@ -24,16 +24,11 @@ import { DepartmentsEmptyState } from './components/DepartmentsEmptyState';
 // DEPT_* permission simply doesn't see the corresponding action, matching the
 // legacy page's per-button gating.
 function useDepartmentPermissions() {
-  const { role, permissions } = useAuth();
-  const hasPerm = React.useCallback(
-    (code: string) => (permissions || []).some((p) => (p || '').toUpperCase() === code.toUpperCase()),
-    [permissions]
-  );
-  const isOrgAdmin = (role || '') !== 'Employee';
+  const { can } = usePermission();
   return {
-    canAdd: isOrgAdmin || hasPerm(DEPARTMENT_PERMISSIONS.ADD),
-    canEdit: isOrgAdmin || hasPerm(DEPARTMENT_PERMISSIONS.EDIT),
-    canDelete: isOrgAdmin || hasPerm(DEPARTMENT_PERMISSIONS.DELETE),
+    canAdd: can(DEPARTMENT_PERMISSIONS.ADD),
+    canEdit: can(DEPARTMENT_PERMISSIONS.EDIT),
+    canDelete: can(DEPARTMENT_PERMISSIONS.DELETE),
   };
 }
 

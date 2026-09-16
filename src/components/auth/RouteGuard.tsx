@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { usePermission } from "@/lib/hooks/usePermission";
 import { showError } from "@/lib/toast";
 
 interface RouteGuardProps {
@@ -23,12 +24,16 @@ export default function RouteGuard({
     fallbackPath = "/employee",
 }: RouteGuardProps) {
     const router = useRouter();
-    const { permissions, role, loading, organization } = useAuth();
+    const { role, loading, organization } = useAuth();
+    const { hasPerm, hasAnyPerm } = usePermission();
 
     useEffect(() => {
         // Wait for auth to load
         if (loading) return;
 
+        // Deliberately stricter than usePermission().isOrgAdmin: only the
+        // literal OrgAdmin role bypasses a route guard. SuperAdmin has its
+        // own portal and is not expected to visit /employee/* guarded routes.
         const isOrgAdmin = (role || "").toLowerCase() === "orgadmin";
 
         // OrgAdmin bypass for feature check too? usually yes, but let's be strict if feature is disabled globally
@@ -53,12 +58,9 @@ export default function RouteGuard({
 
         // Check permissions
         if (requiredPermissions.length > 0) {
-            const userPermissions = (permissions || []).map((p) => (p || "").toUpperCase());
-            const required = requiredPermissions.map((p) => p.toUpperCase());
-
             const hasAccess = requireAny
-                ? required.some((p) => userPermissions.includes(p))
-                : required.every((p) => userPermissions.includes(p));
+                ? hasAnyPerm(requiredPermissions)
+                : requiredPermissions.every((p) => hasPerm(p));
 
             if (!hasAccess) {
                 showError("You don't have permission to access this page.");
@@ -66,7 +68,7 @@ export default function RouteGuard({
                 return;
             }
         }
-    }, [loading, permissions, role, organization, requiredPermissions, requiredFeature, requireAny, requireOrgAdmin, fallbackPath, router]);
+    }, [loading, role, hasPerm, hasAnyPerm, organization, requiredPermissions, requiredFeature, requireAny, requireOrgAdmin, fallbackPath, router]);
 
     // Show loading state while checking permissions
     if (loading) {

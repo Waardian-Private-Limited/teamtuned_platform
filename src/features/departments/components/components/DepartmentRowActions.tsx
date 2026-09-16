@@ -57,7 +57,7 @@ export function DepartmentRowActions({
             </button>
           </Tooltip>
 
-          <Tooltip content={isCurrentlyActive ? 'Deactivate department' : 'Activate department'}>
+          <Tooltip content={isCurrentlyActive ? 'Deactivate' : 'Activate'} align="end">
             <button
               type="button"
               disabled={isToggling}
@@ -76,7 +76,7 @@ export function DepartmentRowActions({
       )}
 
       {canDelete && (
-        <Tooltip content="Delete Department">
+        <Tooltip content="Delete Department" align="end">
           <button
             type="button"
             onClick={() => onDelete(department)}

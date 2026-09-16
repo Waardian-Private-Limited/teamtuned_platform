@@ -1,12 +1,7 @@
 "use client";
 
-import React from "react";
-import RolesManager from "@/components/org/RolesManager";
+import { RolesPage } from "@/features/roles/components/RolesPage";
 
 export default function OrgAdminRolesPage() {
-  return (
-    <div>
-      <RolesManager />
-    </div>
-  );
+  return <RolesPage />;
 }

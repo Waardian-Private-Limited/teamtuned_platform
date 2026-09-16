@@ -1,20 +1,17 @@
-// Shared error-routing machinery, lifted from features/auth/hooks/useLoginFlow
-// (FieldValidationError / asFieldError / the single `run` wrapper) so a
-// mutation's server-side rejection can land on the specific field it's about
-// instead of a banner.
-import { isRejectedInput, messageOf, statusOf } from '@/lib/api/errors';
+// Department-specific re-export of the shared field-error machinery
+// (@/lib/api/fieldError), typed to this feature's field names.
+import { FieldValidationError as GenericFieldValidationError, asFieldError as genericAsFieldError, messageOf } from '@/lib/api/fieldError';
 import type { DepartmentFieldName } from '../constants/departments.constants';
 
-export class FieldValidationError extends Error {
-  constructor(readonly field: DepartmentFieldName, message: string) {
-    super(message);
-  }
-}
+export class FieldValidationError extends GenericFieldValidationError<DepartmentFieldName> {}
 
 export function asFieldError(err: unknown, field: DepartmentFieldName, extraStatuses: number[] = []): never {
-  const status = statusOf(err);
-  const belongsToField = isRejectedInput(err) || (status !== undefined && extraStatuses.includes(status));
-  if (belongsToField) throw new FieldValidationError(field, messageOf(err));
+  try {
+    genericAsFieldError(err, field, extraStatuses);
+  } catch (e) {
+    if (e instanceof GenericFieldValidationError) throw new FieldValidationError(e.field as DepartmentFieldName, e.message);
+    throw e;
+  }
   throw err;
 }
 
