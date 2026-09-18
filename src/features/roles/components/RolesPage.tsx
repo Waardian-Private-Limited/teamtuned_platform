@@ -127,12 +127,6 @@ export function RolesPage() {
           </div>
         )}
 
-        {list.isFetching && (
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-30 h-0.5 overflow-hidden bg-transparent">
-            <div className="h-full w-full animate-pulse bg-[var(--tt-primary)]" />
-          </div>
-        )}
-
         {list.isInitialLoading ? (
           <div className="flex-1 overflow-hidden">
             <RoleTableSkeleton rows={6} />

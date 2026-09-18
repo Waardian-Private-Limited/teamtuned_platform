@@ -1,6 +1,6 @@
 "use client";
 
-import SitesPage from "@/components/sites/page";
+import SitesPage from "@/features/sites/components/SitesPage";
 import RouteGuard from "@/components/auth/RouteGuard";
 
 export default function EmployeeSitesPage() {

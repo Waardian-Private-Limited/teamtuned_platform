@@ -1,4 +1,6 @@
-import SitesPage from '@/components/sites/page';
+"use client";
+
+import SitesPage from "@/features/sites/components/SitesPage";
 
 export default function SitesRoute() {
   return <SitesPage />;
