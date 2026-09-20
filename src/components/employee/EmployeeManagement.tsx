@@ -248,7 +248,15 @@ export default function EmployeeManagement() {
   const [salaryAmount, setSalaryAmount] = useState<string>("");
   const [yearlyPackage, setYearlyPackage] = useState<string>("");
   const [salaryItems, setSalaryItems] = useState<{ component_id: number; component_name: string; component_type: "credit" | "debit"; amount: number }[]>([]);
-  const [salaryComponents, setSalaryComponents] = useState<{ id: number; component_name: string; component_type: "credit" | "debit" }[]>([]);
+  const [salaryComponents, setSalaryComponents] = useState<{
+    id: number;
+    component_name: string;
+    component_type: "credit" | "debit";
+    calculation_type?: "flat" | "percentage";
+    percentage_value?: number | null;
+    percentage_basis?: "basic" | "gross" | "component" | null;
+    basis_component_id?: number | null;
+  }[]>([]);
   const [bankAccountNo, setBankAccountNo] = useState<string>("");
   const [ifscCode, setIfscCode] = useState<string>("");
   const [bankName, setBankName] = useState<string>("");
@@ -335,6 +343,63 @@ export default function EmployeeManagement() {
     };
     fetchComponents();
   }, []);
+
+  // Auto-calculate salary breakdown based on configured percentage rules
+  const autoCalculateBreakdown = (customAmount?: number) => {
+    const monthlyGross = customAmount !== undefined ? customAmount : Number(salaryAmount);
+    if (!monthlyGross || monthlyGross <= 0 || !salaryComponents.length) return;
+
+    const items: { component_id: number; component_name: string; component_type: "credit" | "debit"; amount: number }[] = [];
+    let basicAmount = 0;
+
+    // 1. % of Monthly Salary (Gross) — e.g. Basic 50%, HRA 20%
+    salaryComponents.forEach((comp) => {
+      if (comp.calculation_type === 'percentage' && (comp.percentage_basis === 'gross' || !comp.percentage_basis) && comp.percentage_value) {
+        const amt = Math.round(monthlyGross * (Number(comp.percentage_value) / 100));
+        if (comp.component_name.toLowerCase().includes('basic')) {
+          basicAmount = amt;
+        }
+        items.push({
+          component_id: comp.id,
+          component_name: comp.component_name,
+          component_type: comp.component_type,
+          amount: amt,
+        });
+      }
+    });
+
+    // 2. % of Basic Salary — e.g. HRA 40% of Basic
+    salaryComponents.forEach((comp) => {
+      if (comp.calculation_type === 'percentage' && comp.percentage_basis === 'basic' && comp.percentage_value) {
+        const base = basicAmount > 0 ? basicAmount : Math.round(monthlyGross * 0.5);
+        const amt = Math.round(base * (Number(comp.percentage_value) / 100));
+        items.push({
+          component_id: comp.id,
+          component_name: comp.component_name,
+          component_type: comp.component_type,
+          amount: amt,
+        });
+      }
+    });
+
+    // 3. Other percentage components
+    salaryComponents.forEach((comp) => {
+      const alreadyAdded = items.some((i) => i.component_id === comp.id);
+      if (!alreadyAdded && comp.calculation_type === 'percentage' && comp.percentage_value) {
+        const amt = Math.round(monthlyGross * (Number(comp.percentage_value) / 100));
+        items.push({
+          component_id: comp.id,
+          component_name: comp.component_name,
+          component_type: comp.component_type,
+          amount: amt,
+        });
+      }
+    });
+
+    if (items.length > 0) {
+      setSalaryItems(items);
+    }
+  };
 
   // Fetch available debits
   useEffect(() => {
@@ -2715,10 +2780,34 @@ export default function EmployeeManagement() {
                   </div>
                   <div>
                     <label className="block text-xs text-gray-600 mb-1">Salary Amount *</label>
-                    <input type="number" value={salaryAmount} onChange={(e) => setSalaryAmount(e.target.value)} className="w-full border rounded px-2 py-2" />
+                    <input
+                      type="number"
+                      value={salaryAmount}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSalaryAmount(val);
+                        const num = Number(val);
+                        if (num > 0 && salaryItems.length === 0) {
+                          autoCalculateBreakdown(num);
+                        }
+                      }}
+                      className="w-full border rounded px-2 py-2"
+                    />
                   </div>
                   <div className="md:col-span-2">
-                    <label className="block text-xs text-gray-600 mb-1">Salary Breakdown *</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-gray-700">Salary Breakdown *</label>
+                      {Number(salaryAmount) > 0 && salaryComponents.some((c) => c.calculation_type === 'percentage') && (
+                        <button
+                          type="button"
+                          onClick={() => autoCalculateBreakdown()}
+                          className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1 transition-colors"
+                          title="Auto-calculate Basic, HRA and allowances based on percentage rules"
+                        >
+                          <span>⚡ Auto-calculate from % rules</span>
+                        </button>
+                      )}
+                    </div>
                     <div className="space-y-2">
                       {salaryItems.map((item, idx) => (
                         <div key={idx} className="grid grid-cols-12 gap-2">

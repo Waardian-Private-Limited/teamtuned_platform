@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import DebitRules from '@/components/org/DebitRules';
+import { PayrollSetupPage } from "@/features/payroll-setup/components/PayrollSetupPage";
 
-export default function DebitRulesPage() {
-    return <DebitRules />;
+export default function LegacyPayrollSetupPage() {
+  return <PayrollSetupPage initialTab="debits" />;
 }

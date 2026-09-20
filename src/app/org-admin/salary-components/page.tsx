@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import SalaryComponents from '@/components/org/SalaryComponents';
+import { PayrollSetupPage } from "@/features/payroll-setup/components/PayrollSetupPage";
 
-export default function SalaryComponentsPage() {
-    return <SalaryComponents />;
+export default function LegacyPayrollSetupPage() {
+  return <PayrollSetupPage initialTab="components" />;
 }

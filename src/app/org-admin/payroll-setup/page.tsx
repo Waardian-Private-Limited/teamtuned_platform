@@ -2,6 +2,6 @@
 
 import { PayrollSetupPage } from "@/features/payroll-setup/components/PayrollSetupPage";
 
-export default function LegacyPayrollSetupPage() {
-  return <PayrollSetupPage initialTab="debits" />;
+export default function OrgAdminPayrollSetupPage() {
+  return <PayrollSetupPage />;
 }

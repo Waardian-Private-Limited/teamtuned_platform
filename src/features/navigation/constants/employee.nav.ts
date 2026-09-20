@@ -83,9 +83,9 @@ export const employeeNav: NavNode[] = [
       { kind: 'link', label: 'Shift Management', href: '/employee/employees/shifts', icon: Clock, match: 'prefix', gate: { perm: 'EMP_ADD' } },
       { kind: 'link', label: 'Employee Sites', href: '/employee/employee-sites', icon: MapPin, match: 'prefix', gate: { anyPerm: ['EMPSITE_VIEW', 'EMPLOYEE_ASSIGN_SITE'] } },
       { kind: 'link', label: 'Other Locations', href: '/employee/other-locations', icon: MapPin, match: 'prefix', gate: { anyPerm: ['EMPSITE_VIEW', 'EMPLOYEE_ASSIGN_SITE'] } },
-      { kind: 'link', label: 'Salary Components', href: '/employee/salary-components', icon: Coins, match: 'prefix', gate: { anyPerm: ['SALARY_CONFIG_VIEW', 'SALARY_CONFIG_ADD', 'HR_MODE', 'PAYROLL_ADMIN'] } },
+      { kind: 'link', label: 'Payroll Setup', href: '/employee/payroll-setup', icon: Coins, match: 'prefix', gate: { anyPerm: ['SALARY_CONFIG_VIEW', 'SALARY_CONFIG_ADD', 'DEBIT_RULE_VIEW', 'DEBIT_RULE_ADD', 'HR_MODE', 'PAYROLL_ADMIN'] } },
       { kind: 'link', label: 'Site Logins', href: '/employee/site-logins', icon: Shield, match: 'prefix', gate: { perm: 'LABOR_ADMIN' } },
-      { kind: 'link', label: 'Debit Rules', href: '/employee/debit-rules', icon: ListChecks, match: 'prefix', gate: { anyPerm: ['DEBIT_RULE_VIEW', 'DEBIT_RULE_ADD', 'HR_MODE', 'PAYROLL_ADMIN'] } },
+
       { kind: 'link', label: 'Salary Import', href: '/employee/salary-import', icon: Upload, match: 'prefix', gate: { perm: 'EMP_ADD' } },
       { kind: 'link', label: 'Employee Devices', href: '/employee/device-management', icon: Users, match: 'prefix', gate: { perm: 'EMP_DEVICE_MANAGEMENT' } },
     ],
