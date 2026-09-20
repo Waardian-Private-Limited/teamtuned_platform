@@ -184,34 +184,60 @@ export default function DpsSiteSchedule({ siteId, basePath }: DpsSiteSchedulePro
         });
     };
 
-    /** Seed a fresh plan from the last submitted form so nothing is retyped. */
-    const loadCarryForward = async (sched: any) => {
-        const latestRes = await apiClient<any>(
-            `/dps-schedule/dynamic-assignments/latest-submission?siteId=${actualSiteId}&scheduleId=${sched?.id || ''}`,
-            { method: 'GET', withAuth: true }
-        );
-        if (!latestRes?.data) return;
+    /**
+     * Seed a *brand-new* plan from the site's previous one so a month rolls over
+     * instead of being retyped.
+     *
+     * Only ever called when no plan exists for this period. It used to run over a
+     * plan that had just been loaded as well, replacing its milestone list with
+     * the handful the last daily form happened to ask about — the form carries
+     * only what is due or overdue — and the next save made that loss permanent.
+     *
+     * @param prevPlan the newest plan for this site/department, or null.
+     */
+    const loadCarryForward = async (prevPlan: any) => {
+        if (!prevPlan) return;
 
-        const {
-            materials: prevMaterials,
-            equipments: prevEquipments,
-            staff_planning: prevStaff,
-            monthly_schedules: prevMonthly
-        } = latestRes.data;
+        /* Milestones carry over from the plan, not from the daily form, and they
+           keep their ids. The form, the revision history and the achievement
+           write-back all key off the milestone id, so a new id orphans everything
+           ever recorded against it — including a target the site moved into this
+           period, which is the whole reason the milestone has to carry over. */
+        const prevMonthly = Array.isArray(prevPlan.monthly_schedules) ? prevPlan.monthly_schedules : [];
+        if (prevMonthly.length > 0) setMonthlySchedules(withRowIds(prevMonthly, 'mile'));
 
         let seq = 0;
         const reId = (prefix: string) => (item: any) => ({ ...item, id: `${prefix}-${Date.now()}-${seq++}` });
 
-        if (prevMaterials?.length > 0) setMaterials(prevMaterials.map(reId('prev-mat')));
-        if (prevEquipments?.length > 0) setEquipments(prevEquipments.map(reId('prev-eq')));
-        if (prevStaff?.length > 0) {
+        // Resources carry from the last daily report instead: that is the state on
+        // the ground, rather than what the closing plan asked for.
+        let src: any = null;
+        try {
+            const latestRes = await apiClient<any>(
+                `/dps-schedule/dynamic-assignments/latest-submission?siteId=${actualSiteId}&scheduleId=${prevPlan.id}`,
+                { method: 'GET', withAuth: true }
+            );
+            src = latestRes?.data || null;
+        } catch {
+            src = null;
+        }
+        if (!src) {
+            src = {
+                materials: prevPlan.materials || [],
+                equipments: prevPlan.equipments || [],
+                staff_planning: prevPlan.staff_planning || []
+            };
+        }
+
+        if (src.materials?.length > 0) setMaterials(src.materials.map(reId('prev-mat')));
+        if (src.equipments?.length > 0) setEquipments(src.equipments.map(reId('prev-eq')));
+        if (src.staff_planning?.length > 0) {
             // Manual rows carry `role`, generated rows carry `designation`; keep both.
-            setStaffPlanning(prevStaff.map((s: any) => ({
+            setStaffPlanning(src.staff_planning.map((s: any) => ({
                 ...reId('prev-staff')(s),
                 role: s.role || s.designation || ''
             })));
         }
-        if (prevMonthly?.length > 0) setMonthlySchedules(prevMonthly.map(reId('prev-month')));
     };
 
     const fetchSiteData = async () => {
@@ -249,16 +275,22 @@ export default function DpsSiteSchedule({ siteId, basePath }: DpsSiteSchedulePro
                 // running one is what a plan starting today would replace; the
                 // queued ones are what the default period has to step past.
                 let live: any[] = [];
+                // Newest period first, whatever its status — the one to carry
+                // forward from is the last period planned, which by the time next
+                // month is being cut has usually expired.
+                let allPlans: any[] = [];
                 try {
                     const qs = new URLSearchParams({ siteId: String(actualSiteId) });
                     if (unitId) qs.append('unitId', unitId);
                     qs.append('type', searchParams.get('type') || planType);
                     const listRes = await apiClient<any>(`/dps-schedule?${qs.toString()}`, { method: 'GET', withAuth: true });
-                    live = (listRes?.schedules || []).filter(
+                    allPlans = listRes?.schedules || [];
+                    live = allPlans.filter(
                         (p: any) => p.status === 'active' || p.status === 'scheduled'
                     );
                 } catch {
                     live = [];
+                    allPlans = [];
                 }
                 setPlanBeingReplaced(live.find((p: any) => p.status === 'active') || null);
 
@@ -286,10 +318,10 @@ export default function DpsSiteSchedule({ siteId, basePath }: DpsSiteSchedulePro
                 setScheduleValidTill(till);
                 setConcreteCumulative({});
 
-                // Seed the new cycle from the last submitted report and pull in
+                // Seed the new cycle from the last period planned and pull in
                 // open issues, so a month rolls over instead of being retyped.
                 await Promise.allSettled([
-                    loadCarryForward(null),
+                    loadCarryForward(allPlans[0] || null),
                     loadMomActions(),
                     loadConcreteStats(null, configRes?.config)
                 ]);
@@ -352,10 +384,13 @@ export default function DpsSiteSchedule({ siteId, basePath }: DpsSiteSchedulePro
                     // share one try/catch and one Promise.all, so a single failing
                     // request silently took down the stats, the MOM items AND the
                     // carry-forward. Settle them separately instead.
+                    // No carry-forward here. A plan that exists owns its own rows,
+                    // milestones included — seeding over them is what was deleting
+                    // milestones and hiding the achievements the daily reports had
+                    // already written back.
                     await Promise.allSettled([
                         loadConcreteStats(sched, configRes?.config),
-                        loadMomActions(),
-                        scheduleIdParam ? Promise.resolve() : loadCarryForward(sched)
+                        loadMomActions()
                     ]);
                 }
             } catch {
@@ -391,7 +426,7 @@ export default function DpsSiteSchedule({ siteId, basePath }: DpsSiteSchedulePro
 
     const fetchTargetHistory = async (targetId: string | number) => {
         try {
-            const res = await apiClient<any>(`/dps-schedule/${siteId}/target-history/${targetId}`, { method: 'GET', withAuth: true });
+            const res = await apiClient<any>(`/dps-schedule/dynamic-assignments/target-history/${targetId}`, { method: 'GET', withAuth: true });
             if (res?.history) {
                 setTargetHistory(res.history);
                 setShowHistoryModal({ isOpen: true, targetId });
@@ -778,7 +813,7 @@ export default function DpsSiteSchedule({ siteId, basePath }: DpsSiteSchedulePro
                                             </div>
                                             <div className="space-y-2">
                                                 <div className="flex items-center gap-3">
-                                                    <span className="text-sm font-black text-slate-900">{new Date(h.new_target_date).toLocaleDateString()}</span>
+                                                    <span className="text-sm font-black text-slate-900">{new Date(h.revised_date).toLocaleDateString()}</span>
                                                     <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-bold">Revised On {new Date(h.created_at).toLocaleDateString()}</span>
                                                 </div>
                                                 <div className="p-3 bg-slate-50 border border-slate-100 rounded-sm">

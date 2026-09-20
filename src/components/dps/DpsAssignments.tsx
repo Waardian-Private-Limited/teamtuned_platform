@@ -720,7 +720,10 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
                                         </td>
                                         <td className="p-4 text-right">
                                             <div className="flex items-center justify-end gap-2">
-                                                {task.status === 'pending' ? (
+                                                {/* Processing is for whoever Site Config names on this
+                                                    site — everyone else with the DPR role reaches the
+                                                    same form read-only. */}
+                                                {task.status === 'pending' && task.can_fill !== false ? (
                                                     <button
                                                         onClick={() => handleSelectForm(task)}
                                                         className="px-4 py-2 bg-black text-white text-[9px] font-black uppercase tracking-widest border border-black hover:bg-zinc-800 transition-all active:scale-95"
@@ -731,11 +734,14 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
                                                     <>
                                                         <button
                                                             onClick={() => handleSelectForm(task)}
+                                                            title={task.status === 'pending' ? 'View form' : 'View submission'}
                                                             className="p-2 border border-black hover:bg-gray-100 text-black transition-all"
                                                         >
                                                             <Eye size={14} />
                                                         </button>
-                                                        <DownloadExcelButton taskId={task.id} formType={task.form_type} />
+                                                        {task.status !== 'pending' && (
+                                                            <DownloadExcelButton taskId={task.id} formType={task.form_type} />
+                                                        )}
                                                     </>
                                                 )}
                                                 {isOrgAdmin && (
