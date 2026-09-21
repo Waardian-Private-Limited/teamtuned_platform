@@ -4,6 +4,7 @@ import React from 'react';
 import { AlertTriangle, ArrowRight, Download, FileText, Loader2, Plus, Trash2 } from 'lucide-react';
 import { cx, text } from '@/theme/tokens';
 import { Alert } from '@/components/ui/Alert';
+import { StatusPill } from '@/components/ui/StatusPill';
 import { Dialog } from '@/components/ui/Dialog';
 import { showError } from '@/lib/toast';
 import * as api from '../../api/payrollSetup.api';
@@ -30,6 +31,7 @@ const EMPTY_SETTINGS: TdsSettings = {
   signatoryName: '',
   signatoryDesignation: '',
   place: '',
+  subOrganizationId: 0,
 };
 
 const QUARTERS = [
@@ -38,6 +40,38 @@ const QUARTERS = [
   { value: 'Q3', label: 'Q3 (Oct–Dec)' },
   { value: 'Q4', label: 'Q4 (Jan–Mar)' },
 ] as const;
+
+type IdentityTarget = {
+  id: number;
+  name: string;
+  isPrimary: boolean;
+  complete: boolean;
+  employerTan: string | null;
+};
+
+// The organization-level row (id 0) is the fallback every unassigned employee uses, so
+// it is listed alongside the sub-organizations rather than hidden behind them.
+function IDENTITY_TARGETS(
+  entities: Array<{ subOrganizationId: number; name: string; isPrimary: boolean; complete: boolean; employerTan: string | null }>,
+  orgDefault?: { complete: boolean; employerTan: string | null }
+): IdentityTarget[] {
+  return [
+    {
+      id: 0,
+      name: 'Organization default',
+      isPrimary: false,
+      complete: orgDefault?.complete ?? false,
+      employerTan: orgDefault?.employerTan ?? null,
+    },
+    ...entities.map((entity) => ({
+      id: entity.subOrganizationId,
+      name: entity.name,
+      isPrimary: entity.isPrimary,
+      complete: entity.complete,
+      employerTan: entity.employerTan,
+    })),
+  ];
+}
 
 function fyOptions(): string[] {
   const current = currentFinancialYear();
@@ -158,6 +192,14 @@ export function TdsTab({
   const completed = [identityStatus, ratesStatus, ruleStatus, profilesStatus, challanStatus]
     .filter((s) => s === 'done').length;
 
+  const entities = readiness?.employerIdentity.entities ?? [];
+  const selectedEntity = entities.find((entity) => entity.subOrganizationId === tds.subOrganizationId);
+  const editingLabel = selectedEntity ? selectedEntity.name : 'the organization default';
+  const orgDefaultIdentity = {
+    complete: (readiness?.employerIdentity.missing.length ?? 1) === 0,
+    employerTan: tds.subOrganizationId === 0 ? settings.employerTan || null : null,
+  };
+
   return (
     <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto tt-scroll-hidden pb-2">
       {(tds.error || readinessState.error) && (
@@ -221,10 +263,80 @@ export function TdsTab({
       <FlowStep
         index={1}
         title="Employer TDS identity"
-        intent="Your TAN is the tax ID the Income Tax Department issues to an employer who deducts TDS. It and the authorised signatory print on every Form 16 — without them no certificate can be issued."
+        intent="Your TAN is the tax ID the Income Tax Department issues to an employer who deducts TDS. It and the authorised signatory print on every Form 16 — without them no certificate can be issued. Each sub-organization keeps its own."
         status={identityStatus}
-        summary={settings.employerTan ? `TAN ${settings.employerTan}` : undefined}
+        summary={
+          entities.length > 0
+            ? `${entities.length - (readiness?.employerIdentity.incompleteCount ?? 0)} of ${entities.length} entities set`
+            : settings.employerTan ? `TAN ${settings.employerTan}` : undefined
+        }
       >
+        {entities.length > 0 ? (
+          <div className="mb-3.5">
+            <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
+                Deducting entity
+              </span>
+              <span className="text-[11px] text-fg-muted">
+                {entities.length - (readiness?.employerIdentity.incompleteCount ?? 0)} of {entities.length} set
+              </span>
+            </div>
+
+            <div className="space-y-1.5">
+              {IDENTITY_TARGETS(entities, orgDefaultIdentity).map((target) => {
+                const isSelected = tds.subOrganizationId === target.id;
+                return (
+                  <button
+                    key={target.id}
+                    type="button"
+                    onClick={() => tds.setSubOrganizationId(target.id)}
+                    className={cx(
+                      'flex w-full items-center justify-between gap-2 rounded-lg border p-2.5 text-left transition-all',
+                      isSelected
+                        ? 'border-[var(--tt-primary)] bg-[var(--tt-primary)]/5 ring-1 ring-[var(--tt-primary)]'
+                        : 'border-line bg-surface hover:bg-bg-subtle'
+                    )}
+                  >
+                    <span className="min-w-0">
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-xs font-semibold text-fg">{target.name}</span>
+                        {target.isPrimary && (
+                          <span className="rounded-full bg-[var(--tt-primary)]/10 px-1.5 py-0.5 text-[10px] font-semibold text-[var(--tt-primary)]">
+                            Primary
+                          </span>
+                        )}
+                      </span>
+                      <span className="mt-0.5 block text-[11px] tabular-nums text-fg-muted">
+                        {target.employerTan ? `TAN ${target.employerTan}` : 'No TAN set'}
+                      </span>
+                    </span>
+                    <StatusPill label={target.complete ? 'Set' : 'Missing'} tone={target.complete ? 'active' : 'inactive'} />
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="mt-2 text-[11px] leading-relaxed text-fg-muted">
+              Each sub-organization deducts under its own TAN, so each keeps its own details here. An employee assigned
+              to an entity with nothing set falls back to the organization default.
+            </p>
+          </div>
+        ) : (
+          <div className="mb-3.5 rounded-lg border border-line bg-bg-subtle/50 p-3">
+            <p className="text-[11px] leading-relaxed text-fg-muted">
+              These details apply to the whole organization. If you operate more than one legal entity, each with its
+              own TAN and PAN, add them under <span className="font-semibold text-fg">Sub Organizations</span> and this
+              step will let you set the TDS identity for each one separately.
+            </p>
+          </div>
+        )}
+
+        {entities.length > 0 && (
+          <p className="mb-2 text-xs font-semibold text-fg">
+            Editing <span className="text-[var(--tt-primary)]">{editingLabel}</span>
+          </p>
+        )}
+
         <form
           className="grid grid-cols-1 gap-3 sm:grid-cols-2"
           noValidate
@@ -293,7 +405,7 @@ export function TdsTab({
             <div className="sm:col-span-2">
               <button type="submit" disabled={tds.isSaving} className={primaryButton}>
                 {tds.isSaving && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />}
-                <span>Save employer details</span>
+                <span>{entities.length > 0 ? `Save details for ${editingLabel}` : 'Save employer details'}</span>
               </button>
             </div>
           )}

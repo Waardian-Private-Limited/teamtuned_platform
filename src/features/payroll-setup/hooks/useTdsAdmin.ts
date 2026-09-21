@@ -10,6 +10,7 @@ import { currentFinancialYear } from '../constants/payroll-setup.constants';
 
 export function useTdsAdmin() {
   const [settings, setSettings] = useState<TdsSettings | null>(null);
+  const [subOrganizationId, setSubOrganizationId] = useState(0);
   const [challans, setChallans] = useState<TdsChallan[]>([]);
   const [financialYear, setFinancialYear] = useState(currentFinancialYear());
   const [isLoading, setIsLoading] = useState(true);
@@ -21,7 +22,7 @@ export function useTdsAdmin() {
     setError('');
     try {
       const [settingsDto, challansDto] = await Promise.all([
-        api.getTdsSettings(),
+        api.getTdsSettings(subOrganizationId),
         api.listTdsChallans(financialYear),
       ]);
       setSettings(toTdsSettings(settingsDto.settings));
@@ -31,7 +32,7 @@ export function useTdsAdmin() {
     } finally {
       setIsLoading(false);
     }
-  }, [financialYear]);
+  }, [financialYear, subOrganizationId]);
 
   useEffect(() => {
     load();
@@ -42,6 +43,7 @@ export function useTdsAdmin() {
     setIsSaving(true);
     try {
       const dto = await api.saveTdsSettings({
+        sub_organization_id: String(subOrganizationId),
         employer_tan: input.employerTan,
         employer_pan: input.employerPan,
         signatory_name: input.signatoryName,
@@ -57,7 +59,7 @@ export function useTdsAdmin() {
     } finally {
       setIsSaving(false);
     }
-  }, [isSaving]);
+  }, [isSaving, subOrganizationId]);
 
   const saveChallan = useCallback(async (input: {
     id?: number;
@@ -98,6 +100,8 @@ export function useTdsAdmin() {
   return {
     settings,
     setSettings,
+    subOrganizationId,
+    setSubOrganizationId,
     challans,
     financialYear,
     setFinancialYear,

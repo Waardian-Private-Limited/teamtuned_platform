@@ -130,6 +130,7 @@ export function toTdsSettings(dto: TdsSettingsDto): TdsSettings {
     signatoryName: dto.signatory_name ?? '',
     signatoryDesignation: dto.signatory_designation ?? '',
     place: dto.place ?? '',
+    subOrganizationId: Number(dto.sub_organization_id || 0),
   };
 }
 

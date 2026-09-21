@@ -151,6 +151,7 @@ export interface TdsSettings {
   signatoryName: string;
   signatoryDesignation: string;
   place: string;
+  subOrganizationId: number;
 }
 
 export interface TdsChallan {

@@ -140,6 +140,16 @@ export interface TdsSettingsDto {
   signatory_name: string | null;
   signatory_designation: string | null;
   place: string | null;
+  sub_organization_id?: number;
+}
+
+export interface TdsIdentityEntityDto {
+  subOrganizationId: number;
+  name: string;
+  isPrimary: boolean;
+  complete: boolean;
+  missing: string[];
+  employerTan: string | null;
 }
 
 export interface TdsChallanDto {
@@ -154,7 +164,12 @@ export interface TdsChallanDto {
 
 export interface TdsReadinessDto {
   financialYear: string;
-  employerIdentity: { complete: boolean; missing: string[] };
+  employerIdentity: {
+    complete: boolean;
+    missing: string[];
+    entities: TdsIdentityEntityDto[];
+    incompleteCount: number;
+  };
   taxRates: { configured: boolean; configuredYears: string[] };
   deductionRule: {
     exists: boolean;

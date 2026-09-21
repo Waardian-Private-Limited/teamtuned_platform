@@ -214,8 +214,12 @@ export function getTdsPreview(employeeId: number, fy: string) {
   return apiClient.get<TdsPreviewResponseDto>(`/payroll/tds-preview/${employeeId}`, { fy }, { withAuth: true });
 }
 
-export function getTdsSettings() {
-  return apiClient.get<{ settings: TdsSettingsDto }>('/payroll/tds/settings', undefined, { withAuth: true });
+export function getTdsSettings(subOrganizationId = 0) {
+  return apiClient.get<{ settings: TdsSettingsDto }>(
+    '/payroll/tds/settings',
+    { sub_organization_id: subOrganizationId || undefined },
+    { withAuth: true }
+  );
 }
 
 export function saveTdsSettings(payload: Record<string, string>) {

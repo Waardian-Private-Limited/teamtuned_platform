@@ -1,5 +1,7 @@
-import SubOrganizations from "@/components/org/SubOrganizations";
+"use client";
 
-export default function SubOrganizationsPage() {
-    return <SubOrganizations />;
+import { SubOrganizationsPage } from "@/features/sub-organizations/components/SubOrganizationsPage";
+
+export default function OrgAdminSubOrganizationsPage() {
+    return <SubOrganizationsPage />;
 }
