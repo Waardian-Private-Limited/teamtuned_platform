@@ -12,15 +12,27 @@ interface SegmentedControlProps<T extends string> {
   value: T;
   onChange: (value: T) => void;
   disabled?: boolean;
+  className?: string;
 }
 
-// Generalises the login screen's method-switch pill (AuthTabs) to any number
-// of options, for any set of string values.
-export function SegmentedControl<T extends string>({ options, value, onChange, disabled }: SegmentedControlProps<T>) {
+/**
+ * Modern Segmented Control with comfortable padding, crisp active state,
+ * and responsive text sizing so labels like "Archived" and "Inactive" breathe easily.
+ */
+export function SegmentedControl<T extends string>({
+  options,
+  value,
+  onChange,
+  disabled,
+  className,
+}: SegmentedControlProps<T>) {
   return (
     <div
       role="tablist"
-      className="grid gap-1 rounded-[var(--tt-radius-md)] bg-bg-subtle p-1"
+      className={cx(
+        'grid h-9 items-center gap-1 rounded-lg border border-line/60 bg-bg-subtle p-0.5',
+        className
+      )}
       style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
     >
       {options.map((opt) => {
@@ -34,10 +46,12 @@ export function SegmentedControl<T extends string>({ options, value, onChange, d
             disabled={disabled}
             onClick={() => onChange(opt.value)}
             className={cx(
-              'h-9 rounded-[var(--tt-radius-sm)] text-sm font-semibold transition-all duration-150',
+              'flex h-[30px] items-center justify-center rounded-md px-2.5 text-xs font-semibold transition-all duration-150 whitespace-nowrap select-none sm:text-[13px]',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--tt-primary)]',
               'disabled:cursor-not-allowed disabled:opacity-50',
-              isSelected ? 'bg-surface text-fg shadow-[var(--tt-shadow-sm)]' : 'text-fg-muted hover:text-fg'
+              isSelected
+                ? 'bg-surface text-fg font-bold shadow-xs border border-line/70'
+                : 'text-fg-muted hover:text-fg hover:bg-surface/40'
             )}
           >
             {opt.label}

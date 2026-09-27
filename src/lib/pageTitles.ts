@@ -9,11 +9,11 @@ const PAGE_TITLES: Record<string, { title: string; category: string }> = {
     '/employee/departments': { title: 'Departments', category: 'Main' },
     '/org-admin/departments': { title: 'Departments', category: 'Main' },
     '/employee/roles': { title: 'Roles', category: 'Main' },
-    '/employee/attendance-rules': { title: 'Policies', category: 'Main' },
-    '/employee/attendance-config': { title: 'Attendance Config', category: 'Main' },
     '/employee/holiday-calendar': { title: 'Holiday Calendar', category: 'Main' },
 
     // Management
+    '/employee/policies': { title: 'Policies', category: 'Management' },
+    '/org-admin/policies': { title: 'Policies', category: 'Management' },
     '/employee/employee-management': { title: 'Employees', category: 'Management' },
     '/employee/employee-sites': { title: 'Employee Sites', category: 'Management' },
     '/employee/leave-requests': { title: 'Leave Requests', category: 'Management' },

@@ -2698,7 +2698,38 @@ export default function EmployeeManagement() {
                     )}
                     <div>
                       <label className="block text-xs text-gray-600 mb-1">Leave & Attendance Policy *</label>
-                      <select value={policyId} onChange={(e) => setPolicyId(e.target.value ? Number(e.target.value) : "")} className="w-full border rounded px-2 py-2">
+                      <select
+                        value={policyId}
+                        onChange={(e) => {
+                          const val = e.target.value ? Number(e.target.value) : "";
+                          setPolicyId(val);
+                          if (val) {
+                            const p = policies.find((item: any) => item.id === val) as any;
+                            const sched = p?.config?.workRules?.defaultSchedule;
+                            if (sched && sched.enabled) {
+                              if (sched.shiftStartTime) setShiftStart(sched.shiftStartTime.slice(0, 5));
+                              if (sched.shiftEndTime) setShiftEnd(sched.shiftEndTime.slice(0, 5));
+                              // Populate weekly offs from per-day config
+                              const dayMap: Record<string, string> = {
+                                monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed',
+                                thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun',
+                              };
+                              const offDays: string[] = [];
+                              for (const [key, label] of Object.entries(dayMap)) {
+                                const dayConf = sched[key];
+                                if (dayConf && (dayConf.offType === 'full_off' || dayConf.offType === 'half_off')) {
+                                  // For "every_week" or "alternate" patterns, pre-select the day
+                                  if (!dayConf.pattern || dayConf.pattern === 'every_week' || dayConf.pattern === 'alternate') {
+                                    offDays.push(label);
+                                  }
+                                }
+                              }
+                              setWeeklyOff(new Set(offDays));
+                            }
+                          }
+                        }}
+                        className="w-full border rounded px-2 py-2"
+                      >
                         <option value="">Select Policy</option>
                         {policies.map((p) => (
                           <option key={p.id} value={p.id}>{p.policy_name}</option>

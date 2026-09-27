@@ -37,8 +37,6 @@ export const orgNav: NavNode[] = [
     children: [
       { kind: 'link', label: 'Dashboard', href: '/org-admin/attendance/dashboard', icon: LayoutDashboard },
       { kind: 'link', label: 'Employee Attendance', href: '/org-admin/attendance/employee', icon: UserCheck },
-      { kind: 'link', label: 'Attendance Config', href: '/org-admin/attendance-config', icon: Settings },
-      { kind: 'link', label: 'Attendance Rules', href: '/org-admin/attendance-rules', icon: Settings },
       { kind: 'link', label: 'Holiday Calendar', href: '/org-admin/holiday-calendar', icon: Calendar },
       { kind: 'link', label: 'Approval Workflows', href: '/org-admin/approval-workflows', icon: ListChecks },
       { kind: 'link', label: 'Leave Requests', href: '/org-admin/requests/leaves', icon: ClipboardList },
@@ -58,6 +56,7 @@ export const orgNav: NavNode[] = [
     children: [
       { kind: 'link', label: 'Employees', href: '/org-admin/employees', icon: Users },
       { kind: 'link', label: 'Team Mapper', href: '/org-admin/assignments', icon: UserCog },
+      { kind: 'link', label: 'Policies', href: '/org-admin/policies', icon: Shield, match: 'prefix' },
       { kind: 'link', label: 'Policy Mapper', href: '/org-admin/policy-mapper', icon: Shield },
       { kind: 'link', label: 'Emergency Contacts', href: '/org-admin/emergency-contacts', icon: Phone },
       { kind: 'link', label: 'Import Employees', href: '/org-admin/employees/import', icon: Upload },
