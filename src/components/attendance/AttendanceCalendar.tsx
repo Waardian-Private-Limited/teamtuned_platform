@@ -211,7 +211,7 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
 
     // Only if status = "Completed" and status_timeline is Full-Day or Half-Day
     if (record?.status === "Completed" || record?.status === "Present") {
-      if (record?.status_timeline === "Half-Day" || record?.status_summary?.includes("Half")) {
+      if (record?.status_timeline === "Half-Day") {
         return {
           color: "bg-amber-50 border-amber-200 text-amber-900",
           dotColor: "bg-amber-600",
