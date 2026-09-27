@@ -163,8 +163,8 @@ export default function AttendanceCalendar({ employeeId, employeeName, onBack }:
 
     // Missed Out (Check-in but no Check-out for past days, or explicit Missed Out status)
     const isPastDay = dateKey ? dateKey < todayKey : false;
-    const isNoOut = record?.punch_in_time && !record?.punch_out_time && isPastDay;
-    if (record?.status === "Missed Out" || record?.status === "Pending" || isNoOut) {
+    const isNoOut = record?.punch_in_time && !record?.punch_out_time && isPastDay && !record?.is_overridden;
+    if (!record?.is_overridden && (record?.status === "Missed Out" || record?.status === "Pending" || isNoOut)) {
       return {
         color: "bg-red-50 border-red-200 text-red-700",
         dotColor: "bg-red-500",
