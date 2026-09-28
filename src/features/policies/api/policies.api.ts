@@ -14,6 +14,7 @@ import type {
   LeaveTypeListResponseDto,
   SeedLeaveTypeCatalogResponseDto,
   PolicyConfig,
+  SalaryComponentListResponseDto,
 } from '../types/policies.dto';
 
 interface ListPoliciesParams {
@@ -175,4 +176,16 @@ export function deleteLeaveType(id: number) {
 
 export function seedLeaveTypeCatalog() {
   return apiClient.post<SeedLeaveTypeCatalogResponseDto>('/policies/leave-types/seed', {}, { withAuth: true });
+}
+
+// --- Salary components (for the "salary used for the hourly rate" pickers) ---
+// Credit-type components are the only ones that make sense as a pay basis
+// (HRA, Special Allowance, custom earnings) — debit deductions never are.
+
+export function listSalaryComponents() {
+  return apiClient.get<SalaryComponentListResponseDto>(
+    '/payroll/components',
+    { type: 'credit', status: 'active' },
+    { withAuth: true }
+  );
 }

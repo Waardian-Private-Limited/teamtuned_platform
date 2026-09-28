@@ -32,11 +32,16 @@ export function SitesEmptyState({
     description = `No sites match "${searchTerm}". Try adjusting your search query.`;
     buttonLabel = 'Clear search';
   } else if (isStatusFiltered) {
-    title = status === 'active' ? 'No active sites' : 'No inactive sites';
-    description =
-      status === 'active'
-        ? 'There are currently no active sites in your organization.'
-        : 'There are currently no inactive sites in your organization.';
+    if (status === 'active') {
+      title = 'No active sites';
+      description = 'There are currently no active sites in your organization.';
+    } else if (status === 'inactive') {
+      title = 'No inactive sites';
+      description = 'There are currently no inactive sites in your organization.';
+    } else if (status === 'terminated') {
+      title = 'No terminated sites';
+      description = 'There are currently no terminated sites in your organization.';
+    }
     buttonLabel = 'Clear filters';
   }
 

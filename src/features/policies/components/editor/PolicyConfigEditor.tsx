@@ -6,6 +6,7 @@ import { cx } from '@/theme/tokens';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { usePolicySchema } from '../../hooks/usePolicySchema';
 import { useLeaveTypeList } from '../../hooks/useLeaveTypeList';
+import { useSalaryComponentList } from '../../hooks/useSalaryComponentList';
 import { SchemaForm } from './form/SchemaForm';
 import { POLICY_SECTIONS, type PolicySectionKey } from '../../constants/policies.constants';
 
@@ -30,6 +31,7 @@ const SECTION_TAB_OPTIONS = POLICY_SECTIONS.map((s) => ({ value: s.value, label:
 export function PolicyConfigEditor({ config, isSaving, onSave }: PolicyConfigEditorProps) {
   const { schema, isLoading: schemaLoading, error: schemaError } = usePolicySchema();
   const { leaveTypes } = useLeaveTypeList();
+  const { salaryComponents } = useSalaryComponentList();
 
   const [mode, setMode] = React.useState<'form' | 'json'>('form');
   const [activeTab, setActiveTab] = React.useState<PolicySectionKey>('workRules');
@@ -78,6 +80,40 @@ export function PolicyConfigEditor({ config, isSaving, onSave }: PolicyConfigEdi
     }
   };
 
+  const sectionTopRef = React.useRef<HTMLDivElement | null>(null);
+  const isFirstRender = React.useRef(true);
+
+  const scrollToTop = React.useCallback(() => {
+    if (typeof window === 'undefined') return;
+    if (sectionTopRef.current) {
+      let parent = sectionTopRef.current.parentElement;
+      while (parent) {
+        const style = window.getComputedStyle(parent);
+        if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+          parent.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        parent = parent.parentElement;
+      }
+      sectionTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  React.useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    scrollToTop();
+  }, [activeTab, scrollToTop]);
+
+  const handleTabChange = (nextTab: PolicySectionKey) => {
+    setActiveTab(nextTab);
+    requestAnimationFrame(() => {
+      scrollToTop();
+    });
+  };
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -114,14 +150,15 @@ export function PolicyConfigEditor({ config, isSaving, onSave }: PolicyConfigEdi
             <AlertTriangle className="h-3.5 w-3.5" /> {schemaError || 'Could not load policy fields'}
           </p>
         ) : (
-          <div className="flex flex-col gap-3">
-            <SegmentedControl options={SECTION_TAB_OPTIONS} value={activeTab} onChange={setActiveTab} />
+          <div ref={sectionTopRef} className="flex flex-col gap-3">
+            <SegmentedControl options={SECTION_TAB_OPTIONS} value={activeTab} onChange={handleTabChange} />
             <SchemaForm
               section={activeTab}
               node={schema[activeTab]}
               value={(value[activeTab] as Record<string, unknown>) || {}}
               onChange={(next) => setValue((prev) => ({ ...prev, [activeTab]: next }))}
               leaveTypeOptions={leaveTypeOptions}
+              salaryComponentOptions={salaryComponents}
             />
           </div>
         )

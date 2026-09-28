@@ -23,6 +23,8 @@ function b(value: unknown): boolean {
   return value === true;
 }
 
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
 /** "09:10:00" -> "9:10 am" */
 export function clock(value: unknown): string {
   const raw = s(value, '00:00:00');
@@ -70,11 +72,15 @@ function payoutLine(c: Config, label: string): string[] {
     lines.push(
       s(c.payMode) === 'flat_amount'
         ? `Paid at a flat ${n(c.amountPerHour)} per hour.`
-        : `Paid at ${n(c.multiplier, 1)}x the hourly rate from ${s(c.salaryComponent, 'basic').replace(/_/g, ' ')} salary.`
+        : `Paid at ${n(c.multiplier, 1)}x the hourly rate from ${n(c.salaryComponentId) === 0 ? 'Gross (all active components)' : 'the selected salary component'}.`
     );
   }
   if (payout === 'comp_off' || payout === 'employee_choice') {
-    lines.push(`${duration(c.compOffHalfDayMinutes)} earns a half-day comp off, ${duration(c.compOffFullDayMinutes)} a full day.`);
+    lines.push(
+      c.compOffHalfDayMinutes !== undefined
+        ? `${duration(c.compOffHalfDayMinutes)} earns a half-day comp off, ${duration(c.compOffFullDayMinutes)} a full day.`
+        : 'Half-day vs full-day comp off follows the credit rule above.'
+    );
     const expiryMode = s(c.compOffExpiryMode, 'days');
     if (expiryMode === 'same_month') {
       lines.push('Earned comp-off must be used within the same calendar month or it expires.');
@@ -159,21 +165,25 @@ const WORK_RULES: Record<string, (c: Config) => CardSummary> = {
 
   lateExtension(c) {
     if (!b(c.enabled)) return { rule: ['Late minutes cannot be made up by staying back.'] };
-    if (s(c.mode) === 'multiplier') {
-      const late = Math.max(n(c.triggerAfterMinutes) + 10, 15);
-      return {
-        rule: [
-          `Once someone is more than ${duration(c.triggerAfterMinutes)} late, they owe ${n(c.multiplier, 1)}x those minutes at the end of the day.`,
-        ],
-        example: `Example: ${duration(late)} late means staying ${duration(late * n(c.multiplier, 1))} past shift end to clear it.`,
-      };
-    }
+    const isMultiplier = s(c.mode) === 'multiplier';
+    const rule: string[] = [
+      isMultiplier
+        ? `Once someone is more than ${duration(c.triggerAfterMinutes)} late, they owe ${n(c.multiplier, 1)}x those minutes at the end of the day.`
+        : `Late minutes are counted in blocks of ${duration(c.slotMinutes)}; each block owes ${duration(c.extensionMinutes)} extra.`,
+    ];
+    const graceDays = n(c.graceDaysAllowed, 3);
+    rule.push(`Not making it up is allowed ${graceDays} time${graceDays === 1 ? '' : 's'} before a penalty applies.`);
+    rule.push(
+      b(c.penaltyEnabled)
+        ? `After the grace days are used up, it is marked a ${deduction(c.penaltyAction)}.`
+        : 'No penalty is applied even after the grace days are used up.'
+    );
+    const late = Math.max(n(c.triggerAfterMinutes) + 10, 15);
     return {
-      rule: [
-        `Late minutes are counted in blocks of ${duration(c.slotMinutes)}; each block owes ${duration(c.extensionMinutes)} extra.`,
-        `${duration(c.penaltyMinutes)} is deducted if the time is not made up.`,
-      ],
-      example: `Example: ${duration(n(c.slotMinutes) * 2)} late is 2 blocks — ${duration(n(c.extensionMinutes) * 2)} owed before checkout.`,
+      rule,
+      example: isMultiplier
+        ? `Example: ${duration(late)} late means staying ${duration(late * n(c.multiplier, 1))} past shift end to clear it.`
+        : `Example: ${duration(n(c.slotMinutes) * 2)} late is 2 blocks — ${duration(n(c.extensionMinutes) * 2)} owed before checkout.`,
     };
   },
 
@@ -246,8 +256,11 @@ const WORK_RULES: Record<string, (c: Config) => CardSummary> = {
 
   defaultSchedule(c) {
     if (!b(c.enabled)) return { rule: ['No default schedule pre-populated; shift is chosen per employee.'] };
+    const timingMode = s(c.timingMode, 'fixed_time');
     const rule: string[] = [
-      `Pre-populates shift from ${clock(c.shiftStartTime)} to ${clock(c.shiftEndTime)} with ${duration(c.breakMinutes)} break.`,
+      timingMode === 'flexible'
+        ? `Pre-populates flexible shift of ${n(c.flexibleHours, 8)} working hours/day with ${duration(c.breakMinutes)} break.`
+        : `Pre-populates shift from ${clock(c.shiftStartTime)} to ${clock(c.shiftEndTime)} with ${duration(c.breakMinutes)} break.`,
     ];
     const mode = s(c.weeklyOffMode, 'fixed_days');
     if (mode === 'flexible') {
@@ -303,17 +316,27 @@ const WORK_RULES: Record<string, (c: Config) => CardSummary> = {
 
   overtime(c) {
     if (!b(c.enabled)) return { rule: ['Extra hours beyond the shift are not tracked as overtime.'] };
+    const dailyCapOn = c.dailyCapEnabled !== false;
+    const weeklyCapOn = c.weeklyCapEnabled !== false;
+    let capLine = 'No daily or weekly cap — every extra minute counts as overtime.';
+    if (dailyCapOn && weeklyCapOn) capLine = `Capped at ${duration(c.dailyCapMinutes)} a day and ${duration(c.weeklyCapMinutes)} a week.`;
+    else if (dailyCapOn) capLine = `Capped at ${duration(c.dailyCapMinutes)} a day — no weekly cap.`;
+    else if (weeklyCapOn) capLine = `Capped at ${duration(c.weeklyCapMinutes)} a week — no daily cap.`;
     const rule = [
       `Overtime starts after ${duration(c.minBlockMinutes)} beyond the shift — shorter stay-backs earn nothing.`,
-      `Capped at ${duration(c.dailyCapMinutes)} a day and ${duration(c.weeklyCapMinutes)} a week.`,
+      capLine,
       ...payoutLine(c, 'Overtime'),
     ];
     if (b(c.weeklyThresholdEnabled)) {
       rule.push(`Cumulative weekly hours above ${n(c.weeklyThresholdHours, 40)} hours also qualify as overtime.`);
     }
+    if (b(c.cutoffEnabled)) {
+      rule.push(`Extra time worked after ${clock(c.cutoffTime)} is not counted as overtime.`);
+    }
+    const cappedExample = dailyCapOn ? Math.min(n(c.minBlockMinutes) + 60, n(c.dailyCapMinutes)) : n(c.minBlockMinutes) + 60;
     return {
       rule,
-      example: `Example: 8h shift, ${duration(480 + n(c.minBlockMinutes) + 60)} worked — ${duration(Math.min(n(c.minBlockMinutes) + 60, n(c.dailyCapMinutes)))} counts as overtime.`,
+      example: `Example: 8h shift, ${duration(480 + n(c.minBlockMinutes) + 60)} worked — ${duration(cappedExample)} counts as overtime.`,
     };
   },
 
@@ -343,19 +366,6 @@ const WORK_RULES: Record<string, (c: Config) => CardSummary> = {
         `${actionLabel}.`,
       ],
       example: `Example: missing ${n(c.thresholdDays, 7)} days in a row with zero check-ins or leaves triggers absconding review.`,
-    };
-  },
-
-  seasonalHours(c) {
-    if (!b(c.enabled)) return { rule: ['Seasonal and Ramadan hours adjustment is disabled.'] };
-    const dateRange = c.startDate && c.endDate ? ` from ${s(c.startDate)} to ${s(c.endDate)}` : '';
-    const who = s(c.appliesTo) === 'fasting_employees_only' ? 'fasting employees only' : 'all employees';
-    return {
-      rule: [
-        `Daily required shift is reduced to ${n(c.reducedShiftHours, 6)} hours for ${who}${dateRange}.`,
-        `Overtime begins after ${n(c.overtimeStartsAfter, 6)} hours worked.`,
-      ],
-      example: `Example: completing ${n(c.reducedShiftHours, 6)} hours during this period counts as a full day with zero penalty.`,
     };
   },
 
@@ -619,13 +629,22 @@ const LEAVE_RULE: Record<string, (c: Config) => CardSummary> = {
 
   leaveYear(c) {
     const basis = s(c.basis, 'calendar');
-    const text: Record<string, string> = {
-      calendar: 'The leave year runs January to December.',
-      financial: 'The leave year runs April to March.',
-      joining_anniversary: 'Each employee’s leave year runs from their own joining date.',
-      custom: `The leave year starts on day ${n(c.startDay)} of month ${n(c.startMonth)}.`,
+    if (basis === 'joining_anniversary') {
+      return { rule: ['Each employee’s leave year runs from their own joining date.'] };
+    }
+    if (basis === 'calendar') {
+      return { rule: ['The leave year runs January to December.'] };
+    }
+    // financial and custom both run off startMonth/startDay — financial
+    // just ships a sensible default (April) an admin can still override,
+    // since the financial-year start varies by country.
+    const startMonth = n(c.startMonth, 4);
+    const endMonth = ((startMonth + 10) % 12) + 1;
+    const startName = MONTH_NAMES[startMonth - 1] || 'April';
+    const endName = MONTH_NAMES[endMonth - 1] || 'March';
+    return {
+      rule: [`The leave year runs ${startName} to ${endName}, starting on day ${n(c.startDay, 1)}.`],
     };
-    return { rule: [text[basis] || text.calendar] };
   },
 
   proration: (c) => ({
@@ -636,20 +655,23 @@ const LEAVE_RULE: Record<string, (c: Config) => CardSummary> = {
   }),
 
   carryForward(c) {
-    if (!b(c.enabled)) {
+    if (!b(c.enabled) || s(c.carryMode) === 'all_collapse') {
       return {
-        rule: ['Unused leave does not carry over — the balance resets when the leave year ends.'],
+        rule: ['Unused leave does not carry over — the balance resets and all remaining days collapse when the leave year ends.'],
         example: 'Example: 4 days left in December are gone on 1 January.',
       };
     }
+    const mode = s(c.carryMode, 'full_balance');
     const cap = n(c.maxDays);
     return {
       rule: [
-        cap > 0 ? `Up to ${cap} unused days carry into the next leave year; anything above that lapses.` : 'The whole unused balance carries into the next leave year.',
+        mode === 'capped' && cap > 0
+          ? `Up to ${cap} unused days carry into the next leave year; anything above that collapses.`
+          : 'The whole unused balance carries into the next leave year.',
         n(c.expiryMonths) > 0 ? `Carried days expire ${n(c.expiryMonths)} month${n(c.expiryMonths) === 1 ? '' : 's'} into the new year if unused.` : 'Carried days do not expire.',
       ],
-      example: cap > 0
-        ? `Example: ${cap + 3} days unused at year end — ${cap} carry over, 3 lapse.`
+      example: mode === 'capped' && cap > 0
+        ? `Example: ${cap + 3} days unused at year end — ${cap} carry over, 3 collapse.`
         : undefined,
     };
   },
@@ -676,11 +698,12 @@ const LEAVE_RULE: Record<string, (c: Config) => CardSummary> = {
 
   encashOnExit(c) {
     if (!b(c.enabled)) return { rule: ['The unused balance is not paid out when an employee leaves.'] };
+    const basis = n(c.salaryComponentId) === 0 ? 'Gross (all active components)' : 'the selected salary component';
     return {
       rule: [
         n(c.maxDays) > 0
-          ? `Up to ${n(c.maxDays)} unused days are paid out on exit, at ${s(c.rateBasis, 'basic').replace(/_/g, ' ')} salary.`
-          : `The whole unused balance is paid out on exit, at ${s(c.rateBasis, 'basic').replace(/_/g, ' ')} salary.`,
+          ? `Up to ${n(c.maxDays)} unused days are paid out on exit, at ${basis} salary.`
+          : `The whole unused balance is paid out on exit, at ${basis} salary.`,
       ],
     };
   },

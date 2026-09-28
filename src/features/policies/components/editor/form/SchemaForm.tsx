@@ -26,10 +26,19 @@ export interface LeaveTypeOption {
   name: string;
 }
 
+export interface SalaryComponentOption {
+  id: number;
+  name: string;
+}
+
+const GROSS_SALARY_COMPONENT: SalaryComponentOption = { id: 0, name: 'Gross (all active components)' };
+
 // Every control has uniform 40px height, consistent borders, and responsive font
 const CONTROL =
   'h-10 w-full min-w-0 rounded-lg border border-line bg-surface px-3 text-xs text-fg outline-none transition-all duration-150 focus:border-[var(--tt-primary)] focus:ring-1 focus:ring-[var(--tt-primary)] sm:text-[13px]';
-const LABEL = 'text-[11px] font-semibold text-fg sm:text-xs truncate';
+// No truncate: a clipped "Maximum overtime minutes per…" tells the admin
+// nothing. Labels wrap onto a second line instead of losing words.
+const LABEL = 'text-[11px] font-semibold leading-snug text-fg sm:text-xs';
 
 /**
  * Modern High-Affordance Switch
@@ -82,6 +91,8 @@ function ScalarControl({
   onChange,
   leaveTypeOptions,
   isLeaveTypeIdField,
+  salaryComponentOptions,
+  isSalaryComponentField,
 }: {
   label: string;
   node: ScalarFieldNode;
@@ -89,11 +100,13 @@ function ScalarControl({
   onChange: (v: unknown) => void;
   leaveTypeOptions?: LeaveTypeOption[];
   isLeaveTypeIdField?: boolean;
+  salaryComponentOptions?: SalaryComponentOption[];
+  isSalaryComponentField?: boolean;
 }) {
   if (isLeaveTypeIdField) {
     return (
       <div className="flex flex-col">
-        <div className="flex h-5 items-center justify-between">
+        <div className="flex min-h-[20px] flex-wrap items-start justify-between gap-x-2 gap-y-0.5">
           <label className={LABEL}>{label}</label>
         </div>
         <div className="mt-1">
@@ -111,11 +124,32 @@ function ScalarControl({
     );
   }
 
+  if (isSalaryComponentField) {
+    const options = [GROSS_SALARY_COMPONENT, ...(salaryComponentOptions || [])];
+    return (
+      <div className="flex flex-col">
+        <div className="flex min-h-[20px] flex-wrap items-start justify-between gap-x-2 gap-y-0.5">
+          <label className={LABEL}>{label}</label>
+        </div>
+        <div className="mt-1">
+          <select value={String(value ?? 0)} onChange={(e) => onChange(Number(e.target.value))} className={CONTROL}>
+            {options.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <FieldHelp text={node.help} />
+      </div>
+    );
+  }
+
   switch (node.type) {
     case 'bool':
       return (
         <div className="flex flex-col">
-          <div className="flex h-5 items-center justify-between">
+          <div className="flex min-h-[20px] flex-wrap items-start justify-between gap-x-2 gap-y-0.5">
             <label className={LABEL}>{label}</label>
             <span
               className={cx(
@@ -159,7 +193,7 @@ function ScalarControl({
     case 'enum':
       return (
         <div className="flex flex-col">
-          <div className="flex h-5 items-center justify-between">
+          <div className="flex min-h-[20px] flex-wrap items-start justify-between gap-x-2 gap-y-0.5">
             <label className={LABEL}>{label}</label>
           </div>
           <div className="mt-1">
@@ -178,7 +212,7 @@ function ScalarControl({
     case 'time':
       return (
         <div className="flex flex-col">
-          <div className="flex h-5 items-center justify-between">
+          <div className="flex min-h-[20px] flex-wrap items-start justify-between gap-x-2 gap-y-0.5">
             <label className={LABEL}>{label}</label>
           </div>
           <div className="mt-1">
@@ -198,7 +232,7 @@ function ScalarControl({
     case 'int':
       return (
         <div className="flex flex-col">
-          <div className="flex h-5 items-center justify-between">
+          <div className="flex min-h-[20px] flex-wrap items-start justify-between gap-x-2 gap-y-0.5">
             <label className={LABEL}>{label}</label>
           </div>
           <div className="mt-1">
@@ -220,7 +254,7 @@ function ScalarControl({
     default:
       return (
         <div className="flex flex-col">
-          <div className="flex h-5 items-center justify-between">
+          <div className="flex min-h-[20px] flex-wrap items-start justify-between gap-x-2 gap-y-0.5">
             <label className={LABEL}>{label}</label>
           </div>
           <div className="mt-1">
@@ -276,13 +310,14 @@ interface RenderContext {
   onChange: (path: PathKey[], value: unknown) => void;
   path: PathKey[];
   leaveTypeOptions?: LeaveTypeOption[];
+  salaryComponentOptions?: SalaryComponentOption[];
   section: string;
 }
 
 const DAY_KEYS = new Set(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']);
 
 /** The controls of one group, plus any nested sub-groups it contains. */
-function GroupFields({ node, value, scopeValue, onChange, path, leaveTypeOptions, section }: RenderContext & { node: SectionNode }) {
+function GroupFields({ node, value, scopeValue, onChange, path, leaveTypeOptions, salaryComponentOptions, section }: RenderContext & { node: SectionNode }) {
   const entries = sectionEntries(node).filter(([, child]) => isVisible(child, scopeValue));
   const leaves = entries.filter(([, child]) => isFieldNode(child) && child.type !== 'array');
   const branches = entries.filter(([, child]) => !isFieldNode(child) || child.type === 'array');
@@ -290,7 +325,7 @@ function GroupFields({ node, value, scopeValue, onChange, path, leaveTypeOptions
 
   const isDefaultSchedule = entries.some(([k]) => DAY_KEYS.has(k));
   const filteredBranches = isDefaultSchedule ? branches.filter(([key]) => !DAY_KEYS.has(key)) : branches;
-  const showWeeklyOffEditor = isDefaultSchedule && (val.weeklyOffMode === 'fixed_days' || !val.weeklyOffMode);
+  const showWeeklyOffEditor = isDefaultSchedule && val.enabled !== false && (val.weeklyOffMode === 'fixed_days' || !val.weeklyOffMode);
 
   return (
     <div className="flex flex-col gap-3">
@@ -305,6 +340,8 @@ function GroupFields({ node, value, scopeValue, onChange, path, leaveTypeOptions
               onChange={(v) => onChange([...path, key], v)}
               leaveTypeOptions={leaveTypeOptions}
               isLeaveTypeIdField={key === 'leaveTypeId'}
+              salaryComponentOptions={salaryComponentOptions}
+              isSalaryComponentField={key === 'salaryComponentId'}
             />
           ))}
         </div>
@@ -325,6 +362,7 @@ function GroupFields({ node, value, scopeValue, onChange, path, leaveTypeOptions
           path={[...path, key]}
           label={labelOf(child, key)}
           leaveTypeOptions={leaveTypeOptions}
+          salaryComponentOptions={salaryComponentOptions}
           section={section}
           groupKey={key}
         />
@@ -391,7 +429,7 @@ function StringArrayControl({ label, value, onChange }: { label: string; value: 
   );
 }
 
-function ShapeArrayControl({ node, value, onChange, path, label, leaveTypeOptions, section }: RendererProps & { node: ArrayFieldNode }) {
+function ShapeArrayControl({ node, value, onChange, path, label, leaveTypeOptions, salaryComponentOptions, section }: RendererProps & { node: ArrayFieldNode }) {
   const items: unknown[] = Array.isArray(value) ? value : [];
   const itemShape = node.item as SectionNode;
 
@@ -423,6 +461,7 @@ function ShapeArrayControl({ node, value, onChange, path, label, leaveTypeOption
             onChange={onChange}
             path={[...path, i]}
             leaveTypeOptions={leaveTypeOptions}
+            salaryComponentOptions={salaryComponentOptions}
             section={section}
           />
         </div>
@@ -457,6 +496,7 @@ export function SchemaNodeRenderer(props: RendererProps) {
         value={value}
         onChange={(v) => onChange(path, v)}
         leaveTypeOptions={props.leaveTypeOptions}
+        salaryComponentOptions={props.salaryComponentOptions}
       />
     );
   }
@@ -473,12 +513,14 @@ export function SchemaForm({
   value,
   onChange,
   leaveTypeOptions,
+  salaryComponentOptions,
   section,
 }: {
   node: SectionNode;
   value: Record<string, unknown>;
   onChange: (nextValue: Record<string, unknown>) => void;
   leaveTypeOptions?: LeaveTypeOption[];
+  salaryComponentOptions?: SalaryComponentOption[];
   section: string;
 }) {
   // Seamlessly delegate leave configuration to the specialized configurator
@@ -487,6 +529,8 @@ export function SchemaForm({
       <LeaveRulesConfigurator
         rules={(value.rules as LeaveRuleConfig[]) || []}
         onChange={(nextRules) => onChange({ ...value, rules: nextRules })}
+        leaveYear={(value.leaveYear as { startMonth?: number; startDay?: number }) || { startMonth: 1, startDay: 1 }}
+        onLeaveYearChange={(nextLy) => onChange({ ...value, leaveYear: nextLy })}
         leaveTypeOptions={leaveTypeOptions}
       />
     );
@@ -511,6 +555,8 @@ export function SchemaForm({
                 value={getAtPath(value, [key])}
                 onChange={(v) => handleChange([key], v)}
                 leaveTypeOptions={leaveTypeOptions}
+                salaryComponentOptions={salaryComponentOptions}
+                isSalaryComponentField={key === 'salaryComponentId'}
               />
             ))}
           </div>
@@ -527,6 +573,7 @@ export function SchemaForm({
           path={[key]}
           label={labelOf(child, key)}
           leaveTypeOptions={leaveTypeOptions}
+          salaryComponentOptions={salaryComponentOptions}
           section={section}
           groupKey={key}
         />

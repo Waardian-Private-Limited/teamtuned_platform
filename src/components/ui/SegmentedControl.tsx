@@ -13,6 +13,8 @@ interface SegmentedControlProps<T extends string> {
   onChange: (value: T) => void;
   disabled?: boolean;
   className?: string;
+  /** When true, each tab sizes according to its text content and padding rather than equal grid columns */
+  fitText?: boolean;
 }
 
 /**
@@ -25,15 +27,18 @@ export function SegmentedControl<T extends string>({
   onChange,
   disabled,
   className,
+  fitText = false,
 }: SegmentedControlProps<T>) {
   return (
     <div
       role="tablist"
       className={cx(
-        'grid h-9 items-center gap-1 rounded-lg border border-line/60 bg-bg-subtle p-0.5',
+        fitText
+          ? 'inline-flex h-9 items-center gap-1 rounded-lg border border-line/60 bg-bg-subtle p-0.5'
+          : 'grid h-9 items-center gap-1 rounded-lg border border-line/60 bg-bg-subtle p-0.5',
         className
       )}
-      style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+      style={fitText ? undefined : { gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
     >
       {options.map((opt) => {
         const isSelected = value === opt.value;

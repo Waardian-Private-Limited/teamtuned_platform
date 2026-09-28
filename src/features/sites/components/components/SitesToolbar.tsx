@@ -61,8 +61,8 @@ export function SitesToolbar({
           />
         </div>
 
-        <div className="w-full sm:w-44 md:w-48 lg:w-44 xl:w-48 2xl:w-56">
-          <SegmentedControl options={SITE_STATUS_FILTER_OPTIONS} value={status} onChange={onStatusChange} />
+        <div className="w-auto overflow-x-auto">
+          <SegmentedControl options={SITE_STATUS_FILTER_OPTIONS} value={status} onChange={onStatusChange} fitText />
         </div>
 
         <SubOrgFilter value={subOrgId} onChange={onSubOrgChange} />

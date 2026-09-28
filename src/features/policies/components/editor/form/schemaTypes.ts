@@ -11,8 +11,10 @@
 export interface VisibleWhen {
   /** Dotted path, resolved against the section (or the list item) root. */
   path: string;
-  in: Array<string | number | boolean>;
+  in: Array<string | number | boolean | undefined>;
 }
+
+export type VisibleCondition = VisibleWhen | VisibleWhen[];
 
 export interface ScalarFieldNode {
   type: 'number' | 'int' | 'bool' | 'string' | 'time' | 'enum' | 'idList';
@@ -24,7 +26,7 @@ export interface ScalarFieldNode {
   label?: string;
   help?: string;
   description?: string;
-  visibleWhen?: VisibleWhen;
+  visibleWhen?: VisibleCondition;
 }
 
 export interface ArrayFieldNode {
@@ -33,7 +35,7 @@ export interface ArrayFieldNode {
   item: SchemaNode;
   label?: string;
   help?: string;
-  visibleWhen?: VisibleWhen;
+  visibleWhen?: VisibleCondition;
 }
 
 export type FieldNode = ScalarFieldNode | ArrayFieldNode;
@@ -41,7 +43,7 @@ export type FieldNode = ScalarFieldNode | ArrayFieldNode;
 export interface GroupMeta {
   label: string;
   description?: string;
-  visibleWhen?: VisibleWhen;
+  visibleWhen?: VisibleCondition;
 }
 
 export interface SectionNode {
@@ -108,7 +110,7 @@ function valueAtPath(scope: unknown, path: string): unknown {
  * card only ever states rules that are actually in force.
  */
 export function isVisible(node: SchemaNode, scopeValue: unknown): boolean {
-  let condition: VisibleWhen | undefined;
+  let condition: VisibleCondition | undefined;
   if (isFieldNode(node)) {
     condition = node.visibleWhen;
   } else {
@@ -116,6 +118,12 @@ export function isVisible(node: SchemaNode, scopeValue: unknown): boolean {
     condition = meta?.visibleWhen;
   }
   if (!condition) return true;
+  if (Array.isArray(condition)) {
+    return condition.every((cond) => {
+      const actual = valueAtPath(scopeValue, cond.path);
+      return cond.in.some((candidate) => candidate === actual);
+    });
+  }
   const actual = valueAtPath(scopeValue, condition.path);
   return condition.in.some((candidate) => candidate === actual);
 }

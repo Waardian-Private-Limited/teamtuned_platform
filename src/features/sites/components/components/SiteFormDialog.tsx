@@ -357,7 +357,7 @@ export function SiteFormDialog({
               </div>
             </button>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => setStatus('active')}
@@ -383,6 +383,19 @@ export function SiteFormDialog({
               >
                 <span className="flex h-2 w-2 shrink-0 rounded-full bg-slate-400" />
                 <div className="text-xs font-semibold text-fg">Inactive</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatus('terminated')}
+                className={cx(
+                  'flex items-center gap-2 rounded-lg border p-2.5 text-left transition-all',
+                  status === 'terminated'
+                    ? 'border-[var(--tt-primary)] bg-[var(--tt-primary)]/5 ring-1 ring-[var(--tt-primary)]'
+                    : 'border-line bg-surface hover:bg-bg-subtle'
+                )}
+              >
+                <span className="flex h-2 w-2 shrink-0 rounded-full bg-[var(--tt-danger)]" />
+                <div className="text-xs font-semibold text-fg">Terminated</div>
               </button>
             </div>
           </div>

@@ -31,6 +31,7 @@ export function SiteRowActions({
   onOpenIncharges,
   isToggling = false,
 }: SiteRowActionsProps) {
+  const isTerminated = site.status === 'terminated';
   const isCurrentlyActive = site.status === 'active';
 
   return (
@@ -92,7 +93,7 @@ export function SiteRowActions({
         </>
       )}
 
-      {canDelete && (
+      {canDelete && !isTerminated && (
         <Tooltip content="Delete Site" align="end">
           <button
             type="button"

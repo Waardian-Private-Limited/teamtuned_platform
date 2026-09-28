@@ -25,6 +25,20 @@ export interface PolicyDto {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type PolicyConfig = any;
 
+// Minimal slice of /payroll/components' SalaryComponentDto — just enough to
+// populate the "salary used for the hourly rate" pickers in overtime, night
+// overtime and leave encashment.
+export interface SalaryComponentDto {
+  id: number;
+  component_name: string;
+  component_type: 'credit' | 'debit';
+  status: 'active' | 'inactive';
+}
+
+export interface SalaryComponentListResponseDto {
+  components: SalaryComponentDto[];
+}
+
 export interface PolicyVersionDto {
   id: number;
   policy_id: number;

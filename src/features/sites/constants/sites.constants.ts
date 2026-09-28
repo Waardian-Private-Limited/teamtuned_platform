@@ -2,6 +2,7 @@ export const SITE_STATUS_FILTER_OPTIONS = [
   { value: 'all', label: 'All' },
   { value: 'active', label: 'Active' },
   { value: 'inactive', label: 'Inactive' },
+  { value: 'terminated', label: 'Terminated' },
 ] as const;
 
 export type SiteStatusFilter = (typeof SITE_STATUS_FILTER_OPTIONS)[number]['value'];

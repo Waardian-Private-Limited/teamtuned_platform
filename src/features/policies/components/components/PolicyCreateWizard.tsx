@@ -18,6 +18,7 @@ import { SubOrgPicker } from '@/features/sub-organizations/components/SubOrgPick
 import { usePermission } from '@/lib/hooks/usePermission';
 import { usePolicySchema } from '../../hooks/usePolicySchema';
 import { useLeaveTypeList } from '../../hooks/useLeaveTypeList';
+import { useSalaryComponentList } from '../../hooks/useSalaryComponentList';
 import { POLICY_SECTIONS, type PolicySectionKey } from '../../constants/policies.constants';
 import type { PolicyConfig, PolicyFormInput } from '../../types/policies.model';
 import type { FieldError } from '../../hooks/usePolicyMutations';
@@ -63,6 +64,7 @@ function borderFor(hasError: boolean) {
 export function PolicyCreateWizard({ open, isSaving, fieldError, onClose, onSubmit }: PolicyCreateWizardProps) {
   const { schema, isLoading: schemaLoading, error: schemaError } = usePolicySchema();
   const { leaveTypes } = useLeaveTypeList();
+  const { salaryComponents } = useSalaryComponentList();
 
   const [stepIndex, setStepIndex] = React.useState(0);
   const [name, setName] = React.useState('');
@@ -102,6 +104,23 @@ export function PolicyCreateWizard({ open, isSaving, fieldError, onClose, onSubm
   const step = STEPS[stepIndex];
   const nameMissing = !name.trim();
   const isLastStep = stepIndex === STEPS.length - 1;
+
+  const wizardTopRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (wizardTopRef.current) {
+      let parent = wizardTopRef.current.parentElement;
+      while (parent) {
+        const style = window.getComputedStyle(parent);
+        if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+          parent.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        parent = parent.parentElement;
+      }
+      wizardTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [stepIndex]);
 
   const changes = React.useMemo(() => {
     if (!defaults) return [];
@@ -204,7 +223,7 @@ export function PolicyCreateWizard({ open, isSaving, fieldError, onClose, onSubm
         </>
       }
     >
-      <div className="flex flex-col gap-4">
+      <div ref={wizardTopRef} className="flex flex-col gap-4">
         {/* Step Navigation Bar */}
         <nav aria-label="Wizard Steps" className="rounded-xl border border-line bg-surface p-1.5">
           <ol className="grid grid-cols-2 gap-1 sm:grid-cols-5">
@@ -357,6 +376,7 @@ export function PolicyCreateWizard({ open, isSaving, fieldError, onClose, onSubm
               value={(config[step.key] as Record<string, unknown>) || {}}
               onChange={(next) => setSection(step.key as PolicySectionKey, next)}
               leaveTypeOptions={leaveTypeOptions}
+              salaryComponentOptions={salaryComponents}
             />
           )
         )}

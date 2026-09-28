@@ -21,6 +21,8 @@ export interface LeaveRuleConfig {
     mode?: 'yearly' | 'monthly' | 'none' | 'unlimited';
     daysPerYear?: number;
     daysPerMonth?: number;
+    monthlyCarryForward?: 'carry_forward' | 'lapse_each_month' | 'capped';
+    maxMonthlyCarryDays?: number;
     creditTiming?: 'start_of_period' | 'end_of_period';
     rounding?: 'none' | 'up' | 'down' | 'nearest_half';
     maxBalance?: number;
@@ -38,6 +40,7 @@ export interface LeaveRuleConfig {
   };
   carryForward?: {
     enabled?: boolean;
+    carryMode?: 'all_collapse' | 'full_balance' | 'capped';
     maxDays?: number;
     expiryMonths?: number;
   };
@@ -56,13 +59,21 @@ export interface LeaveRuleConfig {
   encashOnExit?: {
     enabled?: boolean;
     maxDays?: number;
-    rateBasis?: 'basic' | 'basic_plus_da' | 'gross';
+    // References a salary_components row; 0 is the "Gross" sentinel.
+    salaryComponentId?: number;
   };
 }
+
+export const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
 
 interface LeaveRulesConfiguratorProps {
   rules: LeaveRuleConfig[];
   onChange: (rules: LeaveRuleConfig[]) => void;
+  leaveYear?: { startMonth?: number; startDay?: number };
+  onLeaveYearChange?: (leaveYear: { startMonth: number; startDay: number }) => void;
   leaveTypeOptions?: LeaveTypeOption[];
 }
 
@@ -72,7 +83,9 @@ export function createDefaultLeaveRule(leaveTypeId: number, daysPerYear = 12): L
     entitlement: {
       mode: 'yearly',
       daysPerYear,
-      daysPerMonth: 1,
+      daysPerMonth: Number((daysPerYear / 12).toFixed(1)),
+      monthlyCarryForward: 'carry_forward',
+      maxMonthlyCarryDays: 1,
       creditTiming: 'start_of_period',
       rounding: 'none',
       maxBalance: 0,
@@ -90,6 +103,7 @@ export function createDefaultLeaveRule(leaveTypeId: number, daysPerYear = 12): L
     },
     carryForward: {
       enabled: false,
+      carryMode: 'all_collapse',
       maxDays: 0,
       expiryMonths: 0,
     },
@@ -108,7 +122,7 @@ export function createDefaultLeaveRule(leaveTypeId: number, daysPerYear = 12): L
     encashOnExit: {
       enabled: false,
       maxDays: 0,
-      rateBasis: 'basic',
+      salaryComponentId: 0,
     },
   };
 }
@@ -153,9 +167,34 @@ function VisualSwitch({
 export function LeaveRulesConfigurator({
   rules = [],
   onChange,
+  leaveYear = { startMonth: 1, startDay: 1 },
+  onLeaveYearChange,
   leaveTypeOptions = [],
 }: LeaveRulesConfiguratorProps) {
   const [expandedId, setExpandedId] = React.useState<number | null>(null);
+
+  const startMonth = leaveYear?.startMonth || rules[0]?.leaveYear?.startMonth || 1;
+  const startDay = leaveYear?.startDay || rules[0]?.leaveYear?.startDay || 1;
+  const endMonth = ((startMonth + 10) % 12) + 1;
+  const startName = MONTH_NAMES[startMonth - 1] || 'January';
+  const endName = MONTH_NAMES[endMonth - 1] || 'December';
+  const endDay = new Date(Date.UTC(2026, endMonth, 0)).getUTCDate();
+
+  const handleLeaveCycleChange = (newStartMonth: number, newStartDay = 1) => {
+    if (onLeaveYearChange) {
+      onLeaveYearChange({ startMonth: newStartMonth, startDay: newStartDay });
+    }
+    const nextRules = rules.map((r) => ({
+      ...r,
+      leaveYear: {
+        ...r.leaveYear,
+        startMonth: newStartMonth,
+        startDay: newStartDay,
+        basis: (newStartMonth === 1 ? 'calendar' : newStartMonth === 4 ? 'financial' : 'custom') as any,
+      },
+    }));
+    onChange(nextRules);
+  };
 
   // Map known leave types
   const rulesByTypeId = React.useMemo(() => {
@@ -214,6 +253,11 @@ export function LeaveRulesConfigurator({
       else if (lower.includes('paternity')) defaultDays = 15;
 
       const newRule = createDefaultLeaveRule(id, defaultDays);
+      newRule.leaveYear = {
+        basis: (startMonth === 1 ? 'calendar' : startMonth === 4 ? 'financial' : 'custom') as any,
+        startMonth,
+        startDay,
+      };
       onChange([...rules, newRule]);
     }
   };
@@ -236,13 +280,96 @@ export function LeaveRulesConfigurator({
       let days = 12;
       if (lower.includes('sick')) days = 10;
       else if (lower.includes('earned') || lower.includes('privilege') || lower.includes('annual')) days = 15;
-      return createDefaultLeaveRule(lt.id, days);
+      const rule = createDefaultLeaveRule(lt.id, days);
+      rule.leaveYear = {
+        basis: (startMonth === 1 ? 'calendar' : startMonth === 4 ? 'financial' : 'custom') as any,
+        startMonth,
+        startDay,
+      };
+      return rule;
     });
     onChange(nextRules);
   };
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Leave Year Cycle Card */}
+      <div className="rounded-xl border border-line bg-surface p-4 shadow-xs flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-[var(--tt-primary)]" />
+              <h4 className="text-xs font-bold text-fg sm:text-sm">Leave Year Cycle & Collapse Date</h4>
+            </div>
+            <p className="text-[11px] text-fg-muted mt-0.5">
+              Annual 12-month window for tracking leave balances. When this cycle ends, uncarried balance collapses.
+            </p>
+          </div>
+
+          {/* Preset Buttons */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => handleLeaveCycleChange(1)}
+              className={cx(
+                'rounded-lg px-2.5 py-1 text-xs font-medium transition-all',
+                startMonth === 1
+                  ? 'bg-[var(--tt-primary)] text-[var(--tt-on-primary)] shadow-xs'
+                  : 'border border-line bg-surface text-fg hover:bg-bg-subtle'
+              )}
+            >
+              Calendar (Jan – Dec)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleLeaveCycleChange(4)}
+              className={cx(
+                'rounded-lg px-2.5 py-1 text-xs font-medium transition-all',
+                startMonth === 4
+                  ? 'bg-[var(--tt-primary)] text-[var(--tt-on-primary)] shadow-xs'
+                  : 'border border-line bg-surface text-fg hover:bg-bg-subtle'
+              )}
+            >
+              Financial (Apr – Mar)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleLeaveCycleChange(7)}
+              className={cx(
+                'rounded-lg px-2.5 py-1 text-xs font-medium transition-all',
+                startMonth === 7
+                  ? 'bg-[var(--tt-primary)] text-[var(--tt-on-primary)] shadow-xs'
+                  : 'border border-line bg-surface text-fg hover:bg-bg-subtle'
+              )}
+            >
+              Fiscal (Jul – Jun)
+            </button>
+            <select
+              value={startMonth}
+              onChange={(e) => handleLeaveCycleChange(Number(e.target.value))}
+              aria-label="Custom leave year start month"
+              className="h-7 rounded-lg border border-line bg-surface px-2 text-xs text-fg outline-none focus:border-[var(--tt-primary)]"
+            >
+              {MONTH_NAMES.map((m, idx) => (
+                <option key={idx + 1} value={idx + 1}>
+                  Starts {m} (Ends {MONTH_NAMES[(idx + 11) % 12]})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Dynamic status pill */}
+        <div className="flex items-center gap-2 rounded-lg border border-line/60 bg-bg-subtle/50 px-3 py-1.5 text-[11px] text-fg-muted flex-wrap">
+          <span className="font-semibold text-fg">Active Cycle:</span>
+          <span>{startName} 1 – {endName} {endDay}</span>
+          <span className="text-fg-subtle">·</span>
+          <span className="text-amber-700 dark:text-amber-400 font-medium">
+            Year-end balance resets & collapses on {endName} {endDay}
+          </span>
+        </div>
+      </div>
+
       {/* Top Bar / Presets */}
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface p-3">
         <div>
@@ -291,7 +418,11 @@ export function LeaveRulesConfigurator({
           const isExpanded = expandedId === id;
           const daysPerYear = rule?.entitlement?.daysPerYear ?? 12;
           const accrualMode = rule?.entitlement?.mode ?? 'yearly';
+          const daysPerMonth = rule?.entitlement?.daysPerMonth ?? Number((daysPerYear / 12).toFixed(1));
+          const monthlyCarryForward = rule?.entitlement?.monthlyCarryForward ?? 'carry_forward';
+          const maxMonthlyCarryDays = rule?.entitlement?.maxMonthlyCarryDays ?? 1;
           const carryForward = rule?.carryForward?.enabled ?? false;
+          const carryMode = rule?.carryForward?.carryMode ?? (carryForward ? (rule?.carryForward?.maxDays ? 'capped' : 'full_balance') : 'all_collapse');
           const maxCarryDays = rule?.carryForward?.maxDays ?? 0;
 
           return (
@@ -337,7 +468,7 @@ export function LeaveRulesConfigurator({
                     </div>
                     <p className="mt-0.5 text-[11px] text-fg-muted truncate">
                       {isConfigured
-                        ? `${daysPerYear} days/yr · ${accrualMode === 'monthly' ? 'Monthly Accrual' : 'Credited Upfront'} ${carryForward ? '· Carry-Forward Active' : ''}`
+                        ? `${daysPerYear} days/yr · ${accrualMode === 'monthly' ? `Monthly Accrual (${daysPerMonth}d/mo, ${monthlyCarryForward === 'lapse_each_month' ? 'Lapses Monthly' : 'Accumulates'})` : 'Credited Upfront'} ${carryForward ? '· Carry-Forward Active' : '· Collapses at Year End'}`
                         : 'Not allotted on this policy (click to enable)'}
                     </p>
                   </div>
@@ -358,23 +489,31 @@ export function LeaveRulesConfigurator({
                 <div className="border-t border-line/60 bg-bg-subtle/30 p-3.5 flex flex-col gap-3">
                   {/* Row 1: Quota & Accrual */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-start">
-                    {/* Days Quota Input */}
+                    {/* Column 1: Days Quota Input */}
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-xs font-semibold text-fg">Annual Quota (Days)</label>
-                        <span className="text-[10px] text-fg-muted font-medium">days/year</span>
+                        <label className="text-xs font-semibold text-fg">
+                          {accrualMode === 'monthly' ? 'Annual Total (Days)' : 'Annual Quota (Days)'}
+                        </label>
+                        <span className="text-[10px] text-fg-muted font-medium">
+                          {accrualMode === 'monthly' ? `~${daysPerMonth} d/mo` : 'days/year'}
+                        </span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <button
                           type="button"
                           onClick={() =>
-                            updateRule(id, (r) => ({
-                              ...r,
-                              entitlement: {
-                                ...r.entitlement,
-                                daysPerYear: Math.max(0, (r.entitlement?.daysPerYear ?? 12) - 1),
-                              },
-                            }))
+                            updateRule(id, (r) => {
+                              const nextTotal = Math.max(0, (r.entitlement?.daysPerYear ?? 12) - 1);
+                              return {
+                                ...r,
+                                entitlement: {
+                                  ...r.entitlement,
+                                  daysPerYear: nextTotal,
+                                  daysPerMonth: Number((nextTotal / 12).toFixed(2)),
+                                },
+                              };
+                            })
                           }
                           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line bg-surface text-fg hover:bg-bg-subtle transition-colors"
                         >
@@ -391,6 +530,7 @@ export function LeaveRulesConfigurator({
                               entitlement: {
                                 ...r.entitlement,
                                 daysPerYear: val,
+                                daysPerMonth: Number((val / 12).toFixed(2)),
                               },
                             }));
                           }}
@@ -399,13 +539,17 @@ export function LeaveRulesConfigurator({
                         <button
                           type="button"
                           onClick={() =>
-                            updateRule(id, (r) => ({
-                              ...r,
-                              entitlement: {
-                                ...r.entitlement,
-                                daysPerYear: (r.entitlement?.daysPerYear ?? 12) + 1,
-                              },
-                            }))
+                            updateRule(id, (r) => {
+                              const nextTotal = (r.entitlement?.daysPerYear ?? 12) + 1;
+                              return {
+                                ...r,
+                                entitlement: {
+                                  ...r.entitlement,
+                                  daysPerYear: nextTotal,
+                                  daysPerMonth: Number((nextTotal / 12).toFixed(2)),
+                                },
+                              };
+                            })
                           }
                           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line bg-surface text-fg hover:bg-bg-subtle transition-colors"
                         >
@@ -422,7 +566,11 @@ export function LeaveRulesConfigurator({
                             onClick={() =>
                               updateRule(id, (r) => ({
                                 ...r,
-                                entitlement: { ...r.entitlement, daysPerYear: pill },
+                                entitlement: {
+                                  ...r.entitlement,
+                                  daysPerYear: pill,
+                                  daysPerMonth: Number((pill / 12).toFixed(2)),
+                                },
                               }))
                             }
                             className={cx(
@@ -438,7 +586,7 @@ export function LeaveRulesConfigurator({
                       </div>
                     </div>
 
-                    {/* Accrual Mode */}
+                    {/* Column 2: Accrual Mode & Monthly Rollover / Lapse */}
                     <div>
                       <label className="block text-xs font-semibold text-fg mb-1.5">Credit Mode</label>
                       <select
@@ -456,92 +604,203 @@ export function LeaveRulesConfigurator({
                         <option value="monthly">Accrued Monthly</option>
                         <option value="unlimited">Unlimited (No balance tracking)</option>
                       </select>
-                      <p className="mt-1 text-[10px] text-fg-subtle">
-                        {accrualMode === 'yearly'
-                          ? 'All allotted days added at start of leave year'
-                          : accrualMode === 'monthly'
-                          ? `Earns ~${(daysPerYear / 12).toFixed(1)} days each month`
-                          : 'Employees take as needed without balance caps'}
-                      </p>
+
+                      {accrualMode === 'monthly' ? (
+                        <div className="mt-2.5 rounded-lg border border-line/60 bg-bg-subtle/50 p-2.5 space-y-2">
+                          <div className="flex items-center justify-between gap-1.5">
+                            <label className="text-[11px] font-semibold text-fg">Credited Each Month</label>
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                step="0.5"
+                                min={0}
+                                value={daysPerMonth}
+                                onChange={(e) => {
+                                  const val = Math.max(0, Number(e.target.value));
+                                  updateRule(id, (r) => ({
+                                    ...r,
+                                    entitlement: {
+                                      ...r.entitlement,
+                                      daysPerMonth: val,
+                                      daysPerYear: Number((val * 12).toFixed(1)),
+                                    },
+                                  }));
+                                }}
+                                className="h-7 w-16 rounded border border-line bg-surface px-1.5 text-center text-xs font-bold text-fg outline-none focus:border-[var(--tt-primary)]"
+                              />
+                              <span className="text-[10px] text-fg-muted font-medium">d/mo</span>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-semibold text-fg mb-1">Month-to-Month Rollover</label>
+                            <select
+                              value={monthlyCarryForward}
+                              onChange={(e) => {
+                                const val = e.target.value as 'carry_forward' | 'lapse_each_month' | 'capped';
+                                updateRule(id, (r) => ({
+                                  ...r,
+                                  entitlement: { ...r.entitlement, monthlyCarryForward: val },
+                                }));
+                              }}
+                              className="h-7 w-full rounded border border-line bg-surface px-2 text-[11px] text-fg outline-none focus:border-[var(--tt-primary)]"
+                            >
+                              <option value="carry_forward">Accumulate across months</option>
+                              <option value="lapse_each_month">Lapse each month (Use-it-or-lose-it)</option>
+                              <option value="capped">Capped rollover (Max days)</option>
+                            </select>
+
+                            {monthlyCarryForward === 'capped' && (
+                              <div className="mt-1.5 flex items-center justify-between gap-1 text-[11px]">
+                                <span className="text-fg-muted text-[10px]">Max roll into next month:</span>
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    step="0.5"
+                                    value={maxMonthlyCarryDays}
+                                    onChange={(e) => {
+                                      const val = Math.max(0, Number(e.target.value));
+                                      updateRule(id, (r) => ({
+                                        ...r,
+                                        entitlement: { ...r.entitlement, maxMonthlyCarryDays: val },
+                                      }));
+                                    }}
+                                    className="h-6 w-14 rounded border border-line bg-surface px-1 text-center text-[11px] text-fg outline-none focus:border-[var(--tt-primary)]"
+                                  />
+                                  <span className="text-[10px] text-fg-subtle">days</span>
+                                </div>
+                              </div>
+                            )}
+
+                            <p className="mt-1 text-[10px] leading-tight text-fg-subtle">
+                              {monthlyCarryForward === 'lapse_each_month'
+                                ? 'Unused leave expires at month end; does not roll over into next month.'
+                                : monthlyCarryForward === 'capped'
+                                ? `Up to ${maxMonthlyCarryDays} day(s) carry into next month; remaining balance collapses.`
+                                : 'Unused days accumulate month-to-month until annual leave year ends.'}
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-[10px] text-fg-subtle">
+                          {accrualMode === 'yearly'
+                            ? `All ${daysPerYear} days granted upfront on ${startName} 1`
+                            : 'Employees take as needed without balance tracking'}
+                        </p>
+                      )}
                     </div>
 
-                    {/* Carry Forward Toggle & Days */}
+                    {/* Column 3: Year-End Carry Forward & Collapse */}
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-xs font-semibold text-fg">Carry Forward</label>
+                        <label className="text-xs font-semibold text-fg">Year-End Carry Forward</label>
                         <span
                           className={cx(
                             'text-[10px] font-bold uppercase tracking-wider',
                             carryForward ? 'text-emerald-600' : 'text-fg-subtle'
                           )}
                         >
-                          {carryForward ? 'Active' : 'Off'}
+                          {carryForward ? 'Active' : 'Lapses at Year End'}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div
-                          role="button"
-                          tabIndex={0}
-                          onClick={() =>
+
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() =>
+                          updateRule(id, (r) => ({
+                            ...r,
+                            carryForward: {
+                              ...r.carryForward,
+                              enabled: !carryForward,
+                              carryMode: !carryForward ? (r.carryForward?.carryMode || 'full_balance') : 'all_collapse',
+                            },
+                          }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === ' ' || e.key === 'Enter') {
+                            e.preventDefault();
                             updateRule(id, (r) => ({
                               ...r,
                               carryForward: {
                                 ...r.carryForward,
                                 enabled: !carryForward,
+                                carryMode: !carryForward ? (r.carryForward?.carryMode || 'full_balance') : 'all_collapse',
+                              },
+                            }));
+                          }
+                        }}
+                        className={cx(
+                          'flex h-9 cursor-pointer select-none items-center justify-between gap-2 rounded-lg border px-3 text-xs font-medium transition-all',
+                          carryForward
+                            ? 'border-emerald-500/40 bg-emerald-500/5 text-fg'
+                            : 'border-line bg-surface text-fg-muted hover:bg-bg-subtle'
+                        )}
+                      >
+                        <span>{carryForward ? 'Carry into Next Year' : 'Collapses at Year End'}</span>
+                        <VisualSwitch
+                          checked={carryForward}
+                          onChange={(val) =>
+                            updateRule(id, (r) => ({
+                              ...r,
+                              carryForward: {
+                                ...r.carryForward,
+                                enabled: val,
+                                carryMode: val ? (r.carryForward?.carryMode || 'full_balance') : 'all_collapse',
                               },
                             }))
                           }
-                          onKeyDown={(e) => {
-                            if (e.key === ' ' || e.key === 'Enter') {
-                              e.preventDefault();
+                          label="Carry Forward"
+                        />
+                      </div>
+
+                      {carryForward ? (
+                        <div className="mt-2 space-y-1.5">
+                          <select
+                            value={carryMode}
+                            onChange={(e) => {
+                              const mode = e.target.value as 'full_balance' | 'capped' | 'all_collapse';
                               updateRule(id, (r) => ({
                                 ...r,
                                 carryForward: {
                                   ...r.carryForward,
-                                  enabled: !carryForward,
+                                  carryMode: mode,
+                                  maxDays: mode === 'full_balance' ? 0 : (r.carryForward?.maxDays || 5),
                                 },
                               }));
-                            }
-                          }}
-                          className={cx(
-                            'flex h-9 flex-1 cursor-pointer select-none items-center justify-between gap-2 rounded-lg border px-3 text-xs font-medium transition-all',
-                            carryForward
-                              ? 'border-emerald-500/40 bg-emerald-500/5 text-fg'
-                              : 'border-line bg-surface text-fg-muted hover:bg-bg-subtle'
-                          )}
-                        >
-                          <span>{carryForward ? 'Carry Unused' : 'Expires at Year End'}</span>
-                          <VisualSwitch
-                            checked={carryForward}
-                            onChange={(val) =>
-                              updateRule(id, (r) => ({
-                                ...r,
-                                carryForward: { ...r.carryForward, enabled: val },
-                              }))
-                            }
-                            label="Carry Forward"
-                          />
-                        </div>
-                      </div>
-
-                      {carryForward && (
-                        <div className="mt-1.5 flex items-center gap-1.5">
-                          <input
-                            type="number"
-                            min={0}
-                            placeholder="Max carry days"
-                            value={maxCarryDays === 0 ? '' : maxCarryDays}
-                            onChange={(e) => {
-                              const val = Math.max(0, Number(e.target.value));
-                              updateRule(id, (r) => ({
-                                ...r,
-                                carryForward: { ...r.carryForward, maxDays: val },
-                              }));
                             }}
-                            className="h-8 w-full rounded-md border border-line bg-surface px-2 text-[11px] text-fg outline-none focus:border-[var(--tt-primary)]"
-                          />
-                          <span className="shrink-0 text-[10px] text-fg-muted">(0 = all)</span>
+                            className="h-8 w-full rounded-lg border border-line bg-surface px-2 text-xs text-fg outline-none focus:border-[var(--tt-primary)]"
+                          >
+                            <option value="full_balance">Carry full remaining balance</option>
+                            <option value="capped">Capped limit (extra collapses)</option>
+                          </select>
+
+                          {carryMode === 'capped' && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-fg-muted shrink-0">Max carry days:</span>
+                              <input
+                                type="number"
+                                min={0}
+                                placeholder="e.g. 5"
+                                value={maxCarryDays || ''}
+                                onChange={(e) => {
+                                  const val = Math.max(0, Number(e.target.value));
+                                  updateRule(id, (r) => ({
+                                    ...r,
+                                    carryForward: { ...r.carryForward, maxDays: val },
+                                  }));
+                                }}
+                                className="h-7 w-20 rounded border border-line bg-surface px-2 text-xs text-fg outline-none focus:border-[var(--tt-primary)]"
+                              />
+                              <span className="text-[10px] text-fg-subtle">days max</span>
+                            </div>
+                          )}
                         </div>
+                      ) : (
+                        <p className="mt-1.5 text-[10px] leading-tight text-amber-700 dark:text-amber-400">
+                          All remaining balance collapses on {endName} {endDay} when the leave year ends.
+                        </p>
                       )}
                     </div>
                   </div>
