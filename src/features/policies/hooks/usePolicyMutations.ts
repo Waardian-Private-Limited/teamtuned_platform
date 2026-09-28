@@ -47,7 +47,7 @@ export function usePolicyMutations(refetch: () => Promise<void>, onOptimisticSta
     if (codeError) throw new FieldValidationError('code', codeError);
 
     await policiesApi
-      .createPolicy({ name: input.name.trim(), code: input.code.trim(), description: input.description.trim(), config: input.config, effectiveFrom: input.effectiveFrom })
+      .createPolicy({ name: input.name.trim(), code: input.code.trim(), description: input.description.trim(), config: input.config, effectiveFrom: input.effectiveFrom, subOrganizationId: input.subOrganizationId })
       .catch((err: unknown) => asFieldError(err, 'code', [409]));
 
     await refetch();

@@ -84,6 +84,8 @@ export function PoliciesPage() {
         onSearchChange={list.setSearchInput}
         status={list.status}
         onStatusChange={list.setStatus}
+        subOrgId={list.subOrgId}
+        onSubOrgChange={list.setSubOrgId}
         canAdd={perms.canAdd}
         onAdd={openCreate}
         onOpenLeaveTypes={basePath === '/org-admin/policies' ? () => router.push(`${basePath}/leave-types`) : undefined}

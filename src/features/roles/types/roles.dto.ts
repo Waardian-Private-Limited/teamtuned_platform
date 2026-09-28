@@ -8,6 +8,7 @@ export interface RoleDto {
   department_name: string | null;
   description: string | null;
   status: 'active' | 'inactive';
+  sub_organization_id: number | null;
   permissions: string[];
   employee_count: number;
   created_by: number | null;

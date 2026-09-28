@@ -22,6 +22,7 @@ export interface Site {
   latitude: number | null;
   longitude: number | null;
   radiusMeters: number | null;
+  subOrgIds: number[];
   createdAt?: string | null;
   updatedAt?: string | null;
 }
@@ -53,6 +54,7 @@ export interface SiteFormInput {
   latitude: string;
   longitude: string;
   radiusMeters: string;
+  subOrgIds: number[];
 }
 
 export interface BudgetConsumption {

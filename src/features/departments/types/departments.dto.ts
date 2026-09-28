@@ -11,6 +11,7 @@ export interface DepartmentDto {
   name: string;
   description: string | null;
   status: 'active' | 'inactive';
+  sub_organization_id: number | null;
   created_at?: string;
   updated_at?: string | null;
   heads: DepartmentHeadSummaryDto;

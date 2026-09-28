@@ -19,6 +19,7 @@ export function toDepartment(dto: DepartmentDto): Department {
     name: dto.name,
     description: dto.description,
     status: dto.status,
+    subOrganizationId: dto.sub_organization_id ?? null,
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
     orgWideHeadName: dto.heads?.orgWideHead ?? null,

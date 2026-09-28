@@ -18,6 +18,7 @@ interface ListParams {
   departmentId?: number | null;
   page?: number;
   pageSize?: number;
+  subOrgId?: number | null;
 }
 
 interface RoleInput {
@@ -26,6 +27,7 @@ interface RoleInput {
   description: string;
   status: string;
   permissions: string[];
+  subOrganizationId?: number | null;
 }
 
 export function listRoles(params: ListParams = {}) {
@@ -37,6 +39,7 @@ export function listRoles(params: ListParams = {}) {
       department_id: params.departmentId || undefined,
       page: params.page,
       pageSize: params.pageSize,
+      subOrgId: params.subOrgId ?? undefined,
     },
     { withAuth: true }
   );
@@ -53,6 +56,7 @@ function toBody(input: RoleInput) {
     description: input.description,
     status: input.status,
     permissions: input.permissions,
+    sub_organization_id: input.subOrganizationId ?? null,
   };
 }
 

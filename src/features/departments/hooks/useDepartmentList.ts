@@ -16,6 +16,7 @@ export function useDepartmentList() {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [status, setStatusState] = useState<DepartmentStatusFilter>('all');
+  const [subOrgId, setSubOrgIdState] = useState<number | null>(null);
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSizeState] = useState(DEFAULT_PAGE_SIZE);
@@ -34,7 +35,7 @@ export function useDepartmentList() {
     setIsFetching(true);
     setError('');
     try {
-      const dto = await departmentsApi.listDepartments({ search, status, page, pageSize });
+      const dto = await departmentsApi.listDepartments({ search, status, page, pageSize, subOrgId });
       const result = toDepartmentList(dto);
       setDepartments(result.departments);
       setTotal(result.total);
@@ -47,7 +48,7 @@ export function useDepartmentList() {
       setIsInitialLoading(false);
       setIsFetching(false);
     }
-  }, [search, status, page, pageSize]);
+  }, [search, status, page, pageSize, subOrgId]);
 
   useEffect(() => {
     fetchDepartments();
@@ -68,6 +69,11 @@ export function useDepartmentList() {
     setPage(1);
   }, []);
 
+  const setSubOrgId = useCallback((next: number | null) => {
+    setSubOrgIdState(next);
+    setPage(1);
+  }, []);
+
   const setPageSize = useCallback((next: number) => {
     setPageSizeState(next);
     setPage(1);
@@ -77,6 +83,7 @@ export function useDepartmentList() {
     setSearchInput('');
     setSearch('');
     setStatusState('all');
+    setSubOrgIdState(null);
     setPage(1);
   }, []);
 
@@ -96,6 +103,8 @@ export function useDepartmentList() {
     setSearchInput,
     status,
     setStatus,
+    subOrgId,
+    setSubOrgId,
     page,
     setPage,
     pageSize,
@@ -105,6 +114,6 @@ export function useDepartmentList() {
     refetch: fetchDepartments,
     clearFilters,
     updateDepartmentStatusLocally,
-    hasActiveFilters: Boolean(search) || status !== 'all',
+    hasActiveFilters: Boolean(search) || status !== 'all' || subOrgId !== null,
   };
 }

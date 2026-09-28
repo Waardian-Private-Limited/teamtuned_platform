@@ -2,6 +2,7 @@
 
 import { StatusPill } from '@/components/ui/StatusPill';
 import { cx, text } from '@/theme/tokens';
+import { SubOrgBadge } from '@/features/sub-organizations/components/SubOrgBadge';
 import type { Site } from '../../types/sites.model';
 import { formatCurrency } from '../../utils/format';
 import { SiteRowActions } from './SiteRowActions';
@@ -80,6 +81,7 @@ export function SiteTable({
                       HQ
                     </span>
                   )}
+                  <SubOrgBadge subOrgIds={site.subOrgIds} />
                 </div>
                 <div className={cx(text.caption, 'mt-0.5')}>
                   <span className="lg:hidden">{site.code}</span>

@@ -2,6 +2,7 @@
 
 import { CalendarRange, Plus, Search } from 'lucide-react';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { SubOrgFilter } from '@/features/sub-organizations/components/SubOrgFilter';
 import { POLICY_STATUS_FILTER_OPTIONS, type PolicyStatusFilter } from '../../constants/policies.constants';
 
 interface PoliciesToolbarProps {
@@ -11,13 +12,15 @@ interface PoliciesToolbarProps {
   onSearchChange: (value: string) => void;
   status: PolicyStatusFilter;
   onStatusChange: (value: PolicyStatusFilter) => void;
+  subOrgId: number | null;
+  onSubOrgChange: (value: number | null) => void;
   canAdd: boolean;
   onAdd: () => void;
   /** Omitted on mounts that have no leave-types route of their own. */
   onOpenLeaveTypes?: () => void;
 }
 
-export function PoliciesToolbar({ title, total, searchValue, onSearchChange, status, onStatusChange, canAdd, onAdd, onOpenLeaveTypes }: PoliciesToolbarProps) {
+export function PoliciesToolbar({ title, total, searchValue, onSearchChange, status, onStatusChange, subOrgId, onSubOrgChange, canAdd, onAdd, onOpenLeaveTypes }: PoliciesToolbarProps) {
   return (
     <div className="flex flex-col gap-2.5 rounded-xl border border-line bg-surface p-3 sm:p-3.5 lg:flex-row lg:items-center lg:justify-between lg:gap-4 2xl:p-4">
       <div className="flex items-center justify-between gap-3 lg:justify-start">
@@ -54,6 +57,8 @@ export function PoliciesToolbar({ title, total, searchValue, onSearchChange, sta
         <div className="w-full sm:w-auto sm:min-w-[280px] lg:min-w-[320px]">
           <SegmentedControl options={POLICY_STATUS_FILTER_OPTIONS} value={status} onChange={onStatusChange} />
         </div>
+
+        <SubOrgFilter value={subOrgId} onChange={onSubOrgChange} />
 
         {onOpenLeaveTypes && (
           <button

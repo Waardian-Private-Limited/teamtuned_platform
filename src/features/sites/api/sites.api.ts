@@ -12,6 +12,7 @@ interface ListParams {
   hq?: boolean;
   page?: number;
   pageSize?: number;
+  subOrgId?: number | null;
 }
 
 export interface SiteUpsertInput {
@@ -33,6 +34,7 @@ export interface SiteUpsertInput {
   latitude: number | null;
   longitude: number | null;
   radius_meters: number | null;
+  sub_org_ids?: number[];
 }
 
 export function listSites(params: ListParams = {}) {
@@ -45,6 +47,7 @@ export function listSites(params: ListParams = {}) {
       hq: params.hq ? '1' : undefined,
       page: params.page,
       pageSize: params.pageSize,
+      subOrgId: params.subOrgId ?? undefined,
     },
     { withAuth: true }
   );
@@ -127,6 +130,7 @@ export function siteToUpsertInput(form: {
   latitude: string;
   longitude: string;
   radiusMeters: string;
+  subOrgIds?: number[];
 }): SiteUpsertInput {
   const toNullableNumber = (value: string) => {
     const trimmed = value.trim();
@@ -155,6 +159,7 @@ export function siteToUpsertInput(form: {
     latitude,
     longitude,
     radius_meters: latitude !== null && longitude !== null ? toNullableNumber(form.radiusMeters) ?? 200 : null,
+    sub_org_ids: form.subOrgIds ?? [],
   };
 }
 

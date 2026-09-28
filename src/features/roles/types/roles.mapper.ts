@@ -35,6 +35,7 @@ export function toRole(dto: RoleDto): Role {
     departmentName: dto.department_name,
     description: dto.description,
     status: dto.status,
+    subOrganizationId: dto.sub_organization_id ?? null,
     permissions: dto.permissions || [],
     employeeCount: dto.employee_count,
     createdAt: dto.created_at,

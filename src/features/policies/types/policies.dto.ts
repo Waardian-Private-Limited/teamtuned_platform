@@ -17,6 +17,7 @@ export interface PolicyDto {
   status: PolicyStatus;
   is_default: boolean;
   current_version_id: number | null;
+  sub_organization_id: number | null;
   created_at?: string;
   updated_at?: string | null;
 }

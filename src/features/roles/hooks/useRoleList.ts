@@ -17,6 +17,7 @@ export function useRoleList() {
   const [search, setSearch] = useState('');
   const [status, setStatusState] = useState<RoleStatusFilter>('all');
   const [departmentId, setDepartmentIdState] = useState<number | null>(null);
+  const [subOrgId, setSubOrgIdState] = useState<number | null>(null);
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSizeState] = useState(DEFAULT_PAGE_SIZE);
@@ -35,7 +36,7 @@ export function useRoleList() {
     setIsFetching(true);
     setError('');
     try {
-      const dto = await rolesApi.listRoles({ search, status, departmentId, page, pageSize });
+      const dto = await rolesApi.listRoles({ search, status, departmentId, page, pageSize, subOrgId });
       const result = toRoleList(dto);
       setRoles(result.roles);
       setTotal(result.total);
@@ -48,7 +49,7 @@ export function useRoleList() {
       setIsInitialLoading(false);
       setIsFetching(false);
     }
-  }, [search, status, departmentId, page, pageSize]);
+  }, [search, status, departmentId, page, pageSize, subOrgId]);
 
   useEffect(() => {
     fetchRoles();
@@ -74,6 +75,11 @@ export function useRoleList() {
     setPage(1);
   }, []);
 
+  const setSubOrgId = useCallback((next: number | null) => {
+    setSubOrgIdState(next);
+    setPage(1);
+  }, []);
+
   const setPageSize = useCallback((next: number) => {
     setPageSizeState(next);
     setPage(1);
@@ -84,6 +90,7 @@ export function useRoleList() {
     setSearch('');
     setStatusState('all');
     setDepartmentIdState(null);
+    setSubOrgIdState(null);
     setPage(1);
   }, []);
 
@@ -103,6 +110,8 @@ export function useRoleList() {
     setStatus,
     departmentId,
     setDepartmentId,
+    subOrgId,
+    setSubOrgId,
     page,
     setPage,
     pageSize,
@@ -112,6 +121,6 @@ export function useRoleList() {
     refetch: fetchRoles,
     clearFilters,
     updateRoleStatusLocally,
-    hasActiveFilters: Boolean(search) || status !== 'all' || Boolean(departmentId),
+    hasActiveFilters: Boolean(search) || status !== 'all' || Boolean(departmentId) || subOrgId !== null,
   };
 }

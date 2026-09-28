@@ -12,6 +12,7 @@ import { SubOrganizationTable } from './components/SubOrganizationTable';
 import { SubOrganizationCardList } from './components/SubOrganizationCardList';
 import { SubOrganizationFormDialog } from './components/SubOrganizationFormDialog';
 import { SubOrganizationDeleteDialog } from './components/SubOrganizationDeleteDialog';
+import { ManageSubOrgAdminsDialog } from './components/ManageSubOrgAdminsDialog';
 import { SubOrganizationsEmptyState } from './components/SubOrganizationsEmptyState';
 import { SubOrganizationTableSkeleton } from './components/SubOrganizationTableSkeleton';
 import { SUB_ORG_PERMISSIONS } from '../constants/sub-organizations.constants';
@@ -30,6 +31,7 @@ export function SubOrganizationsPage() {
 
   const [formState, setFormState] = React.useState<{ mode: 'create' | 'edit'; subOrg?: SubOrganization } | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<SubOrganization | null>(null);
+  const [adminsTarget, setAdminsTarget] = React.useState<SubOrganization | null>(null);
 
   const closeForm = () => {
     setFormState(null);
@@ -58,6 +60,7 @@ export function SubOrganizationsPage() {
     onDelete: setDeleteTarget,
     onToggleStatus: mutations.toggleStatus,
     onSetPrimary: mutations.setPrimary,
+    onManageAdmins: setAdminsTarget,
   };
 
   return (
@@ -142,6 +145,12 @@ export function SubOrganizationsPage() {
         fieldError={mutations.fieldError}
         onClose={closeForm}
         onSubmit={submitForm}
+      />
+
+      <ManageSubOrgAdminsDialog
+        open={Boolean(adminsTarget)}
+        subOrg={adminsTarget}
+        onClose={() => setAdminsTarget(null)}
       />
 
       <SubOrganizationDeleteDialog

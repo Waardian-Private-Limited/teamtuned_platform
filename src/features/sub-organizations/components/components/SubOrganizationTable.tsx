@@ -22,6 +22,7 @@ export interface SubOrgRowProps {
   onDelete: (subOrg: SubOrganization) => void;
   onToggleStatus: (subOrg: SubOrganization) => void;
   onSetPrimary: (subOrg: SubOrganization) => void;
+  onManageAdmins: (subOrg: SubOrganization) => void;
 }
 
 export function SubOrganizationTable({
@@ -34,6 +35,7 @@ export function SubOrganizationTable({
   onDelete,
   onToggleStatus,
   onSetPrimary,
+  onManageAdmins,
 }: SubOrgRowProps) {
   return (
     <div className="h-full overflow-auto tt-scroll-hidden">
@@ -82,6 +84,7 @@ export function SubOrganizationTable({
                   onDelete={onDelete}
                   onToggleStatus={onToggleStatus}
                   onSetPrimary={onSetPrimary}
+                  onManageAdmins={onManageAdmins}
                   isToggling={togglingId === subOrg.id}
                   isSettingPrimary={settingPrimaryId === subOrg.id}
                 />

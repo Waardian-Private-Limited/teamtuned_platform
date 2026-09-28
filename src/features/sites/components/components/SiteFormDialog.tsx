@@ -5,6 +5,8 @@ import { Check, Loader2 } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { Dialog } from '@/components/ui/Dialog';
 import { lookupPincode } from '../../api/sites.api';
+import { SubOrgMultiPicker } from '@/features/sub-organizations/components/SubOrgMultiPicker';
+import { usePermission } from '@/lib/hooks/usePermission';
 import type { Site, SiteFormInput, SiteStatus } from '../../types/sites.model';
 import type { FieldError } from '../../hooks/useSiteMutations';
 
@@ -56,7 +58,9 @@ export function SiteFormDialog({
   const [latitude, setLatitude] = React.useState('');
   const [longitude, setLongitude] = React.useState('');
   const [radiusMeters, setRadiusMeters] = React.useState('200');
+  const [subOrgIds, setSubOrgIds] = React.useState<number[]>([]);
   const [pinLookingUp, setPinLookingUp] = React.useState(false);
+  const { isOrgAdmin } = usePermission();
   const pinLookupSeq = React.useRef(0);
 
   React.useEffect(() => {
@@ -79,6 +83,7 @@ export function SiteFormDialog({
     setLatitude(initial?.latitude != null ? String(initial.latitude) : '');
     setLongitude(initial?.longitude != null ? String(initial.longitude) : '');
     setRadiusMeters(initial?.radiusMeters != null ? String(initial.radiusMeters) : '200');
+    setSubOrgIds(initial?.subOrgIds ?? []);
   }, [open, initial]);
 
   const today = React.useMemo(() => {
@@ -124,6 +129,7 @@ export function SiteFormDialog({
       latitude,
       longitude,
       radiusMeters,
+      subOrgIds,
     });
   };
 
@@ -270,6 +276,13 @@ export function SiteFormDialog({
                 <div className="text-xs font-semibold text-fg">Inactive</div>
               </button>
             </div>
+          </div>
+        </div>
+
+        <div>
+          <h3 className={sectionTitleClass}>Sub-organizations</h3>
+          <div className="mt-2">
+            <SubOrgMultiPicker value={subOrgIds} onChange={setSubOrgIds} allowShared={isOrgAdmin} />
           </div>
         </div>
 

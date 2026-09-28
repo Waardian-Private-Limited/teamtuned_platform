@@ -2,6 +2,7 @@
 
 import { Plus, Search } from 'lucide-react';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { SubOrgFilter } from '@/features/sub-organizations/components/SubOrgFilter';
 import { SITE_STATUS_FILTER_OPTIONS, type SiteStatusFilter } from '../../constants/sites.constants';
 
 interface SitesToolbarProps {
@@ -10,6 +11,8 @@ interface SitesToolbarProps {
   onSearchChange: (value: string) => void;
   status: SiteStatusFilter;
   onStatusChange: (value: SiteStatusFilter) => void;
+  subOrgId: number | null;
+  onSubOrgChange: (value: number | null) => void;
   canAdd: boolean;
   onAdd: () => void;
 }
@@ -20,6 +23,8 @@ export function SitesToolbar({
   onSearchChange,
   status,
   onStatusChange,
+  subOrgId,
+  onSubOrgChange,
   canAdd,
   onAdd,
 }: SitesToolbarProps) {
@@ -59,6 +64,8 @@ export function SitesToolbar({
         <div className="w-full sm:w-44 md:w-48 lg:w-44 xl:w-48 2xl:w-56">
           <SegmentedControl options={SITE_STATUS_FILTER_OPTIONS} value={status} onChange={onStatusChange} />
         </div>
+
+        <SubOrgFilter value={subOrgId} onChange={onSubOrgChange} />
 
         {canAdd && (
           <button

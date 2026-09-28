@@ -1,6 +1,6 @@
 'use client';
 
-import { Power, SquarePen, Star, Trash2 } from 'lucide-react';
+import { Power, SquarePen, Star, Trash2, Users } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { Tooltip } from '@/components/ui/Tooltip';
 import type { SubOrganization } from '../../types/sub-organizations.model';
@@ -13,6 +13,7 @@ interface SubOrganizationRowActionsProps {
   onDelete: (subOrg: SubOrganization) => void;
   onToggleStatus: (subOrg: SubOrganization) => void;
   onSetPrimary: (subOrg: SubOrganization) => void;
+  onManageAdmins: (subOrg: SubOrganization) => void;
   isToggling?: boolean;
   isSettingPrimary?: boolean;
 }
@@ -28,6 +29,7 @@ export function SubOrganizationRowActions({
   onDelete,
   onToggleStatus,
   onSetPrimary,
+  onManageAdmins,
   isToggling = false,
   isSettingPrimary = false,
 }: SubOrganizationRowActionsProps) {
@@ -55,6 +57,17 @@ export function SubOrganizationRowActions({
 
       {canEdit && (
         <>
+          <Tooltip content="Manage admins">
+            <button
+              type="button"
+              onClick={() => onManageAdmins(subOrganization)}
+              aria-label="Manage sub-organization admins"
+              className={cx(iconButtonClass, 'hover:text-[var(--tt-primary)]')}
+            >
+              <Users className="h-4 w-4 2xl:h-4.5 2xl:w-4.5" />
+            </button>
+          </Tooltip>
+
           <Tooltip content="Edit Sub-Organization">
             <button
               type="button"

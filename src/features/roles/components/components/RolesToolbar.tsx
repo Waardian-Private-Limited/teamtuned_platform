@@ -3,6 +3,7 @@
 import { Plus, Search, Layers, ChevronDown } from 'lucide-react';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { SubOrgFilter } from '@/features/sub-organizations/components/SubOrgFilter';
 import { ROLE_STATUS_FILTER_OPTIONS, type RoleStatusFilter } from '../../constants/roles.constants';
 
 interface DepartmentOption {
@@ -19,6 +20,8 @@ interface RolesToolbarProps {
   departments: DepartmentOption[];
   departmentId: number | null;
   onDepartmentChange: (id: number | null) => void;
+  subOrgId: number | null;
+  onSubOrgChange: (id: number | null) => void;
   canAdd: boolean;
   onAdd: () => void;
   canBulk: boolean;
@@ -34,6 +37,8 @@ export function RolesToolbar({
   departments,
   departmentId,
   onDepartmentChange,
+  subOrgId,
+  onSubOrgChange,
   canAdd,
   onAdd,
   canBulk,
@@ -91,6 +96,8 @@ export function RolesToolbar({
         <div className="w-full sm:w-44 md:w-48 lg:w-44 xl:w-48 2xl:w-56">
           <SegmentedControl options={ROLE_STATUS_FILTER_OPTIONS} value={status} onChange={onStatusChange} />
         </div>
+
+        <SubOrgFilter value={subOrgId} onChange={onSubOrgChange} />
 
         {canBulk && (
           <Tooltip content="Apply permission sets to many roles at once">

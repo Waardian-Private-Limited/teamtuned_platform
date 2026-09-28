@@ -4,6 +4,8 @@ import React from 'react';
 import { Check } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { Dialog } from '@/components/ui/Dialog';
+import { SubOrgPicker } from '@/features/sub-organizations/components/SubOrgPicker';
+import { usePermission } from '@/lib/hooks/usePermission';
 import type { Department, DepartmentFormInput, DepartmentStatus } from '../../types/departments.model';
 import type { FieldError } from '../../hooks/useDepartmentMutations';
 
@@ -26,9 +28,11 @@ export function DepartmentFormDialog({
   onClose,
   onSubmit,
 }: DepartmentFormDialogProps) {
+  const { isOrgAdmin } = usePermission();
   const [name, setName] = React.useState('');
   const [description, setDescription] = React.useState('');
   const [status, setStatus] = React.useState<DepartmentStatus>('active');
+  const [subOrganizationId, setSubOrganizationId] = React.useState<number | null>(null);
 
   // Re-seed from `initial` every time the dialog opens
   React.useEffect(() => {
@@ -36,11 +40,12 @@ export function DepartmentFormDialog({
     setName(initial?.name ?? '');
     setDescription(initial?.description ?? '');
     setStatus(initial?.status ?? 'active');
+    setSubOrganizationId(initial?.subOrganizationId ?? null);
   }, [open, initial]);
 
   const submit = () => {
     if (!name.trim()) return;
-    onSubmit({ name: name.trim(), description: description.trim(), status });
+    onSubmit({ name: name.trim(), description: description.trim(), status, subOrganizationId });
   };
 
   const titleNode = (
@@ -132,6 +137,9 @@ export function DepartmentFormDialog({
             className="w-full resize-none rounded-lg border border-line bg-surface p-3 text-xs text-fg placeholder:text-fg-subtle outline-none transition-colors focus:border-[var(--tt-primary)] focus:ring-1 focus:ring-[var(--tt-primary)] sm:text-sm"
           />
         </div>
+
+        {/* Sub-organization */}
+        <SubOrgPicker value={subOrganizationId} onChange={setSubOrganizationId} allowShared={isOrgAdmin} />
 
         {/* Status Option Cards */}
         <div>

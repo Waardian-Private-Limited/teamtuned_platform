@@ -17,6 +17,7 @@ export function useSiteList() {
   const [search, setSearch] = useState('');
   const [status, setStatusState] = useState<SiteStatusFilter>('all');
   const [city, setCityState] = useState('');
+  const [subOrgId, setSubOrgIdState] = useState<number | null>(null);
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSizeState] = useState(DEFAULT_PAGE_SIZE);
@@ -41,6 +42,7 @@ export function useSiteList() {
         page,
         pageSize,
         city: city || undefined,
+        subOrgId,
       });
       const result = toSiteList(dto);
       setSites(result.sites);
@@ -54,7 +56,7 @@ export function useSiteList() {
       setIsInitialLoading(false);
       setIsFetching(false);
     }
-  }, [search, status, page, pageSize, city]);
+  }, [search, status, page, pageSize, city, subOrgId]);
 
   useEffect(() => {
     fetchSites();
@@ -78,6 +80,11 @@ export function useSiteList() {
     setPage(1);
   }, []);
 
+  const setSubOrgId = useCallback((next: number | null) => {
+    setSubOrgIdState(next);
+    setPage(1);
+  }, []);
+
   const setPageSize = useCallback((next: number) => {
     setPageSizeState(next);
     setPage(1);
@@ -88,6 +95,7 @@ export function useSiteList() {
     setSearch('');
     setStatusState('all');
     setCityState('');
+    setSubOrgIdState(null);
     setPage(1);
   }, []);
 
@@ -107,6 +115,8 @@ export function useSiteList() {
     setStatus,
     city,
     setCity,
+    subOrgId,
+    setSubOrgId,
     page,
     setPage,
     pageSize,
@@ -116,6 +126,6 @@ export function useSiteList() {
     refetch: fetchSites,
     clearFilters,
     updateSiteStatusLocally,
-    hasActiveFilters: Boolean(search) || status !== 'all' || Boolean(city),
+    hasActiveFilters: Boolean(search) || status !== 'all' || Boolean(city) || subOrgId !== null,
   };
 }

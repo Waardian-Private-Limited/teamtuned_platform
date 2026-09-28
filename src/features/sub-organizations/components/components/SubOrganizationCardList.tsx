@@ -16,6 +16,7 @@ export function SubOrganizationCardList({
   onDelete,
   onToggleStatus,
   onSetPrimary,
+  onManageAdmins,
 }: SubOrgRowProps) {
   return (
     <>
@@ -52,6 +53,7 @@ export function SubOrganizationCardList({
               onDelete={onDelete}
               onToggleStatus={onToggleStatus}
               onSetPrimary={onSetPrimary}
+              onManageAdmins={onManageAdmins}
               isToggling={togglingId === subOrg.id}
               isSettingPrimary={settingPrimaryId === subOrg.id}
             />

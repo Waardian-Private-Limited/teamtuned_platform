@@ -30,6 +30,49 @@ export function listActiveSubOrganizations() {
   );
 }
 
+// Sub-orgs the current user may act in — powers create-form pickers. OrgAdmin
+// gets every active sub-org; a scoped user gets only their assigned ones.
+export function listManageableSubOrganizations() {
+  return apiClient.get<{ sub_organizations: SubOrganizationDto[] }>(
+    '/sub-organizations/manageable',
+    undefined,
+    { withAuth: true }
+  );
+}
+
+export interface SubOrgAdminDto {
+  user_id: number;
+  name: string;
+  email: string;
+  assigned_at: string;
+}
+
+export interface SubOrgAdminCandidateDto {
+  user_id: number;
+  name: string;
+  email: string;
+}
+
+export function listSubOrgAdminCandidates(search?: string) {
+  return apiClient.get<{ candidates: SubOrgAdminCandidateDto[] }>(
+    '/sub-organizations/admin-candidates',
+    { search: search || undefined },
+    { withAuth: true }
+  );
+}
+
+export function listSubOrgAdmins(id: number) {
+  return apiClient.get<{ admins: SubOrgAdminDto[] }>(`/sub-organizations/${id}/admins`, undefined, { withAuth: true });
+}
+
+export function assignSubOrgAdmin(id: number, userId: number) {
+  return apiClient.post<{ assigned: boolean }>(`/sub-organizations/${id}/admins`, { userId }, { withAuth: true });
+}
+
+export function removeSubOrgAdmin(id: number, userId: number) {
+  return apiClient.delete<{ removed: boolean }>(`/sub-organizations/${id}/admins/${userId}`, { withAuth: true });
+}
+
 function toBody(input: SubOrganizationFormInput) {
   return {
     name: input.name.trim(),

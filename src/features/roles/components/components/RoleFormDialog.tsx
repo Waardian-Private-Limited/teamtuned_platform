@@ -4,6 +4,8 @@ import React from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { Dialog } from '@/components/ui/Dialog';
+import { SubOrgPicker } from '@/features/sub-organizations/components/SubOrgPicker';
+import { usePermission } from '@/lib/hooks/usePermission';
 import type { Role, RoleFormInput, RoleStatus, PermissionCategory } from '../../types/roles.model';
 import type { FieldError } from '../../hooks/useRoleMutations';
 import { PermissionTree } from './PermissionTree';
@@ -41,10 +43,12 @@ export function RoleFormDialog({
   onClose,
   onSubmit,
 }: RoleFormDialogProps) {
+  const { isOrgAdmin } = usePermission();
   const [name, setName] = React.useState('');
   const [departmentId, setDepartmentId] = React.useState<number | null>(null);
   const [description, setDescription] = React.useState('');
   const [status, setStatus] = React.useState<RoleStatus>('active');
+  const [subOrganizationId, setSubOrganizationId] = React.useState<number | null>(null);
   const [selectedPerms, setSelectedPerms] = React.useState<Set<string>>(new Set());
 
   React.useEffect(() => {
@@ -53,12 +57,13 @@ export function RoleFormDialog({
     setDepartmentId(initial?.departmentId ?? null);
     setDescription(initial?.description ?? '');
     setStatus(initial?.status ?? 'active');
+    setSubOrganizationId(initial?.subOrganizationId ?? null);
     setSelectedPerms(new Set(initial?.permissions ?? []));
   }, [open, initial]);
 
   const submit = () => {
     if (!name.trim()) return;
-    onSubmit({ name: name.trim(), departmentId, description: description.trim(), status, permissions: Array.from(selectedPerms) });
+    onSubmit({ name: name.trim(), departmentId, description: description.trim(), status, subOrganizationId, permissions: Array.from(selectedPerms) });
   };
 
   const titleNode = (
@@ -129,6 +134,8 @@ export function RoleFormDialog({
             <p className="mt-1 text-[11px] text-fg-muted">Must be unique within your organization.</p>
           )}
         </div>
+
+        <SubOrgPicker value={subOrganizationId} onChange={setSubOrganizationId} allowShared={isOrgAdmin} />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>

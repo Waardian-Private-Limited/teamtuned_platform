@@ -20,6 +20,7 @@ export interface SiteDto {
   latitude: string | number | null;
   longitude: string | number | null;
   radius_meters: number | null;
+  sub_org_ids?: number[];
   created_at?: string | null;
   updated_at?: string | null;
 }

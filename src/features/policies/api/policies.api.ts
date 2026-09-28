@@ -19,6 +19,7 @@ import type {
 interface ListPoliciesParams {
   search?: string;
   status?: string;
+  subOrgId?: number | null;
 }
 
 interface PolicyInput {
@@ -27,6 +28,7 @@ interface PolicyInput {
   description?: string;
   config?: PolicyConfig;
   effectiveFrom?: string;
+  subOrganizationId?: number | null;
 }
 
 interface PolicyDraftInput {
@@ -50,7 +52,7 @@ export function getPolicySchema() {
 export function listPolicies(params: ListPoliciesParams = {}) {
   return apiClient.get<PolicyListResponseDto>(
     '/policies',
-    { search: params.search || undefined, status: params.status && params.status !== 'all' ? params.status : undefined },
+    { search: params.search || undefined, status: params.status && params.status !== 'all' ? params.status : undefined, subOrgId: params.subOrgId ?? undefined },
     { withAuth: true }
   );
 }
@@ -60,7 +62,8 @@ export function getPolicy(id: number) {
 }
 
 export function createPolicy(input: PolicyInput) {
-  return apiClient.post<PolicyDetailDto>('/policies', input, { withAuth: true });
+  const { subOrganizationId, ...rest } = input;
+  return apiClient.post<PolicyDetailDto>('/policies', { ...rest, sub_organization_id: subOrganizationId ?? null }, { withAuth: true });
 }
 
 export function updatePolicyDraft(id: number, input: PolicyDraftInput) {

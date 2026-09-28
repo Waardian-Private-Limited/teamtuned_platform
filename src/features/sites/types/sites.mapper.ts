@@ -35,6 +35,7 @@ export function toSite(dto: SiteDto): Site {
     latitude: toNumber(dto.latitude),
     longitude: toNumber(dto.longitude),
     radiusMeters: dto.radius_meters ?? null,
+    subOrgIds: dto.sub_org_ids ?? [],
     createdAt: dto.created_at ?? null,
     updatedAt: dto.updated_at ?? null,
   };

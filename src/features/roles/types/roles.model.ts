@@ -11,6 +11,7 @@ export interface Role {
   departmentName: string | null;
   description: string | null;
   status: RoleStatus;
+  subOrganizationId: number | null;
   permissions: string[];
   employeeCount: number;
   createdAt?: string;
@@ -65,6 +66,7 @@ export interface RoleFormInput {
   departmentId: number | null;
   description: string;
   status: RoleStatus;
+  subOrganizationId: number | null;
   permissions: string[];
 }
 

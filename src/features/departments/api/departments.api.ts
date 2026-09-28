@@ -11,12 +11,23 @@ interface ListParams {
   status?: string;
   page?: number;
   pageSize?: number;
+  subOrgId?: number | null;
 }
 
 interface DepartmentInput {
   name: string;
   description: string;
   status: string;
+  subOrganizationId?: number | null;
+}
+
+function toBody(input: DepartmentInput) {
+  return {
+    name: input.name,
+    description: input.description,
+    status: input.status,
+    sub_organization_id: input.subOrganizationId ?? null,
+  };
 }
 
 export function listDepartments(params: ListParams = {}) {
@@ -27,17 +38,18 @@ export function listDepartments(params: ListParams = {}) {
       status: params.status && params.status !== 'all' ? params.status : undefined,
       page: params.page,
       pageSize: params.pageSize,
+      subOrgId: params.subOrgId ?? undefined,
     },
     { withAuth: true }
   );
 }
 
 export function createDepartment(input: DepartmentInput) {
-  return apiClient.post<DepartmentDto>('/departments', input, { withAuth: true });
+  return apiClient.post<DepartmentDto>('/departments', toBody(input), { withAuth: true });
 }
 
 export function updateDepartment(id: number, input: DepartmentInput) {
-  return apiClient.put<DepartmentDto>(`/departments/${id}`, input, { withAuth: true });
+  return apiClient.put<DepartmentDto>(`/departments/${id}`, toBody(input), { withAuth: true });
 }
 
 export function updateDepartmentStatus(id: number, status: string) {

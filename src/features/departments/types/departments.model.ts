@@ -8,6 +8,7 @@ export interface Department {
   name: string;
   description: string | null;
   status: DepartmentStatus;
+  subOrganizationId: number | null;
   createdAt?: string;
   updatedAt?: string | null;
   orgWideHeadName: string | null;
@@ -53,4 +54,5 @@ export interface DepartmentFormInput {
   name: string;
   description: string;
   status: DepartmentStatus;
+  subOrganizationId: number | null;
 }

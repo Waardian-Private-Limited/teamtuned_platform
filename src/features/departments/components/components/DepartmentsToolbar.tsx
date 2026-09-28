@@ -2,6 +2,7 @@
 
 import { Plus, Search } from 'lucide-react';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { SubOrgFilter } from '@/features/sub-organizations/components/SubOrgFilter';
 import { DEPARTMENT_STATUS_FILTER_OPTIONS, type DepartmentStatusFilter } from '../../constants/departments.constants';
 
 interface DepartmentsToolbarProps {
@@ -10,6 +11,8 @@ interface DepartmentsToolbarProps {
   onSearchChange: (value: string) => void;
   status: DepartmentStatusFilter;
   onStatusChange: (value: DepartmentStatusFilter) => void;
+  subOrgId: number | null;
+  onSubOrgChange: (value: number | null) => void;
   canAdd: boolean;
   onAdd: () => void;
 }
@@ -20,6 +23,8 @@ export function DepartmentsToolbar({
   onSearchChange,
   status,
   onStatusChange,
+  subOrgId,
+  onSubOrgChange,
   canAdd,
   onAdd,
 }: DepartmentsToolbarProps) {
@@ -64,6 +69,8 @@ export function DepartmentsToolbar({
         <div className="w-full sm:w-44 md:w-48 lg:w-44 xl:w-48 2xl:w-56">
           <SegmentedControl options={DEPARTMENT_STATUS_FILTER_OPTIONS} value={status} onChange={onStatusChange} />
         </div>
+
+        <SubOrgFilter value={subOrgId} onChange={onSubOrgChange} />
 
         {/* Tablet & Desktop Add button */}
         {canAdd && (

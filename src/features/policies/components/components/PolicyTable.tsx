@@ -2,6 +2,7 @@
 
 import { StatusPill } from '@/components/ui/StatusPill';
 import { cx, text } from '@/theme/tokens';
+import { SubOrgBadge } from '@/features/sub-organizations/components/SubOrgBadge';
 import type { Policy } from '../../types/policies.model';
 import { PolicyRowActions } from './PolicyRowActions';
 
@@ -37,9 +38,12 @@ export function PolicyTable({ policies, canEdit, canAdd, canDelete, onEdit, onCl
           {policies.map((policy) => (
             <tr key={policy.id} className="transition-colors hover:bg-bg-subtle/50">
               <td className="border-b border-line/60 px-3.5 py-2.5 sm:px-4 sm:py-3 lg:px-5 lg:py-3.5 2xl:px-6 2xl:py-4">
-                <button type="button" onClick={() => onEdit(policy)} className="text-left text-xs sm:text-sm 2xl:text-base font-semibold text-fg hover:text-[var(--tt-primary)] hover:underline">
-                  {policy.name}
-                </button>
+                <span className="inline-flex items-center gap-2">
+                  <button type="button" onClick={() => onEdit(policy)} className="text-left text-xs sm:text-sm 2xl:text-base font-semibold text-fg hover:text-[var(--tt-primary)] hover:underline">
+                    {policy.name}
+                  </button>
+                  <SubOrgBadge subOrgId={policy.subOrganizationId} />
+                </span>
                 {policy.description && (
                   <div className={cx(text.caption, 'mt-0.5 max-w-xs truncate sm:max-w-sm lg:max-w-md 2xl:max-w-xl 2xl:text-sm')}>
                     {policy.description}

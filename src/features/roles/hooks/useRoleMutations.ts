@@ -48,7 +48,7 @@ export function useRoleMutations(
     if (nameError) throw new FieldValidationError('name', nameError);
 
     await rolesApi
-      .createRole({ name: input.name.trim(), departmentId: input.departmentId, description: input.description.trim(), status: input.status, permissions: input.permissions })
+      .createRole({ name: input.name.trim(), departmentId: input.departmentId, description: input.description.trim(), status: input.status, permissions: input.permissions, subOrganizationId: input.subOrganizationId })
       .catch((err: unknown) => asFieldError(err, 'name', [409]));
 
     await refetch();
@@ -59,7 +59,7 @@ export function useRoleMutations(
     if (nameError) throw new FieldValidationError('name', nameError);
 
     await rolesApi
-      .updateRole(id, { name: input.name.trim(), departmentId: input.departmentId, description: input.description.trim(), status: input.status, permissions: input.permissions })
+      .updateRole(id, { name: input.name.trim(), departmentId: input.departmentId, description: input.description.trim(), status: input.status, permissions: input.permissions, subOrganizationId: input.subOrganizationId })
       .catch((err: unknown) => asFieldError(err, 'name', [409]));
 
     await refetch();

@@ -28,6 +28,7 @@ export function toPolicy(dto: PolicyDto): Policy {
     status: dto.status,
     isDefault: dto.is_default,
     currentVersionId: dto.current_version_id,
+    subOrganizationId: dto.sub_organization_id ?? null,
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
   };

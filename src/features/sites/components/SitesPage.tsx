@@ -77,6 +77,8 @@ export function SitesPage() {
         onSearchChange={list.setSearchInput}
         status={list.status}
         onStatusChange={list.setStatus}
+        subOrgId={list.subOrgId}
+        onSubOrgChange={list.setSubOrgId}
         canAdd={perms.canAdd}
         onAdd={openCreate}
       />

@@ -48,7 +48,7 @@ export function useDepartmentMutations(
     if (nameError) throw new FieldValidationError('name', nameError);
 
     await departmentsApi
-      .createDepartment({ name: input.name.trim(), description: input.description.trim(), status: input.status })
+      .createDepartment({ name: input.name.trim(), description: input.description.trim(), status: input.status, subOrganizationId: input.subOrganizationId })
       .catch((err: unknown) => asFieldError(err, 'name', [409]));
 
     await refetch();
@@ -59,7 +59,7 @@ export function useDepartmentMutations(
     if (nameError) throw new FieldValidationError('name', nameError);
 
     await departmentsApi
-      .updateDepartment(id, { name: input.name.trim(), description: input.description.trim(), status: input.status })
+      .updateDepartment(id, { name: input.name.trim(), description: input.description.trim(), status: input.status, subOrganizationId: input.subOrganizationId })
       .catch((err: unknown) => asFieldError(err, 'name', [409]));
 
     await refetch();

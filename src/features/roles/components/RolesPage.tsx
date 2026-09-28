@@ -114,6 +114,8 @@ export function RolesPage() {
         departments={departments}
         departmentId={list.departmentId}
         onDepartmentChange={list.setDepartmentId}
+        subOrgId={list.subOrgId}
+        onSubOrgChange={list.setSubOrgId}
         canAdd={perms.canAdd}
         onAdd={openCreate}
         canBulk={perms.canEdit}

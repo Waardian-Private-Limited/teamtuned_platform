@@ -16,6 +16,7 @@ export function usePolicyList() {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<PolicyStatusFilter>('all');
+  const [subOrgId, setSubOrgIdState] = useState<number | null>(null);
 
   const inFlightRef = useRef(false);
   const hasLoadedRef = useRef(false);
@@ -27,7 +28,7 @@ export function usePolicyList() {
     setIsFetching(true);
     setError('');
     try {
-      const dto = await policiesApi.listPolicies({ search, status });
+      const dto = await policiesApi.listPolicies({ search, status, subOrgId });
       const result = toPolicyList(dto);
       setPolicies(result.policies);
       hasLoadedRef.current = true;
@@ -38,7 +39,7 @@ export function usePolicyList() {
       setIsInitialLoading(false);
       setIsFetching(false);
     }
-  }, [search, status]);
+  }, [search, status, subOrgId]);
 
   useEffect(() => {
     fetchPolicies();
@@ -49,10 +50,15 @@ export function usePolicyList() {
     return () => clearTimeout(timeout);
   }, [searchInput]);
 
+  const setSubOrgId = useCallback((next: number | null) => {
+    setSubOrgIdState(next);
+  }, []);
+
   const clearFilters = useCallback(() => {
     setSearchInput('');
     setSearch('');
     setStatus('all');
+    setSubOrgIdState(null);
   }, []);
 
   const updatePolicyStatusLocally = useCallback((id: number, nextStatus: Policy['status']) => {
@@ -69,9 +75,11 @@ export function usePolicyList() {
     setSearchInput,
     status,
     setStatus,
+    subOrgId,
+    setSubOrgId,
     refetch: fetchPolicies,
     clearFilters,
     updatePolicyStatusLocally,
-    hasActiveFilters: Boolean(search) || status !== 'all',
+    hasActiveFilters: Boolean(search) || status !== 'all' || subOrgId !== null,
   };
 }

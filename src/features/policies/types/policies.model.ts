@@ -17,6 +17,7 @@ export interface Policy {
   status: PolicyStatus;
   isDefault: boolean;
   currentVersionId: number | null;
+  subOrganizationId: number | null;
   createdAt?: string;
   updatedAt?: string | null;
 }
@@ -107,6 +108,7 @@ export interface PolicyFormInput {
   description: string;
   config?: PolicyConfig;
   effectiveFrom?: string;
+  subOrganizationId: number | null;
 }
 
 export interface LeaveTypeFormInput {

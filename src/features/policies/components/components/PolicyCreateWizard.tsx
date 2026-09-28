@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { Dialog } from '@/components/ui/Dialog';
+import { SubOrgPicker } from '@/features/sub-organizations/components/SubOrgPicker';
+import { usePermission } from '@/lib/hooks/usePermission';
 import { usePolicySchema } from '../../hooks/usePolicySchema';
 import { useLeaveTypeList } from '../../hooks/useLeaveTypeList';
 import { POLICY_SECTIONS, type PolicySectionKey } from '../../constants/policies.constants';
@@ -68,7 +70,9 @@ export function PolicyCreateWizard({ open, isSaving, fieldError, onClose, onSubm
   const [description, setDescription] = React.useState('');
   const [effectiveFrom, setEffectiveFrom] = React.useState(() => new Date().toISOString().slice(0, 10));
   const [config, setConfig] = React.useState<Record<string, unknown>>({});
+  const [subOrganizationId, setSubOrganizationId] = React.useState<number | null>(null);
   const [nameTouched, setNameTouched] = React.useState(false);
+  const { isOrgAdmin } = usePermission();
 
   const defaults = React.useMemo(() => {
     if (!schema) return null;
@@ -118,6 +122,7 @@ export function PolicyCreateWizard({ open, isSaving, fieldError, onClose, onSubm
       description: description.trim(),
       effectiveFrom,
       config: config as PolicyConfig,
+      subOrganizationId,
     };
     onSubmit(payload);
   };
@@ -313,6 +318,8 @@ export function PolicyCreateWizard({ open, isSaving, fieldError, onClose, onSubm
                 />
               </div>
             </div>
+
+            <SubOrgPicker value={subOrganizationId} onChange={setSubOrganizationId} allowShared={isOrgAdmin} />
 
             <div>
               <div className="mb-1.5 flex items-center justify-between">
