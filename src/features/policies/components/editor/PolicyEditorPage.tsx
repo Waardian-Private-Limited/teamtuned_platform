@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, CalendarDays, Rocket, SquarePen } from 'lucide-react';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Alert } from '@/components/ui/Alert';
+import { SubOrgBadge } from '@/features/sub-organizations/components/SubOrgBadge';
 import { usePermission } from '@/lib/hooks/usePermission';
 import { usePoliciesBasePath } from '../../hooks/usePoliciesBasePath';
 import { usePolicyDetail } from '../../hooks/usePolicyDetail';
@@ -72,6 +73,7 @@ export function PolicyEditorPage({ policyId }: { policyId: number }) {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base font-bold tracking-tight text-fg sm:text-lg">{policy.name}</h1>
+              <SubOrgBadge subOrgId={policy.subOrganizationId} />
               <StatusPill label={policy.status} tone={policy.status === 'active' ? 'active' : 'inactive'} />
             </div>
             <p className="mt-0.5 text-xs text-fg-muted">

@@ -14,6 +14,10 @@ import type { useComponentMutations } from '../../hooks/useComponentMutations';
 import type { SalaryComponent, ComponentFormInput } from '../../types/payroll-setup.model';
 import { STATUS_FILTER_OPTIONS, COMPONENT_TYPES } from '../../constants/payroll-setup.constants';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { SubOrgFilter } from '@/features/sub-organizations/components/SubOrgFilter';
+import { SubOrgBadge } from '@/features/sub-organizations/components/SubOrgBadge';
+import { SubOrgPicker } from '@/features/sub-organizations/components/SubOrgPicker';
+import { usePermission } from '@/lib/hooks/usePermission';
 
 interface ComponentsTabProps {
   list: ReturnType<typeof useComponentList>;
@@ -70,6 +74,7 @@ export function ComponentsTab({
           <option value="credit">Earnings</option>
           <option value="debit">Deductions</option>
         </select>
+        <SubOrgFilter value={list.subOrgId} onChange={list.setSubOrgId} />
         <div className="flex items-center gap-2 sm:ml-auto">
           {perms.canEdit && list.components.length > 1 && (
             <button
@@ -162,7 +167,10 @@ export function ComponentsTab({
                   {list.components.map((component) => (
                     <tr key={component.id} className="transition-colors hover:bg-bg-subtle/50">
                       <td className="border-b border-line/60 px-3.5 py-2.5 sm:px-4 sm:py-3">
-                        <div className="text-xs sm:text-sm font-semibold text-fg">{component.name}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs sm:text-sm font-semibold text-fg">{component.name}</span>
+                          <SubOrgBadge subOrgId={component.subOrganizationId} />
+                        </div>
                         {component.description && <div className={cx(text.caption, 'mt-0.5 max-w-md truncate')}>{component.description}</div>}
                       </td>
                       <td className="border-b border-line/60 px-3.5 py-2.5 sm:px-4 sm:py-3">
@@ -230,8 +238,9 @@ export function ComponentsTab({
                 <div key={component.id} className="rounded-xl border border-line bg-surface p-3 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="font-semibold text-xs text-fg flex items-center gap-1.5">
+                      <div className="font-semibold text-xs text-fg flex items-center flex-wrap gap-1.5">
                         <span>{component.name}</span>
+                        <SubOrgBadge subOrgId={component.subOrganizationId} />
                         <span
                           className={cx(
                             'inline-flex rounded-full px-1.5 py-0.2 text-[9px] font-semibold',
@@ -386,6 +395,7 @@ function ComponentFormDialog({
   onClose: () => void;
   onSubmit: (input: ComponentFormInput) => void;
 }) {
+  const { isOrgAdmin } = usePermission();
   const [name, setName] = React.useState('');
   const [type, setType] = React.useState<'credit' | 'debit'>('credit');
   const [description, setDescription] = React.useState('');
@@ -394,6 +404,7 @@ function ComponentFormDialog({
   const [percentageValue, setPercentageValue] = React.useState('');
   const [percentageBasis, setPercentageBasis] = React.useState<'basic' | 'gross' | 'component'>('gross');
   const [basisComponentId, setBasisComponentId] = React.useState<number | null>(null);
+  const [subOrganizationId, setSubOrganizationId] = React.useState<number | null>(null);
 
   const isEdit = mode === 'edit';
 
@@ -413,6 +424,7 @@ function ComponentFormDialog({
     setPercentageValue(initial?.percentageValue !== null && initial?.percentageValue !== undefined ? String(initial.percentageValue) : '');
     setPercentageBasis(initial?.percentageBasis ?? 'gross');
     setBasisComponentId(initial?.basisComponentId ?? null);
+    setSubOrganizationId(initial?.subOrganizationId ?? null);
   }, [open, initial, nextSeqOrder]);
 
   const parsedOrder = parseInt(displayOrder, 10);
@@ -433,6 +445,7 @@ function ComponentFormDialog({
       percentageValue: calculationType === 'percentage' ? percentageValue : '',
       percentageBasis,
       basisComponentId: calculationType === 'percentage' && percentageBasis === 'component' ? basisComponentId : null,
+      subOrganizationId,
     });
   };
 
@@ -629,6 +642,9 @@ function ComponentFormDialog({
             className="w-full resize-none rounded-lg border border-line bg-surface p-3 text-xs text-fg placeholder:text-fg-subtle outline-none transition-colors focus:border-[var(--tt-primary)] focus:ring-1 focus:ring-[var(--tt-primary)] sm:text-sm"
           />
         </div>
+
+        {/* Sub-organization */}
+        <SubOrgPicker value={subOrganizationId} onChange={setSubOrganizationId} allowShared={isOrgAdmin} />
 
         <div>
           <div className="mb-1.5 flex items-center justify-between">

@@ -37,6 +37,7 @@ interface PolicyDraftInput {
   config?: PolicyConfig;
   effectiveFrom?: string;
   changeNote?: string;
+  subOrganizationId?: number | null;
 }
 
 // --- Schema ---
@@ -67,11 +68,21 @@ export function createPolicy(input: PolicyInput) {
 }
 
 export function updatePolicyDraft(id: number, input: PolicyDraftInput) {
-  return apiClient.put<PolicyDetailDto>(`/policies/${id}`, input, { withAuth: true });
+  const { subOrganizationId, ...rest } = input;
+  const payload = subOrganizationId !== undefined ? { ...rest, sub_organization_id: subOrganizationId } : rest;
+  return apiClient.put<PolicyDetailDto>(`/policies/${id}`, payload, { withAuth: true });
 }
 
-export function clonePolicy(id: number, name?: string, code?: string) {
-  return apiClient.post<PolicyDetailDto>(`/policies/${id}/clone`, { name, code }, { withAuth: true });
+export function clonePolicy(id: number, name?: string, code?: string, subOrganizationId?: number | null) {
+  return apiClient.post<PolicyDetailDto>(
+    `/policies/${id}/clone`,
+    {
+      name,
+      code,
+      ...(subOrganizationId !== undefined ? { sub_organization_id: subOrganizationId } : {}),
+    },
+    { withAuth: true }
+  );
 }
 
 export function updatePolicyStatus(id: number, status: string) {

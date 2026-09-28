@@ -17,6 +17,7 @@ export function useDebitList() {
   const [search, setSearch] = useState('');
   const [status, setStatusState] = useState<StatusFilter>('all');
   const [category, setCategoryState] = useState<string>('all');
+  const [subOrgId, setSubOrgIdState] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSizeState] = useState(DEFAULT_PAGE_SIZE);
   const [total, setTotal] = useState(0);
@@ -29,7 +30,7 @@ export function useDebitList() {
     setIsFetching(true);
     setError('');
     try {
-      const dto = await api.listDebitRules({ search, status, category, page, pageSize });
+      const dto = await api.listDebitRules({ search, status, category, subOrgId, page, pageSize });
       const result = toDebitList(dto);
       setDebits(result.debits);
       setTotal(result.total);
@@ -41,7 +42,7 @@ export function useDebitList() {
       setIsInitialLoading(false);
       setIsFetching(false);
     }
-  }, [search, status, category, page, pageSize]);
+  }, [search, status, category, subOrgId, page, pageSize]);
 
   useEffect(() => {
     fetchDebits();
@@ -57,6 +58,7 @@ export function useDebitList() {
 
   const setStatus = useCallback((v: StatusFilter) => { setStatusState(v); setPage(1); }, []);
   const setCategory = useCallback((v: string) => { setCategoryState(v); setPage(1); }, []);
+  const setSubOrgId = useCallback((v: number | null) => { setSubOrgIdState(v); setPage(1); }, []);
   const setPageSize = useCallback((v: number) => { setPageSizeState(v); setPage(1); }, []);
 
   const clearFilters = useCallback(() => {
@@ -64,6 +66,7 @@ export function useDebitList() {
     setSearch('');
     setStatusState('all');
     setCategoryState('all');
+    setSubOrgIdState(null);
     setPage(1);
   }, []);
 
@@ -78,6 +81,8 @@ export function useDebitList() {
     setStatus,
     category,
     setCategory,
+    subOrgId,
+    setSubOrgId,
     page,
     setPage,
     pageSize,
@@ -86,6 +91,6 @@ export function useDebitList() {
     totalPages,
     refetch: fetchDebits,
     clearFilters,
-    hasActiveFilters: Boolean(search) || status !== 'all' || category !== 'all',
+    hasActiveFilters: Boolean(search) || status !== 'all' || category !== 'all' || subOrgId !== null,
   };
 }

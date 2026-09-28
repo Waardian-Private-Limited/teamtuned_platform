@@ -13,6 +13,7 @@ export interface SalaryComponent {
   percentageValue: number | null;
   percentageBasis: 'basic' | 'gross' | 'component' | null;
   basisComponentId: number | null;
+  subOrganizationId: number | null;
 }
 
 export interface ComponentFormInput {
@@ -25,6 +26,7 @@ export interface ComponentFormInput {
   percentageValue: string;
   percentageBasis: 'basic' | 'gross' | 'component';
   basisComponentId: number | null;
+  subOrganizationId?: number | null;
 }
 
 export interface DebitRule {
@@ -34,6 +36,7 @@ export interface DebitRule {
   status: Status;
   category: string;
   isStatutory: boolean;
+  subOrganizationId: number | null;
   frequency: 'monthly' | 'selected_months' | 'one_time';
   applicableMonths: number[] | null;
   oneTimeMonth: string | null;
@@ -64,6 +67,7 @@ export interface DebitFormInput {
   name: string;
   description: string;
   category: string;
+  subOrganizationId?: number | null;
   frequency: 'monthly' | 'selected_months' | 'one_time';
   applicableMonths: number[];
   oneTimeMonth: string;

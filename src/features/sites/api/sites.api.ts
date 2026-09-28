@@ -164,18 +164,62 @@ export function siteToUpsertInput(form: {
 }
 
 export async function lookupPincode(pincode: string): Promise<{ city: string; state: string } | null> {
+  const pin = String(pincode || '').trim();
+  if (!/^\d{6}$/.test(pin)) return null;
+
+  // 1. Try backend proxy
   try {
-    const res = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
-    const data = await res.json();
-    const entry = Array.isArray(data) ? data[0] : null;
-    if (entry?.Status === 'Success' && entry?.PostOffice?.[0]) {
-      return {
-        city: entry.PostOffice[0].District || '',
-        state: entry.PostOffice[0].State || '',
-      };
+    const res = await apiClient.get<{ success?: boolean; data?: { city: string; state: string } | null }>(
+      `/sites/pincode/${pin}`,
+      {},
+      { withAuth: true }
+    );
+    if (res?.data) {
+      return res.data;
     }
   } catch {
-    return null;
+    // Fall back to direct requests
   }
+
+  // 2. Direct client fallback to postalpincode.in (with 3.5s timeout)
+  try {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 3500);
+    const res = await fetch(`https://api.postalpincode.in/pincode/${pin}`, { signal: ctrl.signal });
+    clearTimeout(tid);
+    if (res.ok) {
+      const data = await res.json();
+      const entry = Array.isArray(data) ? data[0] : null;
+      if (entry?.Status === 'Success' && Array.isArray(entry?.PostOffice) && entry.PostOffice.length > 0) {
+        return {
+          city: entry.PostOffice[0].District || entry.PostOffice[0].Block || '',
+          state: entry.PostOffice[0].State || '',
+        };
+      }
+    }
+  } catch {
+    // Fall through
+  }
+
+  // 3. Direct client fallback to zippopotam.us (with 3.5s timeout)
+  try {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 3500);
+    const res = await fetch(`https://api.zippopotam.us/in/${pin}`, { signal: ctrl.signal });
+    clearTimeout(tid);
+    if (res.ok) {
+      const data = await res.json();
+      const place = data?.places?.[0];
+      if (place) {
+        return {
+          city: place['place name'] || '',
+          state: place.state || '',
+        };
+      }
+    }
+  } catch {
+    // Fall through
+  }
+
   return null;
 }

@@ -59,9 +59,9 @@ export function PoliciesPage() {
   const openEditor = (policy: Policy) => router.push(`${basePath}/${policy.id}`);
 
   const closeClone = () => setCloneTarget(null);
-  const confirmClone = async (name: string) => {
+  const confirmClone = async (name: string, subOrganizationId?: number | null) => {
     if (!cloneTarget) return;
-    const ok = await mutations.clonePolicy(cloneTarget.id, name);
+    const ok = await mutations.clonePolicy(cloneTarget.id, name, subOrganizationId);
     if (ok) closeClone();
   };
 

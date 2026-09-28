@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Check, Loader2 } from 'lucide-react';
+import { Check, Loader2, MapPin, Search } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { Dialog } from '@/components/ui/Dialog';
 import { lookupPincode } from '../../api/sites.api';
@@ -60,6 +60,9 @@ export function SiteFormDialog({
   const [radiusMeters, setRadiusMeters] = React.useState('200');
   const [subOrgIds, setSubOrgIds] = React.useState<number[]>([]);
   const [pinLookingUp, setPinLookingUp] = React.useState(false);
+  const [locating, setLocating] = React.useState(false);
+  const [locationError, setLocationError] = React.useState<string | null>(null);
+  const [clientErrors, setClientErrors] = React.useState<Record<string, string>>({});
   const { isOrgAdmin } = usePermission();
   const pinLookupSeq = React.useRef(0);
 
@@ -84,6 +87,9 @@ export function SiteFormDialog({
     setLongitude(initial?.longitude != null ? String(initial.longitude) : '');
     setRadiusMeters(initial?.radiusMeters != null ? String(initial.radiusMeters) : '200');
     setSubOrgIds(initial?.subOrgIds ?? []);
+    setLocationError(null);
+    setClientErrors({});
+    setLocating(false);
   }, [open, initial]);
 
   const today = React.useMemo(() => {
@@ -91,25 +97,114 @@ export function SiteFormDialog({
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   }, []);
 
-  const handlePincodeChange = (value: string) => {
-    setPincode(value);
-    if (/^\d{6}$/.test(value)) {
-      const seq = ++pinLookupSeq.current;
-      setPinLookingUp(true);
-      lookupPincode(value).then((lookup) => {
+  const triggerPincodeLookup = (pinToLookup?: string) => {
+    const pin = (pinToLookup ?? pincode).trim();
+    if (!/^\d{6}$/.test(pin)) return;
+    const seq = ++pinLookupSeq.current;
+    setPinLookingUp(true);
+    lookupPincode(pin)
+      .then((lookup) => {
         if (pinLookupSeq.current !== seq) return;
         if (lookup) {
           if (lookup.city) setCity(lookup.city);
           if (lookup.state) setState(lookup.state);
           if (!country.trim()) setCountry('India');
         }
-        setPinLookingUp(false);
+      })
+      .finally(() => {
+        if (pinLookupSeq.current === seq) {
+          setPinLookingUp(false);
+        }
       });
+  };
+
+  const handlePincodeChange = (value: string) => {
+    setPincode(value);
+    if (/^\d{6}$/.test(value)) {
+      triggerPincodeLookup(value);
     }
   };
 
+  const handleGetCurrentLocation = () => {
+    if (typeof window === 'undefined' || !navigator?.geolocation) {
+      setLocationError('Geolocation is not supported by your browser.');
+      return;
+    }
+    setLocating(true);
+    setLocationError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLatitude(pos.coords.latitude.toFixed(6));
+        setLongitude(pos.coords.longitude.toFixed(6));
+        if (!radiusMeters || Number(radiusMeters) <= 0) {
+          setRadiusMeters('200');
+        }
+        setLocating(false);
+        setClientErrors((prev) => {
+          const next = { ...prev };
+          delete next.latitude;
+          delete next.longitude;
+          delete next.radiusMeters;
+          return next;
+        });
+      },
+      (err) => {
+        setLocating(false);
+        let msg = 'Unable to retrieve location';
+        if (err.code === 1) {
+          msg = 'Location permission denied. Please allow location access in your browser settings.';
+        } else if (err.code === 2) {
+          msg = 'Location position is unavailable. Please check device GPS or network.';
+        } else if (err.code === 3) {
+          msg = 'Location request timed out. Please try again.';
+        }
+        setLocationError(msg);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
   const submit = () => {
-    if (!name.trim() || !code.trim()) return;
+    const errors: Record<string, string> = {};
+    if (!name.trim()) errors.name = 'Site name is required';
+    if (!code.trim()) errors.code = 'Site code is required';
+
+    const latTrimmed = latitude.trim();
+    if (!latTrimmed) {
+      errors.latitude = 'Latitude is required';
+    } else {
+      const latNum = Number(latTrimmed);
+      if (!Number.isFinite(latNum) || latNum < -90 || latNum > 90) {
+        errors.latitude = 'Must be between -90 and 90';
+      }
+    }
+
+    const lngTrimmed = longitude.trim();
+    if (!lngTrimmed) {
+      errors.longitude = 'Longitude is required';
+    } else {
+      const lngNum = Number(lngTrimmed);
+      if (!Number.isFinite(lngNum) || lngNum < -180 || lngNum > 180) {
+        errors.longitude = 'Must be between -180 and 180';
+      }
+    }
+
+    const radTrimmed = radiusMeters.trim();
+    if (!radTrimmed) {
+      errors.radiusMeters = 'Radius is required';
+    } else {
+      const radNum = Number(radTrimmed);
+      if (!Number.isFinite(radNum) || radNum <= 0) {
+        errors.radiusMeters = 'Radius must be a positive number';
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setClientErrors(errors);
+      return;
+    }
+    setClientErrors({});
+
     onSubmit({
       name,
       code,
@@ -163,7 +258,7 @@ export function SiteFormDialog({
           </button>
           <button
             type="button"
-            disabled={isSaving || !name.trim() || !code.trim()}
+            disabled={isSaving || !name.trim() || !code.trim() || !latitude.trim() || !longitude.trim()}
             onClick={submit}
             className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[var(--tt-primary)] px-4.5 text-xs font-semibold text-[var(--tt-on-primary)] shadow-xs transition-all hover:bg-[var(--tt-primary-hover)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
           >
@@ -195,14 +290,21 @@ export function SiteFormDialog({
               <input
                 type="text"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (clientErrors.name) {
+                    setClientErrors((p) => { const n = { ...p }; delete n.name; return n; });
+                  }
+                }}
                 placeholder="e.g., Andheri Plant, Pune Warehouse"
-                className={inputClass}
+                className={cx(inputClass, clientErrors.name && 'border-[var(--tt-danger)]')}
                 autoFocus
               />
-              {errFor(fieldError, 'name') && (
+              {clientErrors.name ? (
+                <p className="mt-1 text-[11px] font-medium text-[var(--tt-danger)]">{clientErrors.name}</p>
+              ) : errFor(fieldError, 'name') ? (
                 <p className="mt-1 text-[11px] font-medium text-[var(--tt-danger)]">{fieldError?.message}</p>
-              )}
+              ) : null}
             </div>
             <div>
               <label className={labelClass}>
@@ -211,11 +313,18 @@ export function SiteFormDialog({
               <input
                 type="text"
                 value={code}
-                onChange={(e) => setCode(e.target.value)}
+                onChange={(e) => {
+                  setCode(e.target.value);
+                  if (clientErrors.code) {
+                    setClientErrors((p) => { const n = { ...p }; delete n.code; return n; });
+                  }
+                }}
                 placeholder="e.g., AND-PLT-01"
-                className={inputClass}
+                className={cx(inputClass, clientErrors.code && 'border-[var(--tt-danger)]')}
               />
-              {errFor(fieldError, 'code') ? (
+              {clientErrors.code ? (
+                <p className="mt-1 text-[11px] font-medium text-[var(--tt-danger)]">{clientErrors.code}</p>
+              ) : errFor(fieldError, 'code') ? (
                 <p className="mt-1 text-[11px] font-medium text-[var(--tt-danger)]">{fieldError?.message}</p>
               ) : (
                 <p className="mt-1 text-[11px] text-fg-muted">Must be unique within your organization.</p>
@@ -301,18 +410,44 @@ export function SiteFormDialog({
             </div>
             <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-4">
               <div>
-                <label className={labelClass}>Pincode</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-fg sm:text-[13px]">Pincode</label>
+                  {pincode.length === 6 && !pinLookingUp && (
+                    <button
+                      type="button"
+                      onClick={() => triggerPincodeLookup()}
+                      className="text-[11px] font-semibold text-[var(--tt-primary)] hover:underline"
+                    >
+                      Lookup
+                    </button>
+                  )}
+                </div>
                 <div className="relative">
                   <input
                     type="text"
                     inputMode="numeric"
                     value={pincode}
                     onChange={(e) => handlePincodeChange(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    onBlur={() => {
+                      if (pincode.length === 6 && (!city || !state)) {
+                        triggerPincodeLookup();
+                      }
+                    }}
                     placeholder="400069"
-                    className={inputClass}
+                    className={cx(inputClass, 'pr-8')}
                   />
-                  {pinLookingUp && (
+                  {pinLookingUp ? (
                     <Loader2 className="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-fg-subtle" />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => triggerPincodeLookup()}
+                      disabled={pincode.length !== 6}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-fg-subtle hover:text-fg disabled:opacity-30"
+                      title="Lookup pincode"
+                    >
+                      <Search className="h-3.5 w-3.5" />
+                    </button>
                   )}
                 </div>
               </div>
@@ -333,23 +468,95 @@ export function SiteFormDialog({
         </div>
 
         <div>
-          <h3 className={sectionTitleClass}>Geofence <span className="normal-case tracking-normal text-fg-subtle">(optional)</span></h3>
-          <div className="mt-2 grid grid-cols-3 gap-3.5">
+          <div className="flex items-center justify-between">
+            <h3 className={sectionTitleClass}>Geofence</h3>
+            <button
+              type="button"
+              onClick={handleGetCurrentLocation}
+              disabled={locating}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--tt-primary)]/30 bg-[var(--tt-primary)]/10 px-2.5 py-1 text-xs font-semibold text-[var(--tt-primary)] transition-all hover:bg-[var(--tt-primary)]/20 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              title="Auto-fill latitude & longitude from device GPS"
+            >
+              {locating ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <MapPin className="h-3.5 w-3.5" />
+              )}
+              <span>{locating ? 'Locating...' : 'Get Current Location'}</span>
+            </button>
+          </div>
+
+          <div className="mt-2 grid grid-cols-1 gap-3.5 sm:grid-cols-3">
             <div>
-              <label className={labelClass}>Latitude</label>
-              <input type="text" inputMode="decimal" value={latitude} onChange={(e) => setLatitude(e.target.value)} placeholder="19.1136" className={inputClass} />
+              <label className={labelClass}>
+                Latitude <span className="text-[var(--tt-danger)]">*</span>
+              </label>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={latitude}
+                onChange={(e) => {
+                  setLatitude(e.target.value);
+                  if (clientErrors.latitude) {
+                    setClientErrors((p) => { const n = { ...p }; delete n.latitude; return n; });
+                  }
+                }}
+                placeholder="19.1136"
+                className={cx(inputClass, (clientErrors.latitude || errFor(fieldError, 'latitude')) && 'border-[var(--tt-danger)]')}
+              />
+              {clientErrors.latitude ? (
+                <p className="mt-1 text-[11px] font-medium text-[var(--tt-danger)]">{clientErrors.latitude}</p>
+              ) : errFor(fieldError, 'latitude') ? (
+                <p className="mt-1 text-[11px] font-medium text-[var(--tt-danger)]">{fieldError?.message}</p>
+              ) : null}
             </div>
             <div>
-              <label className={labelClass}>Longitude</label>
-              <input type="text" inputMode="decimal" value={longitude} onChange={(e) => setLongitude(e.target.value)} placeholder="72.8697" className={inputClass} />
+              <label className={labelClass}>
+                Longitude <span className="text-[var(--tt-danger)]">*</span>
+              </label>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={longitude}
+                onChange={(e) => {
+                  setLongitude(e.target.value);
+                  if (clientErrors.longitude) {
+                    setClientErrors((p) => { const n = { ...p }; delete n.longitude; return n; });
+                  }
+                }}
+                placeholder="72.8697"
+                className={cx(inputClass, (clientErrors.longitude || errFor(fieldError, 'longitude')) && 'border-[var(--tt-danger)]')}
+              />
+              {clientErrors.longitude ? (
+                <p className="mt-1 text-[11px] font-medium text-[var(--tt-danger)]">{clientErrors.longitude}</p>
+              ) : errFor(fieldError, 'longitude') ? (
+                <p className="mt-1 text-[11px] font-medium text-[var(--tt-danger)]">{fieldError?.message}</p>
+              ) : null}
             </div>
             <div>
-              <label className={labelClass}>Radius (m)</label>
-              <input type="number" min={1} value={radiusMeters} onChange={(e) => setRadiusMeters(e.target.value)} placeholder="200" className={inputClass} />
+              <label className={labelClass}>
+                Radius (m) <span className="text-[var(--tt-danger)]">*</span>
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={radiusMeters}
+                onChange={(e) => {
+                  setRadiusMeters(e.target.value);
+                  if (clientErrors.radiusMeters) {
+                    setClientErrors((p) => { const n = { ...p }; delete n.radiusMeters; return n; });
+                  }
+                }}
+                placeholder="200"
+                className={cx(inputClass, clientErrors.radiusMeters && 'border-[var(--tt-danger)]')}
+              />
+              {clientErrors.radiusMeters && (
+                <p className="mt-1 text-[11px] font-medium text-[var(--tt-danger)]">{clientErrors.radiusMeters}</p>
+              )}
             </div>
           </div>
-          {errFor(fieldError, 'latitude') && (
-            <p className="mt-1 text-[11px] font-medium text-[var(--tt-danger)]">{fieldError?.message}</p>
+          {locationError && (
+            <p className="mt-1.5 text-xs text-[var(--tt-danger)]">{locationError}</p>
           )}
           <p className="mt-1 text-[11px] text-fg-muted">Employees can only mark attendance within this radius of the site.</p>
         </div>

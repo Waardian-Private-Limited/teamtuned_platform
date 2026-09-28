@@ -1,12 +1,12 @@
 "use client";
 
-import OtherLocations from "@/components/org/OtherLocations";
+import OtherLocationsPage from "@/features/other-locations/components/OtherLocationsPage";
 import RouteGuard from "@/components/auth/RouteGuard";
 
-export default function OtherLocationsPage() {
+export default function OtherLocationsRoute() {
     return (
         <RouteGuard requiredPermissions={["EMPSITE_VIEW", "EMPLOYEE_ASSIGN_SITE"]} requireAny>
-            <OtherLocations />
+            <OtherLocationsPage />
         </RouteGuard>
     );
 }

@@ -17,12 +17,13 @@ import type {
 } from '../types/payroll-setup.dto';
 import type { DebitFormInput, ComponentFormInput } from '../types/payroll-setup.model';
 
-export function listComponents(params: { type?: string; status?: string } = {}) {
+export function listComponents(params: { type?: string; status?: string; subOrgId?: number | null } = {}) {
   return apiClient.get<{ components: SalaryComponentDto[] }>(
     '/payroll/components',
     {
       type: params.type || undefined,
       status: params.status || undefined,
+      sub_org_id: params.subOrgId !== undefined && params.subOrgId !== null ? params.subOrgId : undefined,
     },
     { withAuth: true }
   );
@@ -41,6 +42,7 @@ export function createComponent(input: ComponentFormInput) {
       percentage_value: input.calculationType === 'percentage' && input.percentageValue !== '' ? Number(input.percentageValue) : null,
       percentage_basis: input.calculationType === 'percentage' ? input.percentageBasis : 'basic',
       basis_component_id: input.calculationType === 'percentage' && input.percentageBasis === 'component' ? input.basisComponentId : null,
+      sub_organization_id: input.subOrganizationId ?? null,
     },
     { withAuth: true }
   );
@@ -59,6 +61,7 @@ export function updateComponent(id: number, input: ComponentFormInput) {
       percentage_value: input.calculationType === 'percentage' && input.percentageValue !== '' ? Number(input.percentageValue) : null,
       percentage_basis: input.calculationType === 'percentage' ? input.percentageBasis : 'basic',
       basis_component_id: input.calculationType === 'percentage' && input.percentageBasis === 'component' ? input.basisComponentId : null,
+      sub_organization_id: input.subOrganizationId ?? null,
     },
     { withAuth: true }
   );
@@ -80,6 +83,7 @@ interface DebitListParams {
   search?: string;
   status?: string;
   category?: string;
+  subOrgId?: number | null;
   page?: number;
   pageSize?: number;
 }
@@ -91,6 +95,7 @@ export function listDebitRules(params: DebitListParams = {}) {
       search: params.search || undefined,
       status: params.status && params.status !== 'all' ? params.status : undefined,
       category: params.category && params.category !== 'all' ? params.category : undefined,
+      sub_org_id: params.subOrgId !== undefined && params.subOrgId !== null ? params.subOrgId : undefined,
       page: params.page,
       pageSize: params.pageSize,
     },
@@ -104,6 +109,7 @@ function toRulePayload(input: DebitFormInput) {
     description: input.description.trim() || null,
     status: input.status,
     category: input.category,
+    sub_organization_id: input.subOrganizationId ?? null,
     frequency: input.frequency,
     applicable_months: input.frequency === 'selected_months' ? input.applicableMonths : null,
     one_time_month: input.frequency === 'one_time' ? input.oneTimeMonth || null : null,

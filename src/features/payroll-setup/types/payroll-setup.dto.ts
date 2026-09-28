@@ -10,6 +10,7 @@ export interface SalaryComponentDto {
   percentage_value?: string | number | null;
   percentage_basis?: 'basic' | 'gross' | 'component' | null;
   basis_component_id?: number | null;
+  sub_organization_id?: number | null;
   created_at?: string | null;
   updated_at?: string | null;
 }
@@ -21,6 +22,7 @@ export interface DebitRuleDto {
   status: 'active' | 'inactive';
   category: string;
   is_statutory: number;
+  sub_organization_id?: number | null;
   frequency?: 'monthly' | 'selected_months' | 'one_time';
   applicable_months?: number[] | string | null;
   one_time_month?: string | null;

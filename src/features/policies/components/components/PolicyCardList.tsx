@@ -2,6 +2,7 @@
 
 import { StatusPill } from '@/components/ui/StatusPill';
 import { cx, text } from '@/theme/tokens';
+import { SubOrgBadge } from '@/features/sub-organizations/components/SubOrgBadge';
 import type { Policy } from '../../types/policies.model';
 import { PolicyRowActions } from './PolicyRowActions';
 
@@ -24,7 +25,10 @@ export function PolicyCardList({ policies, canEdit, canAdd, canDelete, onEdit, o
         <div key={policy.id} className="p-4">
           <div className="flex items-start justify-between gap-3">
             <button type="button" onClick={() => onEdit(policy)} className="min-w-0 text-left">
-              <div className="truncate text-sm font-medium text-fg">{policy.name}</div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="truncate text-sm font-medium text-fg">{policy.name}</span>
+                <SubOrgBadge subOrgId={policy.subOrganizationId} />
+              </div>
               <div className={cx(text.caption, 'mt-0.5')}>
                 <code>{policy.code}</code>
               </div>

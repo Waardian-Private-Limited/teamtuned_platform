@@ -19,6 +19,7 @@ import {
   type SectionNode,
 } from './schemaTypes';
 import { LeaveRulesConfigurator, type LeaveRuleConfig } from './LeaveRulesConfigurator';
+import { WeeklyOffScheduleEditor, type DayKey, type DayScheduleConfig } from './WeeklyOffScheduleEditor';
 
 export interface LeaveTypeOption {
   id: number;
@@ -278,12 +279,18 @@ interface RenderContext {
   section: string;
 }
 
+const DAY_KEYS = new Set(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']);
+
 /** The controls of one group, plus any nested sub-groups it contains. */
 function GroupFields({ node, value, scopeValue, onChange, path, leaveTypeOptions, section }: RenderContext & { node: SectionNode }) {
   const entries = sectionEntries(node).filter(([, child]) => isVisible(child, scopeValue));
   const leaves = entries.filter(([, child]) => isFieldNode(child) && child.type !== 'array');
   const branches = entries.filter(([, child]) => !isFieldNode(child) || child.type === 'array');
   const val = (value || {}) as Record<string, unknown>;
+
+  const isDefaultSchedule = entries.some(([k]) => DAY_KEYS.has(k));
+  const filteredBranches = isDefaultSchedule ? branches.filter(([key]) => !DAY_KEYS.has(key)) : branches;
+  const showWeeklyOffEditor = isDefaultSchedule && (val.weeklyOffMode === 'fixed_days' || !val.weeklyOffMode);
 
   return (
     <div className="flex flex-col gap-3">
@@ -302,7 +309,13 @@ function GroupFields({ node, value, scopeValue, onChange, path, leaveTypeOptions
           ))}
         </div>
       )}
-      {branches.map(([key, child]) => (
+      {showWeeklyOffEditor && (
+        <WeeklyOffScheduleEditor
+          value={val}
+          onChange={(dayKey: DayKey, dayConfig: DayScheduleConfig) => onChange([...path, dayKey], dayConfig)}
+        />
+      )}
+      {filteredBranches.map(([key, child]) => (
         <SchemaNodeRenderer
           key={key}
           node={child}

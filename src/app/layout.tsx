@@ -2,6 +2,7 @@ import localFont from 'next/font/local';
 import './globals.css';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from '@/providers/auth-provider';
+import { TunerWidget } from '@/features/assistant/components/TunerWidget';
 
 // Exo is the brand face, self-hosted so it matches the mobile app exactly.
 const exo = localFont({
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthProvider>
           <Toaster position="top-right" />
           {children}
+          <TunerWidget />
         </AuthProvider>
       </body>
     </html>

@@ -17,6 +17,7 @@ export function useComponentList() {
   const [search, setSearch] = useState('');
   const [status, setStatusState] = useState<StatusFilter>('all');
   const [typeFilter, setTypeFilterState] = useState<'all' | 'credit' | 'debit'>('all');
+  const [subOrgId, setSubOrgIdState] = useState<number | null>(null);
   const inFlightRef = useRef(false);
 
   const fetchComponents = useCallback(async () => {
@@ -25,7 +26,7 @@ export function useComponentList() {
     setIsFetching(true);
     setError('');
     try {
-      const dto = await api.listComponents({ status: 'all' });
+      const dto = await api.listComponents({ status: 'all', subOrgId: subOrgId ?? undefined });
       setComponents(toComponents(dto.components));
     } catch (err) {
       setError(messageOf(err));
@@ -34,7 +35,7 @@ export function useComponentList() {
       setIsInitialLoading(false);
       setIsFetching(false);
     }
-  }, []);
+  }, [subOrgId]);
 
   useEffect(() => {
     fetchComponents();
@@ -47,11 +48,13 @@ export function useComponentList() {
 
   const setStatus = useCallback((v: StatusFilter) => setStatusState(v), []);
   const setTypeFilter = useCallback((v: 'all' | 'credit' | 'debit') => setTypeFilterState(v), []);
+  const setSubOrgId = useCallback((v: number | null) => setSubOrgIdState(v), []);
 
   const searchTerm = search.trim().toLowerCase();
   const filtered = components.filter((c) => {
     if (status !== 'all' && c.status !== status) return false;
     if (typeFilter !== 'all' && c.type !== typeFilter) return false;
+    if (subOrgId !== null && c.subOrganizationId !== null && c.subOrganizationId !== subOrgId) return false;
     if (searchTerm && !c.name.toLowerCase().includes(searchTerm) && !(c.description || '').toLowerCase().includes(searchTerm)) return false;
     return true;
   });
@@ -61,6 +64,7 @@ export function useComponentList() {
     setSearch('');
     setStatusState('all');
     setTypeFilterState('all');
+    setSubOrgIdState(null);
   }, []);
 
   return {
@@ -75,9 +79,11 @@ export function useComponentList() {
     setStatus,
     typeFilter,
     setTypeFilter,
+    subOrgId,
+    setSubOrgId,
     total: filtered.length,
     refetch: fetchComponents,
     clearFilters,
-    hasActiveFilters: Boolean(search) || status !== 'all' || typeFilter !== 'all',
+    hasActiveFilters: Boolean(search) || status !== 'all' || typeFilter !== 'all' || subOrgId !== null,
   };
 }

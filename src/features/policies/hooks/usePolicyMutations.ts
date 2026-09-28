@@ -53,8 +53,8 @@ export function usePolicyMutations(refetch: () => Promise<void>, onOptimisticSta
     await refetch();
   }, 'Policy created'), [refetch, run]);
 
-  const clonePolicy = useCallback((id: number, name: string) => run(async () => {
-    await policiesApi.clonePolicy(id, name).catch((err: unknown) => asFieldError(err, 'name', [409]));
+  const clonePolicy = useCallback((id: number, name: string, subOrganizationId?: number | null) => run(async () => {
+    await policiesApi.clonePolicy(id, name, undefined, subOrganizationId).catch((err: unknown) => asFieldError(err, 'name', [409]));
     await refetch();
   }, 'Policy duplicated'), [refetch, run]);
 

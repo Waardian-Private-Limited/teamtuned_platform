@@ -37,6 +37,7 @@ export function toComponent(dto: SalaryComponentDto): SalaryComponent {
     percentageValue: toNumber(dto.percentage_value),
     percentageBasis: dto.percentage_basis || 'basic',
     basisComponentId: dto.basis_component_id ? Number(dto.basis_component_id) : null,
+    subOrganizationId: dto.sub_organization_id ? Number(dto.sub_organization_id) : null,
   };
 }
 
@@ -64,6 +65,7 @@ export function toDebitRule(dto: DebitRuleDto): DebitRule {
     status: dto.status === 'inactive' ? 'inactive' : 'active',
     category: dto.category || 'custom',
     isStatutory: Boolean(dto.is_statutory),
+    subOrganizationId: dto.sub_organization_id ? Number(dto.sub_organization_id) : null,
     frequency: freq,
     applicableMonths: parseMonthsArray(dto.applicable_months),
     oneTimeMonth: dto.one_time_month || null,

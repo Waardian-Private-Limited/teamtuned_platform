@@ -6,6 +6,8 @@ import { cx } from '@/theme/tokens';
 import { Dialog } from '@/components/ui/Dialog';
 import { DEBIT_CATEGORIES, LWF_FREQUENCY_MONTHS } from '../../constants/payroll-setup.constants';
 import type { DebitRule, DebitFormInput } from '../../types/payroll-setup.model';
+import { SubOrgPicker } from '@/features/sub-organizations/components/SubOrgPicker';
+import { usePermission } from '@/lib/hooks/usePermission';
 
 const inputClass =
   'w-full min-w-0 rounded-lg border border-line bg-surface px-3 h-10 text-sm text-fg placeholder:text-fg-subtle outline-none transition-colors focus:border-[var(--tt-primary)] focus:ring-1 focus:ring-[var(--tt-primary)]';
@@ -29,6 +31,7 @@ interface FormState {
   name: string;
   description: string;
   category: string;
+  subOrganizationId: number | null;
   frequency: 'monthly' | 'selected_months' | 'one_time';
   applicableMonths: number[];
   oneTimeMonth: string;
@@ -52,6 +55,7 @@ function initialState(initial?: DebitRule): FormState {
       name: '',
       description: '',
       category: 'custom',
+      subOrganizationId: null,
       frequency: 'monthly',
       applicableMonths: [],
       oneTimeMonth: '',
@@ -73,6 +77,7 @@ function initialState(initial?: DebitRule): FormState {
     name: initial.name,
     description: initial.description ?? '',
     category: initial.category,
+    subOrganizationId: initial.subOrganizationId ?? null,
     frequency: initial.frequency || 'monthly',
     applicableMonths: initial.applicableMonths || [],
     oneTimeMonth: initial.oneTimeMonth || '',
@@ -101,6 +106,7 @@ export function DebitFormDialog({
   onClose,
   onSubmit,
 }: DebitFormDialogProps) {
+  const { isOrgAdmin } = usePermission();
   const [step, setStep] = React.useState<1 | 2>(1);
   const [form, setForm] = React.useState<FormState>(initialState());
 
@@ -552,6 +558,13 @@ export function DebitFormDialog({
               className="w-full resize-none rounded-lg border border-line bg-surface p-3 text-xs text-fg placeholder:text-fg-subtle outline-none transition-colors focus:border-[var(--tt-primary)] focus:ring-1 focus:ring-[var(--tt-primary)] sm:text-sm"
             />
           </div>
+
+          {/* Sub-organization */}
+          <SubOrgPicker
+            value={form.subOrganizationId}
+            onChange={(val) => setForm((p) => ({ ...p, subOrganizationId: val }))}
+            allowShared={isOrgAdmin}
+          />
         </form>
       )}
     </Dialog>

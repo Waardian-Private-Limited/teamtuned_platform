@@ -4,6 +4,8 @@ import React from 'react';
 import { Check } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { Dialog } from '@/components/ui/Dialog';
+import { SubOrgPicker } from '@/features/sub-organizations/components/SubOrgPicker';
+import { usePermission } from '@/lib/hooks/usePermission';
 import type { PolicyDetail } from '../../types/policies.model';
 
 interface PolicyDetailsDialogProps {
@@ -11,7 +13,7 @@ interface PolicyDetailsDialogProps {
   policy: PolicyDetail;
   isSaving: boolean;
   onClose: () => void;
-  onConfirm: (input: { name: string; description: string; effectiveFrom: string }) => void;
+  onConfirm: (input: { name: string; description: string; effectiveFrom: string; subOrganizationId: number | null }) => void;
 }
 
 const inputCls = 'w-full min-w-0 rounded-lg border bg-surface px-3 text-sm text-fg placeholder:text-fg-subtle outline-none transition-colors';
@@ -20,14 +22,16 @@ const errorBorder = 'border-[var(--tt-danger)] focus:border-[var(--tt-danger)] f
 const labelCls = 'mb-1.5 block text-xs font-semibold text-fg sm:text-[13px]';
 
 /**
- * Name, description and the draft's effective date. The code is immutable
+ * Name, description, sub-organization and the draft's effective date. The code is immutable
  * once created — it is what legacy rows and assignments refer to — so it is
  * shown read-only rather than left out.
  */
 export function PolicyDetailsDialog({ open, policy, isSaving, onClose, onConfirm }: PolicyDetailsDialogProps) {
+  const { isOrgAdmin } = usePermission();
   const [name, setName] = React.useState(policy.name);
   const [description, setDescription] = React.useState(policy.description ?? '');
   const [effectiveFrom, setEffectiveFrom] = React.useState(policy.draftVersion?.effectiveFrom ?? policy.currentVersion?.effectiveFrom ?? '');
+  const [subOrganizationId, setSubOrganizationId] = React.useState<number | null>(policy.subOrganizationId ?? null);
   const [touched, setTouched] = React.useState(false);
 
   React.useEffect(() => {
@@ -35,6 +39,7 @@ export function PolicyDetailsDialog({ open, policy, isSaving, onClose, onConfirm
     setName(policy.name);
     setDescription(policy.description ?? '');
     setEffectiveFrom((policy.draftVersion?.effectiveFrom ?? policy.currentVersion?.effectiveFrom ?? '').slice(0, 10));
+    setSubOrganizationId(policy.subOrganizationId ?? null);
     setTouched(false);
   }, [open, policy]);
 
@@ -45,7 +50,7 @@ export function PolicyDetailsDialog({ open, policy, isSaving, onClose, onConfirm
       setTouched(true);
       return;
     }
-    onConfirm({ name: name.trim(), description: description.trim(), effectiveFrom });
+    onConfirm({ name: name.trim(), description: description.trim(), effectiveFrom, subOrganizationId });
   };
 
   return (
@@ -94,6 +99,8 @@ export function PolicyDetailsDialog({ open, policy, isSaving, onClose, onConfirm
             <input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} className={cx(inputCls, 'h-10', idleBorder)} />
           </div>
         </div>
+
+        <SubOrgPicker value={subOrganizationId} onChange={setSubOrganizationId} allowShared={isOrgAdmin} />
 
         <div>
           <label className={labelCls}>Description</label>

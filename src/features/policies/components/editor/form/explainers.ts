@@ -253,13 +253,14 @@ const WORK_RULES: Record<string, (c: Config) => CardSummary> = {
     if (mode === 'flexible') {
       rule.push(`Flexible weekly off: up to ${n(c.flexibleDaysPerMonth, 4)} off-days per month, assigned by manager.`);
     } else if (mode === 'roster') {
-      rule.push('Weekly offs are determined by the roster/rota schedule.');
+      const offDays = n(c.rosterOffDaysPerWeek, 1);
+      rule.push(`Roster weekly off: ${offDays} off-day${offDays === 1 ? '' : 's'} assigned per week / rota cycle.`);
     } else {
       const dayKeys = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
       const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
       const patternLabel: Record<string, string> = {
         every_week: 'every week',
-        alternate: 'alternate weeks',
+        alternate: 'alternate weeks (1st, 3rd, 5th)',
         '1st_and_3rd': '1st & 3rd week',
         '2nd_and_4th': '2nd & 4th week',
         specific_weeks: 'specific weeks',
@@ -269,7 +270,16 @@ const WORK_RULES: Record<string, (c: Config) => CardSummary> = {
         const day = (c[dayKeys[i]] || {}) as Config;
         const offType = s(day.offType, 'working');
         if (offType === 'working') continue;
-        const pat = patternLabel[s(day.pattern, 'every_week')] || 'every week';
+        let pat = patternLabel[s(day.pattern, 'every_week')] || 'every week';
+        if (s(day.pattern) === 'specific_weeks') {
+          const weeks: string[] = [];
+          if (b(day.specificWeek1)) weeks.push('W1');
+          if (b(day.specificWeek2)) weeks.push('W2');
+          if (b(day.specificWeek3)) weeks.push('W3');
+          if (b(day.specificWeek4)) weeks.push('W4');
+          if (b(day.specificWeek5)) weeks.push('W5');
+          pat = weeks.length ? weeks.join('+') : 'none';
+        }
         if (offType === 'full_off') {
           offDays.push(`${dayLabels[i]} full off (${pat})`);
         } else {
@@ -279,6 +289,7 @@ const WORK_RULES: Record<string, (c: Config) => CardSummary> = {
       }
       if (offDays.length > 0) {
         rule.push(`Weekly offs: ${offDays.join(', ')}.`);
+        rule.push('Note: For months with 29–31 days, 5th week days are counted in alternate and specific week patterns.');
       } else {
         rule.push('No weekly off days configured — employees work all 7 days.');
       }
@@ -358,10 +369,20 @@ const WORK_RULES: Record<string, (c: Config) => CardSummary> = {
         : 'both week offs and public holidays';
     const comp = s(c.compensation, 'comp_off');
     const rule: string[] = [`Working on ${target} is tracked.`];
+    const payType = s(c.payType, 'same_day_pay');
+    let payDesc = '1x normal daily wage';
+    if (payType === 'multiplier') {
+      payDesc = `${n(c.payMultiplier, 2)}x normal wage`;
+    } else if (payType === 'fixed_amount') {
+      payDesc = `fixed ₹${n(c.fixedAmount, 500)} per day`;
+    } else if (payType === 'per_day_plus_extra') {
+      payDesc = `regular per-day wage + ₹${n(c.extraAmount, 500)} extra`;
+    }
+
     if (comp === 'paid') {
-      rule.push(`Paid at ${n(c.payMultiplier, 2)}x normal wage.`);
+      rule.push(`Paid at ${payDesc}.`);
     } else if (comp === 'employee_choice') {
-      rule.push(`Employee can choose between ${n(c.payMultiplier, 2)}x pay or compensatory off.`);
+      rule.push(`Employee can choose between ${payDesc} or compensatory off.`);
     } else {
       rule.push('Compensated with comp-off credit.');
     }
@@ -508,19 +529,31 @@ const PAYROLL: Record<string, (c: Config, section: Config) => CardSummary> = {
 
   payableDays(c) {
     const basis = s(c.basis, 'calendar_days');
+    const fixedDays = n(c.fixedDaysCount, basis === 'fixed_26' ? 26 : 30);
     const text: Record<string, string> = {
       calendar_days: 'A day of salary is the monthly salary divided by the real number of days in that month (28-31).',
       working_days: 'A day of salary is the monthly salary divided by the working days in that month, so week offs and holidays do not dilute it.',
-      fixed_30: 'Every month is treated as 30 days, whatever the calendar says.',
-      fixed_26: 'Every month is treated as 26 days — the standard when week offs are unpaid.',
+      fixed_days: `Every month is treated as a fixed ${fixedDays} days.`,
+      fixed_30: `Every month is treated as a fixed ${fixedDays} days.`,
+      fixed_26: `Every month is treated as a fixed ${fixedDays} days.`,
     };
+    const rule: string[] = [text[basis] || text.calendar_days];
+    if (b(c.limitPayableDays)) {
+      const mode = s(c.maxPayableDaysMode, 'current_month_days');
+      if (mode === 'current_month_days') {
+        rule.push('Payable days are capped at actual calendar days in that month (28–31 max). Extra days worked collapse.');
+      } else {
+        const cap = n(c.customMaxPayableDays, 30);
+        rule.push(`Payable days are capped at ${cap} days maximum. Extra days worked collapse.`);
+      }
+    } else {
+      rule.push('Payable days cap is disabled — employees can receive 35, 40+ paid days if extra shifts or weekend work are completed.');
+    }
     return {
-      rule: [text[basis] || text.calendar_days],
-      example: basis === 'fixed_30'
-        ? 'Example: on 30,000 a month, one unpaid day always costs 1,000 — in February too.'
-        : basis === 'fixed_26'
-          ? 'Example: on 26,000 a month, one unpaid day costs 1,000.'
-          : undefined,
+      rule,
+      example: basis === 'fixed_days' || basis === 'fixed_30' || basis === 'fixed_26'
+        ? `Example: on 30,000 monthly salary, one unpaid day costs ${Math.round(30000 / fixedDays)}.`
+        : undefined,
     };
   },
 

@@ -73,9 +73,11 @@ export function SiteTable({
               <td className="border-b border-line/60 px-3.5 py-2.5 sm:px-4 sm:py-3 lg:px-5 lg:py-3.5 2xl:px-6 2xl:py-4">
                 <div className="flex items-center gap-2">
                   <div className="text-xs sm:text-sm 2xl:text-base font-semibold text-fg">{site.name}</div>
-                  <span className="hidden lg:inline-flex items-center rounded-md border border-line bg-bg-subtle px-1.5 py-0.5 text-[10px] 2xl:text-xs font-semibold uppercase tracking-wide text-fg-muted">
-                    {site.code}
-                  </span>
+                  {(!site.isHeadOffice || site.code?.trim().toUpperCase() !== 'HQ') && (
+                    <span className="hidden lg:inline-flex items-center rounded-md border border-line bg-bg-subtle px-1.5 py-0.5 text-[10px] 2xl:text-xs font-semibold uppercase tracking-wide text-fg-muted">
+                      {site.code}
+                    </span>
+                  )}
                   {site.isHeadOffice && (
                     <span className="inline-flex items-center rounded-full bg-[var(--tt-primary)]/10 px-1.5 py-0.5 text-[10px] 2xl:text-xs font-semibold text-[var(--tt-primary)]">
                       HQ
@@ -84,7 +86,9 @@ export function SiteTable({
                   <SubOrgBadge subOrgIds={site.subOrgIds} />
                 </div>
                 <div className={cx(text.caption, 'mt-0.5')}>
-                  <span className="lg:hidden">{site.code}</span>
+                  {(!site.isHeadOffice || site.code?.trim().toUpperCase() !== 'HQ') && (
+                    <span className="lg:hidden">{site.code}</span>
+                  )}
                 </div>
               </td>
               <td className="border-b border-line/60 px-3.5 py-2.5 sm:px-4 sm:py-3 lg:px-5 lg:py-3.5 2xl:px-6 2xl:py-4">

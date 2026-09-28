@@ -12,22 +12,12 @@ import type { NavContext, NavNode } from '../types/nav.model';
 /**
  * The app shell shared by org-admin, org and employee layouts: sidebar (or
  * drawer, on phone) + top bar + scrollable content, all as one rounded
- * card, plus a thin footer strip below it. Replaces the near-identical
- * markup block each of those three layout files repeated on its own.
+ * card, plus a thin footer strip below it.
  *
- * The top bar used to float above the content as a separate sticky
- * element, with the content in its own rounded box underneath — two
- * surfaces stacked with a visible gap. Here they're one surface: the top
- * bar is the card's first row, a single border separates it from the
- * scrollable body, and the card fills the frame with a minimal 8px gutter
- * on every side instead of the header eating its own top strip first.
- *
- * Responsive strategy (see the plan for the full breakpoint table):
- *  - < 768: sidebar becomes an off-canvas drawer, opened from a hamburger
- *    hosted in the top bar.
- *  - 768–1023: inline icon rail by default, toggle expands (session-only).
- *  - >= 1024: rests as an icon rail, hover peeks it open, explicit toggle
- *    pins it open (persisted).
+ * Responsive strategy:
+ *  - < 768: sidebar becomes an off-canvas drawer (hamburger in top bar).
+ *  - 768–1023: inline icon rail, manual toggle arrow to expand.
+ *  - >= 1024: icon rail by default, manual toggle arrow to pin open.
  */
 export function AppShell({
   storageRole,
@@ -43,7 +33,6 @@ export function AppShell({
   onLogout,
   children,
 }: {
-  /** Key used for the persisted collapse preference — distinct per area. */
   storageRole: string;
   headerRole: 'org-admin' | 'employee';
   nodes: NavNode[];
@@ -59,25 +48,33 @@ export function AppShell({
 }) {
   const sidebar = useSidebar(storageRole);
   const hamburgerRef = useRef<HTMLButtonElement>(null);
+  const fullName = [firstName, lastName].filter(Boolean).join(' ') || undefined;
 
   return (
     <div className="flex h-[100dvh] gap-2 bg-bg-subtle p-2 text-fg">
+      {/* Desktop/tablet sidebar — overflow-visible lets the toggle arrow
+          and collapsed popovers extend beyond the sidebar edge. */}
       {!sidebar.isPhone && (
-        <Sidebar
-          nodes={nodes}
-          ctx={ctx}
-          orgName={orgName}
-          orgLogoUrl={orgLogoUrl}
-          subtitle={subtitle}
-          collapsed={sidebar.isCollapsed}
-          onLogout={onLogout}
-          onPointerEnter={sidebar.onPointerEnter}
-          onPointerLeave={sidebar.onPointerLeave}
+        <div
           className={cx(
-            'shrink-0 overflow-hidden rounded-3xl transition-[width] duration-200',
+            'relative shrink-0 transition-[width] duration-200',
             sidebar.isCollapsed ? 'w-20' : 'w-64'
           )}
-        />
+        >
+          <Sidebar
+            nodes={nodes}
+            ctx={ctx}
+            orgName={orgName}
+            orgLogoUrl={orgLogoUrl}
+            subtitle={subtitle}
+            collapsed={sidebar.isCollapsed}
+            userName={fullName}
+            userRole={userRole}
+            onLogout={onLogout}
+            onToggleCollapse={sidebar.toggleCollapsed}
+            className="h-full overflow-visible rounded-3xl"
+          />
+        </div>
       )}
 
       {sidebar.isPhone && (
@@ -89,6 +86,8 @@ export function AppShell({
             orgLogoUrl={orgLogoUrl}
             subtitle={subtitle}
             collapsed={false}
+            userName={fullName}
+            userRole={userRole}
             onLogout={onLogout}
             onNavigate={sidebar.closeDrawer}
             className="h-full"

@@ -8,7 +8,7 @@ import {
   Calendar,
   Check,
   Clock,
-  DollarSign,
+  Wallet,
   FileText,
   ShieldCheck,
 } from 'lucide-react';
@@ -46,7 +46,7 @@ const STEPS: StepItem[] = [
   { key: 'details', label: 'Details', icon: FileText, description: 'Name, code & date' },
   { key: 'workRules', label: 'Work Rules', icon: Clock, description: 'Grace, marks & hours' },
   { key: 'leave', label: 'Leave Policy', icon: Calendar, description: 'Quotas & carry-forward' },
-  { key: 'payrollCycle', label: 'Payroll Cycle', icon: DollarSign, description: 'Pay days & cutoffs' },
+  { key: 'payrollCycle', label: 'Payroll Cycle', icon: Wallet, description: 'Pay days & cutoffs' },
   { key: 'review', label: 'Review & Confirm', icon: ShieldCheck, description: 'Summary & draft' },
 ];
 

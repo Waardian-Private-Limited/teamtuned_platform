@@ -53,13 +53,18 @@ export function usePolicyDetail(id: number) {
     }
   }, [id, load]);
 
-  // Name, description and the draft's effective date go through the same
+  // Name, description, sub_organization_id and the draft's effective date go through the same
   // draft update endpoint as the config — renaming a policy must not touch
   // what is currently live either.
-  const updateDetails = useCallback(async (input: { name: string; description: string; effectiveFrom: string }) => {
+  const updateDetails = useCallback(async (input: { name: string; description: string; effectiveFrom: string; subOrganizationId?: number | null }) => {
     setIsSaving(true);
     try {
-      await policiesApi.updatePolicyDraft(id, { name: input.name, description: input.description, effectiveFrom: input.effectiveFrom || undefined });
+      await policiesApi.updatePolicyDraft(id, {
+        name: input.name,
+        description: input.description,
+        effectiveFrom: input.effectiveFrom || undefined,
+        subOrganizationId: input.subOrganizationId,
+      });
       await load();
       showSuccess('Policy details updated');
       return true;

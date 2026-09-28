@@ -1,5 +1,7 @@
-import OtherLocations from "@/components/org/OtherLocations";
+"use client";
 
-export default function OtherLocationsPage() {
-    return <OtherLocations />;
+import OtherLocationsPage from "@/features/other-locations/components/OtherLocationsPage";
+
+export default function OrgAdminOtherLocations() {
+  return <OtherLocationsPage />;
 }

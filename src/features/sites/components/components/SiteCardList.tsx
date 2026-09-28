@@ -44,9 +44,15 @@ export function SiteCardList({
                 )}
               </div>
               <div className={cx(text.caption, 'mt-0.5')}>
-                {site.code}
-                {[site.city, site.state].filter(Boolean).length > 0 && (
-                  <> · {[site.city, site.state].filter(Boolean).join(', ')}</>
+                {(!site.isHeadOffice || site.code?.trim().toUpperCase() !== 'HQ') ? (
+                  <>
+                    {site.code}
+                    {[site.city, site.state].filter(Boolean).length > 0 && (
+                      <> · {[site.city, site.state].filter(Boolean).join(', ')}</>
+                    )}
+                  </>
+                ) : (
+                  [site.city, site.state].filter(Boolean).join(', ')
                 )}
               </div>
             </div>

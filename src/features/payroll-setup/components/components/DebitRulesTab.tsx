@@ -16,6 +16,8 @@ import type { useDebitMutations } from '../../hooks/useDebitMutations';
 import type { DebitRule } from '../../types/payroll-setup.model';
 import { DEBIT_CATEGORIES, STATUS_FILTER_OPTIONS } from '../../constants/payroll-setup.constants';
 import { formatCurrency } from '../../utils/validators';
+import { SubOrgFilter } from '@/features/sub-organizations/components/SubOrgFilter';
+import { SubOrgBadge } from '@/features/sub-organizations/components/SubOrgBadge';
 
 interface DebitRulesTabProps {
   list: ReturnType<typeof useDebitList>;
@@ -134,6 +136,7 @@ export function DebitRulesTab({
             <option key={c.value} value={c.value}>{c.label}</option>
           ))}
         </select>
+        <SubOrgFilter value={list.subOrgId} onChange={list.setSubOrgId} />
         {perms.canAdd && (
           <button
             type="button"
@@ -234,6 +237,7 @@ export function DebitRulesTab({
                       <td className="border-b border-line/60 px-3.5 py-2.5 sm:px-4 sm:py-3">
                         <div className="flex items-center gap-2">
                           <div className="text-xs sm:text-sm font-semibold text-fg">{rule.name}</div>
+                          <SubOrgBadge subOrgId={rule.subOrganizationId} />
                           <span
                             className={cx(
                               'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
@@ -333,6 +337,7 @@ export function DebitRulesTab({
                     <div className="min-w-0">
                       <div className="font-semibold text-xs text-fg flex items-center gap-1.5 flex-wrap">
                         <span>{rule.name}</span>
+                        <SubOrgBadge subOrgId={rule.subOrganizationId} />
                         <span className="inline-flex rounded-full px-1.5 py-0.2 text-[9px] font-semibold bg-bg-subtle text-fg-muted border border-line">
                           {categoryLabel(rule.category)}
                         </span>
