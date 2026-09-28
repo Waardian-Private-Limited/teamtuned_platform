@@ -55,6 +55,9 @@ export interface Assignee {
     id: number | string;
     type: 'employee' | 'department';
     name: string;
+    /** Department assignments only: scopes the pool to one site instead of the meeting's whole site set. */
+    siteId?: number | string;
+    siteName?: string;
 }
 
 /** Add an assignee if they are not already on the point. Never duplicates. */

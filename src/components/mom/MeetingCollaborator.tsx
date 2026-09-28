@@ -80,6 +80,7 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
     const [tagResults, setTagResults] = useState<any[]>([]);
     const [employeesList, setEmployeesList] = useState<any[]>([]);
     const [departmentsList, setDepartmentsList] = useState<any[]>([]);
+    const [sitesList, setSitesList] = useState<any[]>([]);
     const [selectedAssignments, setSelectedAssignments] = useState<any[]>([]);
     const [editingDueDatePointId, setEditingDueDatePointId] = useState<number | null>(null);
     const [pointToDelete, setPointToDelete] = useState<number | null>(null);
@@ -87,6 +88,8 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
     const [pointToUpdate, setPointToUpdate] = useState<number | null>(null);
     const [isUpdating, setIsUpdating] = useState(false);
     const [expandedHistoryPointId, setExpandedHistoryPointId] = useState<number | null>(null);
+    const [historyRows, setHistoryRows] = useState<any[]>([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
     const [expandedAttachmentsPointId, setExpandedAttachmentsPointId] = useState<number | null>(null);
     const [showAllMeetingAttachments, setShowAllMeetingAttachments] = useState(false);
     const [newAttachments, setNewAttachments] = useState<File[]>([]);
@@ -201,15 +204,17 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
 
     const fetchData = async () => {
         try {
-            const [detailsRes, deptsRes] = await Promise.all([
+            const [detailsRes, deptsRes, sitesRes] = await Promise.all([
                 apiClient.get(`/mom/details/${meetingId}`, undefined, { withAuth: true }),
-                apiClient.get('/organization/departments', undefined, { withAuth: true })
+                apiClient.get('/organization/departments', undefined, { withAuth: true }),
+                apiClient.get('/sites', { format: 'paginated', limit: 1000 }, { withAuth: true })
             ]);
             if (detailsRes.success) {
                 setMeeting(detailsRes.meeting);
                 setPoints(detailsRes.meeting.points || []);
             }
             setDepartmentsList(deptsRes.data || deptsRes || []);
+            setSitesList((sitesRes as any).sites || []);
         } catch (err) {
             console.error('Fetch error:', err);
             toast.error('Failed to load meeting data');
@@ -430,6 +435,28 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
             toast.error('Failed to delete point');
         } finally {
             setIsDeleting(false);
+        }
+    };
+
+    /** Tag a department assignee to one site instead of the meeting's whole site set. */
+    const updateAssigneeSite = (index: number, siteIdStr: string) => {
+        const site = sitesList.find((s: any) => String(s.id) === siteIdStr);
+        setSelectedAssignments(prev => prev.map((x, idx) => idx === index
+            ? { ...x, siteId: siteIdStr ? Number(siteIdStr) : undefined, siteName: site?.name }
+            : x));
+    };
+
+    const openPointHistory = async (pointId: number) => {
+        setExpandedHistoryPointId(pointId);
+        setHistoryLoading(true);
+        try {
+            const res = await apiClient.get(`/mom/point/history/${pointId}`, undefined, { withAuth: true });
+            setHistoryRows((res as any).history || []);
+        } catch (err) {
+            toast.error('Failed to load history');
+            setHistoryRows([]);
+        } finally {
+            setHistoryLoading(false);
         }
     };
 
@@ -881,6 +908,18 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
                                             {selectedAssignments.map((a, i) => (
                                                 <span key={i} className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-md text-black text-[9px] font-black uppercase flex items-center gap-1">
                                                     {a.type === 'department' ? <Building size={10} className="text-blue-600" /> : <User size={10} className="text-emerald-600" />}{a.name}
+                                                    {a.type === 'department' && (
+                                                        <select
+                                                            value={a.siteId ?? ''}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            onChange={(e) => updateAssigneeSite(i, e.target.value)}
+                                                            className="ml-1 text-[8px] font-bold normal-case bg-white border border-blue-200 rounded px-1 py-0.5 text-blue-700"
+                                                            title="Scope this department to one site"
+                                                        >
+                                                            <option value="">All sites</option>
+                                                            {sitesList.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                        </select>
+                                                    )}
                                                     <X size={10} className="ml-1 cursor-pointer text-slate-400 hover:text-red-500 transition-colors" onClick={() => setSelectedAssignments(prev => removeAssignee(prev, { id: a.id, type: a.type }))} />
                                                 </span>
                                             ))}
@@ -1022,6 +1061,18 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
                                                     <span key={i} className={`px-2 py-1 bg-slate-50 border border-slate-200 rounded-md text-black text-[9px] font-black uppercase flex items-center gap-1 ${a.type === 'reviewer' ? 'bg-purple-50 border-purple-200' : ''}`}>
                                                         {a.type === 'department' ? <Building size={10} className="text-blue-600" /> : a.type === 'reviewer' ? <User size={10} className="text-purple-600" /> : <User size={10} className="text-emerald-600" />}
                                                         {a.type === 'reviewer' ? `Reviewer: ${a.name}` : a.name}
+                                                        {a.type === 'department' && (
+                                                            <select
+                                                                value={a.siteId ?? ''}
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                onChange={(e) => updateAssigneeSite(i, e.target.value)}
+                                                                className="ml-1 text-[8px] font-bold normal-case bg-white border border-blue-200 rounded px-1 py-0.5 text-blue-700"
+                                                                title="Scope this department to one site"
+                                                            >
+                                                                <option value="">All sites</option>
+                                                                {sitesList.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                            </select>
+                                                        )}
                                                         <X size={10} className="ml-1 cursor-pointer text-slate-400 hover:text-red-500 transition-colors" onClick={() => setSelectedAssignments(prev => removeAssignee(prev, { id: a.id, type: a.type }))} />
                                                     </span>
                                                 ))}
@@ -1089,6 +1140,7 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
                                                 ? prev.filter(id => id !== point.id)
                                                 : [...prev, point.id])}
                                         onOpen={() => setSelectedPoint(point)}
+                                        onOpenTimeline={() => openPointHistory(point.id)}
                                         viewerIsReviewer={
                                             Number(point.reviewer_id || point.created_by) === Number(effectiveEmployeeId)
                                         }
@@ -1104,6 +1156,7 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
                                                     setEditText(point.point_text);
                                                     setSelectedAssignments((point.assignments || []).map((a: any) => ({
                                                         id: a.assignee_id, type: a.assignee_type, name: a.assignee_name,
+                                                        siteId: a.site_id ?? undefined, siteName: a.site_name ?? undefined,
                                                     })));
                                                     setNewDueDate(point.due_date ? String(point.due_date).slice(0, 10) : null);
                                                 },
@@ -1337,6 +1390,39 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
                     </div>
                 )
             }
+
+            {/* Point Version History Modal */}
+            {expandedHistoryPointId !== null && (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 max-h-[80vh] flex flex-col animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                                <History size={18} className="text-slate-500" /> Point History
+                            </h3>
+                            <button onClick={() => setExpandedHistoryPointId(null)} className="text-slate-400 hover:text-slate-600">
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div className="overflow-y-auto flex-1 space-y-3">
+                            {historyLoading ? (
+                                <div className="py-8 text-center text-sm text-slate-400">Loading...</div>
+                            ) : historyRows.length === 0 ? (
+                                <div className="py-8 text-center text-sm text-slate-400">No edits recorded for this point yet.</div>
+                            ) : historyRows.map((h: any) => (
+                                <div key={h.id} className="border border-slate-100 rounded-lg p-3 bg-slate-50">
+                                    <div className="text-[10px] font-bold uppercase text-slate-400 mb-1">
+                                        {h.editor_name || 'Someone'} · {new Date(h.created_at).toLocaleString()}
+                                    </div>
+                                    {h.old_text && (
+                                        <p className="text-xs text-slate-400 line-through decoration-slate-300 mb-1">{h.old_text}</p>
+                                    )}
+                                    <p className="text-sm text-slate-900 font-medium">{h.new_text}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

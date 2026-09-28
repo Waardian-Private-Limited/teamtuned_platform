@@ -4,12 +4,14 @@ import React, { useEffect, useState, useRef } from 'react';
 import {
     Calendar, CheckCircle2, Clock, MapPin, Search, UploadCloud, Save,
     ChevronRight, ChevronLeft, FileDown, Plus, Users, Filter, RefreshCw,
-    AlertCircle, FileText, Check, Eye, MoreVertical, ChevronDown, ChevronUp, Trash2
+    AlertCircle, FileText, Check, Eye, MoreVertical, ChevronDown, ChevronUp, Trash2,
+    History, Edit3
 } from 'lucide-react';
 import { FormEvent } from 'react';
 import { apiClient } from '@/lib/apiClient';
 import { useAuth } from '@/context/AuthContext';
 import { showSuccess, showError } from '@/lib/toast';
+import { DpsRevisionsModal } from './DpsRevisionsModal';
 
 const EmployeeSearchInput = ({ value, onChange, readonly }: { value: any, onChange: (val: any) => void, readonly?: boolean }) => {
     const [searchTerm, setSearchTerm] = useState(value?.name || "");
@@ -164,6 +166,9 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [totalEntries, setTotalEntries] = useState(0);
+
+    // Revisions Modal State
+    const [revisionsTask, setRevisionsTask] = useState<DynamicAssignment | null>(null);
 
     useEffect(() => {
         fetchAssignments();
@@ -477,11 +482,12 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
                 withAuth: true,
                 body: { assignment_id: selectedForm.id, submitted_data: dataToSave, is_draft: false }
             });
-            showSuccess('Form submitted successfully!');
+            const wasAlreadySubmitted = selectedForm.status === 'submitted' || selectedForm.status === 'reviewed';
+            showSuccess(wasAlreadySubmitted ? 'DPR resubmitted successfully and revision saved!' : 'Form submitted successfully!');
             setSelectedForm(null);
             fetchAssignments();
         } catch (e: any) {
-            showError('Error submitting form: ' + (e?.message || 'Unknown Error'));
+            showError(e?.status === 403 ? e.message : 'Error submitting form: ' + (e?.message || 'Unknown Error'));
         } finally {
             setSubmitting(false);
         }
@@ -502,7 +508,7 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
             setSelectedForm(null);
             fetchAssignments();
         } catch (e: any) {
-            showError('Error saving progress: ' + (e?.message || 'Unknown Error'));
+            showError(e?.status === 403 ? e.message : 'Error saving progress: ' + (e?.message || 'Unknown Error'));
         } finally {
             setSubmitting(false);
         }
@@ -732,6 +738,16 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
                                                     </button>
                                                 ) : (
                                                     <>
+                                                        {task.can_edit_submitted && (
+                                                            <button
+                                                                onClick={() => handleSelectForm(task)}
+                                                                className="px-3 py-2 bg-amber-500 hover:bg-amber-400 text-black text-[9px] font-black uppercase tracking-widest border border-black transition-all active:scale-95 flex items-center gap-1.5 shadow-sm"
+                                                                title="Edit and resubmit this DPR"
+                                                            >
+                                                                <Edit3 size={12} />
+                                                                Edit DPR
+                                                            </button>
+                                                        )}
                                                         <button
                                                             onClick={() => handleSelectForm(task)}
                                                             title={task.status === 'pending' ? 'View form' : 'View submission'}
@@ -739,6 +755,16 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
                                                         >
                                                             <Eye size={14} />
                                                         </button>
+                                                        {(task.status === 'submitted' || task.status === 'reviewed' || (task.edit_count ?? 0) > 0) && (
+                                                            <button
+                                                                onClick={() => setRevisionsTask(task)}
+                                                                title={(task.edit_count ?? 0) > 0 ? `${task.edit_count} revision(s) recorded` : 'View revision history'}
+                                                                className="p-2 border border-black hover:bg-violet-50 text-violet-700 transition-all flex items-center gap-1 text-[9px] font-black"
+                                                            >
+                                                                <History size={13} />
+                                                                {(task.edit_count ?? 0) > 0 && <span>{task.edit_count}</span>}
+                                                            </button>
+                                                        )}
                                                         {task.status !== 'pending' && (
                                                             <DownloadExcelButton taskId={task.id} formType={task.form_type} />
                                                         )}
@@ -948,6 +974,18 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
                         ((selectedForm.status === 'submitted' || selectedForm.status === 'reviewed')
                             && selectedForm.can_edit_submitted !== true)
                     }
+                />
+            )}
+
+            {/* Version History Modal */}
+            {revisionsTask && (
+                <DpsRevisionsModal
+                    assignmentId={revisionsTask.id}
+                    siteName={revisionsTask.site_name}
+                    unitName={revisionsTask.unit_name}
+                    reportDate={revisionsTask.report_date || revisionsTask.due_date}
+                    formType={revisionsTask.form_type}
+                    onClose={() => setRevisionsTask(null)}
                 />
             )}
         </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { Calendar, CheckCircle2, Clock, MapPin, Search, UploadCloud, ChevronRight, Check, ArrowLeft, Save, Plus, Trash2, AlertCircle, Building, User, MessageSquare, X, Paperclip, Image, Lock, Sparkles, UserCheck, Info, Wrench, Layers, HardHat, Users, CalendarClock, ListChecks } from 'lucide-react';
+import { Calendar, CheckCircle2, Clock, MapPin, Search, UploadCloud, ChevronRight, Check, ArrowLeft, Save, Plus, Trash2, AlertCircle, Building, User, MessageSquare, X, Paperclip, Image, Lock, Sparkles, UserCheck, Info, Wrench, Layers, HardHat, Users, CalendarClock, ListChecks, History } from 'lucide-react';
 import { apiClient } from '@/lib/apiClient';
 import {
     Section, ToolButton, Metric, EmptyRow,
@@ -10,6 +10,7 @@ import {
 import { DeploymentSection, fillFromAttendance } from './DpsDeploymentSection';
 import { ScheduleTargets } from './DpsScheduleTargets';
 import { EquipmentSection, MaterialsSection, IssuesSection } from './DpsTrackedSections';
+import { DpsRevisionsModal } from './DpsRevisionsModal';
 import toast from 'react-hot-toast';
 
 export interface DynamicAssignment {
@@ -1115,9 +1116,17 @@ export function AssignmentCard({ task, onSelect, isOrgAdmin, onChangeAssignee }:
             <div className="mt-4 pt-4 border-t border-black/10 space-y-3">
                 <button
                     onClick={() => onSelect(task)}
-                    className="w-full py-2 bg-black hover:bg-zinc-800 text-white text-[9px] font-black transition-all uppercase tracking-widest border border-black"
+                    className={`w-full py-2 text-white text-[9px] font-black transition-all uppercase tracking-widest border border-black ${
+                        (task.status === 'submitted' || task.status === 'reviewed') && task.can_edit_submitted
+                            ? 'bg-amber-500 hover:bg-amber-400 text-black'
+                            : 'bg-black hover:bg-zinc-800'
+                    }`}
                 >
-                    {task.can_fill === false ? 'View DPR' : 'Fill DPR'}
+                    {task.can_fill === false
+                        ? 'View DPR'
+                        : (task.status === 'submitted' || task.status === 'reviewed')
+                            ? (task.can_edit_submitted ? 'Edit DPR' : 'View DPR')
+                            : 'Fill DPR'}
                 </button>
 
                 {isOrgAdmin && (
@@ -1203,6 +1212,7 @@ export function DprMultiStepForm({ task, onClose, onSave, onSubmit, submitting, 
         other_issues: []
     });
 
+    const [showRevisionsModal, setShowRevisionsModal] = useState(false);
 
     // MoM-style Tagging state
     const [showTagPopover, setShowTagPopover] = useState(false);
@@ -1565,16 +1575,19 @@ export function DprMultiStepForm({ task, onClose, onSave, onSubmit, submitting, 
                             second so nobody thinks an edit is invisible. */}
                         {isCorrecting && (
                             <span className="flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 text-[9px] font-bold px-2 py-0.5 uppercase tracking-wider">
-                                Correcting a submitted report
+                                Editing submitted report (v{(task.edit_count ?? 0) + 1})
                             </span>
                         )}
-                        {(task.edit_count ?? 0) > 0 && (
-                            <span
-                                title={task.last_edited_at ? `Last edited ${new Date(task.last_edited_at).toLocaleString('en-GB')}` : undefined}
-                                className="flex items-center gap-1 bg-violet-50 text-violet-700 border border-violet-200 text-[9px] font-bold px-2 py-0.5 uppercase tracking-wider"
+                        {(task.status === 'submitted' || task.status === 'reviewed' || (task.edit_count ?? 0) > 0) && (
+                            <button
+                                type="button"
+                                onClick={() => setShowRevisionsModal(true)}
+                                title={task.last_edited_at ? `Last edited ${new Date(task.last_edited_at).toLocaleString('en-GB')}. Click to view versions.` : 'Click to view version history.'}
+                                className="flex items-center gap-1 bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 text-[9px] font-bold px-2 py-0.5 uppercase tracking-wider transition-colors cursor-pointer"
                             >
-                                Edited {task.edit_count}×
-                            </span>
+                                <History size={10} />
+                                {(task.edit_count ?? 0) > 0 ? `Edited ${task.edit_count}× (History)` : 'Version History'}
+                            </button>
                         )}
                     </div>
                 </div>
@@ -2853,13 +2866,24 @@ export function DprMultiStepForm({ task, onClose, onSave, onSubmit, submitting, 
                                 disabled={submitting}
                                 className="px-8 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors flex items-center gap-2 disabled:opacity-50 text-xs"
                             >
-                                {submitting ? 'Saving…' : isCorrecting ? 'Save Correction' : 'Submit Report'}
+                                {submitting ? 'Saving…' : isCorrecting ? 'Resubmit DPR' : 'Submit Report'}
                                 <Check size={16} />
                             </button>
                         )
                     )}
                 </div>
             </footer>
+
+            {showRevisionsModal && (
+                <DpsRevisionsModal
+                    assignmentId={task.id}
+                    siteName={task.site_name}
+                    unitName={task.unit_name}
+                    reportDate={task.report_date || task.due_date}
+                    formType={task.form_type}
+                    onClose={() => setShowRevisionsModal(false)}
+                />
+            )}
         </div>
     );
 }
