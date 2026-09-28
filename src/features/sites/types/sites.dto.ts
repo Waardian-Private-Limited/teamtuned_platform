@@ -7,7 +7,7 @@ export interface SiteDto {
   city: string | null;
   state: string | null;
   country: string | null;
-  status: 'active' | 'inactive';
+  status: 'active' | 'inactive' | 'terminated';
   is_head_office: number;
   has_expiry: number;
   expiry_date: string | null;

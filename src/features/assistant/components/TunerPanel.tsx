@@ -79,7 +79,7 @@ export function TunerPanel({ messages, pending, sending, onSend, onConfirm, onNe
             </div>
             <h4 className="text-sm font-semibold text-fg">Hi, I'm Tuner</h4>
             <p className="mt-1 max-w-[260px] text-xs text-fg-muted leading-relaxed">
-              Ask me anything about your departments, roles, sites, policies and payroll setup, or ask me to create them.
+              Ask me anything about your departments, roles, sites, policies and payroll setup, or ask me to create, edit or delete them.
             </p>
           </div>
         )}

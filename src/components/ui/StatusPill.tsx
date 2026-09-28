@@ -1,16 +1,18 @@
 import { cx } from '@/theme/tokens';
 
-type Tone = 'active' | 'inactive' | 'neutral';
+type Tone = 'active' | 'inactive' | 'terminated' | 'neutral';
 
 const TONE_CLASSES: Record<Tone, string> = {
   active: 'border-[var(--tt-success)]/25 bg-[var(--tt-success-soft)] text-[var(--tt-success)]',
   inactive: 'border-[var(--tt-danger)]/25 bg-[var(--tt-danger-soft)] text-[var(--tt-danger)]',
+  terminated: 'border-line bg-bg-subtle text-fg-muted line-through',
   neutral: 'border-line bg-bg-subtle text-fg-muted',
 };
 
 const DOT_CLASSES: Record<Tone, string> = {
   active: 'bg-[var(--tt-success)]',
   inactive: 'bg-[var(--tt-danger)]',
+  terminated: 'bg-fg-subtle',
   neutral: 'bg-fg-subtle',
 };
 

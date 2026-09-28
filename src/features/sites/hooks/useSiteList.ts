@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as sitesApi from '../api/sites.api';
 import { toSiteList } from '../types/sites.mapper';
-import type { Site } from '../types/sites.model';
+import type { Site, SiteStatus } from '../types/sites.model';
 import { messageOf } from '@/lib/api/errors';
 import { DEFAULT_PAGE_SIZE, SEARCH_DEBOUNCE_MS, type SiteStatusFilter } from '../constants/sites.constants';
 
@@ -99,7 +99,7 @@ export function useSiteList() {
     setPage(1);
   }, []);
 
-  const updateSiteStatusLocally = useCallback((id: number, nextStatus: 'active' | 'inactive') => {
+  const updateSiteStatusLocally = useCallback((id: number, nextStatus: SiteStatus) => {
     setSites((prev) => prev.map((site) => (site.id === id ? { ...site, status: nextStatus } : site)));
   }, []);
 

@@ -22,7 +22,7 @@ export function toSite(dto: SiteDto): Site {
     city: dto.city,
     state: dto.state,
     country: dto.country,
-    status: dto.status === 'inactive' ? 'inactive' : 'active',
+    status: dto.status === 'inactive' ? 'inactive' : dto.status === 'terminated' ? 'terminated' : 'active',
     isHeadOffice: Boolean(dto.is_head_office),
     hasExpiry: Boolean(dto.has_expiry),
     expiryDate: toDateOnly(dto.expiry_date),

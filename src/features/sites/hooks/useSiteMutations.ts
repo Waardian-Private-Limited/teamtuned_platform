@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react';
 import * as sitesApi from '../api/sites.api';
-import type { Site, SiteFormInput } from '../types/sites.model';
+import type { Site, SiteFormInput, SiteStatus } from '../types/sites.model';
 import { showError, showSuccess } from '@/lib/toast';
 import { FieldValidationError, asFieldError } from '../utils/asyncAction';
 import { ApiError, messageOf } from '@/lib/api/errors';
@@ -43,7 +43,7 @@ function validateForm(input: SiteFormInput): FieldError | null {
 
 export function useSiteMutations(
   refetch: () => Promise<void>,
-  onOptimisticToggle?: (id: number, nextStatus: 'active' | 'inactive') => void
+  onOptimisticToggle?: (id: number, nextStatus: SiteStatus) => void
 ) {
   const [isSaving, setIsSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<number | null>(null);

@@ -1,4 +1,4 @@
-export type SiteStatus = 'active' | 'inactive';
+export type SiteStatus = 'active' | 'inactive' | 'terminated';
 
 export interface Site {
   id: number;
