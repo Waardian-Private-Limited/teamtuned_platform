@@ -958,6 +958,7 @@ export default function DpsAssignments({ formType }: { formType?: 'planning' | '
             {/* Full-Screen Multi-Step Form */}
             {selectedForm && (
                 <DprMultiStepForm
+                    key={selectedForm.id}
                     task={selectedForm}
                     onClose={() => setSelectedForm(null)}
                     onSave={handleFormSave}

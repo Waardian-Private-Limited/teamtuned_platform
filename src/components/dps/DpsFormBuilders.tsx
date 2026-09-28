@@ -1197,20 +1197,39 @@ interface DprMultiStepFormProps {
  */
 export function DprMultiStepForm({ task, onClose, onSave, onSubmit, submitting, initialData, siteId, readOnly }: DprMultiStepFormProps) {
     const [step, setStep] = useState(1);
-    const [formData, setFormData] = useState<any>(initialData || {
-        scope: '',
-        planning_date: new Date().toISOString().split('T')[0],
-        safety_quality: {
-            towers: task.dynamic_schema?.safety_quality?.towers || [],
-            tower_observations: (task.dynamic_schema?.safety_quality?.towers || []).map((t: any) => ({
-                towerId: t.id, towerName: t.name, department: '',
-                internal_safety: 0, client_safety: 0, safety_nc: 0,
-                internal_quality: 0, client_quality: 0, quality_nc: 0, second_close: 0
-            })),
-            detailed_issues: []
-        },
-        other_issues: []
+    const [formData, setFormData] = useState<any>(() => {
+        if (initialData && typeof initialData === 'object' && Object.keys(initialData).length > 0) {
+            return initialData;
+        }
+        if (task.submitted_data && typeof task.submitted_data === 'object' && Object.keys(task.submitted_data).length > 0) {
+            return JSON.parse(JSON.stringify(task.submitted_data));
+        }
+        return {
+            scope: '',
+            planning_date: new Date().toISOString().split('T')[0],
+            safety_quality: {
+                towers: task.dynamic_schema?.safety_quality?.towers || [],
+                tower_observations: (task.dynamic_schema?.safety_quality?.towers || []).map((t: any) => ({
+                    towerId: t.id, towerName: t.name, department: '',
+                    internal_safety: 0, client_safety: 0, safety_nc: 0,
+                    internal_quality: 0, client_quality: 0, quality_nc: 0, second_close: 0
+                })),
+                detailed_issues: []
+            },
+            other_issues: []
+        };
     });
+
+    useEffect(() => {
+        const data = (initialData && typeof initialData === 'object' && Object.keys(initialData).length > 0)
+            ? initialData
+            : (task.submitted_data && typeof task.submitted_data === 'object' && Object.keys(task.submitted_data).length > 0)
+                ? task.submitted_data
+                : (task.dynamic_schema ?? null);
+        if (data) {
+            setFormData(JSON.parse(JSON.stringify(data)));
+        }
+    }, [task.id, initialData]);
 
     const [showRevisionsModal, setShowRevisionsModal] = useState(false);
 
