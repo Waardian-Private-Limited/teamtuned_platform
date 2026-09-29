@@ -2854,7 +2854,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                                     </td>
                                     <td className="px-3 py-1.5">
                                       <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
-                                        rec.effective_status === 'Available' ? 'bg-emerald-100 text-emerald-800' :
+                                        rec.effective_status === 'Available' || rec.effective_status === 'Approved' ? 'bg-emerald-100 text-emerald-800' :
                                         rec.effective_status === 'Used' ? 'bg-purple-100 text-purple-800' :
                                         rec.effective_status === 'Expired' ? 'bg-red-100 text-red-700' :
                                         'bg-amber-100 text-amber-800'
