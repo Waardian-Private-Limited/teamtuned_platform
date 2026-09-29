@@ -8,7 +8,7 @@ export type DayKey = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' 
 
 export interface DayScheduleConfig {
   offType?: 'working' | 'full_off' | 'half_off';
-  halfDaySession?: 'morning' | 'afternoon';
+  halfDaySession?: 'first_half' | 'second_half' | 'morning' | 'afternoon';
   pattern?: 'every_week' | 'alternate' | '1st_and_3rd' | '2nd_and_4th' | 'specific_weeks';
   specificWeek1?: boolean;
   specificWeek2?: boolean;
@@ -210,27 +210,27 @@ export function WeeklyOffScheduleEditor({ value, onChange }: WeeklyOffScheduleEd
               <div className="inline-flex rounded-md border border-line bg-surface p-0.5">
                 <button
                   type="button"
-                  onClick={() => updateDay(activeDay, { halfDaySession: 'morning' })}
+                  onClick={() => updateDay(activeDay, { halfDaySession: 'first_half' })}
                   className={cx(
                     'inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium transition-colors',
-                    (currentConfig.halfDaySession || 'morning') === 'morning'
+                    (currentConfig.halfDaySession === 'first_half' || currentConfig.halfDaySession === 'morning' || !currentConfig.halfDaySession)
                       ? 'bg-[var(--tt-primary)] text-white'
                       : 'text-fg-muted hover:text-fg'
                   )}
                 >
-                  <Sun className="h-3 w-3" /> Morning Off
+                  <Sun className="h-3 w-3" /> First Half Off
                 </button>
                 <button
                   type="button"
-                  onClick={() => updateDay(activeDay, { halfDaySession: 'afternoon' })}
+                  onClick={() => updateDay(activeDay, { halfDaySession: 'second_half' })}
                   className={cx(
                     'inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium transition-colors',
-                    currentConfig.halfDaySession === 'afternoon'
+                    (currentConfig.halfDaySession === 'second_half' || currentConfig.halfDaySession === 'afternoon')
                       ? 'bg-[var(--tt-primary)] text-white'
                       : 'text-fg-muted hover:text-fg'
                   )}
                 >
-                  <Moon className="h-3 w-3" /> Afternoon Off
+                  <Moon className="h-3 w-3" /> Second Half Off
                 </button>
               </div>
             </div>

@@ -29,7 +29,7 @@ export function ShiftTemplatesEmptyState({ status, searchTerm, canAdd, onAdd, on
     <div className="flex flex-1 flex-col items-center justify-center p-4 text-center sm:p-6 lg:p-8 2xl:p-12">
       <div className="mb-3.5 w-32 select-none sm:mb-4 sm:w-40 md:w-44 lg:w-52 2xl:mb-6 2xl:w-64">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/vectors/policy.svg" alt="Shifts illustration" className="h-auto w-full object-contain" />
+        <img src="/vectors/shift.svg" alt="Shifts illustration" className="h-auto w-full object-contain" />
       </div>
 
       <h3 className="text-sm font-bold tracking-tight text-fg sm:text-base md:text-lg 2xl:text-2xl">{title}</h3>

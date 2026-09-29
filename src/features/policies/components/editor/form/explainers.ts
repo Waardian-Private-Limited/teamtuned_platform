@@ -339,7 +339,8 @@ const WORK_RULES: Record<string, (c: Config) => CardSummary> = {
         if (offType === 'full_off') {
           offDays.push(`${dayLabels[i]} full off (${pat})`);
         } else {
-          const session = s(day.halfDaySession, 'morning');
+          const rawSession = s(day.halfDaySession, 'first_half');
+          const session = rawSession === 'second_half' || rawSession === 'afternoon' ? 'second half' : 'first half';
           offDays.push(`${dayLabels[i]} half-day ${session} off (${pat})`);
         }
       }

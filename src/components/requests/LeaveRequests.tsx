@@ -151,6 +151,12 @@ function useCountdown(levelStartedAt: string | null, timelineHours: number | nul
   return timeLeft;
 }
 
+function formatSessionLabel(session?: string | null): string {
+  if (session === 'Morning') return 'First Half';
+  if (session === 'Afternoon') return 'Second Half';
+  return session || '';
+}
+
 export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, externalControl = false, hqMode: extHq, selectedSiteId: extSiteId }: Props) {
   const { role, permissions, user, employee } = useAuth();
   // Permissions
@@ -1183,7 +1189,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                     <p className="font-medium">{Number(activeItem.duration_days || activeItem.days || 0).toFixed(1)} days</p>
                     {activeItem.session && activeItem.session !== 'Full Day' && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 mt-1">
-                        {activeItem.session}
+                        {formatSessionLabel(activeItem.session)}
                       </span>
                     )}
                   </div>
@@ -1380,8 +1386,8 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
               >
                 <option value="Full Day">Full Day</option>
-                <option value="Morning">Morning (Half Day)</option>
-                <option value="Afternoon">Afternoon (Half Day)</option>
+                <option value="Morning">First Half (Half Day)</option>
+                <option value="Afternoon">Second Half (Half Day)</option>
               </select>
             </div>
 
@@ -1495,7 +1501,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                           <p className="font-medium">{Number(activeItem.duration_days || activeItem.days || 0).toFixed(1)} days</p>
                           {activeItem.session && activeItem.session !== 'Full Day' && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 mt-1">
-                              {activeItem.session}
+                              {formatSessionLabel(activeItem.session)}
                             </span>
                           )}
                         </div>
@@ -1960,12 +1966,12 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="Full Day">Full Day</option>
-                  <option value="Morning">Morning Session (Half Day)</option>
-                  <option value="Afternoon">Afternoon Session (Half Day)</option>
+                  <option value="Morning">First Half Session (Half Day)</option>
+                  <option value="Afternoon">Second Half Session (Half Day)</option>
                 </select>
                 <p className="mt-1 text-xs text-gray-500">
                   {duration === 1
-                    ? "Select Morning or Afternoon for half-day leave"
+                    ? "Select First Half or Second Half for half-day leave"
                     : "Half-day sessions only apply to single-day leaves"}
                 </p>
               </div>
@@ -1995,7 +2001,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                     <span className="text-sm font-medium">
                       Duration: {duration === 1 && (addLeaveForm.session === 'Morning' || addLeaveForm.session === 'Afternoon') ? '0.5' : duration} day{duration !== 1 || (addLeaveForm.session !== 'Morning' && addLeaveForm.session !== 'Afternoon') ? 's' : ''}
                       {duration === 1 && (addLeaveForm.session === 'Morning' || addLeaveForm.session === 'Afternoon') && (
-                        <span className="ml-2 text-xs">({addLeaveForm.session})</span>
+                        <span className="ml-2 text-xs">({formatSessionLabel(addLeaveForm.session)})</span>
                       )}
                     </span>
                   </div>
@@ -2970,7 +2976,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                           </span>
                           {item.session && item.session !== 'Full Day' && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
-                              {item.session}
+                              {formatSessionLabel(item.session)}
                             </span>
                           )}
                         </div>
