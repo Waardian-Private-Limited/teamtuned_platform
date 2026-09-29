@@ -325,7 +325,13 @@ function GroupFields({ node, value, scopeValue, onChange, path, leaveTypeOptions
 
   const isDefaultSchedule = entries.some(([k]) => DAY_KEYS.has(k));
   const filteredBranches = isDefaultSchedule ? branches.filter(([key]) => !DAY_KEYS.has(key)) : branches;
-  const showWeeklyOffEditor = isDefaultSchedule && val.enabled !== false && (val.weeklyOffMode === 'fixed_days' || !val.weeklyOffMode);
+  // A roster decides each date's off days itself, so the fixed weekly grid only
+  // applies to fixed and flexible timings.
+  const showWeeklyOffEditor =
+    isDefaultSchedule &&
+    val.enabled !== false &&
+    val.timingMode !== 'roster' &&
+    (val.weeklyOffMode === 'fixed_days' || !val.weeklyOffMode);
 
   return (
     <div className="flex flex-col gap-3">

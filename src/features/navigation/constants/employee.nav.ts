@@ -78,6 +78,7 @@ export const employeeNav: NavNode[] = [
       { kind: 'link', label: 'Team Mapper', href: '/employee/assignments', icon: UserCog, gate: { perm: 'HR_MODE' } },
       { kind: 'link', label: 'Policies', href: '/employee/policies', icon: Shield, match: 'prefix', gate: { anyPerm: ['POLICY_VIEW', 'POLICY_ADD', 'POLICY_EDIT', 'POLICY_DELETE'] } },
       { kind: 'link', label: 'Policy Mapper', href: '/employee/policy-mapper', icon: Shield, gate: { perm: 'HR_MODE' } },
+      { kind: 'link', label: 'Shifts', href: '/employee/shift-templates', icon: Clock, match: 'prefix', gate: { anyPerm: ['ATTENDCONFIG_VIEW', 'ATTENDCONFIG_ADD', 'ATTENDCONFIG_EDIT', 'ATTENDCONFIG_DELETE'] } },
       { kind: 'link', label: 'Import Employees', href: '/employee/employees/import', icon: Upload, match: 'prefix', gate: { perm: 'EMP_ADD' } },
       { kind: 'link', label: 'Shift Management', href: '/employee/employees/shifts', icon: Clock, match: 'prefix', gate: { perm: 'EMP_ADD' } },
       { kind: 'link', label: 'Employee Sites', href: '/employee/employee-sites', icon: MapPin, match: 'prefix', gate: { anyPerm: ['EMPSITE_VIEW', 'EMPLOYEE_ASSIGN_SITE'] } },

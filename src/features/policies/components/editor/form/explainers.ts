@@ -98,6 +98,41 @@ function payoutLine(c: Config, label: string): string[] {
 }
 
 const WORK_RULES: Record<string, (c: Config) => CardSummary> = {
+  shiftMatching(c) {
+    if (!b(c.autoShiftMatch)) {
+      return { rule: ['Every check-in is judged against the shift the employee was assigned.'] };
+    }
+    const window = n(c.shiftMatchThresholdMinutes, 60);
+    return {
+      rule: [
+        `A check-in within ±${duration(window)} of another active shift's start is judged against that shift instead.`,
+        'Outside that window the assigned shift still applies.',
+      ],
+      example: `Example: assigned General 9:00 am, Afternoon shift starts 2:00 pm. In at ${clock(subMinutes('14:00:00', Math.min(15, window)))} — counted on the Afternoon shift, not hours late.`,
+    };
+  },
+
+  rosterRules(c) {
+    const rest = n(c.minRestHoursBetweenShifts, 8);
+    const rule: string[] = [
+      rest > 0
+        ? `The roster planner flags two shifts less than ${rest} hour${rest === 1 ? '' : 's'} apart.`
+        : 'No minimum rest is enforced between shifts.',
+      b(c.allowDoubleShift) ? 'Two shifts on the same calendar day are allowed.' : 'At most one shift per calendar day.',
+    ];
+    if (b(c.allowShiftSwap)) {
+      rule.push(
+        `Employees can swap shifts with peers up to ${n(c.swapCutoffHours, 12)} hour${n(c.swapCutoffHours, 12) === 1 ? '' : 's'} before shift start${b(c.swapRequiresApproval) ? ', once a manager approves' : ', with no approval step'}.`
+      );
+    } else {
+      rule.push('Shift swaps are off; only managers change the roster.');
+    }
+    return {
+      rule,
+      example: rest > 0 ? `Example: Night shift ends 6:00 am — a Morning shift at 9:00 am the same day is flagged (only 3 hours rest).` : undefined,
+    };
+  },
+
   lateEarlyMarks(c) {
     const trigger = s(c.trigger, 'grace_minutes');
     if (trigger === 'off') {
@@ -257,6 +292,17 @@ const WORK_RULES: Record<string, (c: Config) => CardSummary> = {
   defaultSchedule(c) {
     if (!b(c.enabled)) return { rule: ['No default schedule pre-populated; shift is chosen per employee.'] };
     const timingMode = s(c.timingMode, 'fixed_time');
+    if (timingMode === 'roster') {
+      const offDays = n(c.rosterOffDaysPerWeek, 1);
+      return {
+        rule: [
+          'Each date gets its own shift (or an off day) from the roster planner — no fixed timings are pre-populated.',
+          `Weekly offs come from the roster: ${offDays} off-day${offDays === 1 ? '' : 's'} expected per week.`,
+          'A date nobody rostered is marked Unscheduled, not judged against a default shift.',
+        ],
+        example: 'Example: Mon Morning 06:00–14:00, Tue Night 22:00–06:00, Wed off — each day is judged against its own shift.',
+      };
+    }
     const rule: string[] = [
       timingMode === 'flexible'
         ? `Pre-populates flexible shift of ${n(c.flexibleHours, 8)} working hours/day with ${duration(c.breakMinutes)} break.`
@@ -265,9 +311,6 @@ const WORK_RULES: Record<string, (c: Config) => CardSummary> = {
     const mode = s(c.weeklyOffMode, 'fixed_days');
     if (mode === 'flexible') {
       rule.push(`Flexible weekly off: up to ${n(c.flexibleDaysPerMonth, 4)} off-days per month, assigned by manager.`);
-    } else if (mode === 'roster') {
-      const offDays = n(c.rosterOffDaysPerWeek, 1);
-      rule.push(`Roster weekly off: ${offDays} off-day${offDays === 1 ? '' : 's'} assigned per week / rota cycle.`);
     } else {
       const dayKeys = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
       const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;

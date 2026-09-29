@@ -58,6 +58,7 @@ export const orgNav: NavNode[] = [
       { kind: 'link', label: 'Team Mapper', href: '/org-admin/assignments', icon: UserCog },
       { kind: 'link', label: 'Policies', href: '/org-admin/policies', icon: Shield, match: 'prefix' },
       { kind: 'link', label: 'Policy Mapper', href: '/org-admin/policy-mapper', icon: Shield },
+      { kind: 'link', label: 'Shifts', href: '/org-admin/shift-templates', icon: Clock },
       { kind: 'link', label: 'Emergency Contacts', href: '/org-admin/emergency-contacts', icon: Phone },
       { kind: 'link', label: 'Import Employees', href: '/org-admin/employees/import', icon: Upload },
       { kind: 'link', label: 'Shift Management', href: '/org-admin/employees/shifts', icon: Clock },
