@@ -118,8 +118,17 @@ export default function MyActionItems() {
         try {
             const res = await apiClient.put(`/mom/point/complete/${id}`, {}, { withAuth: true });
             if (res.success) {
-                toast.success('Point marked as completed');
-                setPoints(prev => prev.map(p => p.id === id ? mergePointState(p, res) : p));
+                if (res.partial) {
+                    // A multi-assignee point stays in_progress until everyone
+                    // has marked their own part done - refetch rather than
+                    // merge, since there's no point/status envelope for a
+                    // no-op transition.
+                    toast.success(res.message || 'Your part is marked done');
+                    fetchMyPoints(0, true);
+                } else {
+                    toast.success('Point marked as completed');
+                    setPoints(prev => prev.map(p => p.id === id ? mergePointState(p, res) : p));
+                }
             }
         } catch (err) {
             toast.error('Failed to mark done');
@@ -375,6 +384,11 @@ export default function MyActionItems() {
                             actions.push({
                                 key: 'done', label: 'Mark done', kind: 'primary', icon: Check,
                                 onClick: (e: React.MouseEvent) => handleMarkDone(point.id, e),
+                            });
+                        } else if (ability.hasSubmittedMyPart && ability.pendingCoAssignees > 0) {
+                            actions.push({
+                                key: 'waiting', label: `Waiting on ${ability.pendingCoAssignees} more`, kind: 'quiet',
+                                onClick: (e: React.MouseEvent) => e.stopPropagation(),
                             });
                         }
                         if (ability.canVerify) {

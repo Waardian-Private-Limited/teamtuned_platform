@@ -53,7 +53,7 @@ export function readTagToken(
 
 export interface Assignee {
     id: number | string;
-    type: 'employee' | 'department';
+    type: 'employee' | 'department' | 'site';
     name: string;
     /** Department assignments only: scopes the pool to one site instead of the meeting's whole site set. */
     siteId?: number | string;

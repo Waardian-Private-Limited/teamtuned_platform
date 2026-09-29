@@ -261,8 +261,16 @@ function MomDashboardInner({ basePath = '/employee/mom' }: MomDashboardProps) {
     try {
       const res = await apiClient.put(`/mom/point/complete/${id}`, {}, { withAuth: true });
       if (res?.success) {
-        toast.success('Point marked as completed');
-        setPoints(prev => prev.map(p => p.id === id ? mergePointState(p, res) : p));
+        if (res.partial) {
+          // A multi-assignee point stays in_progress until everyone has
+          // marked their own part done - refetch rather than merge, since
+          // there's no point/status envelope for a no-op transition.
+          toast.success(res.message || 'Your part is marked done');
+          fetchActionItems(page, pageSize);
+        } else {
+          toast.success('Point marked as completed');
+          setPoints(prev => prev.map(p => p.id === id ? mergePointState(p, res) : p));
+        }
         fetchSummary();
       }
     } catch {
@@ -705,6 +713,15 @@ function MomDashboardInner({ basePath = '/employee/mom' }: MomDashboardProps) {
                     icon: Check,
                     onClick: (e: React.MouseEvent) => handleMarkDone(point.id, e),
                   });
+                } else if (ability.hasSubmittedMyPart && ability.pendingCoAssignees > 0) {
+                  // I've done my part on a multi-assignee point; the point
+                  // itself won't advance until everyone else has too.
+                  actions.push({
+                    key: 'waiting',
+                    label: `Waiting on ${ability.pendingCoAssignees} more`,
+                    kind: 'quiet',
+                    onClick: (e: React.MouseEvent) => e.stopPropagation(),
+                  });
                 }
                 if (ability.canVerify) {
                   actions.push({
@@ -955,13 +972,21 @@ function MomDashboardInner({ basePath = '/employee/mom' }: MomDashboardProps) {
                           <span className="font-semibold text-gray-800">{evt.actor_name || 'System'}</span>
                         </div>
 
-                        {(evt.from || evt.to) && (
-                          <div className="text-[11px] text-gray-500 flex items-center gap-1.5 pt-0.5">
-                            {evt.from && <span>From: <strong className="text-gray-700">{evt.from}</strong></span>}
-                            {evt.from && evt.to && <span>→</span>}
-                            {evt.to && <span>To: <strong className="text-gray-700">{evt.to}</strong></span>}
-                          </div>
-                        )}
+                        {(() => {
+                          // Real backend events carry from_value/to_value; only
+                          // the pre-unification client fallback ever used
+                          // bare from/to, so this field never actually
+                          // rendered for a server-sourced event before.
+                          const from = evt.from ?? evt.from_value;
+                          const to = evt.to ?? evt.to_value;
+                          return (from || to) && (
+                            <div className="text-[11px] text-gray-500 flex items-center gap-1.5 pt-0.5">
+                              {from && <span>From: <strong className="text-gray-700">{from}</strong></span>}
+                              {from && to && <span>→</span>}
+                              {to && <span>To: <strong className="text-gray-700">{to}</strong></span>}
+                            </div>
+                          );
+                        })()}
 
                         {evt.reason && (
                           <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200/60 rounded px-2 py-1 mt-1">

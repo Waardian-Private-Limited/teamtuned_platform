@@ -26,6 +26,8 @@ import {
     AlertCircle,
     RefreshCw,
     Users,
+    Building,
+    History,
     X
 } from 'lucide-react';
 import Link from 'next/link';
@@ -65,10 +67,18 @@ export default function MeetingDetailView({
     const [activeFilter, setActiveFilter] = useState<'all' | 'open' | 'completed'>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [employeesList, setEmployeesList] = useState<any[]>([]);
+    const [departmentsList, setDepartmentsList] = useState<any[]>([]);
+    const [sitesList, setSitesList] = useState<any[]>([]);
 
     // Action point composer state
     const [pointText, setPointText] = useState('');
-    const [selectedAssignee, setSelectedAssignee] = useState<{ id: string; name: string; type: 'employee' | 'all' | 'none' }>({
+    const [selectedAssignee, setSelectedAssignee] = useState<{
+        id: string;
+        name: string;
+        type: 'employee' | 'department' | 'site' | 'all' | 'none';
+        siteId?: string;
+        siteName?: string;
+    }>({
         id: '',
         name: 'Select Assignee...',
         type: 'none'
@@ -101,6 +111,11 @@ export default function MeetingDetailView({
     // Discussion Chat drawer state
     const [selectedPointId, setSelectedPointId] = useState<number | null>(null);
     const [isChatOpen, setIsChatOpen] = useState(false);
+
+    // Point version-history / timeline modal state
+    const [timelinePointId, setTimelinePointId] = useState<number | null>(null);
+    const [timelineEvents, setTimelineEvents] = useState<any[]>([]);
+    const [timelineLoading, setTimelineLoading] = useState(false);
 
     // Target Date Update Modal state
     const [targetDateModalPoint, setTargetDateModalPoint] = useState<any | null>(null);
@@ -237,6 +252,23 @@ export default function MeetingDetailView({
         fetchEmployees();
     }, []);
 
+    // Fetch org departments & sites for the "Assigned To" pool picker
+    useEffect(() => {
+        const fetchPools = async () => {
+            try {
+                const [deptsRes, sitesRes] = await Promise.all([
+                    apiClient.get('/organization/departments', undefined, { withAuth: true }),
+                    apiClient.get('/sites', { format: 'paginated', limit: 1000 }, { withAuth: true })
+                ]);
+                setDepartmentsList((deptsRes as any).data || (deptsRes as any) || []);
+                setSitesList((sitesRes as any).sites || []);
+            } catch (e) {
+                console.error('Error fetching departments/sites:', e);
+            }
+        };
+        fetchPools();
+    }, []);
+
     // Format IST Date & Time
     const formatToIST = (dateStr: string) => {
         if (!dateStr) return '';
@@ -364,6 +396,19 @@ export default function MeetingDetailView({
                         type: 'employee',
                         name: selectedAssignee.name
                     }]));
+                } else if (selectedAssignee.type === 'department' && selectedAssignee.id) {
+                    formData.append('assignments', JSON.stringify([{
+                        id: Number(selectedAssignee.id),
+                        type: 'department',
+                        name: selectedAssignee.name,
+                        ...(selectedAssignee.siteId ? { siteId: Number(selectedAssignee.siteId) } : {})
+                    }]));
+                } else if (selectedAssignee.type === 'site' && selectedAssignee.id) {
+                    formData.append('assignments', JSON.stringify([{
+                        id: Number(selectedAssignee.id),
+                        type: 'site',
+                        name: selectedAssignee.name
+                    }]));
                 }
             }
 
@@ -438,11 +483,61 @@ export default function MeetingDetailView({
         }
     };
 
+    const handleOpenTimeline = async (pointId: number) => {
+        setTimelinePointId(pointId);
+        setTimelineLoading(true);
+        try {
+            const res = await apiClient.get(`/mom/points/${pointId}/events`, undefined, { withAuth: true });
+            setTimelineEvents((res as any).events || []);
+        } catch {
+            toast.error('Failed to load history');
+            setTimelineEvents([]);
+        } finally {
+            setTimelineLoading(false);
+        }
+    };
+
+    /** One line per event type, for the point-history timeline. */
+    const describeTimelineEvent = (h: any): { label: string; detail?: string } => {
+        let metadata: any = h.metadata;
+        if (typeof metadata === 'string') { try { metadata = JSON.parse(metadata); } catch { metadata = null; } }
+
+        switch (h.event_type) {
+            case 'text_edited':
+                return { label: 'Edited the point text', detail: metadata?.new_text || h.to_value };
+            case 'priority_changed':
+                return { label: `Priority changed: ${h.from_value || '—'} → ${h.to_value || '—'}` };
+            case 'due_date_changed':
+                return { label: `Target date changed: ${h.from_value || 'not set'} → ${h.to_value || 'not set'}` };
+            case 'assignments_changed': {
+                const added = (metadata?.added || []).map((a: any) => a.name).filter(Boolean).join(', ');
+                const removed = (metadata?.removed || []).map((a: any) => a.name).filter(Boolean).join(', ');
+                return {
+                    label: 'Assignees changed',
+                    detail: [added && `Added: ${added}`, removed && `Removed: ${removed}`].filter(Boolean).join(' · '),
+                };
+            }
+            case 'transition':
+                return { label: `Moved from ${(h.from_value || '').replace('_', ' ')} to ${(h.to_value || '').replace('_', ' ')}`, detail: h.reason };
+            case 'assignee_submitted':
+                return { label: 'Marked their part done' };
+            case 'claimed':
+                return { label: 'Claimed this point' };
+            case 'created':
+                return { label: 'Point created' };
+            default:
+                return { label: h.event_type?.replace(/_/g, ' ') || 'Updated', detail: h.reason };
+        }
+    };
+
     const handleMarkPointDone = async (pointId: number) => {
         try {
             const res = await apiClient.put(`/mom/point/complete/${pointId}`, {}, { withAuth: true });
             if (res?.success) {
-                toast.success('Point marked as completed');
+                // A multi-assignee point stays in_progress until everyone has
+                // marked their own part done — say so rather than claiming
+                // the whole point is complete.
+                toast.success(res.partial ? (res.message || 'Your part is marked done') : 'Point marked as completed');
                 fetchMeetingDetails();
             }
         } catch (err: any) {
@@ -573,6 +668,18 @@ export default function MeetingDetailView({
             return name.includes(q) || dept.includes(q);
         }).slice(0, 50);
     }, [employeesList, assigneeSearchQuery]);
+
+    const filteredDepartments = useMemo(() => {
+        if (!assigneeSearchQuery.trim()) return departmentsList;
+        const q = assigneeSearchQuery.toLowerCase();
+        return departmentsList.filter(d => (d.name || '').toLowerCase().includes(q));
+    }, [departmentsList, assigneeSearchQuery]);
+
+    const filteredSites = useMemo(() => {
+        if (!assigneeSearchQuery.trim()) return sitesList;
+        const q = assigneeSearchQuery.toLowerCase();
+        return sitesList.filter(s => (s.name || '').toLowerCase().includes(q));
+    }, [sitesList, assigneeSearchQuery]);
 
     const filteredReviewers = useMemo(() => {
         if (!reviewerSearchQuery.trim()) return employeesList.slice(0, 50);
@@ -859,13 +966,13 @@ export default function MeetingDetailView({
                                             <input
                                                 type="text"
                                                 autoFocus
-                                                placeholder="Search employee..."
+                                                placeholder="Search employee, department or site..."
                                                 value={assigneeSearchQuery}
                                                 onChange={(e) => setAssigneeSearchQuery(e.target.value)}
                                                 className="w-full pl-8 pr-2.5 py-1 text-xs border border-gray-200 rounded bg-gray-50 focus:outline-none focus:bg-white"
                                             />
                                         </div>
-                                        <div className="max-h-48 overflow-y-auto divide-y divide-gray-50">
+                                        <div className="max-h-64 overflow-y-auto divide-y divide-gray-50">
                                             {/* General Options */}
                                             <button
                                                 type="button"
@@ -888,6 +995,50 @@ export default function MeetingDetailView({
                                                 All Attendees / Staff
                                             </button>
 
+                                            {/* Department pool — any site, unless narrowed below */}
+                                            {filteredDepartments.length > 0 && (
+                                                <div className="pt-1">
+                                                    <div className="px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-gray-400">By Department</div>
+                                                    {filteredDepartments.map((dept: any) => (
+                                                        <button
+                                                            key={`dept-${dept.id}`}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setSelectedAssignee({ id: String(dept.id), name: `Dept: ${dept.name}`, type: 'department' });
+                                                                setIsAssigneeDropdownOpen(false);
+                                                                setAssigneeSearchQuery('');
+                                                            }}
+                                                            className="w-full text-left px-2 py-1.5 hover:bg-indigo-50 rounded flex items-center gap-1.5 text-xs text-gray-800 font-medium transition-colors"
+                                                        >
+                                                            <Building className="w-3 h-3 text-indigo-500 shrink-0" />
+                                                            <span className="truncate">{dept.name}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* Site pool — any department at that site */}
+                                            {filteredSites.length > 0 && (
+                                                <div className="pt-1">
+                                                    <div className="px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-gray-400">By Site</div>
+                                                    {filteredSites.map((site: any) => (
+                                                        <button
+                                                            key={`site-${site.id}`}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setSelectedAssignee({ id: String(site.id), name: `Site: ${site.name}`, type: 'site' });
+                                                                setIsAssigneeDropdownOpen(false);
+                                                                setAssigneeSearchQuery('');
+                                                            }}
+                                                            className="w-full text-left px-2 py-1.5 hover:bg-teal-50 rounded flex items-center gap-1.5 text-xs text-gray-800 font-medium transition-colors"
+                                                        >
+                                                            <MapPin className="w-3 h-3 text-teal-500 shrink-0" />
+                                                            <span className="truncate">{site.name}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+
                                             {/* Employee List */}
                                             {filteredAssignees.map(emp => (
                                                 <button
@@ -907,6 +1058,27 @@ export default function MeetingDetailView({
                                             ))}
                                         </div>
                                     </div>
+                                )}
+
+                                {/* Narrow a department pool to one site (optional — Department + Site combo) */}
+                                {selectedAssignee.type === 'department' && (
+                                    <select
+                                        value={selectedAssignee.siteId || ''}
+                                        onChange={(e) => {
+                                            const siteId = e.target.value;
+                                            const site = sitesList.find((s: any) => String(s.id) === siteId);
+                                            setSelectedAssignee(prev => ({
+                                                ...prev,
+                                                siteId: siteId || undefined,
+                                                siteName: site?.name
+                                            }));
+                                        }}
+                                        className="mt-1 w-full px-2 py-1 bg-indigo-50 border border-indigo-200 rounded text-[10px] font-semibold text-indigo-700 focus:outline-none"
+                                        title="Scope this department to one site"
+                                    >
+                                        <option value="">Any site</option>
+                                        {sitesList.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    </select>
                                 )}
                             </div>
 
@@ -1259,6 +1431,15 @@ export default function MeetingDetailView({
                                                     </button>
                                                 )}
 
+                                                {!ability.canSubmit && ability.hasSubmittedMyPart && ability.pendingCoAssignees > 0 && (
+                                                    <span
+                                                        className="px-2.5 py-1 bg-gray-100 text-gray-500 rounded-md text-xs font-semibold"
+                                                        title="Your part is done — the point moves on once everyone else has marked theirs too"
+                                                    >
+                                                        Waiting on {ability.pendingCoAssignees} more
+                                                    </span>
+                                                )}
+
                                                 {ability.canVerify && (
                                                     <button
                                                         type="button"
@@ -1298,6 +1479,15 @@ export default function MeetingDetailView({
                                         >
                                             <MessageSquare className="w-3.5 h-3.5" />
                                             <span>Chat</span>
+                                        </button>
+
+                                        <button
+                                            onClick={() => handleOpenTimeline(point.id)}
+                                            className="flex items-center gap-1 px-2.5 py-1 bg-gray-100 hover:bg-blue-50 hover:text-blue-600 rounded-md text-xs font-semibold text-gray-700 transition-colors"
+                                            title="View full edit & status history"
+                                        >
+                                            <History className="w-3.5 h-3.5" />
+                                            <span>Timeline</span>
                                         </button>
 
                                         {(!isMeetingCompleted || isOrgAdmin) && (canManageMeeting || Number(point.created_by) === Number(currentEmployeeId)) && (
@@ -1464,6 +1654,40 @@ export default function MeetingDetailView({
                     }}
                     pointId={selectedPointId}
                 />
+            )}
+
+            {/* Point Timeline / Version History Modal */}
+            {timelinePointId !== null && (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[80vh] flex flex-col">
+                        <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                                <History className="w-4 h-4 text-gray-500" /> Point Timeline
+                            </h3>
+                            <button onClick={() => setTimelinePointId(null)} className="text-gray-400 hover:text-gray-600">
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <div className="overflow-y-auto flex-1 p-4 space-y-2.5">
+                            {timelineLoading ? (
+                                <div className="py-8 text-center text-xs text-gray-400">Loading...</div>
+                            ) : timelineEvents.length === 0 ? (
+                                <div className="py-8 text-center text-xs text-gray-400">No history recorded for this point yet.</div>
+                            ) : timelineEvents.map((h: any) => {
+                                const { label, detail } = describeTimelineEvent(h);
+                                return (
+                                    <div key={`${h.event_type}-${h.id}`} className="border border-gray-100 rounded-lg p-2.5 bg-gray-50">
+                                        <div className="text-[10px] font-bold uppercase text-gray-400 mb-1">
+                                            {h.actor_name || 'Someone'} · {new Date(h.created_at).toLocaleString()}
+                                        </div>
+                                        <p className="text-xs text-gray-900 font-medium">{label}</p>
+                                        {detail && <p className="text-[11px] text-gray-500 mt-0.5">{detail}</p>}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

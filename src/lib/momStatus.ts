@@ -246,10 +246,17 @@ export interface Ability {
     canHandOff: boolean;
     canReassign: boolean;
     canSetDueDate: boolean;
+    /** I'm one of several owners on this point and have already marked my part done. */
+    hasSubmittedMyPart: boolean;
+    /** Other active owners who haven't marked their part done yet (excludes me). */
+    pendingCoAssignees: number;
 }
 
 interface AbilityPoint extends PointLike {
-    assignments?: { role?: string; state?: string; assignee_type?: string; assignee_id?: string | number }[];
+    assignments?: {
+        role?: string; state?: string; assignee_type?: string; assignee_id?: string | number;
+        acknowledged_at?: string | null; submitted_at?: string | null;
+    }[];
     assigned_to_id?: string | number | null;
     reviewer_id?: string | number | null;
     created_by?: string | number | null;
@@ -307,6 +314,15 @@ export function abilityFor(point: AbilityPoint, viewer: Viewer): Ability {
         ? (point.is_claimable === 1 || point.is_claimable === true)
         : (inPoolDept && !hasOwner);
 
+    // A point assigned to several people shares one lifecycle_status, but
+    // each owner's own progress is tracked on their own assignment row -
+    // once I've marked my part done, my Submit button should disappear even
+    // while the point waits on everyone else.
+    const activeOwners = working.filter(a => a.assignee_type === 'employee' && (a.role === 'owner' || !a.role));
+    const myOwnerRow = activeOwners.find(a => same(a.assignee_id));
+    const hasSubmittedMyPart = Boolean(myOwnerRow?.submitted_at);
+    const pendingCoAssignees = activeOwners.filter(a => !same(a.assignee_id) && !a.submitted_at).length;
+
     return {
         isAssignee,
         isOwner,
@@ -314,12 +330,14 @@ export function abilityFor(point: AbilityPoint, viewer: Viewer): Ability {
         isPoolMember,
         canStart: !terminal && lifecycle === 'open' && isAssignee,
         canClaim: !terminal && lifecycle === 'open' && !isAssignee && claimable,
-        canSubmit: !terminal && lifecycle === 'in_progress' && isAssignee,
+        canSubmit: !terminal && lifecycle === 'in_progress' && isAssignee && !hasSubmittedMyPart,
         canVerify: !terminal && lifecycle === 'submitted' && isReviewer,
         canReturn: !terminal && lifecycle === 'submitted' && isReviewer,
         canHandOff: !terminal && isOwner,
         canReassign: !terminal && !isOwner && isReviewer,
         canSetDueDate: !terminal && (isAssignee || isReviewer),
+        hasSubmittedMyPart,
+        pendingCoAssignees,
     };
 }
 

@@ -10,7 +10,7 @@ import {
     FileText, Tag, AtSign, PlusCircle,
     Palette, Info, MoreHorizontal, ShieldCheck, Flag, Paperclip,
     ImageIcon, Download, Building, CheckCircle,
-    RefreshCcw, CalendarDays
+    RefreshCcw, CalendarDays, MapPin
 } from 'lucide-react';
 import { apiClient } from '@/lib/apiClient';
 import { getSocket } from '@/lib/socket';
@@ -284,9 +284,15 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
         if (showTagPopover) {
             if (tagType === '#' || tagType === '^' || tagType === '@') {
                 if (tagType === '#') {
+                    // '#' is the pool trigger: departments and sites share it,
+                    // distinguished by _pool so selectTag knows which one was picked.
+                    const pooled = [
+                        ...departmentsList.map((d: any) => ({ ...d, _pool: 'department' })),
+                        ...sitesList.map((s: any) => ({ ...s, _pool: 'site' })),
+                    ];
                     const filtered = tagQuery
-                        ? departmentsList.filter((d: any) => d.name?.toLowerCase().includes(tagQuery.toLowerCase()))
-                        : departmentsList;
+                        ? pooled.filter((d: any) => d.name?.toLowerCase().includes(tagQuery.toLowerCase()))
+                        : pooled;
                     setTagResults(filtered);
                     return;
                 }
@@ -301,10 +307,10 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
                 return () => clearTimeout(timeoutId);
             }
         }
-    }, [showTagPopover, tagQuery, tagType, departmentsList]);
+    }, [showTagPopover, tagQuery, tagType, departmentsList, sitesList]);
 
     const selectTag = (item: any) => {
-        const type = tagType === '@' ? 'employee' : (tagType === '#' ? 'department' : 'employee');
+        const type = tagType === '@' ? 'employee' : (tagType === '#' ? item._pool : 'employee');
         const name = item.name || `${item.first_name} ${item.last_name}`;
         const isEdit = editingPointId !== null && editingPointId !== -1;
 
@@ -450,13 +456,49 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
         setExpandedHistoryPointId(pointId);
         setHistoryLoading(true);
         try {
-            const res = await apiClient.get(`/mom/point/history/${pointId}`, undefined, { withAuth: true });
-            setHistoryRows((res as any).history || []);
+            // The unified timeline: text edits, priority/due-date/assignee
+            // changes, and lifecycle transitions all in one chronological list,
+            // instead of the old text-only history table.
+            const res = await apiClient.get(`/mom/points/${pointId}/events`, undefined, { withAuth: true });
+            setHistoryRows((res as any).events || []);
         } catch (err) {
             toast.error('Failed to load history');
             setHistoryRows([]);
         } finally {
             setHistoryLoading(false);
+        }
+    };
+
+    /** One line per event type, for the unified point-history modal. */
+    const describeEvent = (h: any): { label: string; detail?: string } => {
+        let metadata: any = h.metadata;
+        if (typeof metadata === 'string') { try { metadata = JSON.parse(metadata); } catch { metadata = null; } }
+
+        switch (h.event_type) {
+            case 'text_edited':
+                return { label: 'Edited the point text', detail: metadata?.new_text || h.to_value };
+            case 'priority_changed':
+                return { label: `Priority changed: ${h.from_value || '—'} → ${h.to_value || '—'}` };
+            case 'due_date_changed':
+                return { label: `Target date changed: ${h.from_value || 'not set'} → ${h.to_value || 'not set'}` };
+            case 'assignments_changed': {
+                const added = (metadata?.added || []).map((a: any) => a.name).filter(Boolean).join(', ');
+                const removed = (metadata?.removed || []).map((a: any) => a.name).filter(Boolean).join(', ');
+                return {
+                    label: 'Assignees changed',
+                    detail: [added && `Added: ${added}`, removed && `Removed: ${removed}`].filter(Boolean).join(' · '),
+                };
+            }
+            case 'transition':
+                return { label: `Moved from ${(h.from_value || '').replace('_', ' ')} to ${(h.to_value || '').replace('_', ' ')}`, detail: h.reason };
+            case 'assignee_submitted':
+                return { label: 'Marked their part done' };
+            case 'claimed':
+                return { label: 'Claimed this point' };
+            case 'created':
+                return { label: 'Point created' };
+            default:
+                return { label: h.event_type?.replace(/_/g, ' ') || 'Updated', detail: h.reason };
         }
     };
 
@@ -907,7 +949,7 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
                                             )}
                                             {selectedAssignments.map((a, i) => (
                                                 <span key={i} className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-md text-black text-[9px] font-black uppercase flex items-center gap-1">
-                                                    {a.type === 'department' ? <Building size={10} className="text-blue-600" /> : <User size={10} className="text-emerald-600" />}{a.name}
+                                                    {a.type === 'department' ? <Building size={10} className="text-blue-600" /> : a.type === 'site' ? <MapPin size={10} className="text-teal-600" /> : <User size={10} className="text-emerald-600" />}{a.name}
                                                     {a.type === 'department' && (
                                                         <select
                                                             value={a.siteId ?? ''}
@@ -952,7 +994,7 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
                                             <div className="p-2 border-b border-slate-100 bg-slate-50">
                                                 <input
                                                     type="text"
-                                                    placeholder={tagType === '@' ? 'Search employees...' : 'Search departments...'}
+                                                    placeholder={tagType === '@' ? 'Search employees...' : 'Search departments or sites...'}
                                                     value={tagQuery}
                                                     onChange={(e) => setTagQuery(e.target.value)}
                                                     autoFocus
@@ -966,7 +1008,7 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
                                                 {tagResults.length > 0 ? tagResults.map((item: any) => (
                                                     <button key={item.id} onClick={(e) => { e.preventDefault(); selectTag(item); }} className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-slate-50 transition-colors text-left group">
                                                         <div className="size-8 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
-                                                            {tagType === '@' ? <User size={14} className="text-emerald-600" /> : <Building size={14} className="text-blue-600" />}
+                                                            {tagType === '@' ? <User size={14} className="text-emerald-600" /> : item._pool === 'site' ? <MapPin size={14} className="text-teal-600" /> : <Building size={14} className="text-blue-600" />}
                                                         </div>
                                                         <div className="flex flex-col overflow-hidden">
                                                             <span className="text-[11px] font-black uppercase tracking-tight text-slate-900 truncate">{item.name || `${item.first_name} ${item.last_name}`}</span>
@@ -1059,7 +1101,7 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
                                                 )}
                                                 {selectedAssignments.map((a, i) => (
                                                     <span key={i} className={`px-2 py-1 bg-slate-50 border border-slate-200 rounded-md text-black text-[9px] font-black uppercase flex items-center gap-1 ${a.type === 'reviewer' ? 'bg-purple-50 border-purple-200' : ''}`}>
-                                                        {a.type === 'department' ? <Building size={10} className="text-blue-600" /> : a.type === 'reviewer' ? <User size={10} className="text-purple-600" /> : <User size={10} className="text-emerald-600" />}
+                                                        {a.type === 'department' ? <Building size={10} className="text-blue-600" /> : a.type === 'site' ? <MapPin size={10} className="text-teal-600" /> : a.type === 'reviewer' ? <User size={10} className="text-purple-600" /> : <User size={10} className="text-emerald-600" />}
                                                         {a.type === 'reviewer' ? `Reviewer: ${a.name}` : a.name}
                                                         {a.type === 'department' && (
                                                             <select
@@ -1116,7 +1158,7 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
                                                 {tagResults.map((item: any) => (
                                                     <button key={item.id} onClick={() => selectTag(item)} className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-slate-50 transition-colors text-left group">
                                                         <div className="size-8 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
-                                                            {tagType === '@' ? <User size={14} className="text-emerald-600" /> : tagType === '#' ? <Building size={14} className="text-blue-600" /> : <User size={14} className="text-purple-600" />}
+                                                            {tagType === '@' ? <User size={14} className="text-emerald-600" /> : tagType === '#' ? (item._pool === 'site' ? <MapPin size={14} className="text-teal-600" /> : <Building size={14} className="text-blue-600" />) : <User size={14} className="text-purple-600" />}
                                                         </div>
                                                         <div className="flex flex-col overflow-hidden">
                                                             <span className="text-[11px] font-black uppercase tracking-tight truncate">{item.name || `${item.first_name} ${item.last_name}`}</span>
@@ -1408,17 +1450,18 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
                                 <div className="py-8 text-center text-sm text-slate-400">Loading...</div>
                             ) : historyRows.length === 0 ? (
                                 <div className="py-8 text-center text-sm text-slate-400">No edits recorded for this point yet.</div>
-                            ) : historyRows.map((h: any) => (
-                                <div key={h.id} className="border border-slate-100 rounded-lg p-3 bg-slate-50">
-                                    <div className="text-[10px] font-bold uppercase text-slate-400 mb-1">
-                                        {h.editor_name || 'Someone'} · {new Date(h.created_at).toLocaleString()}
+                            ) : historyRows.map((h: any) => {
+                                const { label, detail } = describeEvent(h);
+                                return (
+                                    <div key={`${h.event_type}-${h.id}`} className="border border-slate-100 rounded-lg p-3 bg-slate-50">
+                                        <div className="text-[10px] font-bold uppercase text-slate-400 mb-1">
+                                            {h.actor_name || h.editor_name || 'Someone'} · {new Date(h.created_at).toLocaleString()}
+                                        </div>
+                                        <p className="text-sm text-slate-900 font-medium">{label}</p>
+                                        {detail && <p className="text-xs text-slate-500 mt-0.5">{detail}</p>}
                                     </div>
-                                    {h.old_text && (
-                                        <p className="text-xs text-slate-400 line-through decoration-slate-300 mb-1">{h.old_text}</p>
-                                    )}
-                                    <p className="text-sm text-slate-900 font-medium">{h.new_text}</p>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 </div>

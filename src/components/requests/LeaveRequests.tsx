@@ -29,7 +29,8 @@ import {
   Plus,
   ChevronDown,
   ChevronUp,
-  Users
+  Users,
+  Award
 } from "lucide-react";
 
 
@@ -235,6 +236,16 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
   const [balSelectedEmployee, setBalSelectedEmployee] = useState<Record<string, any> | null>(null);
   const [balSelectedEmployeeBalances, setBalSelectedEmployeeBalances] = useState<Array<Record<string, any>>>([]);
   const [balBalancesLoading, setBalBalancesLoading] = useState(false);
+  const [balCompoffSummary, setBalCompoffSummary] = useState<{
+    available: number;
+    total_valid: number;
+    current_month_earned: number;
+    pending_applied: number;
+    used: number;
+    total_earned: number;
+  } | null>(null);
+  const [balCompoffRecords, setBalCompoffRecords] = useState<Array<any>>([]);
+  const [showCompoffRecords, setShowCompoffRecords] = useState(false);
 
   // Balance adjustment modal
   const [adjustModalOpen, setAdjustModalOpen] = useState(false);
@@ -461,9 +472,13 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
           : `FY ${now.getFullYear()}`
       );
       setBalSelectedEmployeeBalances(list);
+      setBalCompoffSummary(res?.compoff_summary || null);
+      setBalCompoffRecords(res?.compoff_records || []);
     } catch (e) {
       console.error("Failed to fetch employee balances detail", e);
       setBalSelectedEmployeeBalances([]);
+      setBalCompoffSummary(null);
+      setBalCompoffRecords([]);
     } finally {
       setBalBalancesLoading(false);
     }
@@ -2614,7 +2629,7 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                 </select>
               )}
               <button
-                onClick={() => { setBalSelectedEmployee(null); setBalSelectedEmployeeBalances([]); fetchBalEmployees(); }}
+                onClick={() => { setBalSelectedEmployee(null); setBalSelectedEmployeeBalances([]); setBalCompoffSummary(null); setBalCompoffRecords([]); fetchBalEmployees(); }}
                 disabled={balEmployeesLoading}
                 className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm flex items-center gap-1 transition-colors disabled:opacity-50"
               >
@@ -2749,6 +2764,119 @@ export default function LeaveRequests({ defaultHQ = true, showHQToggle = true, e
                       <span>Add Balance</span>
                     </button>
                   </div>
+
+                  {/* Comp-Off Balance Card & Summary */}
+                  {balCompoffSummary && !balBalancesLoading && (
+                    <div className="p-4 bg-gradient-to-r from-amber-50/70 via-orange-50/40 to-yellow-50/60 border-b border-gray-100">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-700 flex items-center justify-center">
+                            <Award className="w-4 h-4 text-amber-600" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Comp-Off Balance</h4>
+                            <p className="text-[11px] text-gray-500">Compensatory off earned from extra/holiday/weekend shifts</p>
+                          </div>
+                        </div>
+
+                        {balCompoffRecords.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setShowCompoffRecords(!showCompoffRecords)}
+                            className="text-xs font-medium text-amber-800 hover:text-amber-900 bg-amber-100/70 hover:bg-amber-100 px-2.5 py-1 rounded-md transition-colors flex items-center gap-1 cursor-pointer"
+                          >
+                            <span>{showCompoffRecords ? "Hide History" : `View History (${balCompoffRecords.length})`}</span>
+                            {showCompoffRecords ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                        <div className="bg-white/90 backdrop-blur-sm rounded-lg p-2.5 border border-amber-200/60 shadow-xs">
+                          <p className="text-[10px] uppercase font-bold text-gray-400">Available (Active)</p>
+                          <p className="text-lg font-black text-emerald-600 mt-0.5">
+                            {balCompoffSummary.available.toFixed(1)} <span className="text-[11px] font-semibold text-gray-500">Days</span>
+                          </p>
+                          <p className="text-[9px] text-gray-400 mt-0.5">Unexpired & usable</p>
+                        </div>
+                        <div className="bg-white/90 backdrop-blur-sm rounded-lg p-2.5 border border-amber-200/60 shadow-xs">
+                          <p className="text-[10px] uppercase font-bold text-gray-400">Earned This Month</p>
+                          <p className="text-lg font-black text-blue-600 mt-0.5">
+                            {balCompoffSummary.current_month_earned.toFixed(1)} <span className="text-[11px] font-semibold text-gray-500">Days</span>
+                          </p>
+                          <p className="text-[9px] text-gray-400 mt-0.5">In current cycle</p>
+                        </div>
+                        <div className="bg-white/90 backdrop-blur-sm rounded-lg p-2.5 border border-amber-200/60 shadow-xs">
+                          <p className="text-[10px] uppercase font-bold text-gray-400">Pending Requests</p>
+                          <p className="text-lg font-black text-amber-600 mt-0.5">
+                            {balCompoffSummary.pending_applied.toFixed(1)} <span className="text-[11px] font-semibold text-gray-500">Days</span>
+                          </p>
+                          <p className="text-[9px] text-gray-400 mt-0.5">Blocked by pending leave</p>
+                        </div>
+                        <div className="bg-white/90 backdrop-blur-sm rounded-lg p-2.5 border border-amber-200/60 shadow-xs">
+                          <p className="text-[10px] uppercase font-bold text-gray-400">Used / Taken</p>
+                          <p className="text-lg font-black text-purple-600 mt-0.5">
+                            {balCompoffSummary.used.toFixed(1)} <span className="text-[11px] font-semibold text-gray-500">Days</span>
+                          </p>
+                          <p className="text-[9px] text-gray-400 mt-0.5">Total redeemed</p>
+                        </div>
+                      </div>
+
+                      {/* Expandable Comp-Off Records Table */}
+                      {showCompoffRecords && balCompoffRecords.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-amber-200/50">
+                          <p className="text-[10px] uppercase font-bold tracking-wider text-amber-900 mb-2">Recent Comp-off Grants & Usage</p>
+                          <div className="overflow-x-auto max-h-48 border border-amber-200/70 rounded-lg bg-white">
+                            <table className="w-full text-left text-xs">
+                              <thead className="bg-amber-50 text-[10px] uppercase font-bold text-amber-900 border-b border-amber-200/60 sticky top-0">
+                                <tr>
+                                  <th className="px-3 py-1.5">Earned Date</th>
+                                  <th className="px-3 py-1.5">Earned Time</th>
+                                  <th className="px-3 py-1.5">Type</th>
+                                  <th className="px-3 py-1.5">Status</th>
+                                  <th className="px-3 py-1.5">Expiry Date</th>
+                                  <th className="px-3 py-1.5">Remarks</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100 text-[11px]">
+                                {balCompoffRecords.map((rec: any) => (
+                                  <tr key={rec.id} className="hover:bg-amber-50/30">
+                                    <td className="px-3 py-1.5 font-medium text-gray-900">
+                                      {rec.compoff_date ? new Date(rec.compoff_date).toLocaleDateString('en-GB') : '—'}
+                                    </td>
+                                    <td className="px-3 py-1.5 text-gray-600">
+                                      {rec.total_earned_minutes ? `${(rec.total_earned_minutes / 60).toFixed(1)} hrs` : '1.0 Day'}
+                                    </td>
+                                    <td className="px-3 py-1.5">
+                                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${rec.is_night_ot ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-700'}`}>
+                                        {rec.is_night_ot ? 'Night OT' : 'Regular'}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-1.5">
+                                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                        rec.effective_status === 'Available' ? 'bg-emerald-100 text-emerald-800' :
+                                        rec.effective_status === 'Used' ? 'bg-purple-100 text-purple-800' :
+                                        rec.effective_status === 'Expired' ? 'bg-red-100 text-red-700' :
+                                        'bg-amber-100 text-amber-800'
+                                      }`}>
+                                        {rec.effective_status || rec.status}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-1.5 text-gray-500">
+                                      {rec.expiry_date ? new Date(rec.expiry_date).toLocaleDateString('en-GB') : 'No expiry'}
+                                    </td>
+                                    <td className="px-3 py-1.5 text-gray-500 truncate max-w-[150px]" title={rec.remarks || ''}>
+                                      {rec.remarks || rec.award_reason || '—'}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {balBalancesLoading ? (
                     <div className="p-6 space-y-4">

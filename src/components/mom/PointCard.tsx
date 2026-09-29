@@ -4,7 +4,7 @@ import React from 'react';
 import {
     MessageSquare, Paperclip, CalendarDays, ArrowRightLeft,
     Check, ChevronRight, Building, User, Calendar, History,
-    Image as ImageIcon, FileText, ExternalLink, Users,
+    Image as ImageIcon, FileText, ExternalLink, Users, Circle,
 } from 'lucide-react';
 import { readStatus, derivedBadges, TONE_CLASSES, initials, poolDepartment } from '@/lib/momStatus';
 import { describeDueDate } from '@/lib/momDates';
@@ -51,6 +51,11 @@ export default function PointCard({
     const assigneeText = assignees.length > 0
         ? assignees.map((a: any) => a.assignee_name || a.name || `User #${a.assignee_id}`).join(', ')
         : (point.assigned_to_name || 'Unassigned');
+
+    // More than one owner: each has their own completion state, so a plain
+    // comma-joined name string can no longer say who has actually finished.
+    const activeOwners = assignees.filter((a: any) => a.assignee_type === 'employee' && (a.role === 'owner' || !a.role));
+    const showPerAssigneeProgress = activeOwners.length > 1;
 
     const reviewerText = point.reviewer_name || (point.reviewer_id && point.reviewer_id === point.created_by ? point.creator_name : null);
     const attachments = point.attachments || [];
@@ -130,9 +135,21 @@ export default function PointCard({
 
                             {/* Metadata Row: Assignee, Reviewer, Target Date, Meeting */}
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2.5 text-xs text-gray-600">
-                                <span className="inline-flex items-center gap-1">
+                                <span className="inline-flex items-center gap-1 flex-wrap">
                                     <span className="text-gray-400 font-medium">Assigned to:</span>
-                                    <span className="font-semibold text-gray-900">{assigneeText}</span>
+                                    {showPerAssigneeProgress ? (
+                                        activeOwners.map((a: any, i: number) => (
+                                            <span key={a.assignee_id ?? i} className="inline-flex items-center gap-0.5 font-semibold text-gray-900">
+                                                {a.submitted_at
+                                                    ? <Check size={11} className="text-emerald-600" />
+                                                    : <Circle size={9} className="text-gray-300 fill-current" />}
+                                                {a.assignee_name || a.name || `User #${a.assignee_id}`}
+                                                {i < activeOwners.length - 1 && <span className="text-gray-300">,</span>}
+                                            </span>
+                                        ))
+                                    ) : (
+                                        <span className="font-semibold text-gray-900">{assigneeText}</span>
+                                    )}
                                 </span>
 
                                 {reviewerText && (
