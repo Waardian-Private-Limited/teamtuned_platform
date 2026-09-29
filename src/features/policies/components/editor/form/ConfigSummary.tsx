@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { groupMeta, isArrayFieldNode, isFieldNode, isVisible, labelOf, optionLabel, sectionEntries, type SchemaNode, type SectionNode } from './schemaTypes';
+import { groupMeta, isArrayFieldNode, isCapNode, isFieldNode, isVisible, labelOf, optionLabel, sectionEntries, type CapValue, type SchemaNode, type SectionNode } from './schemaTypes';
 
 /**
  * Read-only rendering of a policy config against the schema — the same
@@ -13,7 +13,7 @@ export function formatValue(value: unknown): string {
   if (value === null || value === undefined || value === '') return '—';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (typeof value === 'string' && /^[a-z][a-z0-9]*(_[a-z0-9]+)+$/.test(value)) return optionLabel(value);
-  if (Array.isArray(value)) return value.length ? value.map((v) => (typeof v === 'object' ? JSON.stringify(v) : String(v))).join(', ') : 'None';
+  if (Array.isArray(value)) return value.length ? value.map((v) => (typeof v === 'object' ? JSON.stringify(v) : formatValue(v))).join(', ') : 'None';
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
 }
@@ -50,10 +50,17 @@ function SummaryNode({ node, value, label, depth, scopeValue }: { node: SchemaNo
 
   if (isFieldNode(node)) return <LeafRow label={label || ''} value={value} />;
 
+  if (isCapNode(node)) {
+    const cap = (value || {}) as Partial<CapValue>;
+    const unit = groupMeta(node)?.unit;
+    return <LeafRow label={label || ''} value={cap.enabled ? `${cap.value}${unit ? ` ${unit}` : ''}` : 'No limit'} />;
+  }
+
   const meta = groupMeta(node as SectionNode);
   const entries = sectionEntries(node as SectionNode).filter(([, child]) => isVisible(child, scopeValue));
-  const leaves = entries.filter(([, child]) => isFieldNode(child) && child.type !== 'array');
-  const branches = entries.filter(([, child]) => !isFieldNode(child) || child.type === 'array');
+  const isLeaf = (child: SchemaNode) => (isFieldNode(child) && child.type !== 'array') || isCapNode(child);
+  const leaves = entries.filter(([, child]) => isLeaf(child));
+  const branches = entries.filter(([, child]) => !isLeaf(child));
   const val = (value || {}) as Record<string, unknown>;
   const heading = meta?.label || label;
 

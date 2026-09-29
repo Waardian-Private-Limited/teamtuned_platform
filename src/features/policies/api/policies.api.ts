@@ -94,8 +94,8 @@ export function deletePolicy(id: number) {
   return apiClient.delete<{ success: boolean }>(`/policies/${id}`, { withAuth: true });
 }
 
-export function previewPolicyImpact(id: number, versionId?: number) {
-  return apiClient.get<PolicyImpactDto>(`/policies/${id}/impact`, { versionId }, { withAuth: true });
+export function previewPolicyImpact(id: number, versionId?: number, effectiveFrom?: string) {
+  return apiClient.get<PolicyImpactDto>(`/policies/${id}/impact`, { versionId, effectiveFrom }, { withAuth: true });
 }
 
 export function previewPayCalendar(id: number) {
@@ -112,8 +112,8 @@ export function getPolicyVersion(policyId: number, versionId: number) {
   return apiClient.get<PolicyVersionDto>(`/policies/${policyId}/versions/${versionId}`, undefined, { withAuth: true });
 }
 
-export function publishPolicyVersion(policyId: number, versionId: number) {
-  return apiClient.post<{ version: PolicyVersionDto }>(`/policies/${policyId}/versions/${versionId}/publish`, {}, { withAuth: true });
+export function publishPolicyVersion(policyId: number, versionId: number, effectiveFrom?: string) {
+  return apiClient.post<{ version: PolicyVersionDto }>(`/policies/${policyId}/versions/${versionId}/publish`, effectiveFrom ? { effectiveFrom } : {}, { withAuth: true });
 }
 
 export function rollbackPolicyVersion(policyId: number, toVersionId: number) {

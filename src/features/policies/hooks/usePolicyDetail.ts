@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import * as policiesApi from '../api/policies.api';
 import { toPolicyDetail, toPolicyVersionList, toPolicyImpact } from '../types/policies.mapper';
 import type { PolicyDetail, PolicyVersion, PolicyImpact } from '../types/policies.model';
-import { messageOf } from '@/lib/api/errors';
+import { ApiError, messageOf } from '@/lib/api/errors';
 import { showError, showSuccess } from '@/lib/toast';
 
 export function usePolicyDetail(id: number) {
@@ -38,16 +38,19 @@ export function usePolicyDetail(id: number) {
   }, [load]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const saveDraft = useCallback(async (config: any, changeNote?: string) => {
+  // Resolves to the backend's per-field violations ("path: message") when
+  // the config is rejected, so the editor can mark each offending field.
+  const saveDraft = useCallback(async (config: any, changeNote?: string): Promise<{ ok: boolean; errors: string[] }> => {
     setIsSaving(true);
     try {
       await policiesApi.updatePolicyDraft(id, { config, changeNote });
       await load();
       showSuccess('Draft saved');
-      return true;
+      return { ok: true, errors: [] };
     } catch (err) {
       showError(messageOf(err));
-      return false;
+      const errors = err instanceof ApiError ? (err.data as { errors?: unknown })?.errors : undefined;
+      return { ok: false, errors: Array.isArray(errors) ? errors.map(String) : [] };
     } finally {
       setIsSaving(false);
     }
@@ -76,11 +79,11 @@ export function usePolicyDetail(id: number) {
     }
   }, [id, load]);
 
-  const loadImpact = useCallback(async () => {
+  const loadImpact = useCallback(async (effectiveFrom?: string) => {
     if (!policy?.draftVersion) return;
     setIsLoadingImpact(true);
     try {
-      const dto = await policiesApi.previewPolicyImpact(id, policy.draftVersion.id);
+      const dto = await policiesApi.previewPolicyImpact(id, policy.draftVersion.id, effectiveFrom);
       setImpact(toPolicyImpact(dto));
     } catch (err) {
       showError(messageOf(err));
@@ -89,11 +92,11 @@ export function usePolicyDetail(id: number) {
     }
   }, [id, policy]);
 
-  const publishDraft = useCallback(async () => {
+  const publishDraft = useCallback(async (effectiveFrom?: string) => {
     if (!policy?.draftVersion) return false;
     setIsSaving(true);
     try {
-      await policiesApi.publishPolicyVersion(id, policy.draftVersion.id);
+      await policiesApi.publishPolicyVersion(id, policy.draftVersion.id, effectiveFrom);
       await load();
       showSuccess('Policy published — now live for assigned employees');
       setImpact(null);

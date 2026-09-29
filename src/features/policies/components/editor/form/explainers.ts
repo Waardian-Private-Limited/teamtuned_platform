@@ -646,120 +646,324 @@ const PAYROLL: Record<string, (c: Config, section: Config) => CardSummary> = {
   }),
 };
 
+function cap(value: unknown): { on: boolean; value: number } {
+  const c = (value || {}) as Config;
+  return { on: b(c.enabled), value: n(c.value) };
+}
+function days(value: number): string {
+  return `${value} day${value === 1 ? '' : 's'}`;
+}
+function list(values: unknown): string {
+  const items = Array.isArray(values) ? values.map((v) => optionLabelLower(String(v))) : [];
+  if (items.length <= 1) return items.join('');
+  return `${items.slice(0, -1).join(', ')} or ${items[items.length - 1]}`;
+}
+function optionLabelLower(value: string): string {
+  return value.replace(/_/g, ' ');
+}
+
+const ALL_GENDERS = 3;
+const ALL_MARITAL = 4;
+const ALL_EMPLOYMENT = 3;
+
 const LEAVE_RULE: Record<string, (c: Config) => CardSummary> = {
+  eligibility(c) {
+    const rule: string[] = [];
+    const genders = Array.isArray(c.genders) ? c.genders : [];
+    const marital = Array.isArray(c.maritalStatuses) ? c.maritalStatuses : [];
+    const employment = Array.isArray(c.employmentTypes) ? c.employmentTypes : [];
+    if (genders.length < ALL_GENDERS) rule.push(`Only for ${list(genders)} employees.`);
+    if (marital.length < ALL_MARITAL) rule.push(`Only for employees who are ${list(marital)}.`);
+    if (employment.length < ALL_EMPLOYMENT) rule.push(`Only for ${list(employment)} employees.`);
+    const wait = cap(c.waitingPeriod);
+    if (wait.on) rule.push(`Usable ${days(wait.value)} after the ${s(c.waitingCountedFrom) === 'confirmation_date' ? 'confirmation' : 'joining'} date.`);
+    switch (s(c.duringProbation)) {
+      case 'earn_not_use': rule.push('Builds up during probation but can only be used once confirmed.'); break;
+      case 'no_earning': rule.push('Nothing is credited during probation.'); break;
+      case 'blocked': rule.push('Not available during probation.'); break;
+    }
+    switch (s(c.duringNoticePeriod)) {
+      case 'capped': rule.push(`At most ${days(n(c.noticePeriodMaxDays))} during the notice period.`); break;
+      case 'blocked': rule.push('Not available during the notice period.'); break;
+    }
+    return { rule: rule.length ? rule : ['Every employee on this policy can take it.'] };
+  },
+
   entitlement(c) {
     const mode = s(c.mode, 'yearly');
-    if (mode === 'none') return { rule: ['This leave type is not granted under this policy.'] };
-    if (mode === 'unlimited') return { rule: ['Unlimited — no balance is tracked for this leave type.'] };
     const timing = s(c.creditTiming) === 'end_of_period' ? 'at the end' : 'at the start';
-    if (mode === 'monthly') {
-      return {
-        rule: [
-          `${n(c.daysPerMonth)} day${n(c.daysPerMonth) === 1 ? '' : 's'} credited every month, ${timing} of the month.`,
-          n(c.maxBalance) > 0 ? `The balance never goes above ${n(c.maxBalance)} days.` : 'There is no ceiling on the balance.',
-        ],
-        example: `Example: someone joining in July has ${n(c.daysPerMonth) * 6} day${n(c.daysPerMonth) * 6 === 1 ? '' : 's'} by the end of December.`,
-      };
+    const ceiling = cap(c.maxBalance);
+    const ceilingLine = ceiling.on ? `The balance never goes above ${days(ceiling.value)}.` : 'There is no ceiling on the balance.';
+    switch (mode) {
+      case 'none':
+        return { rule: ['No regular credit. The balance only comes from elsewhere, e.g. comp-off earned or an admin adjustment.'] };
+      case 'unlimited':
+        return { rule: ['Unlimited — no balance is tracked for this leave type.'] };
+      case 'per_event':
+        return {
+          rule: [`Each occasion grants ${days(n(c.daysPerEvent))}; there is no running balance.`],
+          example: 'Example: use the limits step to say how many occasions are allowed (e.g. once in the whole employment).',
+        };
+      case 'earned_by_work':
+        return {
+          rule: [`${days(n(c.creditPerBlock))} credited for every ${n(c.workedDaysPerCredit)} days worked (${optionLabelLower(s(c.workedDaysInclude, 'present_only'))}).`, ceilingLine],
+          example: `Example: 240 days worked earns ${Math.floor(240 / Math.max(1, n(c.workedDaysPerCredit))) * n(c.creditPerBlock)} days.`,
+        };
+      case 'monthly':
+        return {
+          rule: [`${days(n(c.daysPerMonth))} credited every month, ${timing} of the month.`, ceilingLine],
+          example: `Example: someone joining in July has ${n(c.daysPerMonth) * 6} days by the end of December.`,
+        };
+      case 'half_yearly':
+      case 'quarterly': {
+        const parts = mode === 'quarterly' ? 4 : 2;
+        return {
+          rule: [`${days(n(c.daysPerYear))} a year, credited as ${days(n(c.daysPerYear) / parts)} ${timing} of each ${mode === 'quarterly' ? 'quarter' : 'half-year'}.`, ceilingLine],
+        };
+      }
+      default:
+        return {
+          rule: [`${days(n(c.daysPerYear))} for the whole year, credited ${timing} of the leave year.`, ceilingLine],
+          example: `Example: a full-year employee gets all ${n(c.daysPerYear)} days on day one.`,
+        };
     }
-    return {
-      rule: [
-        `${n(c.daysPerYear)} days for the whole year, credited ${timing} of the leave year.`,
-        n(c.maxBalance) > 0 ? `The balance never goes above ${n(c.maxBalance)} days.` : 'There is no ceiling on the balance.',
-      ],
-      example: `Example: a full-year employee gets all ${n(c.daysPerYear)} days on day one.`,
-    };
+  },
+
+  tenureSlabs(c) {
+    if (!b(c.enabled)) return { rule: ['The same amount every year, whatever the length of service.'] };
+    const slabs = (Array.isArray(c.slabs) ? c.slabs : []) as Config[];
+    return { rule: slabs.map((slab) => `From ${n(slab.fromYears)} years of service: ${days(n(slab.daysPerYear))} a year.`) };
   },
 
   leaveYear(c) {
     const basis = s(c.basis, 'calendar');
-    if (basis === 'joining_anniversary') {
-      return { rule: ['Each employee’s leave year runs from their own joining date.'] };
-    }
-    if (basis === 'calendar') {
-      return { rule: ['The leave year runs January to December.'] };
-    }
-    // financial and custom both run off startMonth/startDay — financial
-    // just ships a sensible default (April) an admin can still override,
-    // since the financial-year start varies by country.
+    if (basis === 'joining_anniversary') return { rule: ['Each employee’s leave year runs from their own joining date.'] };
+    if (basis === 'calendar') return { rule: ['The leave year runs January to December.'] };
     const startMonth = n(c.startMonth, 4);
     const endMonth = ((startMonth + 10) % 12) + 1;
-    const startName = MONTH_NAMES[startMonth - 1] || 'April';
-    const endName = MONTH_NAMES[endMonth - 1] || 'March';
-    return {
-      rule: [`The leave year runs ${startName} to ${endName}, starting on day ${n(c.startDay, 1)}.`],
-    };
+    return { rule: [`The leave year runs ${MONTH_NAMES[startMonth - 1]} to ${MONTH_NAMES[endMonth - 1]}, starting on day ${n(c.startDay, 1)}.`] };
   },
 
-  proration: (c) => ({
-    rule: [
-      prorationLine('joined mid-year', s(c.joiningMonth, 'prorate'), n(c.joiningCutoffDay)),
-      prorationLine('leaving mid-year', s(c.exitMonth, 'prorate'), n(c.exitCutoffDay)),
-    ],
-  }),
-
-  carryForward(c) {
-    if (!b(c.enabled) || s(c.carryMode) === 'all_collapse') {
-      return {
-        rule: ['Unused leave does not carry over — the balance resets and all remaining days collapse when the leave year ends.'],
-        example: 'Example: 4 days left in December are gone on 1 January.',
-      };
+  joining(c) {
+    switch (s(c.mode, 'prorate_days')) {
+      case 'full_year': return { rule: ['A mid-year joiner gets the full year’s amount.'] };
+      case 'next_cycle': return { rule: ['A mid-year joiner gets nothing until the next leave year starts.'] };
+      case 'after_probation':
+        return { rule: [b(c.backfillProbation) ? 'Credit starts on confirmation and includes the probation months.' : 'Credit starts on the confirmation date; probation months earn nothing.'] };
+      case 'month_cutoff':
+        return {
+          rule: [
+            `Joining on or before the ${ordinal(n(c.cutoffDay))}: the joining month counts in full.`,
+            `Joining after it: the joining month gives ${s(c.afterCutoff) === 'half_month' ? 'half a month’s share' : 'nothing'}.`,
+          ],
+          example: `Example: on 12 days a year, joining on the ${ordinal(Math.min(28, n(c.cutoffDay) + 1))} of July gives ${s(c.afterCutoff) === 'half_month' ? '5.5' : '5'} days for the year.`,
+        };
+      default:
+        return {
+          rule: ['A mid-year joiner gets the share of the year left from their joining date.'],
+          example: 'Example: on 12 days a year, joining on 1 July gives 6 days.',
+        };
     }
-    const mode = s(c.carryMode, 'full_balance');
-    const cap = n(c.maxDays);
-    return {
-      rule: [
-        mode === 'capped' && cap > 0
-          ? `Up to ${cap} unused days carry into the next leave year; anything above that collapses.`
-          : 'The whole unused balance carries into the next leave year.',
-        n(c.expiryMonths) > 0 ? `Carried days expire ${n(c.expiryMonths)} month${n(c.expiryMonths) === 1 ? '' : 's'} into the new year if unused.` : 'Carried days do not expire.',
-      ],
-      example: mode === 'capped' && cap > 0
-        ? `Example: ${cap + 3} days unused at year end — ${cap} carry over, 3 collapse.`
-        : undefined,
-    };
   },
 
   request(c) {
-    const rule = [
-      `A request can be ${n(c.minDays)} day${n(c.minDays) === 1 ? '' : 's'} at the smallest${n(c.maxDays) > 0 ? ` and ${n(c.maxDays)} at the largest` : ', with no upper limit'}.`,
-      n(c.maxRequestsPerMonth) > 0 ? `At most ${n(c.maxRequestsPerMonth)} request${n(c.maxRequestsPerMonth) === 1 ? '' : 's'} a month.` : 'There is no limit on how many requests a month.',
-      n(c.noticeDays) > 0 ? `It must be raised at least ${n(c.noticeDays)} day${n(c.noticeDays) === 1 ? '' : 's'} in advance.` : 'It can be raised the same day.',
-      b(c.allowHalfDay) ? 'Half days are allowed.' : 'Half days are not allowed — only whole days.',
-    ];
-    if (n(c.maxBackdatedDays) > 0) rule.push(`Past dates can be applied for up to ${n(c.maxBackdatedDays)} day${n(c.maxBackdatedDays) === 1 ? '' : 's'} back.`);
-    if (n(c.attachmentAfterDays) > 0) rule.push(`A request longer than ${n(c.attachmentAfterDays)} day${n(c.attachmentAfterDays) === 1 ? '' : 's'} needs a document attached.`);
+    const rule: string[] = [];
+    const unit = s(c.smallestUnit, 'half_day');
+    rule.push(unit === 'full_day' ? 'Whole days only.' : unit === 'hour' ? 'Can be taken by the hour.' : 'Half days are allowed.');
+    const min = cap(c.minPerRequest);
+    const max = cap(c.maxPerRequest);
+    if (min.on || max.on) rule.push(`Each request is ${min.on ? `at least ${days(min.value)}` : ''}${min.on && max.on ? ' and ' : ''}${max.on ? `at most ${days(max.value)}` : ''}.`);
+    const notice = cap(c.notice);
+    rule.push(notice.on ? `Apply at least ${days(notice.value)} in advance.` : 'Can be applied for the same day.');
+    const longer = (c.longerLeaveNotice || {}) as Config;
+    if (b(longer.enabled)) {
+      for (const slab of (Array.isArray(longer.slabs) ? longer.slabs : []) as Config[]) {
+        rule.push(`Leave longer than ${days(n(slab.longerThanDays))} needs ${days(n(slab.noticeDays))}’ notice.`);
+      }
+    }
+    const past = cap(c.pastDates);
+    rule.push(!past.on ? 'Any past date can be applied for.' : past.value === 0 ? 'Past dates cannot be applied for.' : `Past dates up to ${days(past.value)} back.`);
+    const future = cap(c.futureDates);
+    if (future.on) rule.push(`Can be applied up to ${days(future.value)} ahead.`);
+    const attach = s(c.attachment, 'never');
+    if (attach === 'always') rule.push('A supporting document is always needed.');
+    if (attach === 'longer_than') rule.push(`A supporting document is needed beyond ${days(n(c.attachmentAfterDays))}.`);
+    if (!b(c.requiresApproval)) rule.push('Approved automatically.');
+    else {
+      const auto = cap(c.autoApprove);
+      rule.push(auto.on ? `Requests up to ${days(auto.value)} are approved automatically; longer ones need approval.` : 'Every request needs approval.');
+    }
     return { rule };
   },
 
-  whenExhausted: (c) => ({
-    rule: [
-      s(c.strategy) === 'loss_of_pay'
-        ? 'Once the balance is empty, further leave is allowed but unpaid (loss of pay).'
-        : 'Once the balance is empty, further requests for this leave type are refused.',
-    ],
-  }),
+  block(c) {
+    switch (s(c.rule, 'any')) {
+      case 'exact_days': return { rule: [`Every request must be exactly ${days(n(c.blockDays))} — taken all together.`] };
+      case 'min_block': return { rule: [`Every request must be at least ${days(n(c.blockDays))} in one go.`] };
+      case 'whole_balance': return { rule: ['The whole available balance must be taken in one request.'] };
+      default: return { rule: ['Can be split into requests of any length.'] };
+    }
+  },
+
+  dayCounting(c) {
+    const rule = [
+      s(c.weekOffsInside) === 'count' ? 'Week offs inside the leave are charged.' : 'Week offs inside the leave are not charged.',
+      s(c.holidaysInside) === 'count' ? 'Holidays inside the leave are charged.' : 'Holidays inside the leave are not charged.',
+    ];
+    const sandwich = s(c.sandwich, 'follow_policy');
+    rule.push(sandwich === 'on' ? 'Sandwich rule on: a week off or holiday between two leaves is charged too.' : sandwich === 'off' ? 'Sandwich rule off for this leave.' : 'Sandwich rule follows the policy’s work-rules setting.');
+    return { rule };
+  },
+
+  frequency(c) {
+    const lines: Array<[string, string]> = [
+      ['requestsPerMonth', 'request(s) a month'],
+      ['requestsPerQuarter', 'request(s) a quarter'],
+      ['requestsPerYear', 'request(s) a leave year'],
+      ['requestsLifetime', 'request(s) in the whole employment'],
+      ['daysPerMonth', 'day(s) a month'],
+      ['daysLifetime', 'day(s) in the whole employment'],
+    ];
+    const rule = lines.filter(([key]) => cap(c[key]).on).map(([key, what]) => `At most ${cap(c[key]).value} ${what}.`);
+    const gap = cap(c.gapBetweenRequests);
+    if (gap.on) rule.push(`At least ${days(gap.value)} between two requests.`);
+    return { rule: rule.length ? rule : ['No limits on how often.'] };
+  },
+
+  clubbing(c) {
+    const rule: string[] = [];
+    const mode = s(c.mode, 'allow_all');
+    if (mode === 'block_listed') rule.push(`Cannot be taken right next to the listed leave types — ${days(n(c.minGapDays))} of work needed in between.`);
+    else if (mode === 'allow_only_listed') rule.push('Can only be taken right next to the listed leave types.');
+    else rule.push('Can be taken next to any other leave.');
+    if (s(c.nextToHoliday) === 'blocked') rule.push('Cannot be taken right before or after a holiday or week off.');
+    return { rule, example: s(c.nextToHoliday) === 'blocked' ? 'Example: a Friday or Monday next to a weekend is refused.' : undefined };
+  },
+
+  whenExhausted(c) {
+    switch (s(c.strategy, 'reject')) {
+      case 'loss_of_pay': return { rule: ['Days beyond the balance are allowed but unpaid (loss of pay).'] };
+      case 'negative_balance': return { rule: [`The balance can go up to ${days(n(c.maxNegativeDays))} below zero; the next credit fills it.`] };
+      case 'use_other_leave':
+        return { rule: [`Days beyond the balance come from the listed leave types in order; then they are ${s(c.afterFallback) === 'reject' ? 'refused' : 'unpaid (loss of pay)'}.`] };
+      default: return { rule: ['A request larger than the balance is refused.'] };
+    }
+  },
+
+  carryForward(c) {
+    if (!b(c.enabled) || s(c.carryMode) === 'all_collapse') {
+      return { rule: ['Unused leave does not carry over — it all lapses when the leave year ends.'], example: 'Example: 4 days left in December are gone on 1 January.' };
+    }
+    const expiry = cap(c.expiry);
+    const rule = [
+      s(c.carryMode) === 'capped'
+        ? `Up to ${days(n(c.maxDays))} carry into the next year; the rest ${n(c.excessGoesTo) > 0 ? 'moves to another leave type' : 'lapses'}.`
+        : 'The whole unused balance carries into the next year.',
+      expiry.on ? `Carried days expire ${expiry.value} month${expiry.value === 1 ? '' : 's'} into the new year if unused.` : 'Carried days do not expire.',
+    ];
+    return { rule };
+  },
+
+  yearEndEncashment(c) {
+    if (!b(c.enabled)) return { rule: ['Nothing is paid out at year end.'] };
+    const max = cap(c.maxDays);
+    return {
+      rule: [
+        `At year end, the balance above ${days(n(c.keepMinBalance))} is paid out${max.on ? `, up to ${days(max.value)}` : ''}.`,
+        `Paid at ${n(c.salaryComponentId) === 0 ? 'Gross (all active components)' : 'the selected salary component'}.`,
+      ],
+    };
+  },
+
+  exit(c) {
+    const rule: string[] = [];
+    switch (s(c.mode, 'prorate_days')) {
+      case 'full_year': rule.push('A leaver keeps the full year’s amount.'); break;
+      case 'month_cutoff':
+        rule.push(`Leaving on or after the ${ordinal(n(c.cutoffDay))}: the exit month counts in full; before it, the month gives ${s(c.beforeCutoff) === 'half_month' ? 'half a month’s share' : 'nothing'}.`);
+        break;
+      default: rule.push('A leaver keeps the share of the year up to their exit date.');
+    }
+    rule.push(s(c.excessUsed) === 'recover_in_settlement' ? 'Leave used beyond that share is deducted in the final settlement.' : 'Leave used beyond that share is not recovered.');
+    return { rule };
+  },
 
   encashOnExit(c) {
     if (!b(c.enabled)) return { rule: ['The unused balance is not paid out when an employee leaves.'] };
+    const max = cap(c.maxDays);
     const basis = n(c.salaryComponentId) === 0 ? 'Gross (all active components)' : 'the selected salary component';
+    return { rule: [`${max.on ? `Up to ${days(max.value)} of` : 'The whole'} unused balance is paid out on exit, at ${basis} salary.`] };
+  },
+
+  absenceAdjustment(c) {
+    if (!b(c.enabled)) return { rule: ['Not used for absences with no leave applied — those stay loss of pay unless another leave type covers them.'] };
     return {
       rule: [
-        n(c.maxDays) > 0
-          ? `Up to ${n(c.maxDays)} unused days are paid out on exit, at ${basis} salary.`
-          : `The whole unused balance is paid out on exit, at ${basis} salary.`,
+        `At payroll, an absent day with no leave applied is taken from this balance (order ${n(c.priority, 1)} among leave types that do this); what no balance covers is loss of pay.`,
+        s(c.mode) === 'automatic' ? 'Applied automatically.' : 'Proposed in the payroll run for HR to confirm.',
+        b(c.halfDays) ? 'Half-day absences are covered too.' : 'Half-day absences stay loss of pay.',
+        b(c.penaltyDays) ? 'Late / early-exit penalty deductions are covered too.' : 'Late / early-exit penalties stay a pay cut.',
       ],
+      example: 'Example: 2 unapplied absences with 1 day left here — 1 comes from this leave, the other from the next leave type in order, or loss of pay.',
+    };
+  },
+
+  changeHandling(c) {
+    const rule: string[] = [];
+    switch (s(c.openCycles, 'split_prorate')) {
+      case 'recalc_full': rule.push('The new rule applies to the whole current leave year.'); break;
+      case 'next_cycle_only': rule.push('Balances this leave year stay as they are; the new rule starts next leave year.'); break;
+      case 'increase_only': rule.push('Balances only ever go up from a change, never down.'); break;
+      default: rule.push('The old rule counts up to the effective date and the new rule after it.');
+    }
+    switch (s(c.whenBelowUsed, 'floor_at_zero')) {
+      case 'allow_negative': rule.push('If that is less than already used, the balance goes negative and future credit fills it.'); break;
+      case 'recover_as_lop': rule.push('If that is less than already used, the excess is deducted as loss of pay.'); break;
+      default: rule.push('If that is less than already used, the balance stops at zero — leave already taken is never taken back.');
+    }
+    rule.push(s(c.pendingRequests) === 'recheck_new_rules' ? 'Requests awaiting approval are checked again under the new rules.' : 'Requests awaiting approval keep the rules they were raised under.');
+    const removed: Record<string, string> = {
+      usable_till_year_end: 'stays usable until the leave year ends',
+      lapse_now: 'lapses on the effective date',
+      encash: 'is paid out',
+      move_to_type: 'moves to another leave type',
+    };
+    rule.push(`A leave type taken out of the policy: its balance ${removed[s(c.removedLeaveType, 'usable_till_year_end')]}.`);
+    return {
+      rule,
+      example: s(c.openCycles, 'split_prorate') === 'split_prorate'
+        ? 'Example: 12 days a year raised to 24 from 1 July gives 18 days for this year.'
+        : undefined,
     };
   },
 };
 
-function prorationLine(who: string, rule: string, cutoffDay: number): string {
-  switch (rule) {
-    case 'full': return `Someone ${who} still gets the full year’s leave.`;
-    case 'none': return `Someone ${who} gets nothing for that part-month.`;
-    case 'half_if_joined_after_cutoff': return `Someone joining after the ${ordinal(cutoffDay)} gets half that month’s share.`;
-    case 'half_if_left_before_cutoff': return `Someone leaving on or before the ${ordinal(cutoffDay)} gets half that month’s share.`;
-    default: return `Someone ${who} gets leave in proportion to the days they were employed.`;
+/** One line under a leave type's name: its credit and the rules in force. */
+export function summarizeLeaveRule(rule: Config): string {
+  const e = (rule.entitlement || {}) as Config;
+  const parts: string[] = [];
+  switch (s(e.mode, 'yearly')) {
+    case 'monthly': parts.push(`${n(e.daysPerMonth)}/month`); break;
+    case 'per_event': parts.push(`${days(n(e.daysPerEvent))} per occasion`); break;
+    case 'earned_by_work': parts.push(`${n(e.creditPerBlock)} per ${n(e.workedDaysPerCredit)} days worked`); break;
+    case 'unlimited': parts.push('Unlimited'); break;
+    case 'none': parts.push('No regular credit'); break;
+    default: parts.push(`${n(e.daysPerYear)} days/year`);
   }
+  const block = (rule.block || {}) as Config;
+  if (s(block.rule) === 'exact_days') parts.push(`exactly ${days(n(block.blockDays))} at a time`);
+  if (s(block.rule) === 'min_block') parts.push(`min ${days(n(block.blockDays))} at a time`);
+  const freq = (rule.frequency || {}) as Config;
+  if (cap(freq.requestsLifetime).on) parts.push(`${cap(freq.requestsLifetime).value}× per career`);
+  const el = (rule.eligibility || {}) as Config;
+  if (Array.isArray(el.genders) && el.genders.length < ALL_GENDERS) parts.push(`${list(el.genders)} only`);
+  const adj = (rule.absenceAdjustment || {}) as Config;
+  if (b(adj.enabled)) parts.push(`covers absences (#${n(adj.priority, 1)})`);
+  const cf = (rule.carryForward || {}) as Config;
+  if (['yearly', 'half_yearly', 'quarterly', 'monthly', 'earned_by_work'].includes(s(e.mode, 'yearly'))) {
+    parts.push(b(cf.enabled) && s(cf.carryMode) !== 'all_collapse' ? 'carries forward' : 'lapses at year end');
+  }
+  return parts.join(' · ');
 }
 
 function addMinutes(time: string, minutes: number): string {

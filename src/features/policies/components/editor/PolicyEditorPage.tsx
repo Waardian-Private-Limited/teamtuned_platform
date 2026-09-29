@@ -34,13 +34,22 @@ export function PolicyEditorPage({ policyId }: { policyId: number }) {
   const [showPayCalendar, setShowPayCalendar] = React.useState(false);
   const [viewVersion, setViewVersion] = React.useState<PolicyVersion | null>(null);
 
+  const today = new Date().toISOString().slice(0, 10);
+  const [effectiveFrom, setEffectiveFrom] = React.useState(today);
+
   const openPublishFlow = async () => {
+    setEffectiveFrom(today);
     setShowImpact(true);
-    await detail.loadImpact();
+    await detail.loadImpact(today);
+  };
+
+  const changeEffectiveFrom = async (date: string) => {
+    setEffectiveFrom(date);
+    if (date) await detail.loadImpact(date);
   };
 
   const confirmPublish = async () => {
-    const ok = await detail.publishDraft();
+    const ok = await detail.publishDraft(effectiveFrom || undefined);
     if (ok) setShowImpact(false);
   };
 
@@ -131,6 +140,9 @@ export function PolicyEditorPage({ policyId }: { policyId: number }) {
         impact={detail.impact}
         isLoading={detail.isLoadingImpact}
         isPublishing={detail.isSaving}
+        effectiveFrom={effectiveFrom}
+        onEffectiveFromChange={changeEffectiveFrom}
+        changeHandling={(policy.draftVersion?.config as { leave?: { changeHandling?: Record<string, unknown> } } | undefined)?.leave?.changeHandling}
         onClose={() => setShowImpact(false)}
         onConfirm={confirmPublish}
       />

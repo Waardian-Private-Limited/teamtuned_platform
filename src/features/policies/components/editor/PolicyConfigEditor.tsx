@@ -14,7 +14,14 @@ interface PolicyConfigEditorProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   config: any;
   isSaving: boolean;
-  onSave: (config: unknown, changeNote: string) => Promise<boolean>;
+  onSave: (config: unknown, changeNote: string) => Promise<{ ok: boolean; errors: string[] }>;
+}
+
+// A backend violation reads "leave.rules[0].block.blockDays: message". Split
+// it so the message can sit under the field it names.
+function splitViolation(line: string): { path: string; message: string } | null {
+  const match = /^([A-Za-z0-9_.[\]]+): (.+)$/.exec(line);
+  return match ? { path: match[1], message: match[2] } : null;
 }
 
 
@@ -40,17 +47,19 @@ export function PolicyConfigEditor({ config, isSaving, onSave }: PolicyConfigEdi
   const [changeNote, setChangeNote] = React.useState('');
   const [parseError, setParseError] = React.useState<string | null>(null);
   const [serverErrors, setServerErrors] = React.useState<string[]>([]);
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
 
   React.useEffect(() => {
     setValue(config || {});
     setText(JSON.stringify(config, null, 2));
   }, [config]);
 
-  const leaveTypeOptions = React.useMemo(() => leaveTypes.map((lt) => ({ id: lt.id, name: lt.name })), [leaveTypes]);
+  const leaveTypeOptions = React.useMemo(() => leaveTypes.map((lt) => ({ id: lt.id, name: lt.name, code: lt.code, genderEligibility: lt.genderEligibility })), [leaveTypes]);
 
   const handleSave = async () => {
     setParseError(null);
     setServerErrors([]);
+    setFieldErrors({});
     let nextConfig: unknown = value;
     if (mode === 'json') {
       try {
@@ -60,9 +69,27 @@ export function PolicyConfigEditor({ config, isSaving, onSave }: PolicyConfigEdi
         return;
       }
     }
-    const ok = await onSave(nextConfig, changeNote.trim());
-    if (ok) setChangeNote('');
-    else setServerErrors(['Save failed — see the notification for details.']);
+    const { ok, errors } = await onSave(nextConfig, changeNote.trim());
+    if (ok) {
+      setChangeNote('');
+      return;
+    }
+    // Violations the form can point at get a red border there; the rest are
+    // listed under the form.
+    const byPath: Record<string, string> = {};
+    const unplaced: string[] = [];
+    for (const line of errors) {
+      const v = splitViolation(line);
+      if (v && mode === 'form') byPath[v.path] = v.message;
+      else unplaced.push(line);
+    }
+    // A highlighted field may sit on another tab, so name the tabs that have one.
+    const sectionsWithErrors = new Set(Object.keys(byPath).map((path) => path.split(/[.[]/)[0]));
+    for (const section of POLICY_SECTIONS) {
+      if (sectionsWithErrors.has(section.value)) unplaced.push(`Fix the highlighted fields under ${section.label}.`);
+    }
+    setFieldErrors(byPath);
+    setServerErrors(unplaced.length ? unplaced : ['Save failed — see the notification for details.']);
   };
 
   const switchToJson = () => {
@@ -159,6 +186,7 @@ export function PolicyConfigEditor({ config, isSaving, onSave }: PolicyConfigEdi
               onChange={(next) => setValue((prev) => ({ ...prev, [activeTab]: next }))}
               leaveTypeOptions={leaveTypeOptions}
               salaryComponentOptions={salaryComponents}
+              fieldErrors={fieldErrors}
             />
           </div>
         )

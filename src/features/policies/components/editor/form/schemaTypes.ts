@@ -16,8 +16,11 @@ export interface VisibleWhen {
 
 export type VisibleCondition = VisibleWhen | VisibleWhen[];
 
+/** What an id-valued field points at, so the form can offer a picker. */
+export type FieldRef = 'leaveType' | 'salaryComponent';
+
 export interface ScalarFieldNode {
-  type: 'number' | 'int' | 'bool' | 'string' | 'time' | 'enum' | 'idList';
+  type: 'number' | 'int' | 'bool' | 'string' | 'time' | 'enum' | 'enumList' | 'idList';
   default: unknown;
   min?: number;
   max?: number;
@@ -27,6 +30,9 @@ export interface ScalarFieldNode {
   help?: string;
   description?: string;
   visibleWhen?: VisibleCondition;
+  ref?: FieldRef;
+  /** idList: the order of the ids matters (e.g. a fallback chain). */
+  ordered?: boolean;
 }
 
 export interface ArrayFieldNode {
@@ -35,6 +41,8 @@ export interface ArrayFieldNode {
   item: SchemaNode;
   label?: string;
   help?: string;
+  /** What one item is called ("Milestone"), for its header and add button. */
+  itemLabel?: string;
   visibleWhen?: VisibleCondition;
 }
 
@@ -44,6 +52,18 @@ export interface GroupMeta {
   label: string;
   description?: string;
   visibleWhen?: VisibleCondition;
+  /** The step of a tabbed editor this group belongs to. */
+  tab?: string;
+  /** 'cap': an optional limit stored as { enabled, value }. */
+  kind?: 'cap';
+  /** Unit a cap's value is in ("days", "requests"). */
+  unit?: string;
+}
+
+/** An optional limit as stored: a switch plus the value it enforces. */
+export interface CapValue {
+  enabled: boolean;
+  value: number;
 }
 
 export interface SectionNode {
@@ -55,7 +75,7 @@ export type SchemaNode = FieldNode | SectionNode;
 
 export const META_KEY = '__meta';
 
-const FIELD_TYPES = new Set(['number', 'int', 'bool', 'string', 'time', 'enum', 'idList', 'array']);
+const FIELD_TYPES = new Set(['number', 'int', 'bool', 'string', 'time', 'enum', 'enumList', 'idList', 'array']);
 
 export function isFieldNode(node: unknown): node is FieldNode {
   return typeof node === 'object' && node !== null && 'type' in node && typeof (node as { type: unknown }).type === 'string' && FIELD_TYPES.has((node as { type: string }).type);
@@ -68,6 +88,10 @@ export function isArrayFieldNode(node: unknown): node is ArrayFieldNode {
 export function groupMeta(node: SchemaNode): GroupMeta | undefined {
   if (isFieldNode(node)) return undefined;
   return (node as SectionNode).__meta;
+}
+
+export function isCapNode(node: SchemaNode): node is SectionNode {
+  return groupMeta(node)?.kind === 'cap';
 }
 
 /** A section's real entries — everything except its own presentation meta. */

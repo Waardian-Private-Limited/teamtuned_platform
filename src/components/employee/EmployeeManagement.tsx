@@ -228,6 +228,13 @@ export default function EmployeeManagement() {
   const [designation, setDesignation] = useState<string>("");
   const [workType, setWorkType] = useState<string>(""); // Full-time / Contract / Daily Wage / Intern
   const [startDate, setStartDate] = useState<string>("");
+  // Facts leave policy rules read: marital status for eligibility, the
+  // confirmation date for probation, resignation-to-exit for notice period.
+  const [maritalStatus, setMaritalStatus] = useState<string>("");
+  const [confirmationDate, setConfirmationDate] = useState<string>("");
+  const [resignationDate, setResignationDate] = useState<string>("");
+  const [exitDate, setExitDate] = useState<string>("");
+  const exitBeforeResignation = Boolean(resignationDate && exitDate && exitDate < resignationDate);
   const [assignedSiteIds, setAssignedSiteIds] = useState<Set<number>>(new Set());
   const [inchargeSiteIds, setInchargeSiteIds] = useState<Set<number>>(new Set());
   const [allowPunchFromHQ, setAllowPunchFromHQ] = useState<boolean>(false);
@@ -638,6 +645,10 @@ export default function EmployeeManagement() {
     setDesignation("");
     setWorkType("");
     setStartDate("");
+    setMaritalStatus("");
+    setConfirmationDate("");
+    setResignationDate("");
+    setExitDate("");
     setAssignedSiteIds(new Set());
     setInchargeSiteIds(new Set());
     setAllowPunchFromHQ(false);
@@ -750,6 +761,10 @@ export default function EmployeeManagement() {
       setDesignation((data as any).designation || "");
       setWorkType((data as any).work_type || "");
       setStartDate(normalizeDateForInput((data as any).employment_start_date));
+      setMaritalStatus((data as any).marital_status || "");
+      setConfirmationDate(normalizeDateForInput((data as any).confirmation_date));
+      setResignationDate(normalizeDateForInput((data as any).resignation_date));
+      setExitDate(normalizeDateForInput((data as any).exit_date));
       const sids = Array.isArray((data as any).site_ids) ? (data as any).site_ids : [];
       setAssignedSiteIds(new Set(sids));
       const siteArr = Array.isArray((data as any).sites) ? (data as any).sites : [];
@@ -921,6 +936,7 @@ export default function EmployeeManagement() {
   const next = () => {
     if (step === 1 && !isPersonalValid()) { setValidationMessage("Please fill First Name, Last Name, and provide a valid Email and numeric Phone."); return; }
     if (step === 2 && !isJobValid()) { setValidationMessage("Please select Department, Role, Work Type, Employment Start Date, and Primary Site."); return; }
+    if (step === 2 && exitBeforeResignation) return;
     if (step === 3 && !isAttendanceValid()) { setValidationMessage("Select Weekly Off Day(s), Shift Start/End, and a Policy."); return; }
     if (step === 4) {
       if (!isSalaryValid()) {
@@ -980,6 +996,10 @@ export default function EmployeeManagement() {
       designation: designation || null,
       work_type: workType || null,
       employment_start_date: startDate || null,
+      marital_status: maritalStatus || null,
+      confirmation_date: confirmationDate || null,
+      resignation_date: resignationDate || null,
+      exit_date: exitDate || null,
       site_ids: Array.from(assignedSiteIds),
       primary_site_id: primarySiteId || null,
       assigned_debit_ids: Array.from(assignedDebitIds),
@@ -1050,6 +1070,10 @@ export default function EmployeeManagement() {
       designation: designation || null,
       work_type: workType || null,
       employment_start_date: startDate || null,
+      marital_status: maritalStatus || null,
+      confirmation_date: confirmationDate || null,
+      resignation_date: resignationDate || null,
+      exit_date: exitDate || null,
       site_ids: Array.from(assignedSiteIds),
       assigned_debit_ids: Array.from(assignedDebitIds),
       site_incharge_ids: Array.from(inchargeSiteIds),
@@ -2365,6 +2389,16 @@ export default function EmployeeManagement() {
                     <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} className="w-full border rounded px-2 py-2" />
                   </div>
                   <div>
+                    <label className="block text-xs text-gray-600 mb-1">Marital Status</label>
+                    <select value={maritalStatus} onChange={(e) => setMaritalStatus(e.target.value)} className="w-full border rounded px-2 py-2">
+                      <option value="">Select</option>
+                      <option value="Single">Single</option>
+                      <option value="Married">Married</option>
+                      <option value="Divorced">Divorced</option>
+                      <option value="Widowed">Widowed</option>
+                    </select>
+                  </div>
+                  <div>
                     <label className="block text-xs text-gray-600 mb-1">Phone Number *</label>
                     <input
                       inputMode="numeric"
@@ -2563,6 +2597,25 @@ export default function EmployeeManagement() {
                   <div>
                     <label className="block text-xs text-gray-600 mb-1">Employment Start Date *</label>
                     <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full border rounded px-2 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Confirmation Date (end of probation)</label>
+                    <input type="date" value={confirmationDate} min={startDate || undefined} onChange={(e) => setConfirmationDate(e.target.value)} className="w-full border rounded px-2 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Resignation Date</label>
+                    <input type="date" value={resignationDate} onChange={(e) => setResignationDate(e.target.value)} className="w-full border rounded px-2 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Exit Date (last working day)</label>
+                    <input
+                      type="date"
+                      value={exitDate}
+                      min={resignationDate || undefined}
+                      onChange={(e) => setExitDate(e.target.value)}
+                      className={`w-full border rounded px-2 py-2 ${exitBeforeResignation ? "border-[var(--tt-danger)]" : ""}`}
+                    />
+                    {exitBeforeResignation && <p className="mt-1 text-xs text-[var(--tt-danger)]">Exit date cannot be before the resignation date.</p>}
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-xs text-gray-600 mb-2">

@@ -3,12 +3,18 @@
 import { AlertTriangle, Rocket } from 'lucide-react';
 import { Dialog } from '@/components/ui/Dialog';
 import type { PolicyImpact } from '../../types/policies.model';
+import { explainCard } from './form/explainers';
 
 interface PolicyImpactDialogProps {
   open: boolean;
   impact: PolicyImpact | null;
   isLoading: boolean;
   isPublishing: boolean;
+  /** The day the new version takes effect (YYYY-MM-DD). */
+  effectiveFrom: string;
+  onEffectiveFromChange: (date: string) => void;
+  /** The draft's leave.changeHandling, read back in plain words. */
+  changeHandling?: Record<string, unknown>;
   onClose: () => void;
   onConfirm: () => void;
 }
@@ -19,7 +25,8 @@ interface PolicyImpactDialogProps {
  * the same PreviewEntitlementImpact use-case the backend uses to decide
  * whether a recalculation would claw back already-used leave.
  */
-export function PolicyImpactDialog({ open, impact, isLoading, isPublishing, onClose, onConfirm }: PolicyImpactDialogProps) {
+export function PolicyImpactDialog({ open, impact, isLoading, isPublishing, effectiveFrom, onEffectiveFromChange, changeHandling, onClose, onConfirm }: PolicyImpactDialogProps) {
+  const handling = changeHandling ? explainCard('leave', 'changeHandling', changeHandling, null) : null;
   return (
     <Dialog
       open={open}
@@ -36,7 +43,7 @@ export function PolicyImpactDialog({ open, impact, isLoading, isPublishing, onCl
           </button>
           <button
             type="button"
-            disabled={isPublishing || isLoading}
+            disabled={isPublishing || isLoading || !effectiveFrom}
             onClick={onConfirm}
             className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[var(--tt-primary)] px-4.5 text-xs font-semibold text-[var(--tt-on-primary)] shadow-xs transition-all hover:bg-[var(--tt-primary-hover)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
           >
@@ -46,6 +53,28 @@ export function PolicyImpactDialog({ open, impact, isLoading, isPublishing, onCl
         </>
       }
     >
+      <div className="mb-3 space-y-2">
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold text-fg">Takes effect from</span>
+          <input
+            type="date"
+            value={effectiveFrom}
+            onChange={(e) => onEffectiveFromChange(e.target.value)}
+            className={`h-9 w-full rounded-lg border bg-surface px-3 text-sm text-fg outline-none focus:ring-1 ${effectiveFrom ? 'border-line focus:border-[var(--tt-primary)] focus:ring-[var(--tt-primary)]' : 'border-[var(--tt-danger)] focus:ring-[var(--tt-danger)]'}`}
+          />
+          <span className={`mt-1 block text-[11px] ${effectiveFrom ? 'text-fg-subtle' : 'text-[var(--tt-danger)]'}`}>
+            {effectiveFrom ? 'The live version keeps applying up to the day before. A past date backdates the change.' : 'Pick the date the change takes effect.'}
+          </span>
+        </label>
+        {handling && (
+          <ul className="space-y-0.5 rounded-lg border border-line bg-bg-subtle p-2.5">
+            {handling.rule.map((line, i) => (
+              <li key={i} className="text-[11px] leading-snug text-fg-muted sm:text-xs">{line}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       {isLoading ? (
         <p className="text-sm text-fg-muted">Calculating impact…</p>
       ) : impact ? (

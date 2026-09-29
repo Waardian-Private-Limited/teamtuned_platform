@@ -83,7 +83,7 @@ export function PolicyCreateWizard({ open, isSaving, fieldError, onClose, onSubm
     ) as Record<PolicySectionKey, Record<string, unknown>>;
   }, [schema]);
 
-  const leaveTypeOptions = React.useMemo(() => leaveTypes.map((lt) => ({ id: lt.id, name: lt.name })), [leaveTypes]);
+  const leaveTypeOptions = React.useMemo(() => leaveTypes.map((lt) => ({ id: lt.id, name: lt.name, code: lt.code, genderEligibility: lt.genderEligibility })), [leaveTypes]);
 
   React.useEffect(() => {
     if (!open) return;
