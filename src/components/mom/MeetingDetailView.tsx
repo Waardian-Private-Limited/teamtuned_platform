@@ -38,6 +38,7 @@ import ActionItemChat from './ActionItemChat';
 import { getSocket } from '@/lib/socket';
 import { useAuth } from '@/context/AuthContext';
 import { abilityFor, readStatus, poolDepartment } from '@/lib/momStatus';
+import { Assignee, addAssignee, removeAssignee } from '@/lib/momComposer';
 
 export interface Breadcrumb {
     label: string;
@@ -72,17 +73,8 @@ export default function MeetingDetailView({
 
     // Action point composer state
     const [pointText, setPointText] = useState('');
-    const [selectedAssignee, setSelectedAssignee] = useState<{
-        id: string;
-        name: string;
-        type: 'employee' | 'department' | 'site' | 'all' | 'none';
-        siteId?: string;
-        siteName?: string;
-    }>({
-        id: '',
-        name: 'Select Assignee...',
-        type: 'none'
-    });
+    const [assignMode, setAssignMode] = useState<'none' | 'all' | 'specific'>('none');
+    const [selectedAssignees, setSelectedAssignees] = useState<Assignee[]>([]);
     const [reviewerId, setReviewerId] = useState<string>('');
     const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'critical'>('medium');
     const [dueDate, setDueDate] = useState<string>('');
@@ -380,9 +372,9 @@ export default function MeetingDetailView({
             formData.append('meeting_id', String(meeting.id));
             formData.append('point_text', pointText.trim());
             formData.append('priority', priority);
-            formData.append('assign_mode', selectedAssignee.type);
+            formData.append('assign_mode', assignMode);
 
-            if (selectedAssignee.type === 'none') {
+            if (assignMode === 'none') {
                 formData.append('is_task', 'false');
                 formData.append('kind', 'notice');
             } else {
@@ -390,25 +382,13 @@ export default function MeetingDetailView({
                 formData.append('kind', 'action');
                 if (dueDate) formData.append('due_date', dueDate);
 
-                if (selectedAssignee.type === 'employee' && selectedAssignee.id) {
-                    formData.append('assignments', JSON.stringify([{
-                        id: Number(selectedAssignee.id),
-                        type: 'employee',
-                        name: selectedAssignee.name
-                    }]));
-                } else if (selectedAssignee.type === 'department' && selectedAssignee.id) {
-                    formData.append('assignments', JSON.stringify([{
-                        id: Number(selectedAssignee.id),
-                        type: 'department',
-                        name: selectedAssignee.name,
-                        ...(selectedAssignee.siteId ? { siteId: Number(selectedAssignee.siteId) } : {})
-                    }]));
-                } else if (selectedAssignee.type === 'site' && selectedAssignee.id) {
-                    formData.append('assignments', JSON.stringify([{
-                        id: Number(selectedAssignee.id),
-                        type: 'site',
-                        name: selectedAssignee.name
-                    }]));
+                if (assignMode === 'specific' && selectedAssignees.length > 0) {
+                    formData.append('assignments', JSON.stringify(selectedAssignees.map(a => ({
+                        id: Number(a.id),
+                        type: a.type,
+                        name: a.name,
+                        ...(a.type === 'department' && a.siteId ? { siteId: Number(a.siteId) } : {})
+                    }))));
                 }
             }
 
@@ -426,7 +406,8 @@ export default function MeetingDetailView({
                 setPointText('');
                 setDueDate('');
                 setPriority('medium');
-                setSelectedAssignee({ id: '', name: 'Select Assignee...', type: 'none' });
+                setAssignMode('none');
+                setSelectedAssignees([]);
                 setAssigneeSearchQuery('');
                 setReviewerId('');
                 setReviewerSearchQuery('');
@@ -955,7 +936,15 @@ export default function MeetingDetailView({
                                     onClick={() => setIsAssigneeDropdownOpen(prev => !prev)}
                                     className="w-full px-2.5 py-1.5 bg-white border border-gray-300 rounded-md text-xs font-medium text-gray-800 flex items-center justify-between text-left focus:ring-1 focus:ring-blue-500"
                                 >
-                                    <span className="truncate">{selectedAssignee.name}</span>
+                                    <span className="truncate">
+                                        {assignMode === 'none'
+                                            ? 'No Assignee (General)'
+                                            : assignMode === 'all'
+                                                ? 'All Attendees / Staff'
+                                                : selectedAssignees.length === 0
+                                                    ? 'Select Assignee...'
+                                                    : selectedAssignees.map(a => a.name).join(', ')}
+                                    </span>
                                     <ChevronDown className="w-3 h-3 text-gray-400 shrink-0" />
                                 </button>
 
@@ -977,7 +966,8 @@ export default function MeetingDetailView({
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    setSelectedAssignee({ id: '', name: 'No Assignee (General)', type: 'none' });
+                                                    setAssignMode('none');
+                                                    setSelectedAssignees([]);
                                                     setIsAssigneeDropdownOpen(false);
                                                 }}
                                                 className="w-full text-left px-2 py-1.5 hover:bg-gray-100 rounded text-xs font-semibold text-gray-600"
@@ -987,7 +977,8 @@ export default function MeetingDetailView({
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    setSelectedAssignee({ id: 'all', name: 'All Attendees / Staff', type: 'all' });
+                                                    setAssignMode('all');
+                                                    setSelectedAssignees([]);
                                                     setIsAssigneeDropdownOpen(false);
                                                 }}
                                                 className="w-full text-left px-2 py-1.5 hover:bg-blue-50 rounded text-xs font-semibold text-blue-700"
@@ -995,90 +986,130 @@ export default function MeetingDetailView({
                                                 All Attendees / Staff
                                             </button>
 
-                                            {/* Department pool — any site, unless narrowed below */}
+                                            {/* Department pool — any site, unless narrowed below. Multi-select: click toggles, dropdown stays open. */}
                                             {filteredDepartments.length > 0 && (
                                                 <div className="pt-1">
                                                     <div className="px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-gray-400">By Department</div>
-                                                    {filteredDepartments.map((dept: any) => (
-                                                        <button
-                                                            key={`dept-${dept.id}`}
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setSelectedAssignee({ id: String(dept.id), name: `Dept: ${dept.name}`, type: 'department' });
-                                                                setIsAssigneeDropdownOpen(false);
-                                                                setAssigneeSearchQuery('');
-                                                            }}
-                                                            className="w-full text-left px-2 py-1.5 hover:bg-indigo-50 rounded flex items-center gap-1.5 text-xs text-gray-800 font-medium transition-colors"
-                                                        >
-                                                            <Building className="w-3 h-3 text-indigo-500 shrink-0" />
-                                                            <span className="truncate">{dept.name}</span>
-                                                        </button>
-                                                    ))}
+                                                    {filteredDepartments.map((dept: any) => {
+                                                        const selEntry = selectedAssignees.find(a => a.type === 'department' && String(a.id) === String(dept.id));
+                                                        const isSel = !!selEntry;
+                                                        return (
+                                                            <div key={`dept-${dept.id}`}>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setAssignMode('specific');
+                                                                        setSelectedAssignees(prev => isSel
+                                                                            ? removeAssignee(prev, { id: dept.id, type: 'department' })
+                                                                            : addAssignee(prev, { id: dept.id, type: 'department', name: `Dept: ${dept.name}` }));
+                                                                    }}
+                                                                    className={`w-full text-left px-2 py-1.5 rounded flex items-center gap-1.5 text-xs font-medium transition-colors ${isSel ? 'bg-indigo-100 text-indigo-800' : 'hover:bg-indigo-50 text-gray-800'}`}
+                                                                >
+                                                                    <Building className="w-3 h-3 text-indigo-500 shrink-0" />
+                                                                    <span className="truncate flex-1">{dept.name}</span>
+                                                                    {isSel && <Check className="w-3 h-3 text-indigo-600 shrink-0" />}
+                                                                </button>
+                                                                {isSel && (
+                                                                    <select
+                                                                        value={selEntry?.siteId || ''}
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                        onChange={(e) => {
+                                                                            const siteId = e.target.value;
+                                                                            const site = sitesList.find((s: any) => String(s.id) === siteId);
+                                                                            setSelectedAssignees(prev => prev.map(a =>
+                                                                                a.type === 'department' && String(a.id) === String(dept.id)
+                                                                                    ? { ...a, siteId: siteId || undefined, siteName: site?.name }
+                                                                                    : a
+                                                                            ));
+                                                                        }}
+                                                                        className="ml-6 mb-1 w-[calc(100%-1.5rem)] px-2 py-1 bg-indigo-50 border border-indigo-200 rounded text-[10px] font-semibold text-indigo-700 focus:outline-none"
+                                                                        title="Scope this department to one site"
+                                                                    >
+                                                                        <option value="">Any site</option>
+                                                                        {sitesList.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                                    </select>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
                                             )}
 
-                                            {/* Site pool — any department at that site */}
+                                            {/* Site pool — any department at that site. Multi-select: click toggles, dropdown stays open. */}
                                             {filteredSites.length > 0 && (
                                                 <div className="pt-1">
                                                     <div className="px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-gray-400">By Site</div>
-                                                    {filteredSites.map((site: any) => (
-                                                        <button
-                                                            key={`site-${site.id}`}
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setSelectedAssignee({ id: String(site.id), name: `Site: ${site.name}`, type: 'site' });
-                                                                setIsAssigneeDropdownOpen(false);
-                                                                setAssigneeSearchQuery('');
-                                                            }}
-                                                            className="w-full text-left px-2 py-1.5 hover:bg-teal-50 rounded flex items-center gap-1.5 text-xs text-gray-800 font-medium transition-colors"
-                                                        >
-                                                            <MapPin className="w-3 h-3 text-teal-500 shrink-0" />
-                                                            <span className="truncate">{site.name}</span>
-                                                        </button>
-                                                    ))}
+                                                    {filteredSites.map((site: any) => {
+                                                        const isSel = selectedAssignees.some(a => a.type === 'site' && String(a.id) === String(site.id));
+                                                        return (
+                                                            <button
+                                                                key={`site-${site.id}`}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setAssignMode('specific');
+                                                                    setSelectedAssignees(prev => isSel
+                                                                        ? removeAssignee(prev, { id: site.id, type: 'site' })
+                                                                        : addAssignee(prev, { id: site.id, type: 'site', name: `Site: ${site.name}` }));
+                                                                }}
+                                                                className={`w-full text-left px-2 py-1.5 rounded flex items-center gap-1.5 text-xs font-medium transition-colors ${isSel ? 'bg-teal-100 text-teal-800' : 'hover:bg-teal-50 text-gray-800'}`}
+                                                            >
+                                                                <MapPin className="w-3 h-3 text-teal-500 shrink-0" />
+                                                                <span className="truncate flex-1">{site.name}</span>
+                                                                {isSel && <Check className="w-3 h-3 text-teal-600 shrink-0" />}
+                                                            </button>
+                                                        );
+                                                    })}
                                                 </div>
                                             )}
 
-                                            {/* Employee List */}
-                                            {filteredAssignees.map(emp => (
-                                                <button
-                                                    key={emp.id}
-                                                    type="button"
-                                                    onClick={() => {
-                                                        const name = emp.name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim();
-                                                        setSelectedAssignee({ id: String(emp.id), name, type: 'employee' });
-                                                        setIsAssigneeDropdownOpen(false);
-                                                        setAssigneeSearchQuery('');
-                                                    }}
-                                                    className="w-full text-left px-2 py-1.5 hover:bg-blue-50 rounded flex items-center justify-between text-xs text-gray-800 font-medium transition-colors"
-                                                >
-                                                    <span>{emp.name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim()}</span>
-                                                    <span className="text-[10px] text-gray-400">{emp.department_name || 'Staff'}</span>
-                                                </button>
-                                            ))}
+                                            {/* Employee List — multi-select: click toggles, dropdown stays open. */}
+                                            {filteredAssignees.map(emp => {
+                                                const name = emp.name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim();
+                                                const isSel = selectedAssignees.some(a => a.type === 'employee' && String(a.id) === String(emp.id));
+                                                return (
+                                                    <button
+                                                        key={emp.id}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setAssignMode('specific');
+                                                            setSelectedAssignees(prev => isSel
+                                                                ? removeAssignee(prev, { id: emp.id, type: 'employee' })
+                                                                : addAssignee(prev, { id: emp.id, type: 'employee', name }));
+                                                        }}
+                                                        className={`w-full text-left px-2 py-1.5 rounded flex items-center justify-between text-xs font-medium transition-colors ${isSel ? 'bg-blue-100 text-blue-800' : 'hover:bg-blue-50 text-gray-800'}`}
+                                                    >
+                                                        <span className="flex items-center gap-1.5">
+                                                            {isSel && <Check className="w-3 h-3 text-blue-600 shrink-0" />}
+                                                            {name}
+                                                        </span>
+                                                        <span className="text-[10px] text-gray-400">{emp.department_name || 'Staff'}</span>
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 )}
 
-                                {/* Narrow a department pool to one site (optional — Department + Site combo) */}
-                                {selectedAssignee.type === 'department' && (
-                                    <select
-                                        value={selectedAssignee.siteId || ''}
-                                        onChange={(e) => {
-                                            const siteId = e.target.value;
-                                            const site = sitesList.find((s: any) => String(s.id) === siteId);
-                                            setSelectedAssignee(prev => ({
-                                                ...prev,
-                                                siteId: siteId || undefined,
-                                                siteName: site?.name
-                                            }));
-                                        }}
-                                        className="mt-1 w-full px-2 py-1 bg-indigo-50 border border-indigo-200 rounded text-[10px] font-semibold text-indigo-700 focus:outline-none"
-                                        title="Scope this department to one site"
-                                    >
-                                        <option value="">Any site</option>
-                                        {sitesList.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                    </select>
+                                {/* Selected chips — visible without reopening the dropdown */}
+                                {assignMode === 'specific' && selectedAssignees.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-1.5">
+                                        {selectedAssignees.map(a => (
+                                            <span
+                                                key={`${a.type}-${a.id}`}
+                                                className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-[10px] font-semibold text-gray-700"
+                                            >
+                                                {a.type === 'department' ? <Building className="w-2.5 h-2.5 text-indigo-500" /> : a.type === 'site' ? <MapPin className="w-2.5 h-2.5 text-teal-500" /> : null}
+                                                <span className="truncate max-w-[100px]">{a.name}{a.siteName ? ` (${a.siteName})` : ''}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSelectedAssignees(prev => removeAssignee(prev, { id: a.id, type: a.type }))}
+                                                    className="text-gray-400 hover:text-red-600 font-bold"
+                                                >
+                                                    ×
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
                                 )}
                             </div>
 
