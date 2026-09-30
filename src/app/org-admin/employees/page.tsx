@@ -1,7 +1,7 @@
 "use client";
 
-import EmployeeManagement from '@/components/employee/EmployeeManagement';
+import { EmployeesPage } from "@/features/employees/components/EmployeesPage";
 
-export default function EmployeesPage() {
-    return <EmployeeManagement />;
+export default function OrgAdminEmployeesPage() {
+  return <EmployeesPage />;
 }

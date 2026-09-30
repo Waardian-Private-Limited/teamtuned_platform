@@ -127,6 +127,7 @@ export function useTaxProfile(employeeId: number | null, financialYear: string) 
 function normalizeEstimate(dto: TdsEstimateDto): TdsEstimate {
   return {
     financialYear: dto.financialYear,
+    oneTimeIncome: Number(dto.oneTimeIncome || 0),
     projectedAnnualGross: Number(dto.projectedAnnualGross || 0),
     standardDeduction: Number(dto.standardDeduction || 0),
     declarationTotal: Number(dto.declarationTotal || 0),

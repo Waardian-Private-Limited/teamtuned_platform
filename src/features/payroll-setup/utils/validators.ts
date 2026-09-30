@@ -1,4 +1,5 @@
 import type { DebitFormInput } from '../types/payroll-setup.model';
+import { ptSlabs } from './professionalTax';
 
 export function validateComponentName(name: string): string | null {
   if (!name.trim()) return 'Component name is required';
@@ -9,7 +10,6 @@ export function validateComponentName(name: string): string | null {
 const STATUTORY_NUMERIC_FIELDS: Record<string, string[]> = {
   epf: ['rate', 'wageCeiling'],
   esi: ['rate', 'eligibilityCeiling'],
-  professional_tax: ['monthlyAmount', 'februaryAmount'],
   lwf: ['amount'],
 };
 
@@ -31,6 +31,16 @@ export function validateDebitForm(input: DebitFormInput): { field: string; messa
       }
     }
   } else {
+    if (input.category === 'professional_tax') {
+      const slabs = ptSlabs(input.config);
+      if (!slabs.length) return { field: 'config', message: 'Add at least one slab' };
+      if (slabs.some((s) => s.minGross < 0 || s.amount < 0 || (s.specialAmount !== null && s.specialAmount < 0))) {
+        return { field: 'config', message: 'Slab amounts must be 0 or more' };
+      }
+      if (new Set(slabs.map((s) => `${s.gender}:${s.minGross}`)).size !== slabs.length) {
+        return { field: 'config', message: 'Two slabs for the same group start at the same gross' };
+      }
+    }
     const fields = STATUTORY_NUMERIC_FIELDS[input.category] || [];
     for (const field of fields) {
       const value = input.config[field];

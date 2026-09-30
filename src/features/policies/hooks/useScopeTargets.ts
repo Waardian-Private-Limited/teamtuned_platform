@@ -5,6 +5,7 @@ import { listDepartments } from '@/features/departments/api/departments.api';
 import { listRoles } from '@/features/roles/api/roles.api';
 import { listSites } from '@/features/sites/api/sites.api';
 import { listActiveSubOrganizations } from '@/features/sub-organizations/api/subOrganizations.api';
+import { listEmploymentTypes } from '@/features/employees/api/employees.api';
 import { messageOf } from '@/lib/api/errors';
 import type { ScopeType } from '../types/policies.model';
 
@@ -15,9 +16,9 @@ export interface ScopeTarget {
 
 /**
  * The pickable targets for an assignment scope — departments, roles, sites
- * and sub-organizations come from their own feature APIs. `employee` and
- * `employee_type` have no v2 list endpoint yet, so the dialog falls back to
- * a plain id for those (see SCOPE_TYPES_WITHOUT_PICKER).
+ * sub-organizations and employment types come from their own feature APIs.
+ * `employee` has no picker yet, so the dialog falls back to a plain id for
+ * it (see SCOPE_TYPES_WITHOUT_PICKER).
  */
 export function useScopeTargets(scopeType: ScopeType) {
   const [targets, setTargets] = useState<ScopeTarget[]>([]);
@@ -45,6 +46,10 @@ export function useScopeTargets(scopeType: ScopeType) {
           const res = await listActiveSubOrganizations();
           return (res.sub_organizations || []).map((s) => ({ id: s.id, label: s.name }));
         }
+        case 'employee_type': {
+          const res = await listEmploymentTypes();
+          return (res.employment_types || []).filter((t) => t.status === 'active').map((t) => ({ id: t.id, label: t.name }));
+        }
         default:
           return [];
       }
@@ -52,7 +57,7 @@ export function useScopeTargets(scopeType: ScopeType) {
 
     setError('');
     setTargets([]);
-    if (scopeType === 'organization' || scopeType === 'employee' || scopeType === 'employee_type') return;
+    if (scopeType === 'organization' || scopeType === 'employee') return;
 
     setIsLoading(true);
     load()

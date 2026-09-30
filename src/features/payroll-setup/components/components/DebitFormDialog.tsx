@@ -1,11 +1,12 @@
 'use client';
 
 import React from 'react';
-import { Check, ChevronLeft } from 'lucide-react';
+import { Check, ChevronLeft, Plus, Trash2 } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { Dialog } from '@/components/ui/Dialog';
 import { DEBIT_CATEGORIES, LWF_FREQUENCY_MONTHS } from '../../constants/payroll-setup.constants';
-import type { DebitRule, DebitFormInput } from '../../types/payroll-setup.model';
+import type { DebitRule, DebitFormInput, DebitConfigValue } from '../../types/payroll-setup.model';
+import { MONTH_NAMES, PT_GENDERS, ptGender, ptSlabs, ptSpecialMonth, type PtSlab } from '../../utils/professionalTax';
 import { SubOrgPicker } from '@/features/sub-organizations/components/SubOrgPicker';
 import { usePermission } from '@/lib/hooks/usePermission';
 
@@ -45,8 +46,17 @@ interface FormState {
   enableAdditionalCharges: boolean;
   additionalChargeType: 'fixed' | 'percentage';
   additionalChargeValue: string;
-  config: Record<string, string | number | boolean | number[]>;
+  config: Record<string, DebitConfigValue>;
   status: 'active' | 'inactive';
+}
+
+function withPtShape(category: string, config: FormState['config']): FormState['config'] {
+  if (category === 'epf' || category === 'esi') return { ...config, employerInCtc: config.employerInCtc === true };
+  if (category !== 'professional_tax') return config;
+  const rest = { ...config };
+  delete rest.monthlyAmount;
+  delete rest.februaryAmount;
+  return { ...rest, slabs: ptSlabs(config), specialMonth: ptSpecialMonth(config) };
 }
 
 function initialState(initial?: DebitRule): FormState {
@@ -91,7 +101,7 @@ function initialState(initial?: DebitRule): FormState {
     enableAdditionalCharges: initial.enableAdditionalCharges,
     additionalChargeType: initial.additionalChargeType || 'fixed',
     additionalChargeValue: initial.additionalChargeValue !== null ? String(initial.additionalChargeValue) : '',
-    config: (initial.config as FormState['config']) || {},
+    config: withPtShape(initial.category, (initial.config as FormState['config']) || {}),
     status: initial.status,
   };
 }
@@ -141,7 +151,7 @@ export function DebitFormDialog({
     });
   };
 
-  const setConfig = (key: string, value: string | number | boolean | number[]) =>
+  const setConfig = (key: string, value: DebitConfigValue) =>
     setForm((prev) => {
       const config = { ...prev.config, [key]: value };
       // LWF is due only in specific months once the frequency stops being monthly;
@@ -597,6 +607,65 @@ function ToggleRow({ checked, onChange, title, description }: { checked: boolean
   );
 }
 
+function PtSlabEditor({ slabs, specialMonth, onChange }: { slabs: PtSlab[]; specialMonth: number | null; onChange: (slabs: PtSlab[]) => void }) {
+  const update = (index: number, patch: Partial<PtSlab>) => onChange(slabs.map((s, i) => (i === index ? { ...s, ...patch } : s)));
+  const remove = (index: number) => onChange(slabs.filter((_, i) => i !== index));
+  const add = () => {
+    const last = slabs[slabs.length - 1];
+    onChange([...slabs, { gender: last?.gender ?? 'all', minGross: last ? last.minGross + 1 : 0, amount: 0, specialAmount: null }]);
+  };
+  const cell = 'w-full min-w-0 rounded-md border border-line bg-surface px-2 h-9 text-sm text-fg outline-none focus:border-[var(--tt-primary)]';
+  const special = specialMonth ? `${MONTH_NAMES[specialMonth - 1]} (₹)` : 'Special (₹)';
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className={labelClass}>Slabs on monthly gross</span>
+        <button type="button" onClick={add} className="inline-flex items-center gap-1 text-xs font-semibold text-fg hover:underline">
+          <Plus className="h-3.5 w-3.5" />
+          Add slab
+        </button>
+      </div>
+      {slabs.length === 0 ? (
+        <p className={hintClass}>No slabs. Add one to deduct PT.</p>
+      ) : (
+        <div className="space-y-1.5">
+          <div className="grid grid-cols-[5.5rem_1fr_1fr_1fr_2rem] gap-2 text-[11px] font-semibold text-fg-muted">
+            <span>Applies to</span>
+            <span>Gross from (₹)</span>
+            <span>Monthly (₹)</span>
+            <span>{special}</span>
+            <span />
+          </div>
+          {slabs.map((s, i) => (
+            <div key={i} className="grid grid-cols-[5.5rem_1fr_1fr_1fr_2rem] items-center gap-2">
+              <select value={s.gender} onChange={(e) => update(i, { gender: ptGender(e.target.value) })} className={cell} aria-label={`Slab ${i + 1} applies to`}>
+                {PT_GENDERS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
+              </select>
+              <input type="number" min={0} value={String(s.minGross)} onChange={(e) => update(i, { minGross: Number(e.target.value) || 0 })} className={cell} aria-label={`Slab ${i + 1} gross from`} />
+              <input type="number" min={0} value={String(s.amount)} onChange={(e) => update(i, { amount: Number(e.target.value) || 0 })} className={cell} aria-label={`Slab ${i + 1} monthly amount`} />
+              <input
+                type="number"
+                min={0}
+                value={s.specialAmount === null ? '' : String(s.specialAmount)}
+                onChange={(e) => update(i, { specialAmount: e.target.value === '' ? null : Number(e.target.value) })}
+                disabled={!specialMonth}
+                placeholder="Same"
+                className={cx(cell, !specialMonth && 'opacity-50')}
+                aria-label={`Slab ${i + 1} special month amount`}
+              />
+              <button type="button" onClick={() => remove(i)} aria-label={`Remove slab ${i + 1}`} className="flex h-8 w-8 items-center justify-center rounded-md text-fg-muted hover:bg-bg-subtle hover:text-fg">
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+          <p className={hintClass}>Each slab applies from its gross up to the next slab of the same group. Gender slabs replace the Everyone slabs for that gender, e.g. Female nil up to ₹25,000 in Maharashtra. Leave the special amount empty to use the monthly amount.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function lwfScheduleHint(frequency: unknown): string {
   const months = LWF_FREQUENCY_MONTHS[String(frequency ?? 'monthly')];
   if (!months) return 'Deducted in every payroll cycle.';
@@ -611,7 +680,7 @@ function StatutoryConfigFields({
   fieldError,
 }: {
   form: FormState;
-  setConfig: (key: string, value: string | number | boolean | number[]) => void;
+  setConfig: (key: string, value: DebitConfigValue) => void;
   components: Array<{ id: number; name: string }>;
   fieldError: { field: string; message: string } | null;
 }) {
@@ -625,6 +694,10 @@ function StatutoryConfigFields({
           <div>
             <label className={labelClass}>Employee rate (%)</label>
             <input type="number" min={0} step="0.01" value={String(config.rate ?? 12)} onChange={(e) => setConfig('rate', e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Employer rate (%)</label>
+            <input type="number" min={0} step="0.01" value={String(config.employerRate ?? 12)} onChange={(e) => setConfig('employerRate', e.target.value)} className={inputClass} />
           </div>
           <div>
             <label className={labelClass}>Wage ceiling (₹/month)</label>
@@ -645,10 +718,18 @@ function StatutoryConfigFields({
           </select>
         </div>
         <ToggleRow
+          checked={config.employerInCtc === true}
+          onChange={(v) => setConfig('employerInCtc', v)}
+          title="Employer share is part of CTC"
+          description={config.employerInCtc === true
+            ? 'Employee and employer share are both deducted from monthly gross (CTC / 12).'
+            : 'Only the employee share is deducted. The employer share is paid on top of CTC.'}
+        />
+        <ToggleRow
           checked={Boolean(config.applyCeiling ?? true)}
           onChange={(v) => setConfig('applyCeiling', v)}
-          title="Apply ₹15,000 wage ceiling"
-          description="When off, PF is 12% of the full Basic wage"
+          title={`Apply ₹${Number(config.wageCeiling ?? 15000).toLocaleString('en-IN')} wage ceiling`}
+          description={`When off, PF is ${config.rate ?? 12}% of the full ${String(config.componentName ?? 'Basic')} wage`}
         />
         {fieldError?.field === 'config' && <p className={errorClass}>{fieldError.message}</p>}
       </div>
@@ -665,11 +746,23 @@ function StatutoryConfigFields({
             <input type="number" min={0} step="0.01" value={String(config.rate ?? 0.75)} onChange={(e) => setConfig('rate', e.target.value)} className={inputClass} />
           </div>
           <div>
+            <label className={labelClass}>Employer rate (%)</label>
+            <input type="number" min={0} step="0.01" value={String(config.employerRate ?? 3.25)} onChange={(e) => setConfig('employerRate', e.target.value)} className={inputClass} />
+          </div>
+          <div>
             <label className={labelClass}>Eligibility ceiling (₹ gross/month)</label>
             <input type="number" min={0} value={String(config.eligibilityCeiling ?? 21000)} onChange={(e) => setConfig('eligibilityCeiling', e.target.value)} className={inputClass} />
             <p className={hintClass}>ESI applies only when monthly gross is within this amount.</p>
           </div>
         </div>
+        <ToggleRow
+          checked={config.employerInCtc === true}
+          onChange={(v) => setConfig('employerInCtc', v)}
+          title="Employer share is part of CTC"
+          description={config.employerInCtc === true
+            ? 'Employee and employer share are both deducted from monthly gross (CTC / 12).'
+            : 'Only the employee share is deducted. The employer share is paid on top of CTC.'}
+        />
         {fieldError?.field === 'config' && <p className={errorClass}>{fieldError.message}</p>}
       </div>
     );
@@ -679,20 +772,30 @@ function StatutoryConfigFields({
     return (
       <div className="space-y-3.5">
         <h3 className={sectionTitle}>Professional Tax settings</h3>
-        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
           <div>
             <label className={labelClass}>State</label>
-            <input type="text" value={String(config.state ?? '')} onChange={(e) => setConfig('state', e.target.value)} placeholder="Maharashtra" className={inputClass} />
+            <input type="text" value={String(config.state ?? '')} onChange={(e) => setConfig('state', e.target.value)} placeholder="Leave empty for all states" className={inputClass} />
+            <p className={hintClass}>Auto-applies to employees whose primary site is in this state.</p>
           </div>
           <div>
-            <label className={labelClass}>Monthly amount (₹)</label>
-            <input type="number" min={0} value={String(config.monthlyAmount ?? 200)} onChange={(e) => setConfig('monthlyAmount', e.target.value)} className={inputClass} />
-          </div>
-          <div>
-            <label className={labelClass}>February amount (₹)</label>
-            <input type="number" min={0} value={String(config.februaryAmount ?? 200)} onChange={(e) => setConfig('februaryAmount', e.target.value)} className={inputClass} />
+            <label className={labelClass}>Special month</label>
+            <select
+              value={config.specialMonth === null || config.specialMonth === undefined ? '' : String(config.specialMonth)}
+              onChange={(e) => setConfig('specialMonth', e.target.value ? Number(e.target.value) : null)}
+              className={inputClass}
+            >
+              <option value="">None</option>
+              {MONTH_NAMES.map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
+            </select>
+            <p className={hintClass}>Month with a different amount, e.g. Feb ₹300 in Maharashtra.</p>
           </div>
         </div>
+        <PtSlabEditor
+          slabs={Array.isArray(config.slabs) ? (config.slabs as PtSlab[]) : []}
+          specialMonth={typeof config.specialMonth === 'number' ? config.specialMonth : null}
+          onChange={(slabs) => setConfig('slabs', slabs)}
+        />
         {fieldError?.field === 'config' && <p className={errorClass}>{fieldError.message}</p>}
       </div>
     );

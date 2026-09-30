@@ -8,6 +8,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Dialog } from '@/components/ui/Dialog';
 import { DebitFormDialog } from './DebitFormDialog';
+import { MONTH_NAMES, ptSlabs, ptSpecialMonth } from '../../utils/professionalTax';
 import { DebitAssignmentsDrawer } from './DebitAssignmentsDrawer';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -55,8 +56,16 @@ function ruleValueText(rule: DebitRule): string {
         return `${rate}% of gross (applies when gross ≤ ${formatCurrency(ceiling)})`;
       }
       case 'professional_tax': {
-        const amount = Number(config.monthlyAmount ?? 200);
-        return `${formatCurrency(amount)}/month · ${String(config.state || 'State')}`;
+        const slabs = ptSlabs(config);
+        const everyone = slabs.filter((s) => s.gender === 'all');
+        const top = (everyone.length ? everyone : slabs)[(everyone.length ? everyone : slabs).length - 1];
+        const month = ptSpecialMonth(config);
+        const state = String(config.state || 'All states');
+        if (!top) return `No slabs · ${state}`;
+        const special = month && top.specialAmount !== null ? `, ${formatCurrency(top.specialAmount)} in ${MONTH_NAMES[month - 1]}` : '';
+        const genders = [...new Set(slabs.filter((s) => s.gender !== 'all').map((s) => s.gender))];
+        const extra = genders.length ? ` · separate slabs for ${genders.join(', ')}` : '';
+        return `${slabs.length} slab${slabs.length === 1 ? '' : 's'} · up to ${formatCurrency(top.amount)}/month${special}${extra} · ${state}`;
       }
       case 'lwf': {
         const amount = Number(config.amount ?? 0);

@@ -1,7 +1,7 @@
 import {
   Home, Building2, MapPin, Link2, DollarSign, Building, UserCog, BarChart3,
   ClipboardList, Cog, Shield, Calendar, Settings, Clock, CheckSquare,
-  AlertCircle, FileText, MinusCircle, Users, Phone, Upload, LayoutDashboard,
+  AlertCircle, FileText, MinusCircle, Users, Phone, LayoutDashboard,
   ListChecks, LayoutGrid, Heart, UserCheck, Wallet, Receipt, ArrowUpCircle,
   Package, Coins, Briefcase, HardHat, Layers, QrCode, Award, UserPlus, List,
 } from 'lucide-react';
@@ -26,6 +26,7 @@ import type { NavNode } from '../types/nav.model';
  */
 export const employeeNav: NavNode[] = [
   { kind: 'link', label: 'Dashboard', href: '/employee', icon: Home },
+  { kind: 'link', label: 'My Salary', href: '/employee/my-salary', icon: Wallet },
 
   {
     kind: 'group', id: 'main', label: 'Main', gate: { feature: 'PAYROLL_FEATURE' },
@@ -73,6 +74,8 @@ export const employeeNav: NavNode[] = [
       { kind: 'link', label: 'Other Locations', href: '/employee/other-locations', icon: MapPin, match: 'prefix', gate: { anyPerm: ['EMPSITE_VIEW', 'EMPLOYEE_ASSIGN_SITE'] } },
       { kind: 'link', label: 'Sub Organizations', href: '/employee/sub-organizations', icon: Building2, gate: { anyPerm: ['SITE_VIEW', 'SITE_ADD', 'SITE_EDIT', 'SITE_DELETE'] } },
       { kind: 'link', label: 'Payroll Setup', href: '/employee/payroll-setup', icon: Coins, match: 'prefix', gate: { anyPerm: ['SALARY_CONFIG_VIEW', 'SALARY_CONFIG_ADD', 'DEBIT_RULE_VIEW', 'DEBIT_RULE_ADD', 'HR_MODE', 'PAYROLL_ADMIN'] } },
+      { kind: 'link', label: 'Increments & Promotions', href: '/employee/salary-revisions', icon: ArrowUpCircle, match: 'prefix', gate: { anyPerm: ['COMP_VIEW', 'COMP_ADD', 'COMP_EDIT', 'COMP_APPROVE', 'HR_MODE'] } },
+      { kind: 'link', label: 'Compensation', href: '/employee/compensation', icon: Award, match: 'prefix', gate: { anyPerm: ['COMP_VIEW', 'COMP_ADD', 'COMP_EDIT', 'COMP_APPROVE', 'HR_MODE'] } },
       { kind: 'link', label: 'Departments', href: '/employee/departments', icon: Building, match: 'prefix', gate: { anyPerm: ['DEPT_VIEW', 'DEPT_ADD', 'DEPT_EDIT', 'DEPT_DELETE'] } },
       { kind: 'link', label: 'Roles', href: '/employee/roles', icon: UserCog, match: 'prefix', gate: { anyPerm: ['ROLE_VIEW', 'ROLE_ADD', 'ROLE_EDIT', 'ROLE_DELETE'] } },
     ],
@@ -85,13 +88,10 @@ export const employeeNav: NavNode[] = [
       { kind: 'link', label: 'Team Mapper', href: '/employee/assignments', icon: UserCog, gate: { perm: 'HR_MODE' } },
       { kind: 'link', label: 'Policy Mapper', href: '/employee/policy-mapper', icon: Shield, gate: { perm: 'HR_MODE' } },
       { kind: 'link', label: 'Emergency Contacts', href: '/employee/emergency-contacts', icon: Phone, match: 'prefix', gate: { anyPerm: ['EMP_VIEW', 'EMP_ADD', 'EMP_EDIT', 'EMP_DELETE'] } },
-      { kind: 'link', label: 'Import Employees', href: '/employee/employees/import', icon: Upload, match: 'prefix', gate: { perm: 'EMP_ADD' } },
-      { kind: 'link', label: 'Shift Management', href: '/employee/employees/shifts', icon: Clock, match: 'prefix', gate: { perm: 'EMP_ADD' } },
       { kind: 'link', label: 'Site-Sub-Org Mapper', href: '/employee/site-sub-org-mapper', icon: Link2, gate: { anyPerm: ['SITE_VIEW', 'SITE_ADD', 'SITE_EDIT', 'SITE_DELETE'] } },
       { kind: 'link', label: 'Employee Sites', href: '/employee/employee-sites', icon: MapPin, match: 'prefix', gate: { anyPerm: ['EMPSITE_VIEW', 'EMPLOYEE_ASSIGN_SITE'] } },
       { kind: 'link', label: 'Budget Requests', href: '/employee/site-budget-requests', icon: DollarSign, gate: { anyPerm: ['SITE_BUDGET_VIEW', 'SITE_BUDGET_REQUEST', 'SITE_BUDGET_APPROVE'] } },
       { kind: 'link', label: 'Site Logins', href: '/employee/site-logins', icon: Shield, match: 'prefix', gate: { perm: 'LABOR_ADMIN' } },
-      { kind: 'link', label: 'Salary Import', href: '/employee/salary-import', icon: Upload, match: 'prefix', gate: { perm: 'EMP_ADD' } },
       { kind: 'link', label: 'Employee Devices', href: '/employee/device-management', icon: Users, match: 'prefix', gate: { perm: 'EMP_DEVICE_MANAGEMENT' } },
     ],
   },

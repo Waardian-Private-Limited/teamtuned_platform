@@ -8,6 +8,8 @@ interface SubOrgBadgeProps {
   subOrgId?: number | null;
   // Many-to-many entities (sites).
   subOrgIds?: number[];
+  // If true, don't render "Org-wide" badge when no sub-org is assigned
+  hideEmpty?: boolean;
 }
 
 const chipClass =
@@ -18,13 +20,14 @@ const sharedClass =
 // Renders the owning sub-organization(s) for a row. NULL / empty is "Org-wide".
 // Names resolve from the shared manageable-sub-orgs cache; an unknown id (e.g.
 // a sub-org outside the viewer's scope) falls back to its code-less label.
-export function SubOrgBadge({ subOrgId, subOrgIds }: SubOrgBadgeProps) {
+export function SubOrgBadge({ subOrgId, subOrgIds, hideEmpty }: SubOrgBadgeProps) {
   const { subOrgs } = useManageableSubOrgs();
   const nameById = React.useMemo(() => new Map(subOrgs.map((s) => [s.id, s.name])), [subOrgs]);
 
   const ids = subOrgIds !== undefined ? subOrgIds : subOrgId != null ? [subOrgId] : [];
 
   if (ids.length === 0) {
+    if (hideEmpty || subOrgs.length === 0) return null;
     return <span className={sharedClass}>Org-wide</span>;
   }
 

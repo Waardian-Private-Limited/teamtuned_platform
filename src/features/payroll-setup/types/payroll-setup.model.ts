@@ -1,3 +1,7 @@
+import type { PtSlab } from '../utils/professionalTax';
+
+export type DebitConfigValue = string | number | boolean | number[] | PtSlab[] | null;
+
 export type ComponentType = 'credit' | 'debit';
 export type Status = 'active' | 'inactive';
 
@@ -9,7 +13,8 @@ export interface SalaryComponent {
   isSystem: boolean;
   displayOrder: number;
   status: Status;
-  calculationType: 'flat' | 'percentage';
+  calculationType: 'flat' | 'percentage' | 'balance';
+  isBasic: boolean;
   percentageValue: number | null;
   percentageBasis: 'basic' | 'gross' | 'component' | null;
   basisComponentId: number | null;
@@ -22,7 +27,8 @@ export interface ComponentFormInput {
   description: string;
   displayOrder: string;
   status: Status;
-  calculationType: 'flat' | 'percentage';
+  calculationType: 'flat' | 'percentage' | 'balance';
+  isBasic: boolean;
   percentageValue: string;
   percentageBasis: 'basic' | 'gross' | 'component';
   basisComponentId: number | null;
@@ -82,7 +88,7 @@ export interface DebitFormInput {
   additionalChargeType: 'fixed' | 'percentage';
   additionalChargeValue: string;
   // number[] carries the LWF month list alongside the scalar statutory settings.
-  config: Record<string, string | number | boolean | number[]>;
+  config: Record<string, DebitConfigValue>;
   status: Status;
 }
 
@@ -116,6 +122,7 @@ export type AgeBand = 'default' | 'senior' | 'super_senior';
 
 export interface TdsEstimate {
   financialYear: string;
+  oneTimeIncome: number;
   projectedAnnualGross: number;
   standardDeduction: number;
   declarationTotal: number;

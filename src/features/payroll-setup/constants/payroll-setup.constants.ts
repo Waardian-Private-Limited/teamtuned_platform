@@ -1,3 +1,5 @@
+import type { DebitConfigValue } from '../types/payroll-setup.model';
+
 export const PAYROLL_TABS = [
   { value: 'components', label: 'Salary Components' },
   { value: 'debits', label: 'Deduction Rules' },
@@ -36,7 +38,7 @@ export const DEBIT_PERMISSIONS = {
   DELETE: 'DEBIT_RULE_DELETE',
 } as const;
 
-export type DebitConfigValue = string | number | boolean | number[];
+export type { DebitConfigValue };
 
 export interface DebitCategoryMeta {
   value: string;
@@ -56,27 +58,37 @@ export const DEBIT_CATEGORIES: DebitCategoryMeta[] = [
     label: 'Provident Fund (EPF)',
     description: '12% of Basic wages, capped at the ₹15,000 wage ceiling.',
     statutary: true,
-    fields: ['rate', 'wageCeiling', 'applyCeiling', 'componentName'],
+    fields: ['rate', 'employerRate', 'employerInCtc', 'wageCeiling', 'applyCeiling', 'componentName'],
     defaultName: 'EPF',
-    defaults: { rate: 12, wageCeiling: 15000, applyCeiling: true, componentName: 'Basic' },
+    defaults: { rate: 12, employerRate: 12, employerInCtc: true, wageCeiling: 15000, applyCeiling: true, componentName: 'Basic' },
   },
   {
     value: 'esi',
     label: 'ESI (ESIC)',
     description: '0.75% of gross wages, only when monthly gross is within the ₹21,000 ceiling.',
     statutary: true,
-    fields: ['rate', 'eligibilityCeiling'],
+    fields: ['rate', 'employerRate', 'employerInCtc', 'eligibilityCeiling'],
     defaultName: 'ESIC',
-    defaults: { rate: 0.75, eligibilityCeiling: 21000 },
+    defaults: { rate: 0.75, employerRate: 3.25, employerInCtc: true, eligibilityCeiling: 21000 },
   },
   {
     value: 'professional_tax',
     label: 'Professional Tax (PT)',
-    description: 'State-wise monthly slab (max ₹2,500/year).',
+    description: 'State-wise slabs on monthly gross, with one special month (max ₹2,500/year).',
     statutary: true,
-    fields: ['state', 'monthlyAmount', 'februaryAmount'],
+    fields: ['state', 'specialMonth', 'slabs'],
     defaultName: 'Professional Tax',
-    defaults: { state: 'Maharashtra', monthlyAmount: 200, februaryAmount: 200 },
+    defaults: {
+      state: 'Maharashtra',
+      specialMonth: 2,
+      slabs: [
+        { gender: 'all', minGross: 0, amount: 0, specialAmount: null },
+        { gender: 'all', minGross: 7501, amount: 175, specialAmount: null },
+        { gender: 'all', minGross: 10001, amount: 200, specialAmount: 300 },
+        { gender: 'female', minGross: 0, amount: 0, specialAmount: null },
+        { gender: 'female', minGross: 25001, amount: 200, specialAmount: 300 },
+      ],
+    },
   },
   {
     value: 'lwf',

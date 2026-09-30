@@ -56,10 +56,10 @@ export const SCOPE_TYPE_OPTIONS = [
   { value: 'department', label: 'Department', needsTarget: true },
   { value: 'site', label: 'Site', needsTarget: true },
   { value: 'sub_organization', label: 'Sub-organization', needsTarget: true },
-  { value: 'employee_type', label: 'Employee type', needsTarget: true },
+  { value: 'employee_type', label: 'Employment type', needsTarget: true },
   { value: 'organization', label: 'Whole organization', needsTarget: false },
 ] as const;
 
 // Scope types with no v2 list API of their own yet — the picker falls back
 // to a plain numeric id for these two.
-export const SCOPE_TYPES_WITHOUT_PICKER = ['employee', 'employee_type'] as const;
+export const SCOPE_TYPES_WITHOUT_PICKER = ['employee'] as const;

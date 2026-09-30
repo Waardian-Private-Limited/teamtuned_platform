@@ -242,6 +242,9 @@ export function TaxProfileDialog({ open, employee, financialYear, onClose }: Tax
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+                {profile.estimate.oneTimeIncome !== 0 && (
+                  <EstimateRow label="One-time payouts" value={profile.estimate.oneTimeIncome} />
+                )}
                 <EstimateRow label="Projected income" value={profile.estimate.projectedAnnualGross} />
                 <EstimateRow label="Std. deduction" value={-profile.estimate.standardDeduction} />
                 <EstimateRow label="Declarations" value={-profile.estimate.declarationTotal} />

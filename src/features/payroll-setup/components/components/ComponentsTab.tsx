@@ -187,7 +187,9 @@ export function ComponentsTab({
                       </td>
                       <td className="border-b border-line/60 px-3.5 py-2.5 sm:px-4 sm:py-3">
                         <span className="inline-flex items-center rounded-md border border-line bg-bg-subtle px-2 py-0.5 text-[11px] font-medium text-fg">
-                          {component.calculationType === 'percentage'
+                          {component.calculationType === 'balance'
+                          ? 'Balance of gross'
+                          : component.calculationType === 'percentage'
                             ? `${component.percentageValue}% of ${component.percentageBasis === 'basic' ? 'Basic' : component.percentageBasis === 'gross' ? 'Monthly Salary' : 'Component'}`
                             : 'Flat amount'}
                         </span>
@@ -265,7 +267,9 @@ export function ComponentsTab({
                     <div>
                       <span className="text-fg-subtle text-[10px] block uppercase">Calculation</span>
                       <span className="font-medium text-fg">
-                        {component.calculationType === 'percentage'
+                        {component.calculationType === 'balance'
+                          ? 'Balance of gross'
+                          : component.calculationType === 'percentage'
                           ? `${component.percentageValue}% of ${component.percentageBasis === 'basic' ? 'Basic' : component.percentageBasis === 'gross' ? 'Monthly Salary' : 'Component'}`
                           : 'Flat amount'}
                       </span>
@@ -400,7 +404,8 @@ function ComponentFormDialog({
   const [type, setType] = React.useState<'credit' | 'debit'>('credit');
   const [description, setDescription] = React.useState('');
   const [displayOrder, setDisplayOrder] = React.useState('0');
-  const [calculationType, setCalculationType] = React.useState<'flat' | 'percentage'>('flat');
+  const [calculationType, setCalculationType] = React.useState<'flat' | 'percentage' | 'balance'>('flat');
+  const [isBasic, setIsBasic] = React.useState(false);
   const [percentageValue, setPercentageValue] = React.useState('');
   const [percentageBasis, setPercentageBasis] = React.useState<'basic' | 'gross' | 'component'>('gross');
   const [basisComponentId, setBasisComponentId] = React.useState<number | null>(null);
@@ -421,6 +426,7 @@ function ComponentFormDialog({
     setDescription(initial?.description ?? '');
     setDisplayOrder(String(initial?.displayOrder ?? nextSeqOrder));
     setCalculationType(initial?.calculationType ?? 'flat');
+    setIsBasic(initial?.isBasic ?? false);
     setPercentageValue(initial?.percentageValue !== null && initial?.percentageValue !== undefined ? String(initial.percentageValue) : '');
     setPercentageBasis(initial?.percentageBasis ?? 'gross');
     setBasisComponentId(initial?.basisComponentId ?? null);
@@ -442,6 +448,7 @@ function ComponentFormDialog({
       displayOrder,
       status: initial?.status ?? 'active',
       calculationType,
+      isBasic: type === 'credit' && isBasic,
       percentageValue: calculationType === 'percentage' ? percentageValue : '',
       percentageBasis,
       basisComponentId: calculationType === 'percentage' && percentageBasis === 'component' ? basisComponentId : null,
@@ -536,10 +543,9 @@ function ComponentFormDialog({
           </div>
         </div>
 
-        {/* Calculation Mode: Flat vs Percentage of Salary */}
         <div>
           <label className="mb-1.5 block text-xs font-semibold text-fg sm:text-[13px]">Calculation Mode</label>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
             <button
               type="button"
               onClick={() => setCalculationType('flat')}
@@ -566,7 +572,30 @@ function ComponentFormDialog({
               <div className="text-xs font-semibold text-fg">% of Salary</div>
               <div className="text-[11px] text-fg-muted">e.g. 50% of Monthly, 20% of Monthly, 40% of Basic</div>
             </button>
+            <button
+              type="button"
+              disabled={type !== 'credit'}
+              onClick={() => setCalculationType('balance')}
+              className={cx(
+                'rounded-lg border p-2.5 text-left transition-all disabled:cursor-not-allowed disabled:opacity-40',
+                calculationType === 'balance'
+                  ? 'border-[var(--tt-primary)] bg-[var(--tt-primary)]/5 ring-1 ring-[var(--tt-primary)]'
+                  : 'border-line bg-surface hover:bg-bg-subtle'
+              )}
+            >
+              <div className="text-xs font-semibold text-fg">Balance</div>
+              <div className="text-[11px] text-fg-muted">Whatever is left of monthly gross. One per structure.</div>
+            </button>
           </div>
+          {type === 'credit' && (
+            <label className="mt-3 flex cursor-pointer items-start gap-2.5 rounded-lg border border-line p-2.5">
+              <input type="checkbox" className="mt-0.5" checked={isBasic} onChange={(e) => setIsBasic(e.target.checked)} />
+              <span>
+                <span className="block text-xs font-semibold text-fg">This is the Basic component</span>
+                <span className="block text-[11px] text-fg-muted">&quot;% of Basic&quot; components, PF, gratuity and bonus use this one. One per structure.</span>
+              </span>
+            </label>
+          )}
 
           {calculationType === 'percentage' && (
             <div className="mt-3 rounded-lg border border-line bg-bg-subtle/50 p-3 space-y-3">

@@ -6,7 +6,8 @@ export interface SalaryComponentDto {
   is_system: number;
   display_order: number;
   status: 'active' | 'inactive';
-  calculation_type?: 'flat' | 'percentage';
+  calculation_type?: 'flat' | 'percentage' | 'balance';
+  is_basic?: number;
   percentage_value?: string | number | null;
   percentage_basis?: 'basic' | 'gross' | 'component' | null;
   basis_component_id?: number | null;
@@ -98,6 +99,7 @@ export interface TdsEstimateDto {
   financialYear: string;
   regime?: string;
   profile?: { regime: 'old' | 'new' };
+  oneTimeIncome?: number;
   projectedAnnualGross: number;
   standardDeduction: number;
   declarationTotal: number;
