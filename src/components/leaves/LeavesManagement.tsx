@@ -177,9 +177,11 @@ export default function LeavesManagement({ employeeId, employeeName }: Props) {
     }
   };
 
+  // Comp-off rows are worth credit_days each (0.5 or 1.0), so the available
+  // figure comes from the backend's comp-off balance, not a row count.
   const getCompOffCount = () => {
-    if (compoff.length === 0) return 0;
-    return compoff.length;
+    const row = balances.find(b => String(b.leave_type || '').toLowerCase().includes('comp'));
+    return row ? Number(row.remaining || 0) : 0;
   };
 
   // Calculate stats
@@ -411,12 +413,12 @@ export default function LeavesManagement({ employeeId, employeeName }: Props) {
                               Comp-off {index + 1}
                             </div>
                             <div className="text-xs text-purple-500">
-                              Earned on {formatDate(comp.date || '')}
+                              Earned on {formatDate(comp.compoff_date || comp.date || '')}
                             </div>
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-sm font-bold text-purple-900">1</div>
+                          <div className="text-sm font-bold text-purple-900">{Number(comp.credit_days ?? 1)}</div>
                           <div className="text-xs text-purple-500">day</div>
                         </div>
                       </div>

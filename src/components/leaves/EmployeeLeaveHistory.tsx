@@ -85,18 +85,23 @@ export default function EmployeeLeaveHistory({ employeeId, employeeName, onClose
                 params: { employee_id: String(employeeId) }
             });
 
-            const balances = res.leave_balances || [];
+            // The comp-off card is built below from the rows; drop the backend's copy.
+            const balances = (res.leave_balances || []).filter(
+                (b: any) => !String(b.leave_type || '').toLowerCase().includes('comp')
+            );
 
-            // Process Comp-offs
-            const compoffs = res.compoff || [];
-            // In backend getSummary, expired 'Approved' are filtered out.
-            // Remaining = Approved (valid)
-            // Used = Used
-            const compoffApproved = compoffs.filter((c: any) => (c.effective_status || c.status) === 'Approved').length;
-            const compoffUsed = compoffs.filter((c: any) => c.status === 'Used').length;
-            const compoffAllocated = compoffApproved + compoffUsed;
+            // Process Comp-offs: each row is worth credit_days (0.5 or 1.0), not one day.
+            const compoffs = (res.compoff || []).filter(
+                (c: any) => ['Approved', 'Used'].includes(c.effective_status || c.status)
+            );
+            const credit = (c: any) => Number(c.credit_days ?? 1);
+            const round1 = (n: number) => Math.round(n * 10) / 10;
+            const compoffAllocated = round1(compoffs.reduce((s: number, c: any) => s + credit(c), 0));
+            const compoffUsed = round1(compoffs.reduce(
+                (s: number, c: any) => s + (c.status === 'Used' ? Math.max(credit(c), Number(c.used_days || 0)) : Number(c.used_days || 0)), 0
+            ));
 
-            if (compoffAllocated > 0 || compoffApproved > 0) {
+            if (compoffAllocated > 0) {
                 balances.push({
                     leave_type: 'Comp-off',
                     total_allocated: compoffAllocated,
