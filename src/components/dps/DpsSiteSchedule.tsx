@@ -550,7 +550,15 @@ export default function DpsSiteSchedule({ siteId, basePath }: DpsSiteSchedulePro
         }
     };
 
-    const isExpired = () => scheduleValidTill ? new Date(scheduleValidTill) < new Date(new Date().setHours(0, 0, 0, 0)) : false;
+    const isExpired = () => {
+        if (!scheduleValidTill) return false;
+        // The day following scheduleValidTill is when the final day's DPR is generated/submitted.
+        // It is considered expired once that reporting window has ended.
+        const cutoff = new Date(scheduleValidTill);
+        cutoff.setDate(cutoff.getDate() + 1);
+        cutoff.setHours(23, 59, 59, 999);
+        return new Date() > cutoff;
+    };
 
     const getValidityDuration = () => {
         if (!scheduleValidFrom || !scheduleValidTill) return 0;
