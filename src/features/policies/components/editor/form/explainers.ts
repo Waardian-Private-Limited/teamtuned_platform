@@ -937,6 +937,33 @@ const LEAVE_RULE: Record<string, (c: Config) => CardSummary> = {
         : undefined,
     };
   },
+
+  punchOnApprovedLeave(c) {
+    switch (s(c.action, 'keep_leave')) {
+      case 'block_punch':
+        return { rule: ['The employee cannot punch in from app or web on an approved leave day. Machine punches are saved but not counted.'] };
+      case 'give_back_balance': {
+        const endLeave = s(c.restOfLeave) === 'end_leave';
+        return {
+          rule: [
+            s(c.giveBack) === 'full_day_only'
+              ? 'If the employee works a full day on a leave day, 1 day goes back to the balance. Less than a full day: nothing goes back.'
+              : 'Balance goes back as per working hours: full day worked = 1 day back, half day worked = half day back.',
+            b(c.needsApproval) ? 'The approver must OK it first; until then the day stays leave.' : 'Balance goes back without approval.',
+            endLeave
+              ? 'Leave of many days ends when the employee comes back; all later days go back to the balance.'
+              : 'Leave of many days: only the worked days go back; other days stay leave.',
+            'A punch shorter than a half day changes nothing.',
+          ],
+          example: endLeave
+            ? 'Example: 4 days leave, works day 2 — day 1 is leave, days 2–4 go back; days 3 and 4 are absent if no punch.'
+            : 'Example: 4 days leave, works day 2 — days 1, 3 and 4 are leave (3 days used), day 2 goes back.',
+        };
+      }
+      default:
+        return { rule: ['The day stays leave even if the employee punches in. The punch is only saved.'] };
+    }
+  },
 };
 
 /** One line under a leave type's name: its credit and the rules in force. */
