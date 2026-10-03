@@ -32,7 +32,6 @@ import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/apiClient';
 import toast from 'react-hot-toast';
 import ActionItemChat from './ActionItemChat';
-import { getSocket } from '@/lib/socket';
 import { useAuth } from '@/context/AuthContext';
 
 export interface Breadcrumb {
@@ -106,7 +105,6 @@ export default function MeetingDetailView({
     const [targetDateReason, setTargetDateReason] = useState('');
     const [savingTargetDate, setSavingTargetDate] = useState(false);
 
-    const socketRef = useRef<any>(null);
 
     // Close searchable dropdowns on outside click
     useEffect(() => {
@@ -151,67 +149,6 @@ export default function MeetingDetailView({
             }, { withAuth: true }).catch(() => {});
         }
     }, [meeting?.id, initialMeeting?.id]);
-
-    // WebSocket real-time updates
-    useEffect(() => {
-        const meetingId = meeting?.id || initialMeeting?.id;
-        if (!meetingId) return;
-
-        const socket = getSocket();
-        socketRef.current = socket;
-
-        if (socket) {
-            socket.emit('join_meeting', meetingId);
-
-            socket.on('point_added', (point: any) => {
-                setMeeting((prev: any) => {
-                    if (!prev) return prev;
-                    const existing = (prev.points || []).find((p: any) => p.id === point.id);
-                    if (existing) return prev;
-                    return { ...prev, points: [point, ...(prev.points || [])] };
-                });
-            });
-
-            socket.on('point_updated', (updatedPoint: any) => {
-                setMeeting((prev: any) => {
-                    if (!prev) return prev;
-                    return {
-                        ...prev,
-                        points: (prev.points || []).map((p: any) => p.id === updatedPoint.id ? { ...p, ...updatedPoint } : p)
-                    };
-                });
-            });
-
-            socket.on('point_deleted', ({ point_id }: { point_id: number }) => {
-                setMeeting((prev: any) => {
-                    if (!prev) return prev;
-                    return {
-                        ...prev,
-                        points: (prev.points || []).filter((p: any) => p.id !== point_id)
-                    };
-                });
-            });
-
-            socket.on('meeting_started', () => {
-                fetchMeetingDetails();
-            });
-
-            socket.on('meeting_completed', () => {
-                fetchMeetingDetails();
-            });
-        }
-
-        return () => {
-            if (socket) {
-                socket.emit('leave_meeting', meetingId);
-                socket.off('point_added');
-                socket.off('point_updated');
-                socket.off('point_deleted');
-                socket.off('meeting_started');
-                socket.off('meeting_completed');
-            }
-        };
-    }, [meeting?.id, initialMeeting?.id, fetchMeetingDetails]);
 
     // Initial load
     useEffect(() => {

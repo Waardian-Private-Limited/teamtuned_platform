@@ -13,7 +13,6 @@ import {
     RefreshCcw, CalendarDays
 } from 'lucide-react';
 import { apiClient } from '@/lib/apiClient';
-import { getSocket } from '@/lib/socket';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
 import { stripTagToken, addAssignee, removeAssignee, NO_TAG_TOKEN } from '@/lib/momComposer';
@@ -102,7 +101,6 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
 
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const socketRef = useRef<any>(null);
     const popoverRef = useRef<HTMLDivElement>(null);
     // Caret position at the moment the tag popover opened, so selecting from it
     // removes the typed token from the right place even mid-sentence.
@@ -110,94 +108,21 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
 
     useEffect(() => {
         fetchData();
-        const socket = getSocket();
-        socketRef.current = socket;
-
-        if (socket) {
-            socket.emit('join_meeting', meetingId);
-            socket.on('point_added', (point: any) => {
-                setPoints(prev => [point, ...prev]);
-                setMeeting((prev: any) => prev ? ({
-                    ...prev,
-                    timeline: [{
-                        action: 'point_added',
-                        employee_name: point.creator_name,
-                        timestamp: new Date().toISOString()
-                    }, ...(prev.timeline || [])]
-                }) : null);
-            });
-
-            socket.on('point_updated', (updatedPoint: any) => setPoints(prev => prev.map(p => {
-                if (p.id === updatedPoint.id) return { ...p, ...updatedPoint };
-                return p;
-            })));
-
-            socket.on('point_deleted', (data: any) => setPoints(prev => prev.filter(p => p.id !== data.point_id)));
-
-            socket.on('attendee_updated', (data: any) => {
-                setMeeting((prev: any) => {
-                    const attendees = prev.attendees?.map((a: any) =>
-                        (Number(a.employee_id) === Number(data.employee_id) || Number(a.id) === Number(data.id))
-                            ? { ...a, status: data.status }
-                            : a
-                    ) || [];
-
-                    const employee = attendees.find((a: any) => (Number(a.employee_id) === Number(data.employee_id) || Number(a.id) === Number(data.id)));
-                    const timeline = prev.timeline || [];
-
-                    if (data.status === 'attended' || data.status === 'left') {
-                        timeline.unshift({
-                            action: data.status === 'attended' ? 'joined' : 'left',
-                            employee_name: employee?.name || 'Participant',
-                            timestamp: new Date().toISOString()
-                        });
-                    }
-
-                    return { ...prev, attendees, timeline };
-                });
-            });
-
-            socket.on('meeting_reopened', (data: any) => {
-                setMeeting((prev: any) => prev ? ({
-                    ...prev,
-                    status: 'in_progress',
-                    reopened_at: data.reopened_at,
-                    reopened_by_name: data.reopened_by_name,
-                    timeline: [{
-                        action: 'reopened',
-                        employee_name: data.reopened_by_name,
-                        timestamp: data.reopened_at
-                    }, ...(prev.timeline || [])]
-                }) : null);
-                toast.success('Meeting has been reopened');
-            });
-
-            socket.on('meeting_completed', (data: any) => {
-                setMeeting((prev: any) => prev ? ({
-                    ...prev,
-                    status: 'completed',
-                    timeline: [{
-                        action: 'completed',
-                        employee_name: 'Organizer', // We don't have the explicit name in broadcast, but it's usually clear
-                        timestamp: new Date().toISOString()
-                    }, ...(prev.timeline || [])]
-                }) : null);
-                toast('Meeting has been completed', { icon: '✅' });
-            });
-        }
-
-        return () => {
-            if (socket) {
-                socket.emit('leave_meeting', meetingId);
-                socket.off('point_added');
-                socket.off('point_updated');
-                socket.off('point_deleted');
-                socket.off('attendee_updated');
-                socket.off('meeting_reopened');
-                socket.off('meeting_completed');
-            }
-        };
     }, [meetingId]);
+
+    // No live channel: after this user's own point changes, re-read the
+    // meeting so the list matches the server. Others' edits show on reload.
+    const reloadMeeting = async () => {
+        try {
+            const res = await apiClient.get(`/mom/details/${meetingId}`, undefined, { withAuth: true });
+            if (res.success) {
+                setMeeting(res.meeting);
+                setPoints(res.meeting.points || []);
+            }
+        } catch {
+            // The write succeeded; a stale list corrects itself on the next load.
+        }
+    };
 
     const fetchData = async () => {
         try {
@@ -358,6 +283,7 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
             }
 
             await apiClient.post('/mom/point/add', formData, { withAuth: true });
+            void reloadMeeting();
             setNewPoint('');
             setSelectedAssignments([]);
             setNewAttachments([]);
@@ -392,6 +318,7 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
             }
 
             await apiClient.put(`/mom/point/update/${pointId}`, formData, { withAuth: true });
+            void reloadMeeting();
             setEditingPointId(null);
             setSelectedAssignments([]);
             setNewAttachments([]);
@@ -424,6 +351,7 @@ const MeetingCollaborator = ({ meetingId, initialMeeting, currentEmployeeId, bas
         setIsDeleting(true);
         try {
             await apiClient.delete(`/mom/point/delete/${pointToDelete}`, { withAuth: true });
+            void reloadMeeting();
             setPointToDelete(null);
             toast.success('Point deleted');
         } catch (err) {

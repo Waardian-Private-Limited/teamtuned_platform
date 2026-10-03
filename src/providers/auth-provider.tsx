@@ -3,8 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api/client';
-import { clearClientSideAuth, getToken } from '@/lib/auth/session';
-import { getSocket, disconnectSocket } from '@/lib/socket';
+import { clearClientSideAuth } from '@/lib/auth/session';
 
 interface User {
   id: number;
@@ -131,7 +130,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       clearClientSideAuth();
       clearAuthState();
-      disconnectSocket();
       router.push('/login');
     }
   }, [router]);
@@ -145,26 +143,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     fetchSession();
   }, [fetchSession]);
 
-  useEffect(() => {
-    if (isAuthenticated && user?.id) {
-      const token = getToken();
-      const socket = getSocket(token || undefined);
-      if (socket) {
-        socket.off('session_revoked');
-        socket.on('session_revoked', (data: { token?: string; all?: boolean; logoutAllMobile?: boolean; userId?: number }) => {
-          const currentToken = getToken();
-          const shouldLogout =
-            data.token === currentToken ||
-            data.all === true ||
-            (data.logoutAllMobile === true && data.userId === user.id && role?.toLowerCase() === 'employee');
-
-          if (shouldLogout) logout();
-        });
-      }
-    } else {
-      disconnectSocket();
-    }
-  }, [isAuthenticated, user?.id, role, logout]);
 
   const setAuthState = useCallback((data: Partial<SessionResponse>) => {
     if (data.user) {

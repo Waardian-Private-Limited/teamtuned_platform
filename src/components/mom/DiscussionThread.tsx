@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { apiClient } from '@/lib/apiClient';
-import { getSocket } from '@/lib/socket';
 import { Send, Paperclip, User, Clock, Loader2, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
@@ -36,49 +35,8 @@ export default function DiscussionThread({
     const [messages, setMessages] = useState<Message[]>(initialMessages);
     const [newMessage, setNewMessage] = useState('');
     const [sending, setSending] = useState(false);
-    const [socket, setSocket] = useState<any>(null);
     const { user, employee } = useAuth();
     const scrollRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const newSocket = getSocket();
-        if (!newSocket) return;
-
-        const join = () => {
-            console.log(`🔌 Joining point room: ${pointId}`);
-            newSocket.emit('join_point', pointId);
-        };
-
-        if (newSocket.connected) {
-            join();
-        }
-
-        newSocket.on('connect', join);
-
-        const onNewMessage = (msg: Message) => {
-            console.log('🔌 Received new_message:', msg);
-            if (msg.point_id === pointId) {
-                setMessages(prev => [...prev, msg]);
-            }
-        };
-
-        const onStatusUpdated = (data: { point_id: number, status: string }) => {
-            console.log('🔌 Received status_updated:', data);
-            if (data.point_id === pointId) {
-                onStatusUpdate(data.status);
-            }
-        };
-
-        newSocket.on('new_message', onNewMessage);
-        newSocket.on('status_updated', onStatusUpdated);
-
-        return () => {
-            newSocket.off('connect', join);
-            newSocket.emit('leave_point', pointId);
-            newSocket.off('new_message', onNewMessage);
-            newSocket.off('status_updated', onStatusUpdated);
-        };
-    }, [pointId]);
 
     useEffect(() => {
         if (scrollRef.current) {
@@ -107,8 +65,6 @@ export default function DiscussionThread({
                 };
                 setMessages(prev => [...prev, msgObj]);
                 setNewMessage('');
-
-
             }
         } catch (error) {
             console.error('Error sending message:', error);

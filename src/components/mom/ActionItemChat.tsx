@@ -4,7 +4,6 @@ import React, { useEffect, useState, useRef } from 'react';
 import { apiClient } from '@/lib/apiClient';
 import { X, Send, User, Clock, CheckCheck, Paperclip, Image as ImageIcon, FileText, Download, MessageSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getSocket } from '@/lib/socket';
 
 interface Message {
     id: number;
@@ -34,43 +33,6 @@ export default function ActionItemChat({ isOpen, onClose, pointId }: ActionItemC
         if (isOpen && pointId) {
             fetchMessages();
             markAsSeen();
-
-            // Socket Integration
-            const socket = getSocket();
-            if (socket) {
-                socket.emit('join_point', pointId);
-
-                const handleNewMessage = (data: any) => {
-                    if (data.point_id === pointId) {
-                        // Check if message already exists to avoid duplicates
-                        setMessages(prev => {
-                            const exists = prev.some(m =>
-                                (m.id && data.id && m.id === data.id) ||
-                                (m.message === data.message && m.employee_id === data.sender_id &&
-                                    Math.abs(new Date(m.created_at).getTime() - new Date(data.created_at).getTime()) < 2000)
-                            );
-                            if (exists) return prev;
-
-                            return [...prev, {
-                                id: data.id || Date.now(),
-                                employee_id: data.sender_id,
-                                first_name: data.sender_name?.split(' ')[0] || 'User',
-                                last_name: data.sender_name?.split(' ')[1] || '',
-                                message: data.message,
-                                attachment_url: data.attachment_url,
-                                created_at: data.created_at
-                            }];
-                        });
-                    }
-                };
-
-                socket.on('new_message', handleNewMessage);
-
-                return () => {
-                    socket.emit('leave_point', pointId);
-                    socket.off('new_message', handleNewMessage);
-                };
-            }
         }
     }, [isOpen, pointId]);
 
