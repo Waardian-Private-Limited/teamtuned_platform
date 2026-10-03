@@ -63,6 +63,8 @@ export const orgNav: NavNode[] = [
       { kind: 'link', label: 'Payroll Setup', href: '/org-admin/payroll-setup', icon: Coins },
       { kind: 'link', label: 'Increments & Promotions', href: '/org-admin/salary-revisions', icon: ArrowUpCircle },
       { kind: 'link', label: 'Compensation', href: '/org-admin/compensation', icon: Award, match: 'prefix' },
+      { kind: 'link', label: 'Employee Onboarding', href: '/org-admin/employee-onboarding', icon: UserPlus },
+      { kind: 'link', label: 'Onboarding Settings', href: '/org-admin/onboarding-settings', icon: Cog },
       { kind: 'link', label: 'Departments', href: '/org-admin/departments', icon: Building },
       { kind: 'link', label: 'Roles', href: '/org-admin/roles', icon: UserCog },
     ],

@@ -7,9 +7,10 @@ interface TextareaProps extends Omit<React.TextareaHTMLAttributes<HTMLTextAreaEl
   label: string;
   hint?: string;
   error?: string;
+  required?: boolean;
 }
 
-export function Textarea({ label, hint, error, disabled, rows = 3, ...rest }: TextareaProps) {
+export function Textarea({ label, hint, error, required, disabled, rows = 3, ...rest }: TextareaProps) {
   const id = useId();
   const messageId = `${id}-message`;
   const [isFocused, setIsFocused] = useState(false);
@@ -18,7 +19,7 @@ export function Textarea({ label, hint, error, disabled, rows = 3, ...rest }: Te
   return (
     <div>
       <label htmlFor={id} className={field.label}>
-        {label}
+        {label} {required && <span className="text-[var(--tt-danger)]">*</span>}
       </label>
       <div
         className={cx(

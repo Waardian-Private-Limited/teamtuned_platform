@@ -36,6 +36,8 @@ interface Organization {
 
 type Role = 'superAdmin' | 'OrgAdmin' | 'Employee';
 
+type NextStep = 'dashboard' | 'onboarding' | 'consent';
+
 interface AuthContextType {
   user: User | null;
   role: Role | null;
@@ -44,6 +46,7 @@ interface AuthContextType {
   employee_id: number | null;
   organization: Organization | null;
   organization_features?: Array<{ id: number; code: string; name: string }>;
+  nextStep: NextStep | null;
   isAuthenticated: boolean;
   loading: boolean;
   logout: () => Promise<void>;
@@ -54,6 +57,7 @@ interface AuthContextType {
 interface SessionResponse {
   authenticated: boolean;
   role?: string;
+  next_step?: NextStep;
   user?: User;
   permissions?: string[];
   employee?: Employee;
@@ -73,6 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [employee_id, setEmployeeId] = useState<number | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
+  const [nextStep, setNextStep] = useState<NextStep | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
@@ -83,6 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setEmployeeId(null);
     setOrganization(null);
     setPermissions([]);
+    setNextStep(null);
     setIsAuthenticated(false);
   };
 
@@ -104,6 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             : null
         );
         setPermissions(data.employee?.permissions || []);
+        setNextStep(data.next_step || 'dashboard');
         setIsAuthenticated(true);
       } else {
         clearAuthState();
@@ -171,6 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           : null
       );
       setPermissions(data.employee?.permissions || []);
+      setNextStep(data.next_step || 'dashboard');
       setIsAuthenticated(true);
     }
   }, []);
@@ -182,6 +190,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     employee,
     employee_id,
     organization,
+    nextStep,
     isAuthenticated,
     loading,
     logout,

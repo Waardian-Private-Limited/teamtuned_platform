@@ -8,13 +8,14 @@ import { OrgProvider } from "@/components/shared/OrgContext";
 import { InventoryStoreProvider } from "@/components/inventory/InventoryStoreContext";
 import { useAuth } from "@/context/AuthContext";
 import { useUserStore } from "@/lib/store/userStore";
+import { EMPLOYEE_ONBOARDING_ROUTE } from "@/config/routes";
 
 export default function EmployeeLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { setUser } = useUserStore();
 
   // Use centralized auth context
-  const { user, role, permissions, employee, employee_id, organization, isAuthenticated, loading, logout } = useAuth();
+  const { user, role, permissions, employee, employee_id, organization, nextStep, isAuthenticated, loading, logout } = useAuth();
 
   // Extract organization features
   const features = React.useMemo(() => {
@@ -40,6 +41,18 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
       return;
     }
 
+    // An invited employee who has not finished onboarding belongs in the
+    // dedicated onboarding wizard, not the full employee portal — most of
+    // its data calls would 403 for an onboarding-scoped session anyway.
+    if (nextStep === "onboarding") {
+      router.replace(EMPLOYEE_ONBOARDING_ROUTE);
+      return;
+    }
+
+    // A user who has not accepted the current privacy notice (first login
+    // since this shipped, or a new notice was published) sees ConsentGateModal
+    // pop up over this screen (mounted at the app root) — no redirect needed.
+
     // Update user store
     if (user) {
       setUser({
@@ -51,7 +64,7 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
         features,
       });
     }
-  }, [isAuthenticated, role, user, employee_id, loading, router, setUser, features]);
+  }, [isAuthenticated, role, nextStep, user, employee_id, loading, router, setUser, features]);
 
   const handleLogout = async () => {
     await logout();

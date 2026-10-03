@@ -19,6 +19,8 @@ export interface RememberedAccount {
   lastUsedAt: number;
 }
 
+export type NextStep = 'dashboard' | 'onboarding' | 'consent';
+
 export interface AuthenticatedUser {
   id: string;
   email: string;
@@ -27,6 +29,7 @@ export interface AuthenticatedUser {
   organizationId?: string;
   organizationName?: string;
   features: string[];
+  nextStep: NextStep;
 }
 
 export type AuthOutcome =
@@ -37,5 +40,6 @@ export type AuthOutcome =
 export interface SessionSnapshot {
   isAuthenticated: boolean;
   role?: string;
+  nextStep?: NextStep;
   user?: { id: string; email: string; name: string; organizationId?: string };
 }

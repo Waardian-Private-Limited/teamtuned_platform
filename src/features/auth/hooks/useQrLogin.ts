@@ -1,31 +1,30 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getSocket, disconnectSocket } from '@/lib/socket';
 import * as authApi from '../api/auth.api';
 import { toAuthOutcome } from '../types/auth.mapper';
 import { QR, type QrStatus } from '../constants/auth.constants';
 import { useAuthSuccess } from './useAuthSuccess';
 
+// Long-poll: server parks each request until the phone confirms (Redis pub/sub) or ~25s passes.
+// One idle HTTP request per open login page; no sockets, no DB.
 export function useQrLogin() {
   const [token, setToken] = useState<string | null>(null);
   const [status, setStatus] = useState<QrStatus>('pending');
   const [isLoading, setIsLoading] = useState(false);
 
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const expiryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const graceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeTokenRef = useRef<string | null>(null);
   const requestSeqRef = useRef(0);
 
   const onAuthSuccess = useAuthSuccess();
 
   const stop = useCallback(() => {
-    if (pollRef.current) clearInterval(pollRef.current);
+    abortRef.current?.abort();
+    abortRef.current = null;
     if (expiryRef.current) clearTimeout(expiryRef.current);
-    if (graceRef.current) clearTimeout(graceRef.current);
-    pollRef.current = expiryRef.current = graceRef.current = null;
-    disconnectSocket();
+    expiryRef.current = null;
   }, []);
 
   const complete = useCallback(
@@ -37,6 +36,7 @@ export function useQrLogin() {
         try {
           await authApi.exchangeQrTokenForCookie(outcome.token);
         } catch {
+          // Cookie already set by the status response; exchange is a fallback.
         }
       }
       onAuthSuccess(outcome.user, outcome.token, payload);
@@ -44,32 +44,39 @@ export function useQrLogin() {
     [onAuthSuccess, stop]
   );
 
-  const startPolling = useCallback(
-    (sessionToken: string) => {
-      pollRef.current = setInterval(async () => {
-        if (activeTokenRef.current !== sessionToken) return stop();
+  const listen = useCallback(
+    async (sessionToken: string, controller: AbortController) => {
+      let failures = 0;
+      while (activeTokenRef.current === sessionToken && !controller.signal.aborted) {
         try {
-          const poll = await authApi.fetchQrStatus(sessionToken);
-          if (activeTokenRef.current !== sessionToken) return stop();
+          const poll = await authApi.fetchQrStatus(sessionToken, controller.signal);
+          if (activeTokenRef.current !== sessionToken) return;
+          failures = 0;
 
-          if (poll.status === 'scanned') setStatus('scanned');
           if (poll.status === 'confirmed') {
             setStatus('confirmed');
             await complete(poll);
+            return;
           }
           if (poll.success === false) {
             setStatus('expired');
             stop();
+            return;
           }
+          if (poll.status === 'scanned') setStatus('scanned');
         } catch (err) {
-          if (activeTokenRef.current !== sessionToken) return stop();
+          if (controller.signal.aborted || activeTokenRef.current !== sessionToken) return;
           const httpStatus = (err as { status?: number })?.status;
           if (httpStatus === 400 || httpStatus === 404 || httpStatus === 410) {
             setStatus('expired');
             stop();
+            return;
           }
+          // Network blip / 5xx / proxy timeout: back off, then re-park.
+          failures += 1;
+          await new Promise((r) => setTimeout(r, Math.min(QR.retryBaseMs * 2 ** failures, QR.retryMaxMs)));
         }
-      }, QR.pollIntervalMs);
+      }
     },
     [complete, stop]
   );
@@ -93,33 +100,15 @@ export function useQrLogin() {
         stop();
       }, QR.expiryMs);
 
-      const socket = getSocket(undefined, true);
-      if (socket) {
-        const join = () => {
-          if (activeTokenRef.current === data.token) socket.emit('join_qr', data.token);
-        };
-        if (socket.connected) join();
-        else socket.on('connect', join);
-
-        socket.off('qr_login_success');
-        socket.on('qr_login_success', async (response: Parameters<typeof toAuthOutcome>[0]) => {
-          if (activeTokenRef.current !== data.token) return;
-          setStatus('confirmed');
-          await complete(response);
-        });
-      }
-
-      graceRef.current = setTimeout(() => {
-        if (activeTokenRef.current !== data.token) return;
-        if (getSocket(undefined, true)?.connected) return;
-        startPolling(data.token);
-      }, QR.socketGraceMs);
+      const controller = new AbortController();
+      abortRef.current = controller;
+      void listen(data.token, controller);
     } catch {
       setStatus('expired');
     } finally {
       if (seq === requestSeqRef.current) setIsLoading(false);
     }
-  }, [complete, startPolling, stop]);
+  }, [listen, stop]);
 
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
@@ -128,12 +117,9 @@ export function useQrLogin() {
     refreshRef.current();
     return () => {
       activeTokenRef.current = null;
-      if (pollRef.current) clearInterval(pollRef.current);
-      if (expiryRef.current) clearTimeout(expiryRef.current);
-      if (graceRef.current) clearTimeout(graceRef.current);
-      disconnectSocket();
+      stop();
     };
-  }, []);
+  }, [stop]);
 
   return { token, status, isLoading, refresh };
 }

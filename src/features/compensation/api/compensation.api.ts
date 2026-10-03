@@ -32,7 +32,6 @@ export const updateSettings = (subOrgId: number | null, settings: CompensationSe
 export const searchEmployees = (search: string, subOrgId?: number | null) =>
   apiClient.get<{ employees: CompEmployeeDto[] }>('/compensation/employees', { search: search || undefined, subOrgId: subOrgId ?? undefined }, auth);
 export const employeeHistory = (id: number) => apiClient.get<HistoryDto>(`/compensation/employees/${id}/history`, undefined, auth);
-export const myHistory = () => apiClient.get<HistoryDto>('/compensation/me/history', undefined, auth);
 export const employeeGratuity = (id: number, params: Params) => apiClient.get<GratuityCalcDto>(`/compensation/employees/${id}/gratuity`, params, auth);
 
 export const listCycles = () => apiClient.get<{ cycles: CycleDto[] }>('/compensation/cycles', undefined, auth);

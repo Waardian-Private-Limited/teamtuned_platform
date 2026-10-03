@@ -107,7 +107,7 @@ export function SelectField<T extends string | number>({
   );
 }
 
-export function Section({ title, description, children, aside }: { title: string; description?: string; children: React.ReactNode; aside?: React.ReactNode }) {
+export function Section({ title, description, children, aside }: { title: React.ReactNode; description?: string; children: React.ReactNode; aside?: React.ReactNode }) {
   return (
     <section className="rounded-xl border border-line bg-surface p-4 sm:p-5 2xl:p-6">
       <div className="mb-4 flex items-start justify-between gap-3">

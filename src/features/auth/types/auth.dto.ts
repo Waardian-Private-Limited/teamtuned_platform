@@ -7,11 +7,10 @@ export interface AccountDto {
   lastName?: string | null;
   fullName?: string | null;
   userType: string;
-  societyId: string;
-  societyName: string | null;
-  flatNumber: string | null;
-  wingName: string | null;
+  organizationId: number | string | null;
+  organizationName: string | null;
   status: string;
+  employeeStatus?: string | null;
 }
 
 export interface OrganizationFeatureDto {
@@ -29,7 +28,7 @@ export interface OrganizationDto {
 export interface AuthUserDto {
   id: number | string;
   email: string;
-  societyId?: string;
+  organization_id?: number | string | null;
   name?: string;
 }
 
@@ -40,6 +39,7 @@ export interface AuthResultDto {
   error?: string;
   token?: string;
   role?: string;
+  next_step?: 'dashboard' | 'onboarding';
   user?: AuthUserDto;
   accounts?: AccountDto[];
   organization?: OrganizationDto;
@@ -66,7 +66,8 @@ export interface QrStatusResponseDto extends AuthResultDto {
 export interface SessionResponseDto {
   authenticated: boolean;
   role?: string;
-  user?: AuthUserDto & { societyId?: string };
+  next_step?: 'dashboard' | 'onboarding';
+  user?: AuthUserDto;
 }
 
 export interface CheckAccountsRequestDto {

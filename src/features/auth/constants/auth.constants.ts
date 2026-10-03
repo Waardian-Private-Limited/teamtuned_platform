@@ -60,7 +60,7 @@ export const RESEND_COOLDOWN_SECONDS = 60;
 
 export const QR = {
   expiryMs: 5 * 60 * 1000,
-  socketGraceMs: 2000,
-  pollIntervalMs: 3000,
+  retryBaseMs: 1000,
+  retryMaxMs: 15000,
   deepLink: (token: string) => `teamtuned://qr-login?token=${token}`,
 } as const;

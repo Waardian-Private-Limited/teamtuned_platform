@@ -8,6 +8,8 @@ import { SidebarDrawer } from './SidebarDrawer';
 import { TopBar } from './TopBar';
 import { useSidebar } from '../hooks/useSidebar';
 import type { NavContext, NavNode } from '../types/nav.model';
+import { DownloadCenterProvider } from '@/features/downloads/context/DownloadCenterContext';
+import { DownloadCenter } from '@/features/downloads/components/DownloadCenter';
 
 /**
  * The app shell shared by org-admin, org and employee layouts: sidebar (or
@@ -51,6 +53,8 @@ export function AppShell({
   const fullName = [firstName, lastName].filter(Boolean).join(' ') || undefined;
 
   return (
+    <DownloadCenterProvider>
+    <DownloadCenter />
     <div className="flex h-[100dvh] gap-2 bg-bg-subtle p-2 text-fg">
       {/* Desktop/tablet sidebar — overflow-visible lets the toggle arrow
           and collapsed popovers extend beyond the sidebar edge. */}
@@ -111,5 +115,6 @@ export function AppShell({
         <GlobalFooter orgName={orgName} />
       </div>
     </div>
+    </DownloadCenterProvider>
   );
 }

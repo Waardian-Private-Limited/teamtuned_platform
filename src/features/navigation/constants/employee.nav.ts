@@ -26,7 +26,6 @@ import type { NavNode } from '../types/nav.model';
  */
 export const employeeNav: NavNode[] = [
   { kind: 'link', label: 'Dashboard', href: '/employee', icon: Home },
-  { kind: 'link', label: 'My Salary', href: '/employee/my-salary', icon: Wallet },
 
   {
     kind: 'group', id: 'main', label: 'Main', gate: { feature: 'PAYROLL_FEATURE' },

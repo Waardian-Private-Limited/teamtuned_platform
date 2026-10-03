@@ -36,7 +36,7 @@ function accountFromResult(dto: AuthResultDto, phone: string): Account | null {
     phone,
     displayName: dto.user.name || dto.user.email,
     userType: role,
-    organizationId: dto.user.societyId || '',
+    organizationId: dto.user.organization_id != null ? String(dto.user.organization_id) : '',
     organizationName: dto.organization?.name || 'Account',
     status: 'active',
     isSuperAdmin: role === 'superadmin',

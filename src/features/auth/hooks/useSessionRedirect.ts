@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useUserStore } from '@/lib/store/userStore';
 import { fetchSession } from '../api/auth.api';
 import { toSessionSnapshot } from '../types/auth.mapper';
-import { routeForRole } from '@/config/routes';
+import { routeAfterLogin } from '@/config/routes';
 
 export function useSessionRedirect() {
   const router = useRouter();
@@ -25,9 +25,9 @@ export function useSessionRedirect() {
           email: session.user.email,
           name: session.user.name,
           role: session.role || '',
-          societyId: session.user.organizationId,
+          organizationId: session.user.organizationId,
         });
-        router.replace(routeForRole(session.role));
+        router.replace(routeAfterLogin(session.role, session.nextStep));
         return;
       }
       setIsChecking(false);

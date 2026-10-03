@@ -14,7 +14,7 @@ export default function OrgAdminLayout({ children }: { children: React.ReactNode
     const { setUser } = useUserStore();
 
     // Use centralized auth context
-    const { user, role, permissions, organization, isAuthenticated, loading, logout } = useAuth();
+    const { user, role, permissions, organization, nextStep, isAuthenticated, loading, logout } = useAuth();
 
     // Extract organization features
     const features = React.useMemo(() => {
@@ -31,6 +31,10 @@ export default function OrgAdminLayout({ children }: { children: React.ReactNode
         }
 
         const userRole = role?.toLowerCase();
+
+        // A user who has not accepted the current privacy notice sees
+        // ConsentGateModal pop up over this screen (mounted at the app
+        // root) — no redirect needed here.
 
         // Allow superadmin and orgadmin
         if (userRole === "superadmin" || userRole === "orgadmin") {
@@ -55,7 +59,7 @@ export default function OrgAdminLayout({ children }: { children: React.ReactNode
 
         // Unknown role
         router.replace("/login");
-    }, [isAuthenticated, role, user, loading, router, setUser, features]);
+    }, [isAuthenticated, role, nextStep, user, loading, router, setUser, features]);
 
     const handleLogout = async () => {
         await logout();

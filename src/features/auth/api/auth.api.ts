@@ -78,8 +78,8 @@ export function generateQrSession() {
   return apiClient.get<QrGenerateResponseDto>('/auth/qr/generate');
 }
 
-export function fetchQrStatus(token: string) {
-  return apiClient.get<QrStatusResponseDto>(`/auth/qr/status/${token}`);
+export function fetchQrStatus(token: string, signal?: AbortSignal) {
+  return apiClient.get<QrStatusResponseDto>(`/auth/qr/status/${token}`, { wait: 25 }, { signal });
 }
 
 export function exchangeQrTokenForCookie(token: string) {

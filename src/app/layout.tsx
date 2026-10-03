@@ -3,6 +3,7 @@ import './globals.css';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from '@/providers/auth-provider';
 import { TunerWidget } from '@/features/assistant/components/TunerWidget';
+import { ConsentGateModal } from '@/features/privacy/components/ConsentGateModal';
 
 // Exo is the brand face, self-hosted so it matches the mobile app exactly.
 const exo = localFont({
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <AuthProvider>
           <Toaster position="top-right" />
+          <ConsentGateModal />
           {children}
           <TunerWidget />
         </AuthProvider>

@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Building2, ChevronDown, ChevronRight, LogOut, Menu, Settings, BarChart2, Smartphone, CreditCard, User, FileText, Percent } from "lucide-react";
+import { Home, Building2, ChevronDown, ChevronRight, LogOut, Menu, Settings, BarChart2, Smartphone, CreditCard, User, FileText, Percent, Shield } from "lucide-react";
 
 export default function SuperadminSidebar({
   isCollapsed,
@@ -114,6 +114,7 @@ export default function SuperadminSidebar({
               <Item icon={Settings} label="Permissions" href="/superadmin/permissions" active={pathname === "/superadmin/permissions"} />
               <Item icon={Settings} label="Org Features" href="/superadmin/org-features" active={pathname === "/superadmin/org-features"} />
               <Item icon={Percent} label="Income Tax Rates" href="/superadmin/tax-rates" active={pathname === "/superadmin/tax-rates"} />
+              <Item icon={Shield} label="Privacy Notice" href="/superadmin/privacy-notice" active={pathname === "/superadmin/privacy-notice"} />
             </div>
           )}
         </div>

@@ -5,7 +5,7 @@ export interface UserInfo {
   employeeId?: string;
   email: string;
   role: string;
-  societyId?: string;
+  organizationId?: string;
   name?: string;
   features?: string[];
 }

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useUserStore } from '@/lib/store/userStore';
 import { useAuth } from '@/providers/auth-provider';
 import { setToken } from '@/lib/auth/session';
-import { routeForRole } from '@/config/routes';
+import { routeAfterLogin } from '@/config/routes';
 import type { AuthenticatedUser } from '../types/auth.model';
 
 export function useAuthSuccess() {
@@ -23,11 +23,11 @@ export function useAuthSuccess() {
         email: user.email,
         role: user.role,
         name: user.name,
-        societyId: user.organizationId,
+        organizationId: user.organizationId,
         features: user.features,
       });
       setAuthState(raw as SessionPayload);
-      router.push(routeForRole(user.role));
+      router.push(routeAfterLogin(user.role, user.nextStep));
     },
     [router, setAuthState, setUser]
   );

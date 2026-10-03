@@ -16,8 +16,8 @@ export function toAccount(dto: AccountDto): Account {
     phone: dto.phone,
     displayName: fullName || dto.username || dto.email,
     userType,
-    organizationId: dto.societyId,
-    organizationName: dto.societyName || 'Account',
+    organizationId: dto.organizationId != null ? String(dto.organizationId) : '',
+    organizationName: dto.organizationName || 'Account',
     status: dto.status,
     isSuperAdmin: userType === 'superadmin',
   };
@@ -34,9 +34,10 @@ function toAuthenticatedUser(dto: AuthResultDto, fallbackName: string): Authenti
     email: user.email,
     name: user.name || fallbackName || user.email,
     role: dto.role || '',
-    organizationId: user.societyId,
+    organizationId: user.organization_id != null ? String(user.organization_id) : undefined,
     organizationName: dto.organization?.name,
     features: (dto.organization_features || []).map((f) => f.code),
+    nextStep: dto.next_step || 'dashboard',
   };
 }
 
@@ -69,11 +70,12 @@ export function toSessionSnapshot(dto: SessionResponseDto): SessionSnapshot {
   return {
     isAuthenticated: true,
     role: dto.role,
+    nextStep: dto.next_step || 'dashboard',
     user: {
       id: String(dto.user.id),
       email: dto.user.email,
       name: dto.user.name || '',
-      organizationId: dto.user.societyId,
+      organizationId: dto.user.organization_id != null ? String(dto.user.organization_id) : undefined,
     },
   };
 }
