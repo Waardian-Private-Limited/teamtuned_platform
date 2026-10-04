@@ -9,7 +9,8 @@ const PAGE_TITLES: Record<string, { title: string; category: string }> = {
     '/employee/departments': { title: 'Departments', category: 'Main' },
     '/org-admin/departments': { title: 'Departments', category: 'Main' },
     '/employee/roles': { title: 'Roles', category: 'Main' },
-    '/employee/holiday-calendar': { title: 'Holiday Calendar', category: 'Main' },
+    '/employee/holidays': { title: 'Holidays', category: 'Main' },
+    '/employee/leave': { title: 'My Leave', category: 'Main' },
 
     // Management
     '/employee/policies': { title: 'Policies', category: 'Management' },
@@ -18,7 +19,7 @@ const PAGE_TITLES: Record<string, { title: string; category: string }> = {
     '/org-admin/onboarding-settings': { title: 'Onboarding Settings', category: 'Management' },
     '/org-admin/employee-onboarding': { title: 'Employee Onboarding', category: 'Management' },
     '/employee/employee-sites': { title: 'Employee Sites', category: 'Management' },
-    '/employee/leave-requests': { title: 'Leave Requests', category: 'Management' },
+    '/employee/leave-requests': { title: 'Leave Management', category: 'Management' },
     '/employee/regularize-requests': { title: 'Regularize Requests', category: 'Management' },
     '/employee/attendance-dashboard': { title: 'Attendance Dashboard', category: 'Management' },
     '/employee/petty-cash': { title: 'Petty Cash', category: 'Management' },

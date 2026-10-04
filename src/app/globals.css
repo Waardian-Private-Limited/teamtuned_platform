@@ -125,3 +125,11 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+.tt-hatch {
+  background-image: repeating-linear-gradient(45deg, var(--tt-border-strong) 0, var(--tt-border-strong) 1px, transparent 1px, transparent 5px);
+}
+
+.tt-strike {
+  background-image: linear-gradient(to top right, transparent calc(50% - 1px), var(--tt-border-strong) 50%, transparent calc(50% + 1px));
+}

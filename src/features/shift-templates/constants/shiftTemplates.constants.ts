@@ -20,5 +20,5 @@ export const SHIFT_PERMISSIONS = {
 
 // Matches the backend's `details.field` names so a server rejection lands on
 // the right input.
-export type ShiftFieldName = 'name' | 'start_time' | 'end_time' | 'break_minutes';
-export const SHIFT_FIELD_NAMES: readonly ShiftFieldName[] = ['name', 'start_time', 'end_time', 'break_minutes'];
+export type ShiftFieldName = 'name' | 'short_code' | 'start_time' | 'end_time' | 'break_minutes';
+export const SHIFT_FIELD_NAMES: readonly ShiftFieldName[] = ['name', 'short_code', 'start_time', 'end_time', 'break_minutes'];

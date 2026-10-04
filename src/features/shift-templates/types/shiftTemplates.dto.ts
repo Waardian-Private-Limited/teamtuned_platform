@@ -4,6 +4,7 @@
 export interface ShiftTemplateDto {
   id: number;
   name: string;
+  short_code: string | null;
   start_time: string;
   end_time: string;
   break_minutes: number;

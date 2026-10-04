@@ -4,6 +4,7 @@ import {
   AlertCircle, FileText, MinusCircle, Users, Phone, LayoutDashboard,
   ListChecks, LayoutGrid, Heart, UserCheck, Wallet, Receipt, ArrowUpCircle,
   Package, Coins, Briefcase, HardHat, Layers, QrCode, Award, UserPlus, List,
+  CalendarRange, Repeat, Inbox, Wrench, CalendarDays,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
 
@@ -49,17 +50,32 @@ export const employeeNav: NavNode[] = [
         activeTest: (p) => p === '/employee/attendance' || (p.startsWith('/employee/attendance/') && !p.startsWith('/employee/attendance-')),
         gate: { anyPerm: ['ATTEND_VIEW', 'ATTEND_ADD', 'ATTEND_EDIT'] },
       },
-      { kind: 'link', label: 'Holiday Calendar', href: '/employee/holiday-calendar', icon: Calendar, match: 'prefix', gate: { anyPerm: ['HOLIDAY_VIEW', 'HOLIDAY_ADD', 'HOLIDAY_EDIT', 'HOLIDAY_DELETE'] } },
+      { kind: 'link', label: 'Holidays', href: '/employee/holidays', icon: Calendar, match: 'prefix' },
+      { kind: 'link', label: 'My Leave', href: '/employee/leave', icon: Calendar, match: 'prefix' },
       { kind: 'link', label: 'Approval Workflows', href: '/employee/approval-workflows', icon: Settings, match: 'prefix', gate: { perm: 'HR_MODE' } },
       { kind: 'link', label: 'Session Requests', href: '/employee/attendance/sessions', icon: Clock, match: 'prefix', gate: { anyPerm: ['EMP_SESSION_VIEW', 'EMP_SESSION_APPROVE'] } },
       { kind: 'link', label: 'Regularizations', href: '/employee/regularize-requests', icon: CheckSquare, match: 'prefix', gate: { anyPerm: ['ATTREG_VIEW', 'ATTREG_APPROVE', 'HR_MODE'] } },
       { kind: 'link', label: 'Verification Issues', href: '/employee/verification-issues', icon: AlertCircle, match: 'prefix', gate: { anyPerm: ['ATTVERIFY_VIEW', 'ATTVERIFY_APPROVE'] } },
       { kind: 'link', label: 'Night OT Requests', href: '/employee/night-ot-requests', icon: Clock, match: 'prefix', gate: { anyPerm: ['ATTEND_VIEW', 'ATTVERIFY_APPROVE'] } },
-      { kind: 'link', label: 'Leave Requests', href: '/employee/leave-requests', icon: Calendar, match: 'prefix', gate: { anyPerm: ['LEAVE_VIEW', 'LEAVE_ADD', 'LEAVE_EDIT', 'LEAVE_APPROVE'] } },
+      { kind: 'link', label: 'Leave Management', href: '/employee/leave-requests', icon: Calendar, match: 'prefix', gate: { anyPerm: ['LEAVE_VIEW', 'LEAVE_ADD', 'LEAVE_EDIT', 'LEAVE_APPROVE'] } },
       { kind: 'link', label: 'Comp-Off Requests', href: '/employee/comp-offs', icon: Clock, match: 'prefix', gate: { anyPerm: ['LEAVE_VIEW', 'LEAVE_ADD', 'LEAVE_EDIT', 'LEAVE_APPROVE'] } },
       { kind: 'link', label: 'Payroll', href: '/employee/payroll', icon: DollarSign, match: 'prefix', gate: { anyPerm: ['PAYROLL_VIEW', 'HR_MODE'] } },
       { kind: 'link', label: 'Salary Slips', href: '/employee/salary-slips', icon: FileText, match: 'prefix', gate: { anyPerm: ['PAYROLL_VIEW', 'HR_MODE'] } },
       { kind: 'link', label: 'Other Deductions', href: '/employee/other-deductions', icon: MinusCircle, match: 'prefix', gate: { anyPerm: ['HR_MODE', 'PAYROLL_ADMIN'] } },
+    ],
+  },
+
+  {
+    kind: 'group', id: 'roster', label: 'Roster', gate: { feature: 'ROSTER_FEATURE' },
+    children: [
+      { kind: 'link', label: 'My Roster', href: '/employee/roster/my', icon: CalendarDays, match: 'prefix' },
+      { kind: 'link', label: 'Shift Requests', href: '/employee/roster/requests', icon: Inbox, match: 'prefix' },
+      { kind: 'link', label: 'Insights', href: '/employee/roster/insights', icon: BarChart3, match: 'prefix', gate: { anyPerm: ['ROSTER_VIEW', 'ROSTER_ADD', 'ROSTER_EDIT', 'ROSTER_PUBLISH', 'ROSTER_APPROVE', 'ROSTER_DELETE'] } },
+      { kind: 'link', label: 'Planner', href: '/employee/roster', icon: CalendarRange, activeTest: (p) => p === '/employee/roster' || /^\/employee\/roster\/\d+/.test(p), gate: { anyPerm: ['ROSTER_VIEW', 'ROSTER_ADD', 'ROSTER_EDIT', 'ROSTER_PUBLISH', 'ROSTER_APPROVE', 'ROSTER_DELETE'] } },
+      { kind: 'link', label: 'Teams', href: '/employee/roster/teams', icon: Users, match: 'prefix', gate: { anyPerm: ['ROSTER_VIEW', 'ROSTER_ADD', 'ROSTER_EDIT', 'ROSTER_PUBLISH', 'ROSTER_APPROVE', 'ROSTER_DELETE'] } },
+      { kind: 'link', label: 'Patterns', href: '/employee/roster/patterns', icon: Repeat, match: 'prefix', gate: { anyPerm: ['ROSTER_VIEW', 'ROSTER_ADD', 'ROSTER_EDIT', 'ROSTER_PUBLISH', 'ROSTER_APPROVE', 'ROSTER_DELETE'] } },
+      { kind: 'link', label: 'Skills', href: '/employee/roster/skills', icon: Wrench, match: 'prefix', gate: { anyPerm: ['ROSTER_VIEW', 'ROSTER_ADD', 'ROSTER_EDIT', 'ROSTER_PUBLISH', 'ROSTER_APPROVE', 'ROSTER_DELETE'] } },
+      { kind: 'link', label: 'Shifts', href: '/employee/shift-templates', icon: Clock, match: 'prefix', gate: { anyPerm: ['ATTENDCONFIG_VIEW', 'ATTENDCONFIG_ADD', 'ATTENDCONFIG_EDIT', 'ATTENDCONFIG_DELETE'] } },
     ],
   },
 

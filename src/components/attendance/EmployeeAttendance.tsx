@@ -4,7 +4,7 @@ import React, { useRef } from "react";
 import { createPortal } from "react-dom";
 import { apiClient } from "@/lib/apiClient";
 import AttendanceCalendar from "@/components/attendance/AttendanceCalendar";
-import LeavesManagement from "@/components/leaves/LeavesManagement";
+import { EmployeeLeavePanel } from "@/features/leave/components/EmployeeLeavePanel";
 import AttendanceDetailsModal from "./AttendanceDetailsModal";
 import RedeemHistory from "@/components/redeem/RedeemHistory";
 import { useAuth } from "@/context/AuthContext";
@@ -695,7 +695,7 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
             )}
             {activeView === "leaves" && (
               <div className="h-full overflow-y-auto p-6">
-                <LeavesManagement employeeId={idVal} employeeName={nameLabel} />
+                <EmployeeLeavePanel employeeId={Number(idVal)} employeeName={nameLabel} />
               </div>
             )}
             {activeView === "redeems" && (

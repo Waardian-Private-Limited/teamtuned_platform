@@ -5,6 +5,7 @@ export function toShiftTemplate(dto: ShiftTemplateDto): ShiftTemplate {
   return {
     id: dto.id,
     name: dto.name,
+    shortCode: dto.short_code ?? null,
     startTime: dto.start_time,
     endTime: dto.end_time,
     breakMinutes: dto.break_minutes,

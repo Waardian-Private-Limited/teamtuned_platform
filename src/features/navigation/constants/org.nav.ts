@@ -4,7 +4,7 @@ import {
   Phone, Building, MapPin, Building2, Link2, DollarSign, Coins, Wallet,
   Receipt, CheckSquare, ListTodo, UserPlus, PlusCircle, Package, LayoutGrid,
   Layers, Briefcase, HardHat, Thermometer, Camera, QrCode, Award, Cog,
-  ArrowUpCircle, BarChart3, List, Heart,
+  ArrowUpCircle, BarChart3, List, Heart, CalendarRange, Repeat, Inbox, Wrench,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
 
@@ -37,9 +37,9 @@ export const orgNav: NavNode[] = [
     children: [
       { kind: 'link', label: 'Dashboard', href: '/org-admin/attendance/dashboard', icon: LayoutDashboard },
       { kind: 'link', label: 'Employee Attendance', href: '/org-admin/attendance/employee', icon: UserCheck },
-      { kind: 'link', label: 'Holiday Calendar', href: '/org-admin/holiday-calendar', icon: Calendar },
+      { kind: 'link', label: 'Holidays', href: '/org-admin/holidays', icon: Calendar },
       { kind: 'link', label: 'Approval Workflows', href: '/org-admin/approval-workflows', icon: ListChecks },
-      { kind: 'link', label: 'Leave Requests', href: '/org-admin/requests/leaves', icon: ClipboardList },
+      { kind: 'link', label: 'Leave', href: '/org-admin/leave', icon: ClipboardList },
       { kind: 'link', label: 'Comp-Off Requests', href: '/org-admin/requests/comp-offs', icon: Calendar },
       { kind: 'link', label: 'Regularization', href: '/org-admin/requests/regularization', icon: Clock },
       { kind: 'link', label: 'Night OT Requests', href: '/org-admin/requests/night-ot', icon: Clock },
@@ -49,6 +49,18 @@ export const orgNav: NavNode[] = [
       { kind: 'link', label: 'Payroll', href: '/org-admin/payroll', icon: ListChecks },
       { kind: 'link', label: 'Salary Slips', href: '/org-admin/salary-slips', icon: FileText },
       { kind: 'link', label: 'Other Deductions', href: '/org-admin/other-deductions', icon: MinusCircle, match: 'prefix' },
+    ],
+  },
+  {
+    kind: 'group', id: 'roster', label: 'Roster', gate: { feature: 'ROSTER_FEATURE' },
+    children: [
+      { kind: 'link', label: 'Insights', href: '/org-admin/roster/insights', icon: BarChart3, match: 'prefix' },
+      { kind: 'link', label: 'Requests', href: '/org-admin/roster/requests', icon: Inbox, match: 'prefix' },
+      { kind: 'link', label: 'Planner', href: '/org-admin/roster', icon: CalendarRange, activeTest: (p) => p === '/org-admin/roster' || /^\/org-admin\/roster\/\d+/.test(p) },
+      { kind: 'link', label: 'Teams', href: '/org-admin/roster/teams', icon: Users, match: 'prefix' },
+      { kind: 'link', label: 'Patterns', href: '/org-admin/roster/patterns', icon: Repeat, match: 'prefix' },
+      { kind: 'link', label: 'Skills', href: '/org-admin/roster/skills', icon: Wrench, match: 'prefix' },
+      { kind: 'link', label: 'Shifts', href: '/org-admin/shift-templates', icon: Clock },
     ],
   },
   {

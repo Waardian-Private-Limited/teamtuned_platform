@@ -26,3 +26,7 @@ export function localFile(id: number) {
 export function requestOnboardingExport(body: OnboardingExportRequest) {
   return apiClient.post<ExportJobDto>('/exports/onboarding-profile', body, auth);
 }
+
+export function requestRosterExport(body: { rosterId: number; format: 'pdf' | 'xlsx'; includeLegend: boolean }) {
+  return apiClient.post<ExportJobDto>('/exports/roster', body, auth);
+}

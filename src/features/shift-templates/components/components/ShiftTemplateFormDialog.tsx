@@ -44,6 +44,7 @@ function FieldMessage({ error, field, hint }: { error: FieldError | null; field:
 export function ShiftTemplateFormDialog({ open, mode, initial, isSaving, fieldError, onClose, onSubmit }: ShiftTemplateFormDialogProps) {
   const { isOrgAdmin } = usePermission();
   const [name, setName] = React.useState('');
+  const [shortCode, setShortCode] = React.useState('');
   const [startTime, setStartTime] = React.useState('09:00');
   const [endTime, setEndTime] = React.useState('18:00');
   const [breakMinutes, setBreakMinutes] = React.useState('60');
@@ -53,6 +54,7 @@ export function ShiftTemplateFormDialog({ open, mode, initial, isSaving, fieldEr
   React.useEffect(() => {
     if (!open) return;
     setName(initial?.name ?? '');
+    setShortCode(initial?.shortCode ?? '');
     setStartTime(initial?.startTime.slice(0, 5) ?? '09:00');
     setEndTime(initial?.endTime.slice(0, 5) ?? '18:00');
     setBreakMinutes(String(initial?.breakMinutes ?? 60));
@@ -66,7 +68,7 @@ export function ShiftTemplateFormDialog({ open, mode, initial, isSaving, fieldEr
   const crossesMidnight = hasTimes && endTime <= startTime;
 
   const submit = () => {
-    onSubmit({ name, startTime, endTime, breakMinutes: breakValue, status, subOrganizationId });
+    onSubmit({ name, shortCode, startTime, endTime, breakMinutes: breakValue, status, subOrganizationId });
   };
 
   const titleNode = (
@@ -131,6 +133,21 @@ export function ShiftTemplateFormDialog({ open, mode, initial, isSaving, fieldEr
             />
           </div>
           <FieldMessage error={fieldError} field="name" hint="Must be unique within your organization." />
+        </div>
+
+        <div>
+          <label className={labelClass}>Short code</label>
+          <div className={shellClass(fieldError?.field === 'short_code')}>
+            <input
+              type="text"
+              value={shortCode}
+              maxLength={6}
+              onChange={(e) => setShortCode(e.target.value.toUpperCase())}
+              placeholder="e.g., M, E, N"
+              className={inputClass}
+            />
+          </div>
+          <FieldMessage error={fieldError} field="short_code" hint="Shown on roster cells. Leave empty to use the first letter of the name." />
         </div>
 
         <div className="grid grid-cols-2 gap-3">

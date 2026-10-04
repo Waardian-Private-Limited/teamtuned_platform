@@ -3,6 +3,7 @@ export type ShiftTemplateStatus = 'active' | 'inactive';
 export interface ShiftTemplate {
   id: number;
   name: string;
+  shortCode: string | null;
   /** HH:MM:SS */
   startTime: string;
   /** HH:MM:SS */
@@ -24,6 +25,7 @@ export interface ShiftTemplateListResult {
 
 export interface ShiftTemplateFormInput {
   name: string;
+  shortCode: string;
   /** HH:MM from <input type="time"> */
   startTime: string;
   endTime: string;

@@ -13,6 +13,7 @@ interface ListParams {
 function toBody(input: ShiftTemplateFormInput) {
   return {
     name: input.name,
+    short_code: input.shortCode,
     start_time: input.startTime,
     end_time: input.endTime,
     break_minutes: input.breakMinutes,
