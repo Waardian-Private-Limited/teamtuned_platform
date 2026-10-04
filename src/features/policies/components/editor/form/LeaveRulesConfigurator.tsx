@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { AlertCircle, Calendar, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
+import { AlertCircle, Calendar, CalendarCheck, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import type { PathKey } from './configPath';
 import { summarizeLeaveRule } from './explainers';
@@ -110,6 +110,82 @@ function LeaveYearCard({ startMonth, onChange }: { startMonth: number; onChange:
       <p className="rounded-lg border border-line bg-bg-subtle px-3 py-1.5 text-[11px] text-fg-muted">
         Runs {MONTH_NAMES[startMonth - 1]} 1 – {MONTH_NAMES[endMonth - 1]} {endDay}. Unused balance is carried or lapses on {MONTH_NAMES[endMonth - 1]} {endDay}.
       </p>
+    </section>
+  );
+}
+
+/**
+ * Optional (restricted) holidays: the company marks some holidays optional
+ * and each employee may take only a few. This is a shortcut onto the
+ * OPTIONAL_HOLIDAY leave type's rule: on = the rule exists, the count is its
+ * yearly entitlement. Dates are limited to optional holidays by the leave engine.
+ */
+function OptionalHolidayCard({ option, rule, index, onToggle, onChange }: {
+  option: LeaveTypeOption;
+  rule?: Rule;
+  index: number;
+  onToggle: () => void;
+  onChange: (path: PathKey[], value: unknown) => void;
+}) {
+  const enabled = Boolean(rule);
+  const entitlement = (rule?.entitlement || {}) as { mode?: string; daysPerYear?: number };
+  const simple = entitlement.mode === 'yearly';
+  const notice = ((rule?.request || {}) as { notice?: { enabled?: boolean; value?: number } }).notice;
+  const noticeDays = notice?.enabled ? notice.value ?? 0 : 0;
+  return (
+    <section className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-3.5 shadow-xs">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <CalendarCheck className="h-4 w-4 text-fg" />
+            <h3 className="text-xs font-bold text-fg sm:text-sm">Optional holidays</h3>
+          </div>
+          <p className="mt-0.5 text-[11px] text-fg-muted">
+            Holidays marked optional are working days unless an employee picks them. Limit how many each employee can take in a leave year.
+          </p>
+        </div>
+        <Switch checked={enabled} onChange={onToggle} label={`Include ${option.name}`} />
+      </div>
+      {enabled && (
+        simple ? (
+          <div className="flex flex-col gap-2">
+          <label className="flex items-center gap-2 text-xs text-fg">
+            <span className="font-semibold">Each employee can take</span>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={entitlement.daysPerYear ?? 0}
+              onChange={(e) => e.target.value !== '' && onChange(['rules', index, 'entitlement', 'daysPerYear'], Math.max(0, Math.floor(Number(e.target.value))))}
+              aria-label="Optional holidays per year"
+              className="h-8 w-16 rounded-lg border border-line bg-surface px-2 text-xs text-fg outline-none focus:border-[var(--tt-primary)]"
+            />
+            <span className="text-fg-muted">optional holidays per leave year</span>
+          </label>
+          <label className="flex items-center gap-2 text-xs text-fg">
+            <span className="font-semibold">Apply at least</span>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={noticeDays}
+              onChange={(e) => {
+                if (e.target.value === '') return;
+                const n = Math.max(0, Math.floor(Number(e.target.value)));
+                onChange(['rules', index, 'request', 'notice'], { enabled: n > 0, value: n });
+              }}
+              aria-label="Minimum days before the holiday to apply"
+              className="h-8 w-16 rounded-lg border border-line bg-surface px-2 text-xs text-fg outline-none focus:border-[var(--tt-primary)]"
+            />
+            <span className="text-fg-muted">days before the holiday (0 = no minimum)</span>
+          </label>
+          </div>
+        ) : (
+          <p className="rounded-lg border border-line bg-bg-subtle px-3 py-1.5 text-[11px] text-fg-muted">
+            This leave type uses a custom credit rule. Edit it under Leave types below.
+          </p>
+        )
+      )}
     </section>
   );
 }
@@ -280,6 +356,9 @@ export function LeaveRulesConfigurator({ node, value, onChange, leaveTypeOptions
     return [...leaveTypeOptions, ...orphans];
   }, [leaveTypeOptions, rules]);
 
+  const optionalOption = leaveTypeOptions.find((o) => o.code === 'OPTIONAL_HOLIDAY');
+  const optionalIndex = optionalOption ? rules.findIndex((r) => r.leaveTypeId === optionalOption.id) : -1;
+
   const toggle = (option: LeaveTypeOption) => {
     const index = rules.findIndex((r) => r.leaveTypeId === option.id);
     if (index >= 0) {
@@ -309,6 +388,16 @@ export function LeaveRulesConfigurator({ node, value, onChange, leaveTypeOptions
           groupKey={key}
         />
       ))}
+
+      {optionalOption && (
+        <OptionalHolidayCard
+          option={optionalOption}
+          rule={optionalIndex >= 0 ? rules[optionalIndex] : undefined}
+          index={optionalIndex}
+          onToggle={() => toggle(optionalOption)}
+          onChange={changeRule}
+        />
+      )}
 
       <div className="flex items-center justify-between gap-2">
         <div>

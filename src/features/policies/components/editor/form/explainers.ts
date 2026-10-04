@@ -222,6 +222,41 @@ const WORK_RULES: Record<string, (c: Config) => CardSummary> = {
     };
   },
 
+  lateDeduction(c) {
+    if (!b(c.enabled)) return { rule: ['Late minutes do not cost any pay beyond the late marks above.'] };
+    const free = n(c.graceMinutes);
+    const per = Math.max(1, n(c.minutesPerDay, 120));
+    const rounding = s(c.rounding, 'exact');
+    const rule = [
+      `Late minutes add up over each ${s(c.period) === 'month' ? 'month' : 'payroll cycle'}. The first ${duration(free)} are free.`,
+      `Every ${duration(per)} after that costs one day of pay.`,
+      rounding === 'exact'
+        ? 'Part days are deducted exactly.'
+        : `Days are rounded ${rounding === 'round_up' ? 'up' : rounding === 'round_down' ? 'down' : 'to the nearest whole day'}, so no part day is deducted.`,
+    ];
+    if (b(c.includeEarlyExit)) {
+      const early: Record<string, string> = {
+        worked_percent: `working less than ${n(c.earlyExitWorkedPercent, 100)}% of the shift`,
+        worked_minutes: `working less than ${duration(c.earlyExitWorkedMinutes)}`,
+        clock_time: `checking out before ${clock(c.earlyExitBeforeTime)}`,
+      };
+      rule.push(`Early exit minutes are added to the late minutes. An early exit is ${early[s(c.earlyExitBasis)] || 'checking out before the shift ends'}.`);
+    }
+    const missed: Record<string, string> = {
+      full_day: 'counts as a full day',
+      half_day: 'counts as a half day',
+      absent: 'counts as absent',
+    };
+    if (missed[s(c.missedCheckout)]) rule.push(`When check-out is required, a day with a check-in but no check-out ${missed[s(c.missedCheckout)]}.`);
+    const over = per * 2 + Math.round(per / 6);
+    const raw = over / per;
+    const days = rounding === 'round_up' ? Math.ceil(raw) : rounding === 'round_down' ? Math.floor(raw) : rounding === 'round_nearest' ? Math.round(raw) : raw;
+    return {
+      rule,
+      example: `Example: ${duration(free + over)} late - ${duration(free)} free = ${duration(over)}, so ${Number(days.toFixed(2))} day${days === 1 ? '' : 's'} deducted.`,
+    };
+  },
+
   checkIn(c) {
     const rule = [
       b(c.blockLateCheckIn)
