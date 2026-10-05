@@ -33,11 +33,13 @@ export function EmptyState({ illustration, title, description, action, compact }
           type="button"
           onClick={action.onClick}
           className={cx(
-            'mt-5',
-            actionVariant === 'primary' ? cx(button.primary, 'w-auto px-5') : button.link
+            'mt-4 inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-4 text-xs font-semibold shadow-xs transition-all active:scale-[0.98] sm:text-sm',
+            actionVariant === 'primary'
+              ? 'bg-[var(--tt-primary)] text-[var(--tt-on-primary)] hover:bg-[var(--tt-primary-hover)]'
+              : button.link
           )}
         >
-          {action.label}
+          <span>{action.label}</span>
         </button>
       )}
     </div>

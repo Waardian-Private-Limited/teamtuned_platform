@@ -48,6 +48,7 @@ export function RequestDrawer({ id, mode, canApprove, canEdit, onClose, onChange
     } catch (e) { showError(messageOf(e)); } finally { setBusy(false); }
   }
 
+  const mayDecide = d?.status === 'Pending' && Boolean(d.approval_can_decide || (mode === 'admin' && canApprove));
   const canCancel = d && (d.status === 'Pending' || (d.status === 'Approved' && (mode === 'admin' ? canEdit : d.start_date > todayIso())));
   const btn = 'h-9 rounded-lg px-4 text-sm font-semibold disabled:opacity-60';
 
@@ -120,7 +121,7 @@ export function RequestDrawer({ id, mode, canApprove, canEdit, onClose, onChange
               </div>
             )}
 
-            {(canCancel || (mode === 'admin' && canApprove && d.status === 'Pending')) && (
+            {(canCancel || mayDecide) && (
               <div className="space-y-3 border-t border-line pt-4">
                 <div>
                   <input
@@ -131,7 +132,7 @@ export function RequestDrawer({ id, mode, canApprove, canEdit, onClose, onChange
                   {noteError && <p role="alert" className="mt-1.5 text-xs font-medium text-[var(--tt-danger)]">{noteError}</p>}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {mode === 'admin' && canApprove && d.status === 'Pending' && (
+                  {mayDecide && (
                     <>
                       <button type="button" disabled={busy} onClick={() => act('approve')} className={`${btn} bg-[var(--tt-primary)] text-[var(--tt-on-primary)]`}>Approve</button>
                       <button type="button" disabled={busy} onClick={() => act('reject')} className={`${btn} border border-[var(--tt-danger)] text-[var(--tt-danger)]`}>Reject</button>

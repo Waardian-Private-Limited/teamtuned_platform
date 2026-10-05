@@ -25,6 +25,7 @@ export interface LeaveRequestDetail extends LeaveRequest {
   days: { date: string; slot: number; kind: string; charged: number; leave_type_id: number | null; is_lop: boolean; state: string }[];
   balance_impact: { leave_type_id: number; name?: string; held: number; used: number }[];
   timeline: { level_name?: string; level_number?: number; action: string; approver_name?: string; remarks?: string | null; action_taken_at?: string | null }[];
+  approval_can_decide?: boolean;
 }
 
 export interface RequestsResponse {
