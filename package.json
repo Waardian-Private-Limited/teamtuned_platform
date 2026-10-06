@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "electron": "electron ./electron/main.js",
     "dev:electron": "APP_URL=http://localhost:$PORT electron ./electron/main.js",
-    "dev:desktop": "PORT=${PORT:-3000} concurrently -k -n WEB,ELECTRON \"npm run dev\" \"wait-on http://localhost:$PORT && npm run dev:electron\""
+    "dev:desktop": "PORT=${PORT:-3000} concurrently -k -n WEB,ELECTRON \"npm run dev\" \"wait-on http://localhost:$PORT && npm run dev:electron\"",
+    "postinstall": "cp node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs node_modules/maplibre-gl/dist/maplibre-gl-shared.mjs public/ 2>/dev/null || true"
   },
   "dependencies": {
     "@mediapipe/face_detection": "^0.4.1646425229",
@@ -20,6 +21,7 @@
     "jspdf-autotable": "^5.0.7",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.546.0",
+    "maplibre-gl": "^6.12.0",
     "next": "15.5.7",
     "pdf-lib": "^1.17.1",
     "qrcode.react": "^4.2.0",

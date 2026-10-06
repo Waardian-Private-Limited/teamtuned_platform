@@ -4,7 +4,7 @@ import {
   Phone, Building, MapPin, Building2, Link2, DollarSign, Coins, Wallet,
   Receipt, CheckSquare, ListTodo, UserPlus, PlusCircle, Package, LayoutGrid,
   Layers, Briefcase, HardHat, Thermometer, Camera, QrCode, Award, Cog,
-  ArrowUpCircle, BarChart3, List, Heart, CalendarRange, Repeat, Inbox, Wrench,
+  ArrowUpCircle, BarChart3, List, Heart, CalendarRange, Repeat, Inbox, Wrench, Navigation, Route,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
 
@@ -55,6 +55,17 @@ export const orgNav: NavNode[] = [
       { kind: 'link', label: 'Patterns', href: '/org-admin/roster/patterns', icon: Repeat, match: 'prefix' },
       { kind: 'link', label: 'Skills', href: '/org-admin/roster/skills', icon: Wrench, match: 'prefix' },
       { kind: 'link', label: 'Shifts', href: '/org-admin/shift-templates', icon: Clock },
+    ],
+  },
+  {
+    kind: 'group', id: 'live-tracking', label: 'Live Tracking', gate: { feature: 'LIVE_TRACKING_FEATURE' },
+    children: [
+      { kind: 'link', label: 'Live Map', href: '/org-admin/tracking/live', icon: Navigation, match: 'prefix', gate: { perm: 'TRACKING_VIEW' } },
+      { kind: 'link', label: 'Timeline', href: '/org-admin/tracking/timeline', icon: Route, match: 'prefix', gate: { perm: 'TRACKING_VIEW' } },
+      { kind: 'link', label: 'Day Summary', href: '/org-admin/tracking/days', icon: BarChart3, match: 'prefix', gate: { perm: 'TRACKING_VIEW' } },
+      { kind: 'link', label: 'Field Visits', href: '/org-admin/tracking/visits', icon: Route, match: 'prefix', gate: { anyPerm: ['TRACKING_TRIP_REVIEW', 'TRACKING_VIEW'] } },
+      { kind: 'link', label: 'Employees', href: '/org-admin/tracking/employees', icon: Users, match: 'prefix', gate: { anyPerm: ['TRACKING_ASSIGN', 'TRACKING_VIEW'] } },
+      { kind: 'link', label: 'Policies', href: '/org-admin/tracking/policies', icon: Shield, match: 'prefix', gate: { anyPerm: ['TRACKING_POLICY_MANAGE', 'TRACKING_ASSIGN'] } },
     ],
   },
   {
