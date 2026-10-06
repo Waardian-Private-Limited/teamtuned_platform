@@ -1,6 +1,6 @@
 'use client';
 
-import { Power, SquarePen, Trash2, Users, Wallet } from 'lucide-react';
+import { Power, QrCode, SquarePen, Trash2, Users, Wallet } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { Tooltip } from '@/components/ui/Tooltip';
 import type { Site } from '../../types/sites.model';
@@ -14,6 +14,7 @@ interface SiteRowActionsProps {
   onToggleStatus: (site: Site) => void;
   onOpenBudget: (site: Site) => void;
   onOpenIncharges?: (site: Site) => void;
+  onOpenQr?: (site: Site) => void;
   isToggling?: boolean;
 }
 
@@ -29,6 +30,7 @@ export function SiteRowActions({
   onToggleStatus,
   onOpenBudget,
   onOpenIncharges,
+  onOpenQr,
   isToggling = false,
 }: SiteRowActionsProps) {
   const isTerminated = site.status === 'terminated';
@@ -36,6 +38,19 @@ export function SiteRowActions({
 
   return (
     <div className="flex items-center justify-end gap-1">
+      {onOpenQr && (
+        <Tooltip content="Attendance QR Code">
+          <button
+            type="button"
+            onClick={() => onOpenQr(site)}
+            aria-label="Attendance QR Code"
+            className={iconButtonClass}
+          >
+            <QrCode className="h-4 w-4 2xl:h-4.5 2xl:w-4.5" />
+          </button>
+        </Tooltip>
+      )}
+
       {site.hasBudget && (
         <Tooltip content="View Budget">
           <button

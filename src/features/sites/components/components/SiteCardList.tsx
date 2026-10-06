@@ -15,6 +15,7 @@ interface SiteCardListProps {
   onToggleStatus: (site: Site) => void;
   onOpenBudget: (site: Site) => void;
   onOpenIncharges?: (site: Site) => void;
+  onOpenQr?: (site: Site) => void;
   togglingId?: number | null;
 }
 
@@ -27,6 +28,7 @@ export function SiteCardList({
   onToggleStatus,
   onOpenBudget,
   onOpenIncharges,
+  onOpenQr,
   togglingId,
 }: SiteCardListProps) {
   return (
@@ -89,6 +91,7 @@ export function SiteCardList({
               onToggleStatus={onToggleStatus}
               onOpenBudget={onOpenBudget}
               onOpenIncharges={onOpenIncharges}
+              onOpenQr={onOpenQr}
               isToggling={togglingId === site.id}
             />
           </div>

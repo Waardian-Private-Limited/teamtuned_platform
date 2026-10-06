@@ -16,6 +16,7 @@ interface SiteTableProps {
   onToggleStatus: (site: Site) => void;
   onOpenBudget: (site: Site) => void;
   onOpenIncharges?: (site: Site) => void;
+  onOpenQr?: (site: Site) => void;
   togglingId?: number | null;
 }
 
@@ -53,6 +54,7 @@ export function SiteTable({
   onToggleStatus,
   onOpenBudget,
   onOpenIncharges,
+  onOpenQr,
   togglingId,
 }: SiteTableProps) {
   return (
@@ -113,6 +115,7 @@ export function SiteTable({
                   onToggleStatus={onToggleStatus}
                   onOpenBudget={onOpenBudget}
                   onOpenIncharges={onOpenIncharges}
+                  onOpenQr={onOpenQr}
                   isToggling={togglingId === site.id}
                 />
               </td>

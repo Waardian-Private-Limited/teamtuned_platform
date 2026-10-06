@@ -17,6 +17,7 @@ import { SiteFormDialog } from './components/SiteFormDialog';
 import { SiteDeleteDialog } from './components/SiteDeleteDialog';
 import { SiteBudgetDialog } from './components/SiteBudgetDialog';
 import { SiteInchargesDrawer } from './components/SiteInchargesDrawer';
+import { SiteQrDialog } from './components/SiteQrDialog';
 import { SiteTableSkeleton } from './components/SiteTableSkeleton';
 import { SitesEmptyState } from './components/SitesEmptyState';
 
@@ -38,6 +39,7 @@ export function SitesPage() {
   const [deleteTarget, setDeleteTarget] = React.useState<Site | null>(null);
   const [budgetSite, setBudgetSite] = React.useState<Site | null>(null);
   const [inchargesSite, setInchargesSite] = React.useState<Site | null>(null);
+  const [qrSite, setQrSite] = React.useState<Site | null>(null);
 
   const incharges = useSiteIncharges(inchargesSite?.id ?? null);
 
@@ -126,6 +128,7 @@ export function SitesPage() {
                 onToggleStatus={mutations.toggleStatus}
                 onOpenBudget={openBudget}
                 onOpenIncharges={setInchargesSite}
+                onOpenQr={setQrSite}
                 togglingId={mutations.togglingId}
               />
             </div>
@@ -145,6 +148,7 @@ export function SitesPage() {
                 onToggleStatus={mutations.toggleStatus}
                 onOpenBudget={openBudget}
                 onOpenIncharges={setInchargesSite}
+                onOpenQr={setQrSite}
                 togglingId={mutations.togglingId}
               />
             </div>
@@ -207,6 +211,12 @@ export function SitesPage() {
         onAssign={incharges.assignIncharge}
         onRemove={incharges.removeIncharge}
         onClose={() => setInchargesSite(null)}
+      />
+
+      <SiteQrDialog
+        open={Boolean(qrSite)}
+        site={qrSite}
+        onClose={() => setQrSite(null)}
       />
     </div>
   );

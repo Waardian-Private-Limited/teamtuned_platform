@@ -98,6 +98,30 @@ body {
   display: none;                /* Chrome, Safari */
 }
 
+/* Modern thin unobtrusive scrollbar matching monochrome theme */
+.tt-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--tt-border-strong) transparent;
+}
+
+.tt-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.tt-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tt-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--tt-border-strong);
+  border-radius: 9999px;
+}
+
+.tt-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--tt-fg-muted);
+}
+
 /* Step-to-step entrance inside a form. Opacity and transform only, so it runs
    on the compositor and cannot stutter the input it appears behind. */
 @keyframes tt-fade-in {

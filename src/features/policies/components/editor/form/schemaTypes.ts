@@ -124,7 +124,21 @@ export function optionLabel(value: string): string {
 }
 
 function valueAtPath(scope: unknown, path: string): unknown {
-  return path.split('.').reduce<unknown>((acc, key) => (acc == null ? undefined : (acc as Record<string, unknown>)[key]), scope);
+  if (scope == null) return undefined;
+  // 1. Try exact path on current scope
+  const exact = path.split('.').reduce<unknown>((acc, key) => (acc == null ? undefined : (acc as Record<string, unknown>)[key]), scope);
+  if (exact !== undefined) return exact;
+
+  // 2. If path contains a section prefix (e.g. "window.mode" when scope is already the "window" object),
+  // strip the prefix and check the remainder.
+  const dotIndex = path.indexOf('.');
+  if (dotIndex !== -1) {
+    const stripped = path.slice(dotIndex + 1);
+    const fallback = stripped.split('.').reduce<unknown>((acc, key) => (acc == null ? undefined : (acc as Record<string, unknown>)[key]), scope);
+    if (fallback !== undefined) return fallback;
+  }
+
+  return undefined;
 }
 
 /**
