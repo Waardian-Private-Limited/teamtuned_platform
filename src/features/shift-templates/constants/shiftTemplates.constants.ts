@@ -20,5 +20,8 @@ export const SHIFT_PERMISSIONS = {
 
 // Matches the backend's `details.field` names so a server rejection lands on
 // the right input.
-export type ShiftFieldName = 'name' | 'short_code' | 'start_time' | 'end_time' | 'break_minutes';
-export const SHIFT_FIELD_NAMES: readonly ShiftFieldName[] = ['name', 'short_code', 'start_time', 'end_time', 'break_minutes'];
+export type ShiftFieldName = 'name' | 'short_code' | 'start_time' | 'end_time' | 'duration_minutes' | 'break_minutes';
+export const SHIFT_FIELD_NAMES: readonly ShiftFieldName[] = ['name', 'short_code', 'start_time', 'end_time', 'duration_minutes', 'break_minutes'];
+
+// Longest shift the backend accepts (ShiftTemplatePolicy.MAX_SHIFT_MINUTES).
+export const MAX_SHIFT_MINUTES = 2880;

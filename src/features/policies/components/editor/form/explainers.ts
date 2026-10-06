@@ -425,7 +425,9 @@ const WORK_RULES: Record<string, (c: Config) => CardSummary> = {
       rule: [
         `Employees can take up to ${n(c.maxHoursPerRequest, 2)} hours of personal time away, up to ${n(c.maxRequestsPerMonth, 2)} times per month.`,
         b(c.requiresApproval) ? 'Requires manager approval before leaving.' : 'Applies automatically with no approval required.',
-        'Does not count as a half day or deduct early exit penalty.',
+        b(c.allowGatePass) ? 'Covers coming late, leaving early, or stepping out and coming back (gate pass).' : 'Covers coming late or leaving early only; no gate pass.',
+        b(c.excusesLateEarly) ? 'No late or early mark for the time covered, and those minutes are not deducted.' : 'Late and early marks still count for the time covered.',
+        b(c.countsAsPresent) ? 'Time away counts toward a full or half day, never as worked time or overtime.' : 'Time away does not count toward a full or half day.',
       ],
       example: 'Example: leaving 1h early for an appointment counts as permission instead of early exit penalty.',
     };

@@ -7,7 +7,7 @@ import { Dialog } from '@/components/ui/Dialog';
 import { SubOrgPicker } from '@/features/sub-organizations/components/SubOrgPicker';
 import { usePermission } from '@/lib/hooks/usePermission';
 import type { ShiftTemplate, ShiftTemplateFormInput, ShiftTemplateStatus } from '../../types/shiftTemplates.model';
-import type { ShiftFieldName } from '../../constants/shiftTemplates.constants';
+import { MAX_SHIFT_MINUTES, type ShiftFieldName } from '../../constants/shiftTemplates.constants';
 import type { FieldError } from '../../hooks/useShiftTemplateMutations';
 import { formatClock, formatHours, spanMinutes } from '../../utils/shiftTime';
 
@@ -48,6 +48,9 @@ export function ShiftTemplateFormDialog({ open, mode, initial, isSaving, fieldEr
   const [startTime, setStartTime] = React.useState('09:00');
   const [endTime, setEndTime] = React.useState('18:00');
   const [breakMinutes, setBreakMinutes] = React.useState('60');
+  // Shifts longer than a day (24 h / 36 h duties) are set by length; the end is derived.
+  const [longShift, setLongShift] = React.useState(false);
+  const [lengthHours, setLengthHours] = React.useState('24');
   const [status, setStatus] = React.useState<ShiftTemplateStatus>('active');
   const [subOrganizationId, setSubOrganizationId] = React.useState<number | null>(null);
 
@@ -58,17 +61,22 @@ export function ShiftTemplateFormDialog({ open, mode, initial, isSaving, fieldEr
     setStartTime(initial?.startTime.slice(0, 5) ?? '09:00');
     setEndTime(initial?.endTime.slice(0, 5) ?? '18:00');
     setBreakMinutes(String(initial?.breakMinutes ?? 60));
+    setLongShift(Boolean(initial && initial.durationMinutes >= 1440));
+    setLengthHours(String(initial && initial.durationMinutes >= 1440 ? initial.durationMinutes / 60 : 24));
     setStatus(initial?.status ?? 'active');
     setSubOrganizationId(initial?.subOrganizationId ?? null);
   }, [open, initial]);
 
   const breakValue = breakMinutes.trim() === '' ? 0 : Number(breakMinutes);
-  const hasTimes = Boolean(startTime && endTime) && startTime !== endTime;
-  const span = hasTimes ? spanMinutes(startTime, endTime) : 0;
-  const crossesMidnight = hasTimes && endTime <= startTime;
+  const durationValue = longShift ? Math.round(Number(lengthHours) * 60) : null;
+  const hasTimes = longShift ? Boolean(startTime) && Number.isFinite(durationValue) && (durationValue as number) > 0 : Boolean(startTime && endTime) && startTime !== endTime;
+  const span = !hasTimes ? 0 : longShift ? (durationValue as number) : spanMinutes(startTime, endTime);
+  const startMin = startTime ? Number(startTime.slice(0, 2)) * 60 + Number(startTime.slice(3, 5)) : 0;
+  const daysLater = hasTimes ? Math.floor((startMin + span - 1) / 1440) : 0;
+  const shownEnd = hasTimes ? `${String(Math.floor(((startMin + span) % 1440) / 60)).padStart(2, '0')}:${String((startMin + span) % 60).padStart(2, '0')}` : endTime;
 
   const submit = () => {
-    onSubmit({ name, shortCode, startTime, endTime, breakMinutes: breakValue, status, subOrganizationId });
+    onSubmit({ name, shortCode, startTime, endTime: shownEnd, durationMinutes: durationValue, breakMinutes: breakValue, status, subOrganizationId });
   };
 
   const titleNode = (
@@ -160,16 +168,33 @@ export function ShiftTemplateFormDialog({ open, mode, initial, isSaving, fieldEr
             </div>
             <FieldMessage error={fieldError} field="start_time" />
           </div>
-          <div>
-            <label className={labelClass}>
-              Ends <span className="text-[var(--tt-danger)]">*</span>
-            </label>
-            <div className={shellClass(fieldError?.field === 'end_time')}>
-              <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={inputClass} />
+          {longShift ? (
+            <div>
+              <label className={labelClass}>
+                Length (hours) <span className="text-[var(--tt-danger)]">*</span>
+              </label>
+              <div className={shellClass(fieldError?.field === 'duration_minutes')}>
+                <input type="number" min={1} max={MAX_SHIFT_MINUTES / 60} step={0.5} value={lengthHours} onChange={(e) => setLengthHours(e.target.value)} className={inputClass} />
+              </div>
+              <FieldMessage error={fieldError} field="duration_minutes" />
             </div>
-            <FieldMessage error={fieldError} field="end_time" />
-          </div>
+          ) : (
+            <div>
+              <label className={labelClass}>
+                Ends <span className="text-[var(--tt-danger)]">*</span>
+              </label>
+              <div className={shellClass(fieldError?.field === 'end_time')}>
+                <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={inputClass} />
+              </div>
+              <FieldMessage error={fieldError} field="end_time" />
+            </div>
+          )}
         </div>
+
+        <label className="flex items-center gap-2 text-xs text-fg">
+          <input type="checkbox" checked={longShift} onChange={(e) => setLongShift(e.target.checked)} />
+          Runs 24 hours or longer (e.g. a 24 h or 36 h duty)
+        </label>
 
         <div>
           <label className={labelClass}>Break (minutes)</label>
@@ -188,7 +213,7 @@ export function ShiftTemplateFormDialog({ open, mode, initial, isSaving, fieldEr
             field="break_minutes"
             hint={
               hasTimes && Number.isFinite(breakValue) && breakValue >= 0 && breakValue < span
-                ? `${formatClock(startTime)} – ${formatClock(endTime)}${crossesMidnight ? ' (ends next day)' : ''} · ${formatHours(span - breakValue)} working`
+                ? `${formatClock(startTime)} – ${formatClock(shownEnd)}${daysLater === 1 ? ' (ends next day)' : daysLater > 1 ? ` (ends ${daysLater} days later)` : ''} · ${formatHours(span - breakValue)} working`
                 : undefined
             }
           />

@@ -7,6 +7,8 @@ export interface ShiftTemplateDto {
   short_code: string | null;
   start_time: string;
   end_time: string;
+  /** Shift length; above 1440 the shift runs longer than a day. */
+  duration_minutes: number;
   break_minutes: number;
   crosses_midnight: boolean;
   working_minutes: number;

@@ -16,6 +16,7 @@ function toBody(input: ShiftTemplateFormInput) {
     short_code: input.shortCode,
     start_time: input.startTime,
     end_time: input.endTime,
+    duration_minutes: input.durationMinutes ?? null,
     break_minutes: input.breakMinutes,
     status: input.status,
     sub_organization_id: input.subOrganizationId ?? null,

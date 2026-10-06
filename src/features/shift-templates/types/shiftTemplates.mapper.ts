@@ -8,6 +8,7 @@ export function toShiftTemplate(dto: ShiftTemplateDto): ShiftTemplate {
     shortCode: dto.short_code ?? null,
     startTime: dto.start_time,
     endTime: dto.end_time,
+    durationMinutes: dto.duration_minutes,
     breakMinutes: dto.break_minutes,
     crossesMidnight: dto.crosses_midnight,
     workingMinutes: dto.working_minutes,

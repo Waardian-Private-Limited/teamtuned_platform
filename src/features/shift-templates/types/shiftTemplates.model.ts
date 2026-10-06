@@ -8,6 +8,7 @@ export interface ShiftTemplate {
   startTime: string;
   /** HH:MM:SS */
   endTime: string;
+  durationMinutes: number;
   breakMinutes: number;
   crossesMidnight: boolean;
   workingMinutes: number;
@@ -29,6 +30,8 @@ export interface ShiftTemplateFormInput {
   /** HH:MM from <input type="time"> */
   startTime: string;
   endTime: string;
+  /** Set only for shifts longer than a day; the end time is then derived. */
+  durationMinutes: number | null;
   breakMinutes: number;
   status: ShiftTemplateStatus;
   subOrganizationId: number | null;

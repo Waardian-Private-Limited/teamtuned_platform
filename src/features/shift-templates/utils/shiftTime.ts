@@ -1,5 +1,5 @@
 import type { ShiftTemplateFormInput } from '../types/shiftTemplates.model';
-import type { ShiftFieldName } from '../constants/shiftTemplates.constants';
+import { MAX_SHIFT_MINUTES, type ShiftFieldName } from '../constants/shiftTemplates.constants';
 
 function minutesOf(time: string): number {
   const [h, m] = time.split(':').map(Number);
@@ -38,14 +38,22 @@ export function validateShiftInput(input: ShiftTemplateFormInput): { field: Shif
   if (!name) return { field: 'name', message: 'Shift name is required' };
   if (name.length > 100) return { field: 'name', message: 'Shift name is too long' };
   if (!input.startTime) return { field: 'start_time', message: 'Enter a start time' };
-  if (!input.endTime) return { field: 'end_time', message: 'Enter an end time' };
-  if (input.startTime.slice(0, 5) === input.endTime.slice(0, 5)) {
-    return { field: 'end_time', message: 'Shift end must differ from shift start' };
+  const long = input.durationMinutes !== null;
+  if (long) {
+    const d = input.durationMinutes as number;
+    if (!Number.isInteger(d) || d < 1 || d > MAX_SHIFT_MINUTES) {
+      return { field: 'duration_minutes', message: `Length must be up to ${MAX_SHIFT_MINUTES / 60} hours` };
+    }
+  } else {
+    if (!input.endTime) return { field: 'end_time', message: 'Enter an end time' };
+    if (input.startTime.slice(0, 5) === input.endTime.slice(0, 5)) {
+      return { field: 'end_time', message: 'Shift end must differ from shift start' };
+    }
   }
   if (!Number.isInteger(input.breakMinutes) || input.breakMinutes < 0) {
     return { field: 'break_minutes', message: 'Break must be whole minutes, 0 or more' };
   }
-  if (input.breakMinutes >= spanMinutes(input.startTime, input.endTime)) {
+  if (input.breakMinutes >= (long ? (input.durationMinutes as number) : spanMinutes(input.startTime, input.endTime))) {
     return { field: 'break_minutes', message: 'Break must be shorter than the shift' };
   }
   return null;
