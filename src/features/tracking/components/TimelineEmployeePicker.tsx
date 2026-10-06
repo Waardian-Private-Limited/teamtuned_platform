@@ -2,8 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Loader2, Search, User, X } from 'lucide-react';
-import { listTrackedEmployees } from '../api/tracking.api';
-import type { TrackedEmployeeDto } from '../types/tracking.dto';
+import { getEmployee, listEmployees } from '@/features/employees/api/employees.api';
+
+export interface EmployeeItem {
+  id: number;
+  name: string;
+  code: string | null;
+  department?: string | null;
+}
 
 interface TimelineEmployeePickerProps {
   selectedId: number | null;
@@ -11,7 +17,7 @@ interface TimelineEmployeePickerProps {
   disabled?: boolean;
 }
 
-const PAGE_SIZE = 30;
+const PAGE_SIZE = 10;
 
 function getInitials(name: string) {
   const parts = name.trim().split(/\s+/);
@@ -29,88 +35,99 @@ export function TimelineEmployeePicker({
   const [query, setQuery] = useState('');
   const [highlightIndex, setHighlightIndex] = useState(0);
 
-  const [employees, setEmployees] = useState<TrackedEmployeeDto[]>([]);
+  const [employees, setEmployees] = useState<EmployeeItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [selectedEmployeeObj, setSelectedEmployeeObj] = useState<TrackedEmployeeDto | null>(null);
+  const [selectedEmployeeObj, setSelectedEmployeeObj] = useState<EmployeeItem | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialMount = useRef(true);
 
-  // Fetch paginated employees from the migrated endpoint: listTrackedEmployees (/tracking/employees)
+  // Stable fetcher with no state in its dependencies to avoid re-creation loops
   const fetchEmployees = useCallback(
     async (searchTerm: string, targetPage: number, append = false) => {
       try {
         if (targetPage === 1) setLoading(true);
         else setLoadingMore(true);
 
-        const res = await listTrackedEmployees({
-          filters: {},
+        const res = await listEmployees({
           search: searchTerm.trim() || undefined,
+          status: 'Active',
           page: targetPage,
           pageSize: PAGE_SIZE,
         });
 
-        setTotal(res.total);
-        setPage(targetPage);
-        setEmployees((prev) => (append ? [...prev, ...res.employees] : res.employees));
+        const items: EmployeeItem[] = (res.employees || []).map((e) => ({
+          id: e.id,
+          name: e.name,
+          code: e.employee_code,
+          department: e.department_name || e.designation,
+        }));
 
-        // If selectedId exists and not yet resolved, check if it's in the response
-        if (selectedId && !selectedEmployeeObj) {
-          const match = res.employees.find((e) => e.employee_id === selectedId);
-          if (match) setSelectedEmployeeObj(match);
-        }
+        setTotal(res.total || 0);
+        setPage(targetPage);
+        setEmployees((prev) => (append ? [...prev, ...items] : items));
       } catch (err) {
-        console.error('Failed to fetch tracked employees:', err);
+        console.error('Failed to fetch employees:', err);
       } finally {
         setLoading(false);
         setLoadingMore(false);
       }
     },
-    [selectedId, selectedEmployeeObj]
+    []
   );
 
-  // Initial fetch on mount
+  // Initial fetch on mount - strictly runs ONCE
   useEffect(() => {
     fetchEmployees('', 1, false);
   }, [fetchEmployees]);
 
-  // If selectedId changes from outside and we don't have the object, search for it
+  // Resolve selected employee name/code when selectedId changes (e.g. from URL or props)
   useEffect(() => {
     if (!selectedId) {
       setSelectedEmployeeObj(null);
       return;
     }
-    const existing = employees.find((e) => e.employee_id === selectedId);
-    if (existing) {
-      setSelectedEmployeeObj(existing);
-    } else {
-      // Fetch specifically for this ID if possible or resolve
-      listTrackedEmployees({ filters: {}, page: 1, pageSize: 50 })
-        .then((res) => {
-          const found = res.employees.find((e) => e.employee_id === selectedId);
-          if (found) setSelectedEmployeeObj(found);
-        })
-        .catch(() => {});
+
+    // Check if already in the loaded list
+    const foundInList = employees.find((e) => e.id === selectedId);
+    if (foundInList) {
+      setSelectedEmployeeObj(foundInList);
+      return;
     }
+
+    // Otherwise, fetch this specific employee details once
+    getEmployee(selectedId)
+      .then((detail) => {
+        if (detail && detail.id === selectedId) {
+          setSelectedEmployeeObj({
+            id: detail.id,
+            name: `${detail.first_name || ''} ${detail.last_name || ''}`.trim() || `Employee #${detail.id}`,
+            code: detail.employee_code,
+            department: detail.designation,
+          });
+        }
+      })
+      .catch(() => {});
   }, [selectedId, employees]);
 
-  // Debounced search on server
+  // Debounced server search when typing in query - only triggers when query changes
   useEffect(() => {
-    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
 
-    searchTimeoutRef.current = setTimeout(() => {
+    const timer = setTimeout(() => {
       fetchEmployees(query, 1, false);
       setHighlightIndex(0);
-    }, 250);
+    }, 300);
 
-    return () => {
-      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-    };
+    return () => clearTimeout(timer);
   }, [query, fetchEmployees]);
 
   // Load next page
@@ -152,12 +169,12 @@ export function TimelineEmployeePicker({
 
   const selectedEmployee = useMemo(() => {
     if (selectedEmployeeObj) return selectedEmployeeObj;
-    return employees.find((e) => e.employee_id === selectedId) || null;
+    return employees.find((e) => e.id === selectedId) || null;
   }, [selectedEmployeeObj, employees, selectedId]);
 
-  function handleSelect(employee: TrackedEmployeeDto | null) {
+  function handleSelect(employee: EmployeeItem | null) {
     setSelectedEmployeeObj(employee);
-    onSelect(employee ? employee.employee_id : null);
+    onSelect(employee ? employee.id : null);
     setOpen(false);
   }
 
@@ -214,9 +231,9 @@ export function TimelineEmployeePicker({
                 {getInitials(selectedEmployee.name)}
               </div>
               <span className="truncate font-semibold text-fg">{selectedEmployee.name}</span>
-              {selectedEmployee.employee_code && (
+              {selectedEmployee.code && (
                 <span className="rounded border border-line bg-bg-subtle px-1 py-0.2 text-[10px] font-mono text-fg-muted">
-                  {selectedEmployee.employee_code}
+                  {selectedEmployee.code}
                 </span>
               )}
             </>
@@ -299,7 +316,7 @@ export function TimelineEmployeePicker({
               <button
                 type="button"
                 onClick={() => handleSelect(null)}
-                className="text-[11px] text-fg hover:underline font-semibold"
+                className="text-[11px] font-semibold text-fg hover:underline"
               >
                 Clear
               </button>
@@ -318,11 +335,11 @@ export function TimelineEmployeePicker({
               </li>
             ) : (
               employees.map((emp, idx) => {
-                const isSelected = emp.employee_id === selectedId;
+                const isSelected = emp.id === selectedId;
                 const isHighlighted = idx === highlightIndex;
                 return (
                   <li
-                    key={emp.employee_id}
+                    key={emp.id}
                     role="option"
                     aria-selected={isSelected}
                     onMouseEnter={() => setHighlightIndex(idx)}
@@ -338,13 +355,13 @@ export function TimelineEmployeePicker({
                       <div className="min-w-0">
                         <div className="truncate font-medium text-fg">{emp.name}</div>
                         <div className="flex items-center gap-1 text-[10px] text-fg-muted">
-                          {emp.employee_code && (
-                            <span className="font-mono">{emp.employee_code}</span>
+                          {emp.code && (
+                            <span className="font-mono">{emp.code}</span>
                           )}
-                          {emp.policy_name && (
+                          {emp.department && (
                             <>
                               <span>·</span>
-                              <span className="truncate">{emp.policy_name}</span>
+                              <span className="truncate">{emp.department}</span>
                             </>
                           )}
                         </div>

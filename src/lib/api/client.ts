@@ -93,10 +93,15 @@ export async function apiClient<T = any>(
     let errorMsg = 'Request failed';
     let errData: unknown = null;
     try {
-      errData = await res.json();
-      errorMsg = (errData as { message?: string })?.message || JSON.stringify(errData);
+      const rawText = await res.text();
+      try {
+        errData = JSON.parse(rawText);
+        errorMsg = (errData as { message?: string })?.message || JSON.stringify(errData);
+      } catch {
+        errorMsg = rawText;
+      }
     } catch {
-      errorMsg = await res.text();
+      errorMsg = `Request failed with status ${res.status}`;
     }
     throw new ApiError(errorMsg || `Request failed with status ${res.status}`, res.status, errData);
   }
