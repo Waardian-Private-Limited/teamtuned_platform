@@ -41,7 +41,6 @@ export const orgNav: NavNode[] = [
       { kind: 'link', label: 'Employee Attendance', href: '/org-admin/attendance/employee', icon: UserCheck },
       { kind: 'link', label: 'Holidays', href: '/org-admin/holidays', icon: Calendar },
       { kind: 'link', label: 'Leave', href: '/org-admin/leave', icon: ClipboardList },
-      { kind: 'link', label: 'AI Face Results', href: '/org-admin/attendance/liveness', icon: Activity },
       { kind: 'link', label: 'Payroll', href: '/org-admin/payroll', icon: ListChecks },
       { kind: 'link', label: 'Salary Slips', href: '/org-admin/salary-slips', icon: FileText },
       { kind: 'link', label: 'Other Deductions', href: '/org-admin/other-deductions', icon: MinusCircle, match: 'prefix' },
