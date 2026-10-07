@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { AlertTriangle, Search } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { AlertTriangle, Search, ChevronDown, Check } from 'lucide-react';
 import { Dialog } from '@/components/ui/Dialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pagination } from '@/components/ui/Pagination';
@@ -20,6 +20,7 @@ function Badge({ status }: { status: DashboardEmployeeDto['status'] }) {
   );
 }
 
+const PRIMARY_VIEWS: EmployeeView[] = ['all', 'present', 'late', 'absent'];
 const VIEWS: EmployeeView[] = ['all', 'present', 'working', 'late', 'not_checked_in', 'absent', 'on_leave', 'review'];
 
 function countFor(v: EmployeeView, s: SummaryDto | null) {
@@ -41,9 +42,26 @@ export function EmployeesDialog({ open, onClose, date, list, summary, isToday, v
   search: string; onSearch: (s: string) => void; page: number; onPage: (p: number) => void; loading: boolean;
 }) {
   const [term, setTerm] = useState(search);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => { if (open) setTerm(search); }, [open]);
   useEffect(() => { const t = setTimeout(() => term !== search && onSearch(term), 300); return () => clearTimeout(t); }, [term, search, onSearch]);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
+        setMoreOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [moreOpen]);
+
   const views = VIEWS.filter((v) => isToday || v !== 'not_checked_in');
+  const secondaryViews = views.filter((v) => !PRIMARY_VIEWS.includes(v));
+  const isSecondaryActive = secondaryViews.includes(view);
   const rows = list?.employees ?? [];
 
   return (
@@ -54,17 +72,101 @@ export function EmployeesDialog({ open, onClose, date, list, summary, isToday, v
       </div>
     }>
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1" role="tablist" aria-label="Show">
-          {views.map((v) => {
+        <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Show">
+          {PRIMARY_VIEWS.map((v) => {
             const n = countFor(v, summary);
+            const active = view === v;
             return (
-              <button key={v} role="tab" aria-selected={view === v} type="button" onClick={() => onView(v)}
-                className={cx('inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors', view === v ? 'border-[var(--tt-primary)] bg-[var(--tt-primary)] text-[var(--tt-on-primary)]' : 'border-line text-fg-muted hover:bg-bg-subtle hover:text-fg')}>
+              <button
+                key={v}
+                role="tab"
+                aria-selected={active}
+                type="button"
+                onClick={() => { setMoreOpen(false); onView(v); }}
+                className={cx(
+                  'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors',
+                  active
+                    ? 'border-[var(--tt-primary)] bg-[var(--tt-primary)] text-[var(--tt-on-primary)]'
+                    : 'border-line text-fg-muted hover:bg-bg-subtle hover:text-fg'
+                )}
+              >
                 {VIEW_LABEL[v]}
-                {n !== null && <span className={cx('rounded px-1 tabular-nums', view === v ? 'bg-white/20' : 'bg-bg-subtle')}>{n}</span>}
+                {n !== null && (
+                  <span className={cx('rounded px-1 tabular-nums', active ? 'bg-white/20' : 'bg-bg-subtle')}>
+                    {n}
+                  </span>
+                )}
               </button>
             );
           })}
+
+          {secondaryViews.length > 0 && (
+            <div className="relative" ref={moreRef}>
+              <button
+                type="button"
+                onClick={() => setMoreOpen((o) => !o)}
+                className={cx(
+                  'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors',
+                  isSecondaryActive
+                    ? 'border-[var(--tt-primary)] bg-[var(--tt-primary)] text-[var(--tt-on-primary)]'
+                    : 'border-line text-fg-muted hover:bg-bg-subtle hover:text-fg'
+                )}
+              >
+                <span>{isSecondaryActive ? VIEW_LABEL[view] : 'More Filters'}</span>
+                {isSecondaryActive && countFor(view, summary) !== null && (
+                  <span className="rounded bg-white/20 px-1 tabular-nums">
+                    {countFor(view, summary)}
+                  </span>
+                )}
+                <ChevronDown className={cx('h-3.5 w-3.5 transition-transform duration-150', moreOpen && 'rotate-180')} />
+              </button>
+
+              {moreOpen && (
+                <div className="absolute left-0 top-full z-50 mt-1 min-w-[210px] rounded-xl border border-line bg-surface p-1 shadow-[var(--tt-shadow-md)]">
+                  {secondaryViews.map((sv) => {
+                    const n = countFor(sv, summary);
+                    const selected = view === sv;
+                    const statusConfig = STATUS[sv as keyof typeof STATUS];
+                    return (
+                      <button
+                        key={sv}
+                        type="button"
+                        onClick={() => {
+                          onView(sv);
+                          setMoreOpen(false);
+                        }}
+                        className={cx(
+                          'flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors text-left',
+                          selected
+                            ? 'bg-[var(--tt-primary-subtle)] text-[var(--tt-primary)] font-semibold'
+                            : 'text-fg hover:bg-bg-subtle'
+                        )}
+                      >
+                        <span className="flex items-center gap-2">
+                          {statusConfig && (
+                            <span
+                              aria-hidden
+                              className="h-2 w-2 rounded-full shrink-0"
+                              style={{ background: statusConfig.color }}
+                            />
+                          )}
+                          <span>{VIEW_LABEL[sv]}</span>
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {n !== null && (
+                            <span className="rounded bg-bg-subtle px-1 text-[11px] font-semibold tabular-nums text-fg-muted">
+                              {n}
+                            </span>
+                          )}
+                          {selected && <Check className="h-3.5 w-3.5 text-[var(--tt-primary)] shrink-0" />}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <label className="relative w-full lg:w-64">
           <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-muted" />

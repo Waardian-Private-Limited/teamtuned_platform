@@ -18,22 +18,12 @@ function Select({ label, value, options, onChange, disabled, allLabel }: { label
   );
 }
 
-const shift = (date: string, days: number) => {
-  const d = new Date(`${date}T00:00:00`);
-  d.setDate(d.getDate() + days);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
-
 /**
  * Date, then sub-organisation (whenever the person can see one), site, department
  * and role. A line under it says what is being shown, so an empty result always has a reason.
  */
 export function FilterBar({ filters, options, onChange, onReset, narrowed, headcount }: { filters: DashboardFilters; options: FilterOptionsDto | null; onChange: (p: Partial<DashboardFilters>) => void; onReset: () => void; narrowed: boolean; headcount: number | null }) {
   const today = options?.today ?? '';
-  const quick = [
-    { label: 'Today', date: today },
-    { label: 'Yesterday', date: today ? shift(today, -1) : '' },
-  ];
   const showSubOrg = !!options && options.sub_organizations.length > 0;
   const subOrg = options?.sub_organizations.find((s) => s.id === filters.subOrgId);
   const site = options?.sites.find((s) => s.id === filters.siteId);
@@ -43,22 +33,12 @@ export function FilterBar({ filters, options, onChange, onReset, narrowed, headc
 
   return (
     <div className="rounded-xl border border-line bg-surface p-3 shadow-[var(--tt-shadow-sm)] sm:p-4">
-      <div className={cx('grid gap-3 sm:grid-cols-2', showSubOrg ? 'lg:grid-cols-[auto_repeat(4,minmax(0,1fr))_auto]' : 'lg:grid-cols-[auto_repeat(3,minmax(0,1fr))_auto]')}>
-        <div className="flex min-w-0 flex-col gap-1 sm:col-span-2 lg:col-span-1">
+      <div className={cx('grid gap-3 sm:grid-cols-2', showSubOrg ? 'lg:grid-cols-[repeat(5,minmax(0,1fr))_auto]' : 'lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]')}>
+        <div className="flex min-w-0 flex-col gap-1">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-fg-muted">Date</span>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative">
-              <CalendarDays aria-hidden className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-muted" />
-              <input type="date" aria-label="Date" value={filters.date} max={today || undefined} onChange={(e) => e.target.value && onChange({ date: e.target.value })} className={cx(control, 'w-[11.5rem] pl-9')} />
-            </div>
-            <div className="flex rounded-[var(--tt-radius-control)] border border-line bg-bg-subtle p-0.5">
-              {quick.map((q) => (
-                <button key={q.label} type="button" disabled={!q.date} onClick={() => onChange({ date: q.date })}
-                  className={cx('h-8 rounded-lg px-3 text-xs font-bold transition-colors', filters.date === q.date ? 'bg-surface text-fg shadow-[var(--tt-shadow-sm)]' : 'text-fg-muted hover:text-fg')}>
-                  {q.label}
-                </button>
-              ))}
-            </div>
+          <div className="relative">
+            <CalendarDays aria-hidden className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-muted" />
+            <input type="date" aria-label="Date" value={filters.date} max={today || undefined} onChange={(e) => e.target.value && onChange({ date: e.target.value })} className={cx(control, 'w-full pl-9')} />
           </div>
         </div>
         {showSubOrg && <Select label="Sub-organisation" allLabel="All sub-organisations" value={filters.subOrgId} options={options!.sub_organizations} onChange={(v) => onChange({ subOrgId: v })} />}
