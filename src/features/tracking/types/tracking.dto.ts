@@ -51,7 +51,7 @@ export interface SegmentDto {
   lng: number | null;
   distanceM: number;
   /** Why a gap has no track: location/permission off, phone switched off, or no signal. */
-  reason?: 'gps_off' | 'phone_off' | 'no_signal';
+  reason?: 'gps_off' | 'phone_off' | 'app_closed' | 'no_signal';
 }
 
 export interface DaySummaryDto {
