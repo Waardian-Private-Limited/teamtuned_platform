@@ -2,7 +2,8 @@ import Image from 'next/image';
 import { cx, heading, text, button } from '@/theme/tokens';
 
 interface EmptyStateProps {
-  illustration?: { src: string; width: number; height: number; alt: string };
+  illustration?: { src: string; width: number; height: number; alt: string; className?: string };
+  illustrationClassName?: string;
   title: string;
   description?: string;
   action?: { label: string; onClick: () => void; variant?: 'primary' | 'link' };
@@ -10,18 +11,18 @@ interface EmptyStateProps {
   compact?: boolean;
 }
 
-export function EmptyState({ illustration, title, description, action, compact }: EmptyStateProps) {
+export function EmptyState({ illustration, illustrationClassName, title, description, action, compact }: EmptyStateProps) {
   const actionVariant = action?.variant ?? 'primary';
   return (
-    <div className={cx('flex flex-col items-center justify-center text-center', compact ? 'py-8' : 'py-16')}>
+    <div className={cx('flex flex-col items-center justify-center text-center', compact ? 'py-8' : 'py-12')}>
       {illustration && !compact && (
-        <div className="mb-6 w-full max-w-[280px]">
+        <div className={cx('mb-6 w-full max-w-[360px] sm:max-w-[460px] md:max-w-[500px] flex justify-center', illustrationClassName || illustration.className)}>
           <Image
             src={illustration.src}
             alt={illustration.alt}
             width={illustration.width}
             height={illustration.height}
-            className="h-auto w-full object-contain"
+            className="h-auto w-full max-h-[380px] object-contain"
             priority={false}
           />
         </div>
