@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
     Search, Users, FileText, Download, Mail, Loader2, ChevronLeft,
-    ChevronRight, CheckCircle, Building, Briefcase, Calendar, Filter,
-    FileCheck, FilePlus, FileSignature, RefreshCw, X
+    ChevronRight, CheckCircle, Building, Calendar, Filter,
+    FileCheck, FilePlus, FileSignature, X, PenTool, Upload, Trash2,
+    CheckCircle2, AlertCircle, Image as ImageIcon
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
@@ -15,6 +16,7 @@ interface Employee {
     id: number;
     first_name: string;
     last_name: string;
+    gender?: string;
     email: string;
     phone?: string;
     employee_code?: string;
@@ -38,6 +40,12 @@ interface DocConfig {
     bg: string;
     border: string;
     iconBg: string;
+}
+
+interface SignatureConfig {
+    signature_url: string | null;
+    signatory_name: string | null;
+    signatory_designation: string | null;
 }
 
 const DOC_TYPES: DocConfig[] = [
@@ -83,6 +91,21 @@ export default function DocumentCenter() {
     const [statusFilter, setStatusFilter] = useState("active");
     const [pagination, setPagination] = useState({ page: 1, limit: 20, totalItems: 0, totalPages: 1 });
 
+    // Digital Signature State
+    const [signatureConfig, setSignatureConfig] = useState<SignatureConfig>({
+        signature_url: null,
+        signatory_name: null,
+        signatory_designation: null,
+    });
+    const [signatureModalOpen, setSignatureModalOpen] = useState(false);
+    const [includeSignature, setIncludeSignature] = useState(true);
+    const [signatureFile, setSignatureFile] = useState<File | null>(null);
+    const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
+    const [signatoryNameInput, setSignatoryNameInput] = useState("");
+    const [signatoryDesignationInput, setSignatoryDesignationInput] = useState("");
+    const [savingSignature, setSavingSignature] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
     // Per-row per-type generating state: `${empId}-${type}`
     const [generating, setGenerating] = useState<Record<string, boolean>>({});
     const [emailing, setEmailing] = useState<Record<string, boolean>>({});
@@ -100,6 +123,25 @@ export default function DocumentCenter() {
         } catch { }
         return headers;
     }, []);
+
+    // Fetch signature settings from backend
+    const fetchSignatureSettings = useCallback(async () => {
+        try {
+            const res = await fetch(`${API_BASE}/document-center/signature`, {
+                credentials: "include",
+                headers: getAuthHeaders(),
+            });
+            const data = await res.json();
+            if (data.success && data.data) {
+                setSignatureConfig(data.data);
+                setSignaturePreview(data.data.signature_url || null);
+                setSignatoryNameInput(data.data.signatory_name || "");
+                setSignatoryDesignationInput(data.data.signatory_designation || "");
+            }
+        } catch (err) {
+            console.error("Failed to fetch signature settings:", err);
+        }
+    }, [API_BASE, getAuthHeaders]);
 
     const fetchEmployees = useCallback(async (pg = pagination.page) => {
         setLoading(true);
@@ -126,7 +168,101 @@ export default function DocumentCenter() {
         }
     }, [API_BASE, getAuthHeaders, pagination.limit, statusFilter, search]);
 
-    useEffect(() => { fetchEmployees(1); }, [statusFilter]);
+    useEffect(() => { 
+        fetchEmployees(1); 
+        fetchSignatureSettings();
+    }, [statusFilter, fetchSignatureSettings]);
+
+    const handleSignatureFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.startsWith("image/")) {
+            toast.error("Please select a valid image file (PNG, JPG, or WebP)");
+            return;
+        }
+
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error("Image file size should be less than 5MB");
+            return;
+        }
+
+        setSignatureFile(file);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setSignaturePreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleSaveSignature = async () => {
+        setSavingSignature(true);
+        try {
+            let res;
+            if (signatureFile) {
+                const formData = new FormData();
+                formData.append("signature", signatureFile);
+                if (signatoryNameInput) formData.append("signatory_name", signatoryNameInput);
+                if (signatoryDesignationInput) formData.append("signatory_designation", signatoryDesignationInput);
+
+                res = await fetch(`${API_BASE}/document-center/signature`, {
+                    method: "POST",
+                    credentials: "include",
+                    headers: getAuthHeaders(),
+                    body: formData,
+                });
+            } else {
+                res = await fetch(`${API_BASE}/document-center/signature`, {
+                    method: "POST",
+                    credentials: "include",
+                    headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        signature_url: signaturePreview,
+                        signatory_name: signatoryNameInput,
+                        signatory_designation: signatoryDesignationInput,
+                    }),
+                });
+            }
+
+            const data = await res.json();
+            if (data.success) {
+                toast.success("Digital signature updated successfully");
+                setSignatureConfig(data.data);
+                setSignatureModalOpen(false);
+                setSignatureFile(null);
+            } else {
+                throw new Error(data.message || "Failed to save signature");
+            }
+        } catch (err: any) {
+            toast.error(err.message || "Failed to save signature");
+        } finally {
+            setSavingSignature(false);
+        }
+    };
+
+    const handleRemoveSignature = async () => {
+        if (!confirm("Are you sure you want to remove the digital signature?")) return;
+        setSavingSignature(true);
+        try {
+            const res = await fetch(`${API_BASE}/document-center/signature`, {
+                method: "DELETE",
+                credentials: "include",
+                headers: getAuthHeaders(),
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success("Digital signature removed");
+                setSignatureConfig({ signature_url: null, signatory_name: null, signatory_designation: null });
+                setSignaturePreview(null);
+                setSignatureFile(null);
+                setSignatureModalOpen(false);
+            }
+        } catch {
+            toast.error("Failed to remove signature");
+        } finally {
+            setSavingSignature(false);
+        }
+    };
 
     const handleGenerate = useCallback(async (emp: Employee, type: DocType, sendEmail = false) => {
         const key = `${emp.id}-${type}`;
@@ -137,7 +273,11 @@ export default function DocumentCenter() {
                 method: "POST",
                 credentials: "include",
                 headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-                body: JSON.stringify({ type, send_email: sendEmail }),
+                body: JSON.stringify({ 
+                    type, 
+                    send_email: sendEmail,
+                    include_signature: includeSignature 
+                }),
             });
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
@@ -163,9 +303,7 @@ export default function DocumentCenter() {
         } finally {
             setFn(prev => ({ ...prev, [key]: false }));
         }
-    }, [API_BASE, getAuthHeaders]);
-
-    const totalGenerated = 0; // could be tracked via a counter if needed
+    }, [API_BASE, getAuthHeaders, includeSignature]);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 p-6">
@@ -181,6 +319,33 @@ export default function DocumentCenter() {
                             <h1 className="text-2xl font-bold text-gray-900">Document Center</h1>
                             <p className="text-sm text-gray-500 mt-0.5">Generate & email professional HR letters with organization letterhead</p>
                         </div>
+                    </div>
+
+                    {/* Digital Signature Action Button */}
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => {
+                                setSignaturePreview(signatureConfig.signature_url);
+                                setSignatoryNameInput(signatureConfig.signatory_name || "");
+                                setSignatoryDesignationInput(signatureConfig.signatory_designation || "");
+                                setSignatureFile(null);
+                                setSignatureModalOpen(true);
+                            }}
+                            className="flex items-center gap-2.5 px-4 py-2.5 bg-white border border-gray-200 hover:border-blue-400 rounded-xl text-sm font-semibold text-gray-700 hover:text-blue-600 shadow-sm transition-all group"
+                        >
+                            <div className={`w-2.5 h-2.5 rounded-full ${signatureConfig.signature_url ? 'bg-emerald-500 ring-2 ring-emerald-200' : 'bg-amber-400 ring-2 ring-amber-200'}`} />
+                            <PenTool className="w-4 h-4 text-gray-500 group-hover:text-blue-600" />
+                            <span>Digital Signature</span>
+                            {signatureConfig.signature_url ? (
+                                <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md font-medium border border-emerald-200">
+                                    Active
+                                </span>
+                            ) : (
+                                <span className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-md font-medium border border-amber-200">
+                                    Not Set
+                                </span>
+                            )}
+                        </button>
                     </div>
                 </div>
 
@@ -199,8 +364,8 @@ export default function DocumentCenter() {
                     ))}
                 </div>
 
-                {/* ── Filters ── */}
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                {/* ── Filters & Options ── */}
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
                     <div className="flex flex-col sm:flex-row gap-3">
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -229,6 +394,30 @@ export default function DocumentCenter() {
                             <Filter className="w-4 h-4" />
                             Search
                         </button>
+                    </div>
+
+                    {/* Signature attachment toggle bar */}
+                    <div className="pt-2 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <label className="flex items-center gap-2 cursor-pointer select-none text-gray-700 font-medium">
+                            <input
+                                type="checkbox"
+                                checked={includeSignature}
+                                onChange={e => setIncludeSignature(e.target.checked)}
+                                className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                            />
+                            <span>Include digital signature automatically on all generated letters</span>
+                        </label>
+                        {signatureConfig.signature_url ? (
+                            <span className="text-emerald-700 font-medium flex items-center gap-1.5">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                Signature attached: {signatureConfig.signatory_designation || signatureConfig.signatory_name || "Authorized Signatory"}
+                            </span>
+                        ) : (
+                            <span className="text-amber-600 flex items-center gap-1.5">
+                                <AlertCircle className="w-3.5 h-3.5" />
+                                No signature configured. <button onClick={() => setSignatureModalOpen(true)} className="underline hover:text-amber-800 font-medium">Add one now</button>
+                            </span>
+                        )}
                     </div>
                 </div>
 
@@ -274,69 +463,75 @@ export default function DocumentCenter() {
                                         </td>
                                     </tr>
                                 ) : (
-                                    employees.map(emp => (
-                                        <tr key={emp.id} className="hover:bg-gray-50/60 transition-colors group">
-                                            {/* Employee */}
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    {emp.profile_image_url ? (
-                                                        <img src={emp.profile_image_url} className="w-9 h-9 rounded-full object-cover border-2 border-white shadow-sm ring-1 ring-gray-200" alt="" />
-                                                    ) : (
-                                                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                                                            {emp.first_name?.[0]}{emp.last_name?.[0]}
+                                    employees.map(emp => {
+                                        const salutation = emp.gender?.toLowerCase() === 'female' ? 'Ms.' : (emp.gender?.toLowerCase() === 'male' ? 'Mr.' : '');
+                                        return (
+                                            <tr key={emp.id} className="hover:bg-gray-50/60 transition-colors group">
+                                                {/* Employee */}
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        {emp.profile_image_url ? (
+                                                            <img src={emp.profile_image_url} className="w-9 h-9 rounded-full object-cover border-2 border-white shadow-sm ring-1 ring-gray-200" alt="" />
+                                                        ) : (
+                                                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                                                                {emp.first_name?.[0]}{emp.last_name?.[0]}
+                                                            </div>
+                                                        )}
+                                                        <div className="min-w-0">
+                                                            <p className="font-semibold text-gray-900 truncate">
+                                                                {salutation ? <span className="text-gray-500 font-normal mr-1">{salutation}</span> : null}
+                                                                {emp.first_name} {emp.last_name}
+                                                            </p>
+                                                            <p className="text-xs text-gray-400">{emp.email}</p>
                                                         </div>
-                                                    )}
-                                                    <div className="min-w-0">
-                                                        <p className="font-semibold text-gray-900 truncate">{emp.first_name} {emp.last_name}</p>
-                                                        <p className="text-xs text-gray-400">{emp.email}</p>
                                                     </div>
-                                                </div>
-                                            </td>
-                                            {/* Designation */}
-                                            <td className="px-6 py-4">
-                                                <p className="text-sm font-medium text-gray-700">{emp.designation || "—"}</p>
-                                                <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
-                                                    <Building className="w-3 h-3" /> {emp.department_name || emp.site_name || "—"}
-                                                </p>
-                                            </td>
-                                            {/* Joining Date */}
-                                            <td className="px-6 py-4">
-                                                <p className="text-sm text-gray-600 flex items-center gap-1.5">
-                                                    <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                                                    {emp.joining_date ? new Date(emp.joining_date).toLocaleDateString("en-IN", { year: "numeric", month: "short", day: "numeric" }) : "—"}
-                                                </p>
-                                            </td>
-                                            {/* Action columns per doc type */}
-                                            {DOC_TYPES.map(doc => {
-                                                const dlKey = `${emp.id}-${doc.type}`;
-                                                const emailKey = `${emp.id}-${doc.type}`;
-                                                const isGenning = generating[dlKey];
-                                                const isEmailing = emailing[emailKey];
-                                                return (
-                                                    <td key={doc.type} className="px-6 py-4 text-center">
-                                                        <div className="flex items-center justify-center gap-1.5">
-                                                            <button
-                                                                onClick={() => handleGenerate(emp, doc.type, false)}
-                                                                disabled={isGenning || isEmailing}
-                                                                title={`Download ${doc.label}`}
-                                                                className={`p-2 rounded-lg border transition-all ${doc.bg} ${doc.border} ${doc.color} hover:shadow-sm disabled:opacity-40`}
-                                                            >
-                                                                {isGenning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                                                            </button>
-                                                            <button
-                                                                onClick={() => emp.email ? setEmailModal({ emp, type: doc.type }) : toast.error("No email address for this employee")}
-                                                                disabled={isGenning || isEmailing}
-                                                                title={`Email ${doc.label}`}
-                                                                className="p-2 rounded-lg border border-gray-200 bg-gray-50 text-gray-500 hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700 transition-all disabled:opacity-40"
-                                                            >
-                                                                {isEmailing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                );
-                                            })}
-                                        </tr>
-                                    ))
+                                                </td>
+                                                {/* Designation */}
+                                                <td className="px-6 py-4">
+                                                    <p className="text-sm font-medium text-gray-700">{emp.designation || "—"}</p>
+                                                    <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+                                                        <Building className="w-3 h-3" /> {emp.department_name || emp.site_name || "—"}
+                                                    </p>
+                                                </td>
+                                                {/* Joining Date */}
+                                                <td className="px-6 py-4">
+                                                    <p className="text-sm text-gray-600 flex items-center gap-1.5">
+                                                        <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                                                        {emp.joining_date ? new Date(emp.joining_date).toLocaleDateString("en-IN", { year: "numeric", month: "short", day: "numeric" }) : "—"}
+                                                    </p>
+                                                </td>
+                                                {/* Action columns per doc type */}
+                                                {DOC_TYPES.map(doc => {
+                                                    const dlKey = `${emp.id}-${doc.type}`;
+                                                    const emailKey = `${emp.id}-${doc.type}`;
+                                                    const isGenning = generating[dlKey];
+                                                    const isEmailing = emailing[emailKey];
+                                                    return (
+                                                        <td key={doc.type} className="px-6 py-4 text-center">
+                                                            <div className="flex items-center justify-center gap-1.5">
+                                                                <button
+                                                                    onClick={() => handleGenerate(emp, doc.type, false)}
+                                                                    disabled={isGenning || isEmailing}
+                                                                    title={`Download ${doc.label}${includeSignature && signatureConfig.signature_url ? ' (with digital signature)' : ''}`}
+                                                                    className={`p-2 rounded-lg border transition-all ${doc.bg} ${doc.border} ${doc.color} hover:shadow-sm disabled:opacity-40`}
+                                                                >
+                                                                    {isGenning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => emp.email ? setEmailModal({ emp, type: doc.type }) : toast.error("No email address for this employee")}
+                                                                    disabled={isGenning || isEmailing}
+                                                                    title={`Email ${doc.label}`}
+                                                                    className="p-2 rounded-lg border border-gray-200 bg-gray-50 text-gray-500 hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700 transition-all disabled:opacity-40"
+                                                                >
+                                                                    {isEmailing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    );
+                                                })}
+                                            </tr>
+                                        );
+                                    })
                                 )}
                             </tbody>
                         </table>
@@ -345,7 +540,6 @@ export default function DocumentCenter() {
                     {/* ── Pagination bar ── */}
                     {!loading && pagination.totalItems > 0 && (
                         <div className="px-6 py-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
-                            {/* Left: record info */}
                             <p className="text-xs text-gray-500">
                                 Showing{" "}
                                 <span className="font-semibold text-gray-800">
@@ -354,10 +548,8 @@ export default function DocumentCenter() {
                                 of <span className="font-semibold text-gray-800">{pagination.totalItems}</span> employees
                             </p>
 
-                            {/* Centre: page buttons */}
                             {pagination.totalPages > 1 && (
                                 <div className="flex items-center gap-1">
-                                    {/* Prev */}
                                     <button
                                         onClick={() => { const p = pagination.page - 1; setPagination(prev => ({ ...prev, page: p })); fetchEmployees(p); }}
                                         disabled={pagination.page === 1}
@@ -366,7 +558,6 @@ export default function DocumentCenter() {
                                         <ChevronLeft className="w-3.5 h-3.5" /> Prev
                                     </button>
 
-                                    {/* Page number pills */}
                                     {(() => {
                                         const total = pagination.totalPages;
                                         const cur = pagination.page;
@@ -398,7 +589,6 @@ export default function DocumentCenter() {
                                         );
                                     })()}
 
-                                    {/* Next */}
                                     <button
                                         onClick={() => { const p = pagination.page + 1; setPagination(prev => ({ ...prev, page: p })); fetchEmployees(p); }}
                                         disabled={pagination.page === pagination.totalPages}
@@ -409,7 +599,6 @@ export default function DocumentCenter() {
                                 </div>
                             )}
 
-                            {/* Right: per-page selector */}
                             <div className="flex items-center gap-2">
                                 <span className="text-xs text-gray-400">Per page</span>
                                 <select
@@ -429,10 +618,147 @@ export default function DocumentCenter() {
                 </div>
             </div>
 
+            {/* ── Digital Signature Modal ── */}
+            {signatureModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-5 border border-gray-100">
+                        <div className="flex items-start justify-between border-b border-gray-100 pb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-blue-50 rounded-xl">
+                                    <PenTool className="w-5 h-5 text-blue-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-900">Digital Signature Settings</h3>
+                                    <p className="text-xs text-gray-500">Configure signature image and signatory details for all HR letters</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setSignatureModalOpen(false)} 
+                                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-400 hover:text-gray-600"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Signature Preview & Upload Box */}
+                        <div className="space-y-3">
+                            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide">
+                                Signature Image (PNG / Transparent recommended)
+                            </label>
+                            
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleSignatureFileChange}
+                                accept="image/png,image/jpeg,image/jpg,image/webp"
+                                className="hidden"
+                            />
+
+                            <div 
+                                onClick={() => fileInputRef.current?.click()}
+                                className="border-2 border-dashed border-gray-200 hover:border-blue-400 rounded-xl p-5 text-center cursor-pointer transition-all bg-gray-50/50 hover:bg-blue-50/20 group"
+                            >
+                                {signaturePreview ? (
+                                    <div className="space-y-3">
+                                        <div className="h-28 flex items-center justify-center bg-white rounded-lg p-2 border border-gray-200 shadow-inner">
+                                            <img
+                                                src={signaturePreview}
+                                                alt="Signature Preview"
+                                                className="max-h-24 max-w-full object-contain"
+                                            />
+                                        </div>
+                                        <p className="text-xs text-blue-600 font-medium group-hover:underline flex items-center justify-center gap-1.5">
+                                            <Upload className="w-3.5 h-3.5" />
+                                            Click to change signature image
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="py-6 space-y-2">
+                                        <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mx-auto text-blue-600 group-hover:scale-105 transition-transform">
+                                            <Upload className="w-6 h-6" />
+                                        </div>
+                                        <p className="text-sm font-semibold text-gray-700">Click to upload signature</p>
+                                        <p className="text-xs text-gray-400">PNG, JPG, or WebP up to 5MB (transparent PNG works best)</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Signatory Name & Designation */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                    Signatory Name
+                                </label>
+                                <input
+                                    type="text"
+                                    value={signatoryNameInput}
+                                    onChange={e => setSignatoryNameInput(e.target.value)}
+                                    placeholder="e.g. John Doe / Director"
+                                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                    Designation / Title
+                                </label>
+                                <input
+                                    type="text"
+                                    value={signatoryDesignationInput}
+                                    onChange={e => setSignatoryDesignationInput(e.target.value)}
+                                    placeholder="e.g. Authorized Signatory"
+                                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-100 flex items-start gap-2.5 text-xs text-blue-900">
+                            <CheckCircle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                            <p>
+                                When saved, this signature will automatically appear above the Authorized Signatory line on all <strong>Appointment</strong>, <strong>Offer</strong>, and <strong>Joining</strong> letters.
+                            </p>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="flex items-center justify-between gap-3 pt-2">
+                            {signatureConfig.signature_url ? (
+                                <button
+                                    type="button"
+                                    onClick={handleRemoveSignature}
+                                    disabled={savingSignature}
+                                    className="px-3 py-2 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    Remove Signature
+                                </button>
+                            ) : <div />}
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setSignatureModalOpen(false)}
+                                    className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleSaveSignature}
+                                    disabled={savingSignature || (!signaturePreview && !signatureFile)}
+                                    className="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-all shadow-sm flex items-center gap-2 disabled:opacity-50"
+                                >
+                                    {savingSignature ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : "Save Signature"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ── Email Confirmation Modal ── */}
             {emailModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5 border border-gray-100">
                         <div className="flex items-start justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="p-2.5 bg-amber-100 rounded-xl">
@@ -445,8 +771,8 @@ export default function DocumentCenter() {
                                     </p>
                                 </div>
                             </div>
-                            <button onClick={() => setEmailModal(null)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
-                                <X className="w-4 h-4 text-gray-500" />
+                            <button onClick={() => setEmailModal(null)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-400">
+                                <X className="w-4 h-4" />
                             </button>
                         </div>
 
@@ -456,16 +782,27 @@ export default function DocumentCenter() {
                                     {emailModal.emp.first_name?.[0]}{emailModal.emp.last_name?.[0]}
                                 </div>
                                 <div>
-                                    <p className="text-sm font-semibold text-gray-900">{emailModal.emp.first_name} {emailModal.emp.last_name}</p>
+                                    <p className="text-sm font-semibold text-gray-900">
+                                        {emailModal.emp.gender?.toLowerCase() === 'female' ? 'Ms. ' : (emailModal.emp.gender?.toLowerCase() === 'male' ? 'Mr. ' : '')}
+                                        {emailModal.emp.first_name} {emailModal.emp.last_name}
+                                    </p>
                                     <p className="text-xs text-blue-600">{emailModal.emp.email}</p>
                                 </div>
                             </div>
                         </div>
 
-                        <p className="text-sm text-gray-600">
-                            This will generate the <strong>{DOC_TYPES.find(d => d.type === emailModal.type)?.label}</strong> as a PDF,
-                            download it to your device, and also send it to the employee's email address.
-                        </p>
+                        <div className="space-y-2 text-sm text-gray-600">
+                            <p>
+                                This will generate the <strong>{DOC_TYPES.find(d => d.type === emailModal.type)?.label}</strong> as a PDF,
+                                download it to your device, and also email it to the employee.
+                            </p>
+                            {signatureConfig.signature_url && (
+                                <p className="text-xs text-emerald-700 flex items-center gap-1.5 font-medium">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                    Digital signature will be attached automatically.
+                                </p>
+                            )}
+                        </div>
 
                         <div className="flex gap-3">
                             <button
