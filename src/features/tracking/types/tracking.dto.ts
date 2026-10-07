@@ -50,6 +50,8 @@ export interface SegmentDto {
   lat: number | null;
   lng: number | null;
   distanceM: number;
+  /** Why a gap has no track: location/permission off, phone switched off, or no signal. */
+  reason?: 'gps_off' | 'phone_off' | 'no_signal';
 }
 
 export interface DaySummaryDto {
