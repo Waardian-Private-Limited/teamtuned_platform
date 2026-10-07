@@ -113,6 +113,50 @@ export default function DocumentCenter() {
     // Modal for confirming email send
     const [emailModal, setEmailModal] = useState<{ emp: Employee; type: DocType } | null>(null);
 
+    // Modal for Offer Letter dates (Final Interview Date & Joining Date)
+    interface OfferModalState {
+        emp: Employee;
+        isEmail: boolean;
+        interviewDate: string;
+        joiningDate: string;
+        issueDate: string;
+    }
+    const [offerModal, setOfferModal] = useState<OfferModalState | null>(null);
+
+    const toInputDate = (dateStr?: string | null): string => {
+        if (!dateStr) return "";
+        try {
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return "";
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+            return `${y}-${m}-${day}`;
+        } catch {
+            return "";
+        }
+    };
+
+    const getTodayInput = (): string => {
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${y}-${m}-${day}`;
+    };
+
+    const openOfferModal = (emp: Employee, isEmail = false) => {
+        const today = getTodayInput();
+        const currentJoining = toInputDate(emp.joining_date) || today;
+        setOfferModal({
+            emp,
+            isEmail,
+            interviewDate: today,
+            joiningDate: currentJoining,
+            issueDate: today,
+        });
+    };
+
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3002/api/v1";
 
     const getAuthHeaders = useCallback((): Record<string, string> => {
@@ -264,7 +308,16 @@ export default function DocumentCenter() {
         }
     };
 
-    const handleGenerate = useCallback(async (emp: Employee, type: DocType, sendEmail = false) => {
+    const handleGenerate = useCallback(async (
+        emp: Employee, 
+        type: DocType, 
+        sendEmail = false,
+        extraData?: {
+            interview_date?: string;
+            joining_date?: string;
+            issue_date?: string;
+        }
+    ) => {
         const key = `${emp.id}-${type}`;
         const setFn = sendEmail ? setEmailing : setGenerating;
         setFn(prev => ({ ...prev, [key]: true }));
@@ -276,7 +329,8 @@ export default function DocumentCenter() {
                 body: JSON.stringify({ 
                     type, 
                     send_email: sendEmail,
-                    include_signature: includeSignature 
+                    include_signature: includeSignature,
+                    ...(extraData || {})
                 }),
             });
             if (!res.ok) {
@@ -298,6 +352,7 @@ export default function DocumentCenter() {
                 : `${type.charAt(0).toUpperCase() + type.slice(1)} letter downloaded`
             );
             if (sendEmail) setEmailModal(null);
+            setOfferModal(null);
         } catch (err: any) {
             toast.error(err.message || "Failed to generate document");
         } finally {
@@ -510,7 +565,13 @@ export default function DocumentCenter() {
                                                         <td key={doc.type} className="px-6 py-4 text-center">
                                                             <div className="flex items-center justify-center gap-1.5">
                                                                 <button
-                                                                    onClick={() => handleGenerate(emp, doc.type, false)}
+                                                                    onClick={() => {
+                                                                        if (doc.type === "offer") {
+                                                                            openOfferModal(emp, false);
+                                                                        } else {
+                                                                            handleGenerate(emp, doc.type, false);
+                                                                        }
+                                                                    }}
                                                                     disabled={isGenning || isEmailing}
                                                                     title={`Download ${doc.label}${includeSignature && signatureConfig.signature_url ? ' (with digital signature)' : ''}`}
                                                                     className={`p-2 rounded-lg border transition-all ${doc.bg} ${doc.border} ${doc.color} hover:shadow-sm disabled:opacity-40`}
@@ -518,7 +579,17 @@ export default function DocumentCenter() {
                                                                     {isGenning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                                                                 </button>
                                                                 <button
-                                                                    onClick={() => emp.email ? setEmailModal({ emp, type: doc.type }) : toast.error("No email address for this employee")}
+                                                                    onClick={() => {
+                                                                        if (!emp.email) {
+                                                                            toast.error("No email address for this employee");
+                                                                            return;
+                                                                        }
+                                                                        if (doc.type === "offer") {
+                                                                            openOfferModal(emp, true);
+                                                                        } else {
+                                                                            setEmailModal({ emp, type: doc.type });
+                                                                        }
+                                                                    }}
                                                                     disabled={isGenning || isEmailing}
                                                                     title={`Email ${doc.label}`}
                                                                     className="p-2 rounded-lg border border-gray-200 bg-gray-50 text-gray-500 hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700 transition-all disabled:opacity-40"
@@ -821,6 +892,178 @@ export default function DocumentCenter() {
                                     : <><Mail className="w-4 h-4" /> Send & Download</>
                                 }
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Offer Letter Date Confirmation Modal ── */}
+            {offerModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-5 border border-gray-100">
+                        {/* Modal Header */}
+                        <div className="flex items-start justify-between border-b border-gray-100 pb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-emerald-50 rounded-xl">
+                                    <FilePlus className="w-5 h-5 text-emerald-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-900">Download Offer Letter</h3>
+                                    <p className="text-xs text-gray-500">Confirm interview date &amp; joining date for this letter</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setOfferModal(null)}
+                                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-400 hover:text-gray-600"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Candidate Summary Card */}
+                        <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-xs">
+                                    {offerModal.emp.first_name?.[0]}{offerModal.emp.last_name?.[0]}
+                                </div>
+                                <div>
+                                    <p className="text-sm font-bold text-gray-900">
+                                        {offerModal.emp.gender?.toLowerCase() === 'female' ? 'Ms. ' : (offerModal.emp.gender?.toLowerCase() === 'male' ? 'Mr. ' : '')}
+                                        {offerModal.emp.first_name} {offerModal.emp.last_name}
+                                    </p>
+                                    <p className="text-xs text-gray-500">{offerModal.emp.designation || 'Engineer'} • {offerModal.emp.department_name || 'Operations'}</p>
+                                </div>
+                            </div>
+                            {offerModal.emp.joining_date && (
+                                <span className="text-xs bg-white px-2.5 py-1 rounded-md border border-gray-200 text-gray-600 font-medium">
+                                    System: {new Date(offerModal.emp.joining_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Date Inputs Form */}
+                        <div className="space-y-4">
+                            {/* 1. Final Interview Date */}
+                            <div>
+                                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1.5">
+                                    Final Interview Date <span className="text-red-500">*</span>
+                                </label>
+                                <div className="relative">
+                                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                                    <input
+                                        type="date"
+                                        value={offerModal.interviewDate}
+                                        onChange={e => setOfferModal(prev => prev ? { ...prev, interviewDate: e.target.value } : null)}
+                                        className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                    />
+                                </div>
+                                <p className="text-[11px] text-gray-500 mt-1">
+                                    Reflected in letter: <em>"As per your Final interview dated {offerModal.interviewDate ? offerModal.interviewDate.split('-').reverse().join('.') : '...'}"</em>
+                                </p>
+                            </div>
+
+                            {/* 2. Expected Joining Date */}
+                            <div>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide">
+                                        Expected Joining Date <span className="text-red-500">*</span>
+                                    </label>
+                                    {offerModal.emp.joining_date && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setOfferModal(prev => prev ? { ...prev, joiningDate: toInputDate(prev.emp.joining_date) || prev.joiningDate } : null)}
+                                            className="text-[11px] text-emerald-600 hover:underline font-medium"
+                                        >
+                                            Reset to profile date
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="relative">
+                                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                                    <input
+                                        type="date"
+                                        value={offerModal.joiningDate}
+                                        onChange={e => setOfferModal(prev => prev ? { ...prev, joiningDate: e.target.value } : null)}
+                                        className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                    />
+                                </div>
+                                <p className="text-[11px] text-gray-500 mt-1">
+                                    Reflected in letter: <em>"You are required to join duties bef : {offerModal.joiningDate ? offerModal.joiningDate.split('-').reverse().join('.') : '...'}"</em>
+                                </p>
+                            </div>
+
+                            {/* 3. Offer Issue Date */}
+                            <div>
+                                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1.5">
+                                    Letter Issue Date
+                                </label>
+                                <div className="relative">
+                                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                                    <input
+                                        type="date"
+                                        value={offerModal.issueDate}
+                                        onChange={e => setOfferModal(prev => prev ? { ...prev, issueDate: e.target.value } : null)}
+                                        className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                    />
+                                </div>
+                                <p className="text-[11px] text-gray-500 mt-1">
+                                    Appears at top-right of letterhead: <em>Date: {offerModal.issueDate ? offerModal.issueDate.split('-').reverse().join('.') : '...'}</em>
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Signature Notice */}
+                        {includeSignature && signatureConfig.signature_url && (
+                            <div className="p-3 bg-emerald-50/70 rounded-xl border border-emerald-100 flex items-center gap-2 text-xs text-emerald-800">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                                <span>
+                                    Digital signature ({signatureConfig.signatory_designation || signatureConfig.signatory_name || 'Authorized Signatory'}) will be included.
+                                </span>
+                            </div>
+                        )}
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center justify-between gap-3 pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setOfferModal(null)}
+                                className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <div className="flex items-center gap-2">
+                                {offerModal.emp.email && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            handleGenerate(offerModal.emp, "offer", true, {
+                                                interview_date: offerModal.interviewDate,
+                                                joining_date: offerModal.joiningDate,
+                                                issue_date: offerModal.issueDate,
+                                            });
+                                        }}
+                                        disabled={generating[`${offerModal.emp.id}-offer`] || emailing[`${offerModal.emp.id}-offer`]}
+                                        className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+                                    >
+                                        {emailing[`${offerModal.emp.id}-offer`] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                                        Email &amp; Download
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        handleGenerate(offerModal.emp, "offer", false, {
+                                            interview_date: offerModal.interviewDate,
+                                            joining_date: offerModal.joiningDate,
+                                            issue_date: offerModal.issueDate,
+                                        });
+                                    }}
+                                    disabled={generating[`${offerModal.emp.id}-offer`] || emailing[`${offerModal.emp.id}-offer`]}
+                                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center gap-2 disabled:opacity-50"
+                                >
+                                    {generating[`${offerModal.emp.id}-offer`] ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : <><Download className="w-4 h-4" /> Download PDF</>}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
