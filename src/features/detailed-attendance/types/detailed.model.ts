@@ -1,6 +1,6 @@
-import type { BadgeTone, OverrideStatus } from './detailed.dto';
+import type { BadgeTone, OnlyKey, OverrideStatus } from './detailed.dto';
 
-export type { BadgeTone, OverrideStatus };
+export type { BadgeTone, OnlyKey, OverrideStatus };
 
 export interface Badge {
   key: string;
@@ -30,6 +30,7 @@ export interface AttendanceRow {
 export interface AttendanceList {
   date: string;
   today: string;
+  timezone: string;
   total: number;
   rows: AttendanceRow[];
 }
@@ -82,28 +83,32 @@ export interface MonthSummary {
   consecutiveAbsence: { days: number; action: string } | null;
 }
 
-export interface LeaveBalance {
+/** A leave type or the comp-off balance: one list so everything the employee can take is in one place. */
+export interface Balance {
   code: string;
   name: string;
+  kind: 'leave' | 'comp_off';
   color: string | null;
   isPaid: boolean | null;
   available: number;
   used: number;
   pending: number;
   credited: number;
+  period: 'monthly' | 'cycle';
+  earned: { units: number; pendingUnits: number; paidMinutes: number } | null;
 }
 
 export interface Month {
   employee: EmployeeHeader;
   month: string;
+  timezone: string;
   from: string;
   to: string;
   today: string;
   policy: { resolved: boolean; lateDeduction: boolean; sandwich: boolean };
   cells: MonthCell[];
   summary: MonthSummary;
-  compOff: { available: number | null; period: 'monthly' | 'cycle'; earnedUnits: number; pendingUnits: number; paidMinutes: number };
-  leaveBalances: LeaveBalance[];
+  balances: Balance[];
 }
 
 export interface DayRecord {
@@ -146,21 +151,61 @@ export interface Punch {
   place: string | null;
   location: string;
   distanceM: number | null;
+  lat: number | null;
+  lng: number | null;
+  accuracyM: number | null;
+  hasImage: boolean;
   face: string;
   voided: boolean;
   voidReason: string | null;
+}
+
+export interface Shift {
+  start: string;
+  end: string;
+  endsNextDay: boolean;
+  breakMinutes: number;
+  expectedMinutes: number;
+}
+
+export interface DaySchedule {
+  kind: 'absent' | 'week_off' | 'holiday' | 'leave' | 'unscheduled' | 'working';
+  roster: boolean;
+  flexible: boolean;
+  shift: Shift | null;
+}
+
+/** Who changed the day, why and when: a forced status and/or the hours HR set. */
+export interface DayOverride {
+  status: string | null;
+  units: number | null;
+  reason: string | null;
+  by: string | null;
+  at: string | null;
+  inTime: string | null;
+  outTime: string | null;
+}
+
+export interface OverrideForm {
+  inTime: string | null;
+  outTime: string | null;
+  from: 'recorded' | 'shift' | 'empty';
+  forcedStatus: string | null;
 }
 
 export interface DayDetail {
   employee: EmployeeHeader;
   date: string;
   today: string;
+  timezone: string;
   badge: Badge;
   day: DayRecord | null;
+  schedule: DaySchedule | null;
+  form: OverrideForm;
   holiday: { name: string; half: boolean } | null;
   leave: { code: string; name: string; units: number; isPaid: boolean } | null;
   nightOtYesterdayMinutes: number;
-  override: { status: string; units: number | null; reason: string | null; by: string | null; at: string | null } | null;
+  override: DayOverride | null;
   punches: Punch[];
   breaks: Array<{ id: number; startedAt: string; endedAt: string | null }>;
   compOff: Array<{ reason: string; kind: 'comp_off' | 'paid'; units: number; minutes: number | null; state: string }>;

@@ -14,7 +14,8 @@ export function useMonth(employeeId: number | null, startMonth: string, reloadKe
   const [error, setError] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
 
-  useEffect(() => { setMonth(startMonth); setData(null); }, [employeeId, startMonth]);
+  useEffect(() => { setData(null); }, [employeeId]);
+  useEffect(() => { setMonth(startMonth); }, [startMonth]);
 
   useEffect(() => {
     if (employeeId === null) return undefined;

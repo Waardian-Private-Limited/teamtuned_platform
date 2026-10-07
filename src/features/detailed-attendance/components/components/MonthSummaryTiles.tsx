@@ -19,8 +19,6 @@ export function MonthSummaryTiles({ month }: { month: Month }) {
   const s = month.summary;
   const lop = nonZero([[s.lop.absent, 'absent'], [s.lop.halfDay, 'half-day cut'], [s.lop.other, 'short'], [s.lop.unpaidLeave, 'unpaid leave'], [s.lop.sandwich, 'sandwich'], [s.lop.lateDeduction, 'late deduction']]);
   const leave = nonZero([[s.paidLeaveDays, 'paid'], [s.unpaidLeaveDays, 'unpaid']]);
-  const comp = month.compOff;
-  const compSub = [comp.earnedUnits > 0 ? `earned ${daysText(comp.earnedUnits)} this month` : null, comp.pendingUnits > 0 ? `${daysText(comp.pendingUnits)} waiting for approval` : null].filter(Boolean).join(' · ');
 
   return (
     <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
@@ -29,7 +27,6 @@ export function MonthSummaryTiles({ month }: { month: Month }) {
       <Tile label="Present" value={daysText(s.present)} sub={s.halfDays ? `and ${s.halfDays} half day${s.halfDays === 1 ? '' : 's'}` : undefined} />
       <Tile label="Absent" value={daysText(s.absent)} tone={s.absent > 0 ? 'bad' : undefined} />
       <Tile label="Leave" value={daysText(s.leaveDays)} sub={leave.length ? leave.join(' · ') : undefined} />
-      <Tile label={comp.period === 'monthly' ? 'Comp-off this month' : 'Comp-off balance'} value={comp.available === null ? '—' : daysText(comp.available)} sub={compSub || (comp.available === null ? 'Not part of the policy' : undefined)} />
       <Tile label="Late" value={s.late.minutes ? minutesText(s.late.minutes) : '—'} sub={s.late.marks ? `${s.late.marks} late mark${s.late.marks === 1 ? '' : 's'}` : undefined} />
       {month.policy.lateDeduction ? (
         <>

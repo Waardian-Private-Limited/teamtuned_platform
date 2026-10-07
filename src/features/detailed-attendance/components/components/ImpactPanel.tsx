@@ -5,7 +5,7 @@ import { dayText, daysText, minutesText } from '../../utils/format';
 import { Skeleton } from './controls';
 
 const STATUS_NAME: Record<string, string> = { Present: 'Present', 'Half-Day': 'Half day', Absent: 'Absent', Leave: 'On leave', Holiday: 'Holiday', Weekend: 'Week off', 'In-Progress': 'In progress', Unscheduled: 'Unscheduled' };
-const name = (s: string | null) => (s ? STATUS_NAME[s] || s : 'No record');
+const name = (s: string | null) => (s ? STATUS_NAME[s] || s : 'Absent');
 const cut = (p: string | null) => (p === 'full_day' ? 'a full day' : 'half a day');
 
 function lines(impact: Impact): Array<{ text: string; strong?: boolean }> {

@@ -1,4 +1,4 @@
-import type { BadgeTone, OverrideStatus } from '../types/detailed.model';
+import type { BadgeTone, OnlyKey, OverrideStatus } from '../types/detailed.model';
 
 export const PAGE_SIZE = 25;
 export const SEARCH_DEBOUNCE_MS = 350;
@@ -13,13 +13,22 @@ export const TONE: Record<BadgeTone, { dot: string; chip: string; bar: string; t
   muted: { dot: 'bg-[var(--tt-fg-subtle)]', chip: 'bg-bg-subtle text-fg-muted', bar: 'bg-[var(--tt-border-strong)]', text: 'text-fg-muted' },
 };
 
-export const OVERRIDE_OPTIONS: Array<{ value: OverrideStatus; label: string; hint: string }> = [
-  { value: 'Present', label: 'Present', hint: 'Full day, paid' },
-  { value: 'Half-Day', label: 'Half day', hint: 'Half a day, paid' },
-  { value: 'Absent', label: 'Absent', hint: 'Not paid' },
-  { value: 'Leave', label: 'On leave', hint: 'Paid day off' },
-  { value: 'Weekend', label: 'Week off', hint: 'Paid day off' },
-  { value: 'Holiday', label: 'Holiday', hint: 'Paid day off' },
+/** Optional: force the outcome instead of letting the policy decide from the times. */
+export const OVERRIDE_OPTIONS: Array<{ value: OverrideStatus | ''; label: string }> = [
+  { value: '', label: 'Let the policy decide' },
+  { value: 'Present', label: 'Present (full day)' },
+  { value: 'Half-Day', label: 'Half day' },
+  { value: 'Absent', label: 'Absent' },
+];
+
+export const ONLY_OPTIONS: Array<{ value: OnlyKey; label: string }> = [
+  { value: 'absent', label: 'Absent' },
+  { value: 'late', label: 'Late' },
+  { value: 'half_day', label: 'Half day' },
+  { value: 'leave', label: 'On leave' },
+  { value: 'no_checkout', label: 'No check-out' },
+  { value: 'present', label: 'Present' },
+  { value: 'overridden', label: 'Changed by HR' },
 ];
 
 /** What the engine's flags mean, in one plain line. Flags that are not here are not shown. */
@@ -62,10 +71,12 @@ export const COMP_OFF_STATE: Record<string, string> = {
 };
 
 export const SOURCE_TEXT: Record<string, string> = {
-  app: 'Mobile app', web: 'Web', device: 'Device', admin: 'Added by HR', regularize: 'Regularization', system: 'Automatic', import: 'Imported',
+  app: 'Mobile app', web: 'Web', device: 'Device', admin: 'Set by HR', regularize: 'Regularization', system: 'Automatic', import: 'Imported',
 };
 
 export const LOCATION_TEXT: Record<string, string> = { ok: 'On site', exception: 'Outside the site, reason given', flagged: 'Outside the site, flagged', skipped: '' };
+
+export const SCHEDULE_TEXT: Record<string, string> = { absent: 'Working day', week_off: 'Week off', holiday: 'Holiday', leave: 'On leave', unscheduled: 'Not rostered', working: 'Working day' };
 export const FACE_TEXT: Record<string, string> = { match: 'Face matched', no_match: 'Face did not match', skipped: '', unavailable: '' };
 
 export const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;

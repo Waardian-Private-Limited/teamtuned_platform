@@ -27,16 +27,7 @@ export function DayPopup({ employeeId, date, reloadKey = 0, onClose, onMonth, on
   return (
     <>
       <DayDialog employeeId={employeeId} date={date} reloadKey={reloadKey + saved} childOpen={!!override} onClose={onClose} onMonth={onMonth} onOverride={setOverride} />
-      <OverrideDialog
-        open={!!override}
-        employeeId={override ? override.employee.id : 0}
-        employeeName={override ? override.employee.name : ''}
-        date={override ? override.date : ''}
-        currentStatus={override && override.day ? override.badge.label : null}
-        hasOverride={!!override && !!override.override}
-        onClose={() => setOverride(null)}
-        onSaved={() => { setSaved((v) => v + 1); onChanged?.(); }}
-      />
+      {override && <OverrideDialog open day={override} onClose={() => setOverride(null)} onSaved={() => { setSaved((v) => v + 1); onChanged?.(); }} />}
     </>
   );
 }

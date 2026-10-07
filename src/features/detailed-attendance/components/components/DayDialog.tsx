@@ -1,14 +1,14 @@
 'use client';
 
-import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, CalendarDays, Coffee, Lock, Moon, PencilLine } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Coffee, Lock, Moon, PencilLine } from 'lucide-react';
 import { Dialog } from '@/components/ui/Dialog';
 import { Alert } from '@/components/ui/Alert';
-import { cx } from '@/theme/tokens';
-import { COMP_OFF_REASON, COMP_OFF_STATE, FACE_TEXT, FLAG_TEXT, LOCATION_TEXT, SOURCE_TEXT } from '../../constants/detailed.constants';
+import { COMP_OFF_REASON, COMP_OFF_STATE, FLAG_TEXT, SCHEDULE_TEXT } from '../../constants/detailed.constants';
 import { useDay } from '../../hooks/useDay';
 import type { DayDetail } from '../../types/detailed.model';
-import { dateTimeText, daysText, longDayText, minutesText, timeText, unitsText } from '../../utils/format';
+import { clockText, dateTimeText, daysText, longDayText, minutesText, punchTimeText, time24, timeText } from '../../utils/format';
 import { Avatar, Skeleton } from './controls';
+import { PunchCard } from './PunchCard';
 import { StatusBadge } from './StatusBadge';
 
 interface Props {
@@ -24,10 +24,10 @@ interface Props {
 
 function Figure({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-xl border border-line p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-fg-muted">{label}</p>
-      <p className="mt-1 text-lg font-extrabold leading-none tabular-nums text-fg">{value}</p>
-      {hint && <p className="mt-1 text-xs text-fg-muted">{hint}</p>}
+    <div className="min-w-0 rounded-xl border border-line p-3">
+      <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-fg-muted">{label}</p>
+      <p className="mt-1 truncate text-lg font-extrabold leading-none tabular-nums text-fg">{value}</p>
+      {hint && <p className="mt-1 truncate text-xs text-fg-muted">{hint}</p>}
     </div>
   );
 }
@@ -41,9 +41,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-const punchLabel = (kind: 'work' | 'night_ot', direction: 'in' | 'out') => (kind === 'night_ot' ? (direction === 'in' ? 'Night OT start' : 'Night OT end') : direction === 'in' ? 'Check-in' : 'Check-out');
-
 const cutText = (p: string | null) => (p === 'full_day' ? 'a full day' : 'half a day');
+const statusText = (s: string) => (s === 'Half-Day' ? 'Half day' : s);
 
 /** What the employee's policy decided for the day, one plain line each, only the lines that apply. */
 function policyLines(d: DayDetail): string[] {
@@ -64,36 +63,75 @@ function policyLines(d: DayDetail): string[] {
   return out;
 }
 
+/** What the roster or policy expected of the day: the shift, a week off, a holiday, leave. */
+function expectation(d: DayDetail): { value: string; hint?: string } {
+  const sch = d.schedule;
+  const day = d.day;
+  const source = sch ? (sch.roster ? 'from the roster' : 'from the policy') : undefined;
+  if (day && day.shiftStartAt && day.shiftEndAt) return { value: `${time24(day.shiftStartAt, d.timezone)} – ${time24(day.shiftEndAt, d.timezone)}`, hint: sch ? source : undefined };
+  if (sch && sch.shift) return { value: `${sch.shift.start} – ${sch.shift.end}${sch.shift.endsNextDay ? ' (+1)' : ''}`, hint: source };
+  if (sch && sch.flexible) return { value: 'Flexible', hint: 'no fixed shift' };
+  if (sch && sch.kind !== 'working' && sch.kind !== 'absent') return { value: SCHEDULE_TEXT[sch.kind], hint: sch.roster ? 'from the roster' : undefined };
+  return { value: '—' };
+}
+
+function OverrideNote({ d }: { d: DayDetail }) {
+  const o = d.override;
+  if (!o) return null;
+  const hours = o.inTime && o.outTime ? `Hours set to ${clockText(o.inTime)} – ${clockText(o.outTime)}` : null;
+  const forced = o.status ? `marked ${statusText(o.status)}` : null;
+  return (
+    <div className="rounded-xl border border-line bg-bg-subtle/60 p-3">
+      <p className="flex items-center gap-2 text-sm font-bold text-fg"><PencilLine className="h-4 w-4 shrink-0 text-fg-muted" /> Changed by {o.by || 'HR'}{o.at ? <span className="font-medium text-fg-muted"> · {dateTimeText(o.at, d.timezone)}</span> : null}</p>
+      {(hours || forced) && <p className="mt-1 text-sm text-fg">{[hours, forced].filter(Boolean).join(', ')}</p>}
+      {o.reason && <p className="mt-0.5 text-sm text-fg-muted">Reason: {o.reason}</p>}
+    </div>
+  );
+}
+
 function Body({ d, onMonth, onOverride }: { d: DayDetail; onMonth: Props['onMonth']; onOverride: Props['onOverride'] }) {
   const day = d.day;
   const lines = policyLines(d);
+  const tz = d.timezone;
+  const exp = expectation(d);
+  const noRecord = !d.punches.some((p) => !p.voided) && !(day && day.firstInAt);
+  const work = d.punches.filter((p) => p.kind === 'work');
+  const night = d.punches.filter((p) => p.kind === 'night_ot');
   const extras = day ? [
+    day.breakMinutes ? `Break ${minutesText(day.breakMinutes)}` : null,
+    day.lateMark ? `Late ${minutesText(day.lateMinutes)}` : null,
+    day.earlyMark ? `Early exit ${minutesText(day.earlyMinutes)}` : null,
     day.overtimeMinutes ? `Overtime ${minutesText(day.overtimeMinutes)}` : null,
     day.nightOtMinutes ? `Night overtime ${minutesText(day.nightOtMinutes)}` : null,
-    day.breakMinutes ? `Break ${minutesText(day.breakMinutes)}` : null,
   ].filter(Boolean) : [];
+  const history = d.history.filter((h) => h.kind !== 'evaluate');
 
   return (
     <div className="space-y-5">
-      {(d.holiday || d.leave || d.locked || d.nightOtYesterdayMinutes > 0 || d.override) && (
+      {(d.holiday || d.leave || d.locked || d.nightOtYesterdayMinutes > 0) && (
         <ul className="space-y-1.5 text-sm">
           {d.holiday && <li className="flex items-center gap-2 text-fg"><CalendarDays className="h-4 w-4 shrink-0 text-fg-muted" /> {d.holiday.name}{d.holiday.half ? ' (half day)' : ''}</li>}
           {d.leave && <li className="flex items-center gap-2 text-fg"><CalendarDays className="h-4 w-4 shrink-0 text-fg-muted" /> {d.leave.name}{d.leave.units === 0.5 ? ' (half day)' : ''}, {d.leave.isPaid ? 'paid' : 'unpaid'}</li>}
           {d.nightOtYesterdayMinutes > 0 && <li className="flex items-center gap-2 text-fg"><Moon className="h-4 w-4 shrink-0 text-fg-muted" /> Worked night overtime last night, {minutesText(d.nightOtYesterdayMinutes)}</li>}
-          {d.override && <li className="flex items-start gap-2 text-fg"><PencilLine className="mt-0.5 h-4 w-4 shrink-0 text-fg-muted" /> <span>Set to <strong>{d.override.status === 'Half-Day' ? 'Half day' : d.override.status}</strong> by {d.override.by || 'HR'}{d.override.reason ? `: ${d.override.reason}` : ''}</span></li>}
           {d.locked && <li className="flex items-center gap-2 text-fg"><Lock className="h-4 w-4 shrink-0 text-fg-muted" /> Locked for payroll, no changes</li>}
         </ul>
       )}
 
-      {day && (
-        <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
-          <Figure label="Check-in" value={day.firstInAt ? timeText(day.firstInAt) : '—'} />
-          <Figure label="Check-out" value={day.lastOutAt ? timeText(day.lastOutAt) : day.openSession ? 'Still in' : '—'} />
-          <Figure label="Worked" value={minutesText(day.workedMinutes)} hint={day.expectedMinutes ? `of ${minutesText(day.expectedMinutes)}` : undefined} />
-          <Figure label="Payable" value={unitsText(day.payableUnits)} hint={day.payableUnits > 0 && day.payableUnits !== 1 ? `${daysText(day.payableUnits)} day` : undefined} />
-        </div>
-      )}
+      <OverrideNote d={d} />
+
+      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+        <Figure label={d.schedule && d.schedule.roster ? 'Rostered shift' : 'Shift'} value={exp.value} hint={exp.hint} />
+        <Figure label="Check-in" value={day && day.firstInAt ? timeText(day.firstInAt, tz) : '—'} />
+        <Figure label="Check-out" value={day && day.lastOutAt ? punchTimeText(day.lastOutAt, d.date, tz) : day && day.openSession ? 'Still in' : '—'} />
+        <Figure label="Worked" value={day ? minutesText(day.workedMinutes) : '—'} hint={day && day.expectedMinutes ? `of ${minutesText(day.expectedMinutes)}` : exp.value !== '—' && d.schedule && d.schedule.shift ? `of ${minutesText(d.schedule.shift.expectedMinutes)}` : undefined} />
+      </div>
       {extras.length > 0 && <p className="-mt-2 text-sm text-fg-muted">{extras.join(' · ')}</p>}
+
+      {noRecord && (
+        <p className="rounded-xl border border-line bg-bg-subtle/50 p-3 text-sm text-fg-muted">
+          {d.badge.key === 'not_joined' ? 'This was before the employee joined.' : d.badge.key === 'exited' ? 'This was after the employee left.' : d.badge.key === 'absent' ? 'No check-in was recorded on this day, so it counts as absent.' : d.badge.key === 'not_in' ? 'Not checked in yet.' : d.badge.key === 'upcoming' ? '' : 'No check-ins on this day.'}
+        </p>
+      )}
 
       {(lines.length > 0 || d.compOff.length > 0 || day?.reviewState === 'pending') && (
         <Section title="What the policy did">
@@ -110,44 +148,39 @@ function Body({ d, onMonth, onOverride }: { d: DayDetail; onMonth: Props['onMont
         </Section>
       )}
 
-      <Section title="Check-ins">
-        {d.punches.length === 0 ? <p className="text-sm text-fg-muted">No check-ins on this day.</p> : (
-          <ol className="divide-y divide-line rounded-xl border border-line">
-            {d.punches.map((p) => {
-              const Icon = p.direction === 'in' ? ArrowDownToLine : ArrowUpFromLine;
-              const where = [p.place, LOCATION_TEXT[p.location], FACE_TEXT[p.face], SOURCE_TEXT[p.source]].filter(Boolean).join(' · ');
-              return (
-                <li key={p.id} className={cx('flex items-start gap-3 px-3 py-2.5', p.voided && 'opacity-50')}>
-                  <Icon aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-fg-muted" />
-                  <div className="min-w-0 flex-1">
-                    <p className={cx('text-sm font-bold text-fg', p.voided && 'line-through')}>{punchLabel(p.kind, p.direction)}</p>
-                    {where && <p className="truncate text-xs text-fg-muted">{where}</p>}
-                    {p.voided && <p className="text-xs text-fg-muted">Removed{p.voidReason ? `: ${p.voidReason}` : ''}</p>}
-                  </div>
-                  <span className="shrink-0 text-sm font-bold tabular-nums text-fg">{timeText(p.at)}</span>
-                </li>
-              );
-            })}
+      {work.length > 0 && (
+        <Section title="Check-ins">
+          <ol className="space-y-2.5">{work.map((p) => <PunchCard key={p.id} punch={p} workDate={d.date} tz={tz} />)}</ol>
+        </Section>
+      )}
+      {night.length > 0 && (
+        <Section title="Night overtime">
+          <ol className="space-y-2.5">{night.map((p) => <PunchCard key={p.id} punch={p} workDate={d.date} tz={tz} />)}</ol>
+        </Section>
+      )}
+      {d.breaks.length > 0 && (
+        <Section title="Breaks">
+          <ul className="divide-y divide-line rounded-xl border border-line">
             {d.breaks.map((b) => (
-              <li key={`b${b.id}`} className="flex items-center gap-3 px-3 py-2.5">
+              <li key={b.id} className="flex items-center gap-3 px-3 py-2.5">
                 <Coffee aria-hidden className="h-4 w-4 shrink-0 text-fg-muted" />
                 <p className="flex-1 text-sm text-fg">Break</p>
-                <span className="text-sm tabular-nums text-fg-muted">{timeText(b.startedAt)} – {b.endedAt ? timeText(b.endedAt) : 'ongoing'}</span>
+                <span className="text-sm tabular-nums text-fg-muted">{timeText(b.startedAt, tz)} – {b.endedAt ? timeText(b.endedAt, tz) : 'ongoing'}</span>
               </li>
             ))}
-          </ol>
-        )}
-      </Section>
+          </ul>
+        </Section>
+      )}
 
-      {d.history.length > 0 && (
+      {history.length > 0 && (
         <Section title="History">
           <ol className="space-y-2.5 border-l border-line pl-4">
-            {d.history.map((h) => (
+            {history.map((h) => (
               <li key={h.id} className="relative text-sm">
                 <span aria-hidden className="absolute -left-[1.3rem] top-1.5 h-2 w-2 rounded-full border border-line bg-surface" />
                 <p className="text-fg">{h.summary || h.kind}{h.by ? <span className="text-fg-muted"> · {h.by}</span> : null}</p>
                 {h.reason && <p className="text-xs text-fg-muted">{h.reason}</p>}
-                <p className="text-[11px] text-fg-subtle">{dateTimeText(h.at)}</p>
+                <p className="text-[11px] text-fg-subtle">{dateTimeText(h.at, tz)}</p>
               </li>
             ))}
           </ol>
@@ -157,7 +190,7 @@ function Body({ d, onMonth, onOverride }: { d: DayDetail; onMonth: Props['onMont
       <div className="flex flex-wrap justify-end gap-2 border-t border-line pt-4">
         {onMonth && <button type="button" onClick={() => onMonth(d.employee.id, d.date.slice(0, 7))} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-4 text-xs font-semibold text-fg hover:bg-bg-subtle sm:text-sm"><CalendarDays className="h-4 w-4" /> Monthly attendance</button>}
         {d.canOverride && (
-          <button type="button" onClick={() => onOverride(d)} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--tt-primary)] px-4 text-xs font-semibold text-[var(--tt-on-primary)] hover:bg-[var(--tt-primary-hover)] sm:text-sm"><PencilLine className="h-4 w-4" /> Override status</button>
+          <button type="button" onClick={() => onOverride(d)} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--tt-primary)] px-4 text-xs font-semibold text-[var(--tt-on-primary)] hover:bg-[var(--tt-primary-hover)] sm:text-sm"><PencilLine className="h-4 w-4" /> Override attendance</button>
         )}
       </div>
     </div>
@@ -168,7 +201,7 @@ function Skeletons() {
   return (
     <div className="space-y-5" aria-busy="true">
       <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
-      <Skeleton className="h-24 rounded-xl" /><Skeleton className="h-32 rounded-xl" />
+      <Skeleton className="h-24 rounded-xl" /><Skeleton className="h-56 rounded-xl" />
     </div>
   );
 }

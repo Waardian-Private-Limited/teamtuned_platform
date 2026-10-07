@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Download, FileSpreadsheet, FileText, Search, Table2, X } from 'lucide-react';
+import { Download, FileSpreadsheet, FileText, Mail, Search, Table2, X } from 'lucide-react';
 import { Dialog } from '@/components/ui/Dialog';
 import { Alert } from '@/components/ui/Alert';
 import { cx } from '@/theme/tokens';
@@ -13,8 +13,10 @@ import * as api from '../../api/detailedAttendance.api';
 import type { Filters } from '../../hooks/useAttendanceList';
 import { toList } from '../../types/detailed.mapper';
 import type { AttendanceRow } from '../../types/detailed.model';
+import { ONLY_OPTIONS } from '../../constants/detailed.constants';
+import type { OnlyKey } from '../../types/detailed.model';
 import { shiftDate } from '../../utils/format';
-import { Avatar, controlClass } from './controls';
+import { Avatar, controlClass, Select } from './controls';
 
 type Format = 'xlsx' | 'csv' | 'pdf';
 const MAX_DAYS = 400;
@@ -32,15 +34,20 @@ const endOfMonth = (d: string) => {
   return `${y}-${String(m).padStart(2, '0')}-${String(last).padStart(2, '0')}`;
 };
 
-function presets(today: string) {
+function presets(today: string, date: string) {
   const lastMonthEnd = shiftDate(startOfMonth(today), -1);
+  const picked = date || today;
   return [
+    { label: picked === today ? 'Today' : 'The day on screen', from: picked, to: picked },
     { label: 'This month', from: startOfMonth(today), to: today },
     { label: 'Last month', from: startOfMonth(lastMonthEnd), to: endOfMonth(lastMonthEnd) },
     { label: 'Last 3 months', from: startOfMonth(shiftDate(startOfMonth(today), -62)), to: today },
     { label: 'This year', from: `${today.slice(0, 4)}-01-01`, to: today },
   ];
 }
+
+const MAX_EMAILS = 5;
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function scopeText(filters: Filters, options: FilterOptionsDto | null) {
   const parts = [
@@ -52,9 +59,16 @@ function scopeText(filters: Filters, options: FilterOptionsDto | null) {
   return parts.length ? parts.join(' · ') : options?.access.all_sites === false ? 'All the sites you run' : 'Everyone you can see';
 }
 
-function Form({ today, filters, options, onClose }: { today: string; filters: Filters; options: FilterOptionsDto | null; onClose: () => void }) {
+function Form({ today, date, filters: initial, options: initialOptions, onClose }: { today: string; date: string; filters: Filters; options: FilterOptionsDto | null; onClose: () => void }) {
   const { track } = useDownloadCenter();
-  const quick = React.useMemo(() => presets(today), [today]);
+  const quick = React.useMemo(() => presets(today, date), [today, date]);
+  // The filters start as the list's and can be changed here without touching the list.
+  const [filters, setFilters] = React.useState<Filters>(initial);
+  const [options, setOptions] = React.useState<FilterOptionsDto | null>(initialOptions);
+  const [only, setOnly] = React.useState<OnlyKey[]>([]);
+  const [emailOn, setEmailOn] = React.useState(false);
+  const [emails, setEmails] = React.useState<string[]>([]);
+  const [emailText, setEmailText] = React.useState('');
   const [from, setFrom] = React.useState(quick[0].from);
   const [to, setTo] = React.useState(quick[0].to);
   const [format, setFormat] = React.useState<Format>('xlsx');
@@ -64,6 +78,22 @@ function Form({ today, filters, options, onClose }: { today: string; filters: Fi
   const [term, setTerm] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const controller = new AbortController();
+    api.getFilterOptions(filters.subOrgId, filters.departmentId, controller.signal)
+      .then((o) => {
+        setOptions(o);
+        setFilters((f) => ({
+          ...f,
+          siteId: f.siteId && o.sites.some((x) => x.id === f.siteId) ? f.siteId : null,
+          departmentId: f.departmentId && o.departments.some((x) => x.id === f.departmentId) ? f.departmentId : null,
+          roleId: f.roleId && o.roles.some((x) => x.id === f.roleId) ? f.roleId : null,
+        }));
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [filters.subOrgId, filters.departmentId]);
 
   React.useEffect(() => {
     if (!pick || term.trim().length < 2) { setPeople([]); return undefined; }
@@ -79,9 +109,20 @@ function Form({ today, filters, options, onClose }: { today: string; filters: Fi
   const days = from && to ? Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1 : 0;
   const rangeError = !from || !to ? 'Pick the first and last date' : from > to ? 'The first date cannot be after the last' : days > MAX_DAYS ? `Pick at most ${MAX_DAYS} days` : null;
   const peopleError = pick && chosen.length === 0 ? 'Pick at least one person' : null;
-  const blocked = !!rangeError || !!peopleError;
+  const addEmail = () => {
+    const parts = emailText.split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter(Boolean);
+    const bad = parts.find((e) => !EMAIL.test(e));
+    if (bad) { setError(`"${bad}" is not a valid email address`); return; }
+    setError(null);
+    setEmails((l) => [...new Set([...l, ...parts])].slice(0, MAX_EMAILS));
+    setEmailText('');
+  };
+  const pending = emailOn && emailText.trim().length > 0;
+  const emailError = emailOn && emails.length === 0 && !pending ? 'Add at least one email address' : null;
+  const blocked = !!rangeError || !!peopleError || !!emailError;
 
   const submit = async () => {
+    if (pending) { addEmail(); return; }
     setBusy(true);
     setError(null);
     try {
@@ -89,6 +130,8 @@ function Form({ today, filters, options, onClose }: { today: string; filters: Fi
         from, to, format,
         subOrgId: filters.subOrgId, siteId: filters.siteId, departmentId: filters.departmentId, roleId: filters.roleId,
         employeeIds: pick ? chosen.map((c) => c.id) : undefined,
+        only: only.length ? only : undefined,
+        emails: emailOn ? emails : undefined,
       });
       track(job);
       onClose();
@@ -138,13 +181,21 @@ function Form({ today, filters, options, onClose }: { today: string; filters: Fi
         <section>
           <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-fg-muted">Who</h3>
           <div className="grid grid-cols-2 gap-1 rounded-lg border border-line/60 bg-bg-subtle p-0.5" role="tablist" aria-label="Who to include">
-            {([[false, 'Current filters'], [true, 'Pick people']] as const).map(([value, label]) => (
+            {([[false, 'By filters'], [true, 'Pick people']] as const).map(([value, label]) => (
               <button key={label} type="button" role="tab" aria-selected={pick === value} onClick={() => setPick(value)}
                 className={cx('h-8 rounded-md text-xs font-semibold transition-colors', pick === value ? 'border border-line/70 bg-surface font-bold text-fg shadow-xs' : 'text-fg-muted hover:text-fg')}>{label}</button>
             ))}
           </div>
           {!pick ? (
-            <p className="mt-2 text-sm text-fg-muted">{scopeText(filters, options)}. Anyone who has since left is included if they have attendance in these dates.</p>
+            <div className="mt-2.5 space-y-2.5">
+              <div className="grid grid-cols-2 gap-3">
+                {!!options && options.sub_organizations.length > 0 && <Select label="Sub-organisation" allLabel="All sub-organisations" value={filters.subOrgId} options={options.sub_organizations} onChange={(v) => setFilters((f) => ({ ...f, subOrgId: v }))} />}
+                <Select label="Site" allLabel={options?.access.all_sites === false ? 'All my sites' : 'All sites'} value={filters.siteId} options={options?.sites ?? []} onChange={(v) => setFilters((f) => ({ ...f, siteId: v }))} disabled={!!options && options.sites.length === 0} />
+                <Select label="Department" allLabel="All departments" value={filters.departmentId} options={options?.departments ?? []} onChange={(v) => setFilters((f) => ({ ...f, departmentId: v }))} />
+                <Select label="Role" allLabel="All roles" value={filters.roleId} options={options?.roles ?? []} onChange={(v) => setFilters((f) => ({ ...f, roleId: v }))} />
+              </div>
+              <p className="text-xs text-fg-muted">{scopeText(filters, options)}. Anyone who has since left is included if they have attendance in these dates.</p>
+            </div>
           ) : (
             <div className="mt-2.5 space-y-2.5">
               {chosen.length > 0 && (
@@ -179,6 +230,20 @@ function Form({ today, filters, options, onClose }: { today: string; filters: Fi
         </section>
 
         <section>
+          <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-fg-muted">Only days that were</h3>
+          <div className="flex flex-wrap gap-1.5">
+            {ONLY_OPTIONS.map((o) => {
+              const on = only.includes(o.value);
+              return (
+                <button key={o.value} type="button" aria-pressed={on} onClick={() => setOnly((l) => (on ? l.filter((x) => x !== o.value) : [...l, o.value]))}
+                  className={cx('h-8 rounded-lg border px-3 text-xs font-bold transition-colors', on ? 'border-fg bg-bg-subtle text-fg' : 'border-line text-fg-muted hover:bg-bg-subtle hover:text-fg')}>{o.label}</button>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-xs text-fg-muted">{only.length ? 'The daily lines list only these days. Monthly totals still cover everything.' : 'Nothing picked: every day is listed.'}</p>
+        </section>
+
+        <section>
           <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-fg-muted">File</h3>
           <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="File format">
             {FORMATS.map(({ value, label, hint, icon: Icon }) => (
@@ -191,13 +256,41 @@ function Form({ today, filters, options, onClose }: { today: string; filters: Fi
             ))}
           </div>
         </section>
+        <section>
+          <label className="mb-2 flex cursor-pointer items-center gap-2 text-xs font-bold uppercase tracking-wide text-fg-muted">
+            <input type="checkbox" checked={emailOn} onChange={(e) => setEmailOn(e.target.checked)} className="h-4 w-4 accent-[var(--tt-primary)]" />
+            <Mail className="h-4 w-4" aria-hidden /> Also send it by email
+          </label>
+          {emailOn && (
+            <div className="space-y-2.5">
+              {emails.length > 0 && (
+                <ul className="flex flex-wrap gap-1.5">
+                  {emails.map((e) => (
+                    <li key={e} className="inline-flex items-center gap-1 rounded-full border border-line bg-bg-subtle py-0.5 pl-2.5 pr-1 text-xs font-semibold text-fg">
+                      {e}
+                      <button type="button" aria-label={`Remove ${e}`} onClick={() => setEmails((l) => l.filter((x) => x !== e))} className="rounded-full p-0.5 text-fg-muted hover:bg-line hover:text-fg"><X className="h-3 w-3" /></button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {emails.length < MAX_EMAILS && (
+                <div className="flex gap-2">
+                  <input type="email" inputMode="email" value={emailText} onChange={(e) => setEmailText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addEmail(); } }}
+                    placeholder="name@company.com" aria-label="Email address" className={cx(controlClass, 'font-medium')} />
+                  <button type="button" onClick={addEmail} disabled={!emailText.trim()} className="h-9 shrink-0 rounded-lg border border-line px-3 text-xs font-bold text-fg hover:bg-bg-subtle disabled:opacity-40">Add</button>
+                </div>
+              )}
+              {emailError ? <p className="text-xs text-[var(--tt-danger)]">{emailError}</p> : <p className="text-xs text-fg-muted">Up to {MAX_EMAILS} addresses. Small files are attached; larger ones are ready in Downloads and the email says so.</p>}
+            </div>
+          )}
+        </section>
         {error && <Alert message={error} />}
       </div>
     </Dialog>
   );
 }
 
-export function ExportDialog(props: { open: boolean; today: string; filters: Filters; options: FilterOptionsDto | null; onClose: () => void }) {
+export function ExportDialog(props: { open: boolean; today: string; date: string; filters: Filters; options: FilterOptionsDto | null; onClose: () => void }) {
   if (!props.open || !props.today) return null;
-  return <Form today={props.today} filters={props.filters} options={props.options} onClose={props.onClose} />;
+  return <Form today={props.today} date={props.date} filters={props.filters} options={props.options} onClose={props.onClose} />;
 }

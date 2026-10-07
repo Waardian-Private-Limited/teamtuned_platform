@@ -9,6 +9,7 @@ export function toList(dto: ListResponseDto): AttendanceList {
   return {
     date: dto.date,
     today: dto.today,
+    timezone: dto.timezone,
     total: dto.total,
     rows: dto.employees.map((e) => ({
       employeeId: e.employee_id,
@@ -34,6 +35,7 @@ export function toMonth(dto: MonthResponseDto): Month {
   return {
     employee: header(dto.employee),
     month: dto.month,
+    timezone: dto.timezone,
     from: dto.from,
     to: dto.to,
     today: dto.today,
@@ -73,8 +75,10 @@ export function toMonth(dto: MonthResponseDto): Month {
       lateDeduction: { enabled: s.late_deduction.enabled, minutes: s.late_deduction.minutes, chargeableMinutes: s.late_deduction.chargeable_minutes, freeMinutes: s.late_deduction.free_minutes, days: s.late_deduction.days },
       consecutiveAbsence: s.consecutive_absence,
     },
-    compOff: { available: dto.comp_off.available, period: dto.comp_off.period, earnedUnits: dto.comp_off.earned.units, pendingUnits: dto.comp_off.earned.pending_units, paidMinutes: dto.comp_off.earned.paid_minutes },
-    leaveBalances: dto.leave_balances.map((b) => ({ code: b.code, name: b.name, color: b.color, isPaid: b.is_paid, available: b.available, used: b.used, pending: b.pending, credited: b.credited })),
+    balances: dto.balances.map((b) => ({
+      code: b.code, name: b.name, kind: b.kind, color: b.color, isPaid: b.is_paid, available: b.available, used: b.used, pending: b.pending, credited: b.credited, period: b.period,
+      earned: b.earned ? { units: b.earned.units, pendingUnits: b.earned.pending_units, paidMinutes: b.earned.paid_minutes } : null,
+    })),
   };
 }
 
@@ -116,13 +120,18 @@ export function toDay(dto: DayDetailDto): DayDetail {
     employee: header(dto.employee),
     date: dto.date,
     today: dto.today,
+    timezone: dto.timezone,
     badge: dto.badge,
     day: dto.day ? toDayRecord(dto.day) : null,
+    schedule: dto.schedule
+      ? { kind: dto.schedule.kind, roster: dto.schedule.roster, flexible: dto.schedule.flexible, shift: dto.schedule.shift ? { start: dto.schedule.shift.start, end: dto.schedule.shift.end, endsNextDay: dto.schedule.shift.ends_next_day, breakMinutes: dto.schedule.shift.break_minutes, expectedMinutes: dto.schedule.shift.expected_minutes } : null }
+      : null,
+    form: { inTime: dto.form.in_time, outTime: dto.form.out_time, from: dto.form.from, forcedStatus: dto.form.forced_status },
     holiday: dto.holiday,
     leave: dto.leave ? { code: dto.leave.code, name: dto.leave.name, units: dto.leave.units, isPaid: dto.leave.is_paid } : null,
     nightOtYesterdayMinutes: dto.night_ot_yesterday_minutes,
-    override: dto.override,
-    punches: dto.punches.map((p) => ({ id: p.id, direction: p.direction, kind: p.kind, at: p.at, source: p.source, place: p.place, location: p.location, distanceM: p.distance_m, face: p.face, voided: p.voided, voidReason: p.void_reason })),
+    override: dto.override ? { status: dto.override.status, units: dto.override.units, reason: dto.override.reason, by: dto.override.by, at: dto.override.at, inTime: dto.override.in_time, outTime: dto.override.out_time } : null,
+    punches: dto.punches.map((p) => ({ id: p.id, direction: p.direction, kind: p.kind, at: p.at, source: p.source, place: p.place, location: p.location, distanceM: p.distance_m, lat: p.lat, lng: p.lng, accuracyM: p.accuracy_m, hasImage: p.has_image, face: p.face, voided: p.voided, voidReason: p.void_reason })),
     breaks: dto.breaks.map((b) => ({ id: b.id, startedAt: b.started_at, endedAt: b.ended_at })),
     compOff: dto.comp_off.map((g) => ({ reason: g.reason, kind: g.kind, units: g.units, minutes: g.minutes, state: g.state })),
     history: dto.history,

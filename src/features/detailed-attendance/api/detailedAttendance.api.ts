@@ -1,7 +1,7 @@
 import { apiClient } from '@/lib/apiClient';
 import type { FilterOptionsDto } from '@/features/attendance-dashboard/types/dashboard.dto';
 import type { ExportJobDto } from '@/features/downloads/types/downloads.dto';
-import type { DayDetailDto, ExportRequest, ListResponseDto, MonthResponseDto, OverridePreviewDto, OverrideStatus } from '../types/detailed.dto';
+import type { DayDetailDto, ExportRequest, ListResponseDto, MonthResponseDto, OverrideBody, OverridePreviewDto } from '../types/detailed.dto';
 
 const auth = { withAuth: true } as const;
 const BASE = '/attendance-records';
@@ -46,11 +46,11 @@ export function getDay(employeeId: number, date: string, signal?: AbortSignal) {
   return apiClient.get<DayDetailDto>(`${BASE}/employees/${employeeId}/days/${date}`, undefined, { ...auth, signal });
 }
 
-export function previewOverride(employeeId: number, date: string, body: { status?: OverrideStatus; clear?: boolean }, signal?: AbortSignal) {
+export function previewOverride(employeeId: number, date: string, body: OverrideBody | { clear: true }, signal?: AbortSignal) {
   return apiClient.post<OverridePreviewDto>(`${BASE}/employees/${employeeId}/days/${date}/override/preview`, body, { ...auth, signal });
 }
 
-export function setOverride(employeeId: number, date: string, body: { status: OverrideStatus; reason: string }) {
+export function setOverride(employeeId: number, date: string, body: OverrideBody & { reason: string }) {
   return apiClient.put<{ day: unknown }>(`${BASE}/employees/${employeeId}/days/${date}/override`, body, auth);
 }
 
@@ -60,4 +60,9 @@ export function clearOverride(employeeId: number, date: string, reason: string) 
 
 export function requestExport(body: ExportRequest) {
   return apiClient.post<ExportJobDto>('/exports/attendance', body, auth);
+}
+
+/** A short-lived link to the selfie taken at a check-in or check-out. */
+export function getPunchImage(punchId: number, signal?: AbortSignal) {
+  return apiClient.get<{ url: string }>(`/attendance/punches/${punchId}/image`, undefined, { ...auth, signal });
 }

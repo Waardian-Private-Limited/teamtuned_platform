@@ -30,6 +30,7 @@ export interface ListEmployeeDto {
 export interface ListResponseDto {
   date: string;
   today: string;
+  timezone: string;
   total: number;
   employees: ListEmployeeDto[];
 }
@@ -82,32 +83,32 @@ export interface MonthSummaryDto {
   consecutive_absence: { days: number; action: string } | null;
 }
 
+export interface BalanceDto {
+  code: string;
+  name: string;
+  kind: 'leave' | 'comp_off';
+  color: string | null;
+  is_paid: boolean | null;
+  available: number;
+  used: number;
+  pending: number;
+  credited: number;
+  cycle: { start: string; end: string } | null;
+  period: 'monthly' | 'cycle';
+  earned: { units: number; pending_units: number; paid_minutes: number } | null;
+}
+
 export interface MonthResponseDto {
   employee: EmployeeHeaderDto;
   month: string;
+  timezone: string;
   from: string;
   to: string;
   today: string;
   policy: { resolved: boolean; late_deduction: boolean; sandwich: boolean };
   cells: MonthCellDto[];
   summary: MonthSummaryDto;
-  comp_off: {
-    available: number | null;
-    period: 'monthly' | 'cycle';
-    cycle: { start: string; end: string } | null;
-    earned: { units: number; pending_units: number; paid_minutes: number };
-  };
-  leave_balances: Array<{
-    code: string;
-    name: string;
-    color: string | null;
-    is_paid: boolean | null;
-    available: number;
-    used: number;
-    pending: number;
-    credited: number;
-    cycle: { start: string; end: string } | null;
-  }>;
+  balances: BalanceDto[];
 }
 
 export interface DayRecordDto {
@@ -141,16 +142,27 @@ export interface DayRecordDto {
   locked: boolean;
 }
 
+export interface ShiftDto {
+  start: string;
+  end: string;
+  ends_next_day: boolean;
+  break_minutes: number;
+  expected_minutes: number;
+}
+
 export interface DayDetailDto {
   employee: EmployeeHeaderDto;
   date: string;
   today: string;
+  timezone: string;
   badge: BadgeDto;
   day: DayRecordDto | null;
+  schedule: { kind: 'absent' | 'week_off' | 'holiday' | 'leave' | 'unscheduled' | 'working'; roster: boolean; flexible: boolean; shift: ShiftDto | null } | null;
+  form: { in_time: string | null; out_time: string | null; from: 'recorded' | 'shift' | 'empty'; forced_status: string | null };
   holiday: { name: string; half: boolean } | null;
   leave: { code: string; name: string; units: number; is_paid: boolean } | null;
   night_ot_yesterday_minutes: number;
-  override: { status: string; units: number | null; reason: string | null; by: string | null; at: string | null } | null;
+  override: { status: string | null; units: number | null; reason: string | null; by: string | null; at: string | null; in_time: string | null; out_time: string | null } | null;
   punches: Array<{
     id: number;
     direction: 'in' | 'out';
@@ -160,6 +172,9 @@ export interface DayDetailDto {
     place: string | null;
     location: string;
     distance_m: number | null;
+    lat: number | null;
+    lng: number | null;
+    accuracy_m: number | null;
     face: string;
     has_image: boolean;
     flags: string[];
@@ -202,7 +217,15 @@ export interface OverridePreviewDto {
   impact: ImpactDto;
 }
 
-export type OverrideStatus = 'Present' | 'Half-Day' | 'Absent' | 'Leave' | 'Holiday' | 'Weekend';
+export type OverrideStatus = 'Present' | 'Half-Day' | 'Absent';
+
+export interface OverrideBody {
+  in_time: string;
+  out_time: string;
+  status?: OverrideStatus | null;
+}
+
+export type OnlyKey = 'present' | 'half_day' | 'absent' | 'leave' | 'late' | 'no_checkout' | 'overridden';
 
 export interface ExportRequest {
   from: string;
@@ -213,4 +236,6 @@ export interface ExportRequest {
   departmentId?: number | null;
   roleId?: number | null;
   employeeIds?: number[];
+  only?: OnlyKey[];
+  emails?: string[];
 }

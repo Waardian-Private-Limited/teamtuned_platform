@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { Download, RefreshCw } from 'lucide-react';
 import { Alert } from '@/components/ui/Alert';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -12,20 +13,23 @@ import { DayPopup } from './DayPopup';
 import { EmployeeCards, EmployeeTable, ListSkeleton } from './components/EmployeeRows';
 import { ExportDialog } from './components/ExportDialog';
 import { FilterBar } from './components/FilterBar';
-import { MonthDialog } from './components/MonthDialog';
 
 /**
  * Detailed attendance: who is where on a date, with the day in one badge, last night's night
- * overtime and the month so far. Two actions per person: the day (every check-in and what the
- * policy decided, with override) and the month (a calendar with payroll totals and balances).
+ * overtime and the month so far. Two actions per person: the day (every check-in with its map and
+ * selfie, what the policy decided, override) and the month (a page with payroll totals, the
+ * calendar and balances).
  */
 export function DetailedAttendancePage() {
   const l = useAttendanceList();
   const [day, setDay] = React.useState<{ employeeId: number; date: string } | null>(null);
-  const [month, setMonth] = React.useState<{ employeeId: number; month: string } | null>(null);
   const [exporting, setExporting] = React.useState(false);
-  // Bumped after an override so the open month and the list read the new figures.
+  // Bumped after an override so the open day and the list read the new figures.
   const [version, setVersion] = React.useState(0);
+  const router = useRouter();
+  const pathname = usePathname().replace(/\/$/, '');
+  // The month is a page of its own, one level below this one.
+  const openMonth = (employeeId: number, m: string) => router.push(`${pathname}/${employeeId}?month=${m}`);
 
   const list = l.list;
   const today = l.options?.today ?? '';
@@ -62,8 +66,8 @@ export function DetailedAttendancePage() {
           />
         ) : list ? (
           <>
-            <EmployeeTable rows={list.rows} busy={l.refreshing} onDay={(r) => setDay({ employeeId: r.employeeId, date: list.date })} onMonth={(r) => setMonth({ employeeId: r.employeeId, month: monthOf(list.date) })} />
-            <EmployeeCards rows={list.rows} busy={l.refreshing} onDay={(r) => setDay({ employeeId: r.employeeId, date: list.date })} onMonth={(r) => setMonth({ employeeId: r.employeeId, month: monthOf(list.date) })} />
+            <EmployeeTable rows={list.rows} busy={l.refreshing} onDay={(r) => setDay({ employeeId: r.employeeId, date: list.date })} onMonth={(r) => openMonth(r.employeeId, monthOf(list.date))} />
+            <EmployeeCards rows={list.rows} busy={l.refreshing} onDay={(r) => setDay({ employeeId: r.employeeId, date: list.date })} onMonth={(r) => openMonth(r.employeeId, monthOf(list.date))} />
             <div className="border-t border-line p-3">
               <Pagination currentPage={l.page} totalPages={Math.max(1, Math.ceil(list.total / l.pageSize))} totalItems={list.total} pageSize={l.pageSize} onPageChange={l.setPage} pageSizeOptions={[l.pageSize]} />
             </div>
@@ -71,11 +75,9 @@ export function DetailedAttendancePage() {
         ) : null}
       </section>
 
-      <MonthDialog employeeId={month ? month.employeeId : null} startMonth={month ? month.month : ''} childOpen={!!day} reloadKey={version}
-        onClose={() => setMonth(null)} onOpenDay={(employeeId, date) => setDay({ employeeId, date })} />
       <DayPopup employeeId={day ? day.employeeId : null} date={day ? day.date : null} reloadKey={version}
-        onClose={() => setDay(null)} onMonth={(employeeId, m) => { setDay(null); setMonth({ employeeId, month: m }); }} onChanged={() => { setVersion((v) => v + 1); l.reload(); }} />
-      <ExportDialog open={exporting} today={today} filters={l.filters} options={l.options} onClose={() => setExporting(false)} />
+        onClose={() => setDay(null)} onMonth={(employeeId, m) => { setDay(null); openMonth(employeeId, m); }} onChanged={() => { setVersion((v) => v + 1); l.reload(); }} />
+      <ExportDialog open={exporting} today={today} date={l.filters.date} filters={l.filters} options={l.options} onClose={() => setExporting(false)} />
     </div>
   );
 }
