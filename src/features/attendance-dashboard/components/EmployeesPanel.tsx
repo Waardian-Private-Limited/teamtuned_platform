@@ -69,7 +69,9 @@ export function EmployeesPanel({ list, summary, isToday, view, onView, search, o
       </div>
 
       {loading && !list ? <TableSkeleton rows={6} columns={5} /> : rows.length === 0 ? (
-        <EmptyState compact title={search ? `No one matches “${search}”` : `No one in “${VIEW_LABEL[view]}”`}
+        <EmptyState
+          illustration={{ src: '/vectors/attendancedashboard.svg', width: 220, height: 160, alt: 'No employees' }}
+          title={search ? `No one matches “${search}”` : `No one in “${VIEW_LABEL[view]}”`}
           description={view === 'all' ? 'Try another date, sub-organisation or site.' : 'Pick another tab or widen the filters.'}
           action={{ label: 'Reset filters', onClick: onReset, variant: 'link' }} />
       ) : (
