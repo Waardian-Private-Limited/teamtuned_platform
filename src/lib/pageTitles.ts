@@ -24,6 +24,8 @@ const PAGE_TITLES: Record<string, { title: string; category: string }> = {
     '/employee/leave-requests': { title: 'Leave Management', category: 'Management' },
     '/employee/regularize-requests': { title: 'Regularize Requests', category: 'Management' },
     '/employee/attendance-dashboard': { title: 'Attendance Dashboard', category: 'Management' },
+    '/employee/attendance': { title: 'Detailed Attendance', category: 'Attendance' },
+    '/org-admin/attendance/employee': { title: 'Detailed Attendance', category: 'Attendance' },
     '/employee/petty-cash': { title: 'Petty Cash', category: 'Management' },
     '/employee/wallet-expenses': { title: 'Wallet Expenses', category: 'Management' },
     '/employee/wallet-config': { title: 'Wallet Config', category: 'Management' },

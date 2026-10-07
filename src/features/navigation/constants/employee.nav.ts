@@ -39,7 +39,7 @@ export const employeeNav: NavNode[] = [
     children: [
       { kind: 'link', label: 'Dashboard', href: '/employee/attendance-dashboard', icon: BarChart3, match: 'prefix', gate: { anyPerm: ['ATTEND_VIEW', 'ATTEND_ADD', 'ATTEND_EDIT'] } },
       {
-        kind: 'link', label: 'Attendance Logs', href: '/employee/attendance', icon: ClipboardList,
+        kind: 'link', label: 'Detailed Attendance', href: '/employee/attendance', icon: ClipboardList,
         activeTest: (p) => p === '/employee/attendance' || (p.startsWith('/employee/attendance/') && !p.startsWith('/employee/attendance-')),
         gate: { anyPerm: ['ATTEND_VIEW', 'ATTEND_ADD', 'ATTEND_EDIT'] },
       },

@@ -1,0 +1,203 @@
+'use client';
+
+import React from 'react';
+import { Download, FileSpreadsheet, FileText, Search, Table2, X } from 'lucide-react';
+import { Dialog } from '@/components/ui/Dialog';
+import { Alert } from '@/components/ui/Alert';
+import { cx } from '@/theme/tokens';
+import { messageOf } from '@/lib/api/errors';
+import { showError } from '@/lib/toast';
+import type { FilterOptionsDto } from '@/features/attendance-dashboard/types/dashboard.dto';
+import { useDownloadCenter } from '@/features/downloads/context/DownloadCenterContext';
+import * as api from '../../api/detailedAttendance.api';
+import type { Filters } from '../../hooks/useAttendanceList';
+import { toList } from '../../types/detailed.mapper';
+import type { AttendanceRow } from '../../types/detailed.model';
+import { shiftDate } from '../../utils/format';
+import { Avatar, controlClass } from './controls';
+
+type Format = 'xlsx' | 'csv' | 'pdf';
+const MAX_DAYS = 400;
+
+const FORMATS: Array<{ value: Format; label: string; hint: string; icon: typeof FileText }> = [
+  { value: 'xlsx', label: 'Excel', hint: 'A summary per month and a line per day', icon: FileSpreadsheet },
+  { value: 'csv', label: 'CSV', hint: 'A line per day, opens anywhere', icon: Table2 },
+  { value: 'pdf', label: 'PDF', hint: 'The monthly summary, ready to print', icon: FileText },
+];
+
+const startOfMonth = (d: string) => `${d.slice(0, 7)}-01`;
+const endOfMonth = (d: string) => {
+  const [y, m] = d.split('-').map(Number);
+  const last = new Date(y, m, 0).getDate();
+  return `${y}-${String(m).padStart(2, '0')}-${String(last).padStart(2, '0')}`;
+};
+
+function presets(today: string) {
+  const lastMonthEnd = shiftDate(startOfMonth(today), -1);
+  return [
+    { label: 'This month', from: startOfMonth(today), to: today },
+    { label: 'Last month', from: startOfMonth(lastMonthEnd), to: endOfMonth(lastMonthEnd) },
+    { label: 'Last 3 months', from: startOfMonth(shiftDate(startOfMonth(today), -62)), to: today },
+    { label: 'This year', from: `${today.slice(0, 4)}-01-01`, to: today },
+  ];
+}
+
+function scopeText(filters: Filters, options: FilterOptionsDto | null) {
+  const parts = [
+    options?.sub_organizations.find((s) => s.id === filters.subOrgId)?.name,
+    options?.sites.find((s) => s.id === filters.siteId)?.name,
+    options?.departments.find((d) => d.id === filters.departmentId)?.name,
+    options?.roles.find((r) => r.id === filters.roleId)?.name,
+  ].filter(Boolean);
+  return parts.length ? parts.join(' · ') : options?.access.all_sites === false ? 'All the sites you run' : 'Everyone you can see';
+}
+
+function Form({ today, filters, options, onClose }: { today: string; filters: Filters; options: FilterOptionsDto | null; onClose: () => void }) {
+  const { track } = useDownloadCenter();
+  const quick = React.useMemo(() => presets(today), [today]);
+  const [from, setFrom] = React.useState(quick[0].from);
+  const [to, setTo] = React.useState(quick[0].to);
+  const [format, setFormat] = React.useState<Format>('xlsx');
+  const [pick, setPick] = React.useState(false);
+  const [people, setPeople] = React.useState<AttendanceRow[]>([]);
+  const [chosen, setChosen] = React.useState<Array<{ id: number; name: string }>>([]);
+  const [term, setTerm] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!pick || term.trim().length < 2) { setPeople([]); return undefined; }
+    const controller = new AbortController();
+    const t = setTimeout(() => {
+      api.listEmployees({ date: today, subOrgId: filters.subOrgId, siteId: filters.siteId, departmentId: filters.departmentId, roleId: filters.roleId, search: term.trim(), page: 1, pageSize: 8 }, controller.signal)
+        .then((dto) => setPeople(toList(dto).rows))
+        .catch(() => undefined);
+    }, 300);
+    return () => { clearTimeout(t); controller.abort(); };
+  }, [pick, term, today, filters.subOrgId, filters.siteId, filters.departmentId, filters.roleId]);
+
+  const days = from && to ? Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1 : 0;
+  const rangeError = !from || !to ? 'Pick the first and last date' : from > to ? 'The first date cannot be after the last' : days > MAX_DAYS ? `Pick at most ${MAX_DAYS} days` : null;
+  const peopleError = pick && chosen.length === 0 ? 'Pick at least one person' : null;
+  const blocked = !!rangeError || !!peopleError;
+
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const job = await api.requestExport({
+        from, to, format,
+        subOrgId: filters.subOrgId, siteId: filters.siteId, departmentId: filters.departmentId, roleId: filters.roleId,
+        employeeIds: pick ? chosen.map((c) => c.id) : undefined,
+      });
+      track(job);
+      onClose();
+    } catch (e) {
+      const m = messageOf(e);
+      setError(m);
+      showError(m);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const button = 'inline-flex h-9 items-center justify-center rounded-lg px-4 text-xs font-semibold transition-colors sm:text-sm';
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      maxWidthClassName="max-w-xl"
+      title={<div><h2 className="text-base font-bold text-fg">Export attendance</h2><p className="text-xs text-fg-muted">Prepared in the background. It appears in Downloads when it is ready.</p></div>}
+      footer={
+        <>
+          <button type="button" onClick={onClose} className={cx(button, 'border border-line bg-surface text-fg hover:bg-bg-subtle')}>Cancel</button>
+          <button type="button" disabled={blocked || busy} onClick={submit} className={cx(button, 'gap-1.5 bg-[var(--tt-primary)] text-[var(--tt-on-primary)] hover:bg-[var(--tt-primary-hover)] disabled:cursor-not-allowed disabled:opacity-40')}>
+            <Download className="h-4 w-4" /> {busy ? 'Requesting…' : 'Export'}
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-5">
+        <section>
+          <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-fg-muted">Dates</h3>
+          <div className="mb-2.5 flex flex-wrap gap-1.5">
+            {quick.map((p) => (
+              <button key={p.label} type="button" onClick={() => { setFrom(p.from); setTo(p.to); }}
+                className={cx('h-8 rounded-lg border px-3 text-xs font-bold transition-colors', from === p.from && to === p.to ? 'border-fg bg-bg-subtle text-fg' : 'border-line text-fg-muted hover:bg-bg-subtle hover:text-fg')}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1"><span className="text-[11px] font-semibold uppercase tracking-wide text-fg-muted">From</span><input type="date" value={from} max={today} onChange={(e) => setFrom(e.target.value)} className={controlClass} /></label>
+            <label className="flex flex-col gap-1"><span className="text-[11px] font-semibold uppercase tracking-wide text-fg-muted">To</span><input type="date" value={to} max={today} onChange={(e) => setTo(e.target.value)} className={controlClass} /></label>
+          </div>
+          {rangeError ? <p className="mt-1.5 text-xs text-[var(--tt-danger)]">{rangeError}</p> : <p className="mt-1.5 text-xs text-fg-muted">{days} day{days === 1 ? '' : 's'}. Up to {MAX_DAYS} days in one file.</p>}
+        </section>
+
+        <section>
+          <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-fg-muted">Who</h3>
+          <div className="grid grid-cols-2 gap-1 rounded-lg border border-line/60 bg-bg-subtle p-0.5" role="tablist" aria-label="Who to include">
+            {([[false, 'Current filters'], [true, 'Pick people']] as const).map(([value, label]) => (
+              <button key={label} type="button" role="tab" aria-selected={pick === value} onClick={() => setPick(value)}
+                className={cx('h-8 rounded-md text-xs font-semibold transition-colors', pick === value ? 'border border-line/70 bg-surface font-bold text-fg shadow-xs' : 'text-fg-muted hover:text-fg')}>{label}</button>
+            ))}
+          </div>
+          {!pick ? (
+            <p className="mt-2 text-sm text-fg-muted">{scopeText(filters, options)}. Anyone who has since left is included if they have attendance in these dates.</p>
+          ) : (
+            <div className="mt-2.5 space-y-2.5">
+              {chosen.length > 0 && (
+                <ul className="flex flex-wrap gap-1.5">
+                  {chosen.map((c) => (
+                    <li key={c.id} className="inline-flex items-center gap-1 rounded-full border border-line bg-bg-subtle py-0.5 pl-2.5 pr-1 text-xs font-semibold text-fg">
+                      {c.name}
+                      <button type="button" aria-label={`Remove ${c.name}`} onClick={() => setChosen((l) => l.filter((x) => x.id !== c.id))} className="rounded-full p-0.5 text-fg-muted hover:bg-line hover:text-fg"><X className="h-3 w-3" /></button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <label className="relative block">
+                <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-muted" />
+                <input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Type a name or code" aria-label="Find a person" className={cx(controlClass, 'pl-9 font-medium')} />
+              </label>
+              {people.length > 0 && (
+                <ul className="divide-y divide-line rounded-xl border border-line">
+                  {people.filter((p) => !chosen.some((c) => c.id === p.employeeId)).map((p) => (
+                    <li key={p.employeeId}>
+                      <button type="button" onClick={() => { setChosen((l) => [...l, { id: p.employeeId, name: p.name }]); setTerm(''); }} className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-bg-subtle">
+                        <Avatar name={p.name} size="sm" />
+                        <span className="min-w-0"><span className="block truncate text-sm font-semibold text-fg">{p.name}</span><span className="block truncate text-xs text-fg-muted">{[p.code, p.department].filter(Boolean).join(' · ')}</span></span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {peopleError && <p className="text-xs text-[var(--tt-danger)]">{peopleError}</p>}
+            </div>
+          )}
+        </section>
+
+        <section>
+          <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-fg-muted">File</h3>
+          <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="File format">
+            {FORMATS.map(({ value, label, hint, icon: Icon }) => (
+              <button key={value} type="button" role="radio" aria-checked={format === value} onClick={() => setFormat(value)}
+                className={cx('flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors', format === value ? 'border-fg bg-bg-subtle ring-1 ring-fg' : 'border-line bg-surface hover:bg-bg-subtle')}>
+                <Icon className="h-5 w-5 text-fg" />
+                <span className="text-sm font-bold text-fg">{label}</span>
+                <span className="text-[11px] leading-snug text-fg-muted">{hint}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+        {error && <Alert message={error} />}
+      </div>
+    </Dialog>
+  );
+}
+
+export function ExportDialog(props: { open: boolean; today: string; filters: Filters; options: FilterOptionsDto | null; onClose: () => void }) {
+  if (!props.open || !props.today) return null;
+  return <Form today={props.today} filters={props.filters} options={props.options} onClose={props.onClose} />;
+}

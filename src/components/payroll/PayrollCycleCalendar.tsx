@@ -40,7 +40,7 @@ import {
 } from "lucide-react";
 import SalarySlipEditorModal from "./SalarySlipEditorModal";
 import AdjustPayrollModal from "./AdjustPayrollModal";
-import AttendanceDetailsModal from "../attendance/AttendanceDetailsModal";
+import { DayPopup } from "@/features/detailed-attendance/components/DayPopup";
 
 import { useAuth } from "@/context/AuthContext";
 type AttendanceRecord = Record<string, any>;
@@ -987,9 +987,10 @@ export default function PayrollCycleCalendar({ employeeId }: { employeeId?: numb
 
       {/* Detail Modal */}
       {
-        detailOpen && detailRecord && (
-          <AttendanceDetailsModal
-            record={detailRecord}
+        detailOpen && detailRecord && (employeeId || detailRecord.employee_id) && (
+          <DayPopup
+            employeeId={Number(employeeId || detailRecord.employee_id)}
+            date={String(detailRecord.attendance_date).slice(0, 10)}
             onClose={() => setDetailOpen(false)}
           />
         )

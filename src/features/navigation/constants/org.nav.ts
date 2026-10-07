@@ -38,7 +38,7 @@ export const orgNav: NavNode[] = [
     kind: 'group', id: 'attendance', label: 'Attendance',
     children: [
       { kind: 'link', label: 'Dashboard', href: '/org-admin/attendance/dashboard', icon: LayoutDashboard },
-      { kind: 'link', label: 'Employee Attendance', href: '/org-admin/attendance/employee', icon: UserCheck },
+      { kind: 'link', label: 'Detailed Attendance', href: '/org-admin/attendance/employee', icon: UserCheck },
       { kind: 'link', label: 'Holidays', href: '/org-admin/holidays', icon: Calendar },
       { kind: 'link', label: 'Leave', href: '/org-admin/leave', icon: ClipboardList },
       { kind: 'link', label: 'Payroll', href: '/org-admin/payroll', icon: ListChecks },
