@@ -21,6 +21,7 @@ const EVENT_LABEL: Record<string, string> = {
   offline: 'Internet off (recording continues)', online: 'Internet back', boot: 'Phone restarted', shutdown: 'Phone switched off',
   recorder_started: 'Recording started', recorder_stopped: 'Recording stopped', mock_detected: 'Fake location app detected', time_tamper: 'Phone clock changed',
   low_battery: 'Battery low', power_save_on: 'Battery saver on', power_save_off: 'Battery saver off',
+  tracking_stopped: 'Tracking stopped: left the site',
 };
 
 export function TimelinePage() {
@@ -210,6 +211,16 @@ export function TimelinePage() {
             <span className="flex items-center gap-1">
               <span className="text-fg-muted">Away:</span>
               <strong className="font-semibold text-fg">{s ? minutesText(s.outside_minutes) : '-'}</strong>
+            </span>
+            <span className="text-line">|</span>
+            <span className="flex items-center gap-1" title="Between check-in and check-out">
+              <span className="text-fg-muted">At site after check-in:</span>
+              <strong className="font-semibold text-fg">{s ? minutesText(s.checked_in_site_minutes ?? 0) : '-'}</strong>
+            </span>
+            <span className="text-line">|</span>
+            <span className="flex items-center gap-1" title="Between check-in and check-out">
+              <span className="text-fg-muted">Away after check-in:</span>
+              <strong className="font-semibold text-fg">{s ? minutesText(s.checked_in_outside_minutes ?? 0) : '-'}</strong>
             </span>
             <span className="text-line">|</span>
             <span className="flex items-center gap-1">

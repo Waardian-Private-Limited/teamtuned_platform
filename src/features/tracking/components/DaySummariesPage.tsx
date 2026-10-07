@@ -39,10 +39,10 @@ export function DaySummariesPage() {
       </div>
       {error && <Alert message={error} tone="error" />}
       <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-line bg-surface shadow-xs">
-        <table className="w-full min-w-[820px] text-sm">
+        <table className="w-full min-w-[1000px] text-sm">
           <thead className="sticky top-0 border-b border-line bg-surface">
             <tr>
-              <th className={th}>Employee</th><th className={th}>Distance</th><th className={th}>At site</th><th className={th}>Away</th><th className={th}>Moving</th><th className={th}>Standing</th><th className={th}>No signal / off</th><th className={th}>Flags</th>
+              <th className={th}>Employee</th><th className={th}>Distance</th><th className={th}>At site</th><th className={th}>Away</th><th className={th}>At site after check-in</th><th className={th}>Away after check-in</th><th className={th}>Moving</th><th className={th}>Standing</th><th className={th}>No signal / off</th><th className={th}>Flags</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -52,13 +52,15 @@ export function DaySummariesPage() {
                 <td className="px-3 py-2">{kmText(r.distance_m)}</td>
                 <td className="px-3 py-2">{minutesText(r.site_minutes)}</td>
                 <td className="px-3 py-2">{minutesText(r.outside_minutes)}</td>
+                <td className="px-3 py-2 font-semibold">{minutesText(r.checked_in_site_minutes ?? 0)}</td>
+                <td className="px-3 py-2">{minutesText(r.checked_in_outside_minutes ?? 0)}</td>
                 <td className="px-3 py-2">{minutesText(r.moving_minutes)}</td>
                 <td className="px-3 py-2">{minutesText(r.stationary_minutes)}</td>
                 <td className="px-3 py-2">{minutesText(r.gap_minutes + r.gps_off_minutes)}</td>
                 <td className="px-3 py-2 text-xs text-[var(--tt-danger)]">{r.flags.map((f) => f.replaceAll('_', ' ').toLowerCase()).join(', ')}</td>
               </tr>
             ))}
-            {!loading && rows.length === 0 && <tr><td colSpan={8} className="px-3 py-10 text-center text-fg-muted">No tracking recorded on this date.</td></tr>}
+            {!loading && rows.length === 0 && <tr><td colSpan={10} className="px-3 py-10 text-center text-fg-muted">No tracking recorded on this date.</td></tr>}
           </tbody>
         </table>
       </div>

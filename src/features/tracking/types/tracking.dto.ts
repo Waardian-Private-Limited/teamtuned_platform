@@ -60,6 +60,9 @@ export interface DaySummaryDto {
   stationary_minutes: number;
   site_minutes: number;
   outside_minutes: number;
+  /** The part of site / away time between check-in and check-out. */
+  checked_in_site_minutes?: number;
+  checked_in_outside_minutes?: number;
   gap_minutes: number;
   gps_off_minutes: number;
   point_count: number;
@@ -100,6 +103,9 @@ export interface DayRowDto {
   stationary_minutes: number;
   site_minutes: number;
   outside_minutes: number;
+  /** The part of site / away time between check-in and check-out. */
+  checked_in_site_minutes?: number;
+  checked_in_outside_minutes?: number;
   gap_minutes: number;
   gps_off_minutes: number;
   point_count: number;
