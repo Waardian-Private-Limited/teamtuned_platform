@@ -8,12 +8,20 @@ import { usePolling } from '@/lib/hooks/usePolling';
 import { messageOf } from '@/lib/api/errors';
 import { getTimeline } from '../api/tracking.api';
 import { kmText, minutesText, timeText, todayInput } from '../constants/tracking.constants';
-import type { TimelineDto } from '../types/tracking.dto';
+import type { SegmentDto, TimelineDto } from '../types/tracking.dto';
 import { TrackingMapLazy } from './map/TrackingMapLazy';
 import { TimelineEmployeePicker } from './TimelineEmployeePicker';
 import { TimelinePlayerSlider } from './TimelinePlayerSlider';
 
 const SEGMENT_LABEL = { site: 'At site', stay: 'Away, standing', move: 'Moving', gap: 'No signal' } as const;
+const GAP_LABEL = { gps_off: 'Location switched off', phone_off: 'Phone switched off', no_signal: 'No signal' } as const;
+const segmentLabel = (s: SegmentDto) => s.site_name || (s.kind === 'gap' && s.reason ? GAP_LABEL[s.reason] : SEGMENT_LABEL[s.kind]);
+const EVENT_LABEL: Record<string, string> = {
+  gps_off: 'Location switched off', gps_on: 'Location switched on', permission_downgraded: 'Location permission removed', permission_restored: 'Location permission given',
+  offline: 'Internet off (recording continues)', online: 'Internet back', boot: 'Phone restarted', shutdown: 'Phone switched off',
+  recorder_started: 'Recording started', recorder_stopped: 'Recording stopped', mock_detected: 'Fake location app detected', time_tamper: 'Phone clock changed',
+  low_battery: 'Battery low', power_save_on: 'Battery saver on', power_save_off: 'Battery saver off',
+};
 
 export function TimelinePage() {
   const router = useRouter();
@@ -82,7 +90,7 @@ export function TimelinePage() {
         .map((s) => ({
           lat: s.lat as number,
           lng: s.lng as number,
-          label: `${s.site_name || SEGMENT_LABEL[s.kind]} · ${minutesText(s.minutes)}`,
+          label: `${segmentLabel(s)} · ${minutesText(s.minutes)}`,
         })),
     [data]
   );
@@ -100,7 +108,7 @@ export function TimelinePage() {
         { at: b.started_at, text: `Break started${b.start_source.startsWith('auto') ? ' (automatic)' : ''}` },
         ...(b.ended_at ? [{ at: b.ended_at, text: 'Break ended' }] : []),
       ]),
-      ...data.device_events.map((e) => ({ at: e.at, text: e.kind.replaceAll('_', ' ') })),
+      ...data.device_events.map((e) => ({ at: e.at, text: EVENT_LABEL[e.kind] ?? e.kind.replaceAll('_', ' ') })),
     ].sort((a, b) => a.at.localeCompare(b.at));
   }, [data]);
 
@@ -271,7 +279,7 @@ export function TimelinePage() {
               <ul className="tt-scrollbar max-h-56 divide-y divide-line overflow-y-auto text-xs sm:text-sm">
                 {data.segments.map((g, i) => (
                   <li key={i} className="flex items-center justify-between gap-3 px-3 py-2">
-                    <span className="font-medium text-fg">{g.site_name || SEGMENT_LABEL[g.kind]}</span>
+                    <span className="font-medium text-fg">{segmentLabel(g)}</span>
                     <span className="text-xs text-fg-muted">
                       {timeText(g.from)} - {timeText(g.to)} · {minutesText(g.minutes)}
                       {g.kind === 'move' ? ` · ${kmText(g.distanceM)}` : ''}
