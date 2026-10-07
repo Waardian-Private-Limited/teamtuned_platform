@@ -9,7 +9,7 @@ import { Card, Skeleton } from './Card';
  * Where everyone is, as one 100% bar (a 2px surface gap between segments) with a labelled,
  * clickable legend: every status carries its name and count, never colour alone.
  */
-export function StatusBreakdown({ summary, isToday, view, onView, loading }: { summary: SummaryDto | null; isToday: boolean; view: EmployeeView; onView: (v: EmployeeView) => void; loading: boolean }) {
+export function StatusBreakdown({ summary, isToday, view, onView, loading }: { summary: SummaryDto | null; isToday: boolean; view: EmployeeView | null; onView: (v: EmployeeView) => void; loading: boolean }) {
   const shown = STATUS_ORDER.filter((s) => isToday || s !== 'not_checked_in');
   return (
     <Card title="Where everyone is" subtitle="Each employee counts once. Select a status to list the people.">

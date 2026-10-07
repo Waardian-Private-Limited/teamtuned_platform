@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/apiClient';
-import type { DashboardFilters, EmployeesResponseDto, EmployeeView, FilterOptionsDto, OverviewDto } from '../types/dashboard.dto';
+import type { DashboardFilters, EmployeesResponseDto, EmployeeView, FilterOptionsDto, LeaderBoardKey, LeaderBoardPageDto, LeaderPeriod, LeadersDto, OverviewDto } from '../types/dashboard.dto';
 
 const auth = { withAuth: true } as const;
 
@@ -23,6 +23,20 @@ export function getEmployees(filters: DashboardFilters, view: EmployeeView, sear
   return apiClient.get<EmployeesResponseDto>(
     '/attendance-dashboard/employees',
     { ...params(filters), status: view, search: search || undefined, limit: pageSize, offset: (page - 1) * pageSize },
+    { ...auth, signal },
+  );
+}
+
+/** The top few of every leaderboard for the day, week or month ending on the date. */
+export function getLeaders(filters: DashboardFilters, period: LeaderPeriod, signal?: AbortSignal) {
+  return apiClient.get<LeadersDto>('/attendance-dashboard/leaders', { ...params(filters), period }, { ...auth, signal });
+}
+
+/** One leaderboard's full ranking, a page at a time. */
+export function getLeaderBoard(filters: DashboardFilters, period: LeaderPeriod, board: LeaderBoardKey, page: number, pageSize: number, signal?: AbortSignal) {
+  return apiClient.get<LeaderBoardPageDto>(
+    '/attendance-dashboard/leaders',
+    { ...params(filters), period, board, limit: pageSize, offset: (page - 1) * pageSize },
     { ...auth, signal },
   );
 }

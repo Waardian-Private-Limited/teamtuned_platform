@@ -5,20 +5,26 @@ import { Alert } from '@/components/ui/Alert';
 import { cx } from '@/theme/tokens';
 import { dayText } from '../constants/dashboard.constants';
 import { useAttendanceDashboard } from '../hooks/useAttendanceDashboard';
+import { useLeaderboards } from '../hooks/useLeaderboards';
 import { ArrivalsChart } from './ArrivalsChart';
 import { Breakdown } from './Breakdown';
-import { EmployeesPanel } from './EmployeesPanel';
+import { EmployeesDialog } from './EmployeesDialog';
 import { FilterBar } from './FilterBar';
 import { Kpis } from './Kpis';
+import { LeaderboardDialog } from './LeaderboardDialog';
+import { Leaderboards } from './Leaderboards';
 import { StatusBreakdown } from './StatusBreakdown';
 import { TrendChart } from './TrendChart';
 
 /**
- * The attendance dashboard: filters, the headline figures, where everyone is, the trend
- * and arrivals, breakdowns, and the people behind every number. Today refreshes each minute.
+ * The attendance dashboard: filters, the headline figures, where everyone is, leaderboards,
+ * the trend and arrivals, and breakdowns. Every tile and board opens the people behind it
+ * in a popup table. Today refreshes each minute.
  */
 export function AttendanceDashboardPage() {
   const d = useAttendanceDashboard();
+  const l = useLeaderboards(d.filters, d.isToday);
+  const active = d.listOpen ? d.view : null;
   const o = d.overview;
   const loading = d.loadingOverview;
   return (
@@ -36,10 +42,12 @@ export function AttendanceDashboardPage() {
       </header>
 
       <FilterBar filters={d.filters} options={d.options} onChange={d.update} onReset={d.reset} narrowed={d.narrowed} headcount={o ? o.summary.headcount : null} />
-      {d.error && <Alert message={d.error} />}
+      {(d.error || l.error) && <Alert message={(d.error || l.error)!} />}
 
-      <Kpis summary={o?.summary ?? null} isToday={d.isToday} view={d.view} onView={d.setView} loading={loading} />
-      <StatusBreakdown summary={o?.summary ?? null} isToday={d.isToday} view={d.view} onView={d.setView} loading={loading} />
+      <Kpis summary={o?.summary ?? null} isToday={d.isToday} view={active} onView={d.openList} loading={loading} />
+      <StatusBreakdown summary={o?.summary ?? null} isToday={d.isToday} view={active} onView={d.openList} loading={loading} />
+
+      <Leaderboards data={l.data} period={l.period} onPeriod={l.setPeriod} loading={l.loading} onOpen={l.openBoard} />
 
       <div className="grid gap-4 xl:grid-cols-2">
         <TrendChart trend={o?.trend ?? null} loading={loading} />
@@ -48,7 +56,9 @@ export function AttendanceDashboardPage() {
 
       <Breakdown byDepartment={o?.by_department ?? null} bySite={o?.by_site ?? null} loading={loading} />
 
-      <EmployeesPanel list={d.list} summary={o?.summary ?? null} isToday={d.isToday} view={d.view} onView={d.setView} search={d.search} onSearch={d.setSearch} page={d.page} onPage={d.setPage} loading={d.loadingList} onReset={d.reset} />
+      <EmployeesDialog open={d.listOpen} onClose={d.closeList} date={d.filters.date} list={d.list} summary={o?.summary ?? null} isToday={d.isToday}
+        view={d.view} onView={d.setView} search={d.search} onSearch={d.setSearch} page={d.page} onPage={d.setPage} loading={d.loadingList} />
+      <LeaderboardDialog board={l.board} period={l.period} data={l.full} page={l.page} onPage={l.setPage} loading={l.loadingFull} onClose={l.closeBoard} />
     </div>
   );
 }

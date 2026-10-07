@@ -1,4 +1,4 @@
-import type { DayStatus, EmployeeView } from '../types/dashboard.dto';
+import type { DayStatus, EmployeeView, LeaderBoardKey, LeaderEntryDto, LeaderPeriod } from '../types/dashboard.dto';
 
 /**
  * Each status's label and colour. Colour follows meaning only (the theme's status tokens):
@@ -43,3 +43,62 @@ export const timeText = (iso: string | null) => (iso ? new Date(iso).toLocaleTim
 export const dayText = (date: string) => new Date(`${date}T00:00:00`).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
 
 export const hourText = (h: number) => `${((h + 11) % 12) + 1}${h < 12 ? 'am' : 'pm'}`;
+
+/** Minutes after midnight (org time) as a clock time, e.g. 8:40 am. */
+export const clockText = (m: number | null) => {
+  if (m === null) return '—';
+  const h = Math.floor(m / 60);
+  return `${((h + 11) % 12) + 1}:${String(m % 60).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`;
+};
+
+export const PERIOD_LABEL: Record<LeaderPeriod, string> = { day: 'Day', week: 'This week', month: 'This month' };
+
+const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
+
+/** Each leaderboard: its name, what the figure means for the period, and the line under a name. */
+export const BOARDS: Record<LeaderBoardKey, { title: string; measure: (p: LeaderPeriod) => string; detail: (e: LeaderEntryDto, p: LeaderPeriod) => string; tone: string }> = {
+  early_birds: {
+    title: 'Early birds',
+    measure: (p) => (p === 'day' ? 'First to check in' : 'Earliest average check-in'),
+    detail: (e, p) => (p === 'day' ? e.department || '' : `over ${plural(e.stats.present_days, 'day')}`),
+    tone: 'var(--tt-success)',
+  },
+  late_comers: {
+    title: 'Late comers',
+    measure: (p) => (p === 'day' ? 'Most minutes late' : 'Most late days'),
+    detail: (e, p) => (p === 'day' ? e.department || '' : `${minutesText(e.stats.late_minutes)} late in all`),
+    tone: 'var(--tt-danger)',
+  },
+  most_punctual: {
+    title: 'Most punctual',
+    measure: () => 'Most on-time days',
+    detail: (e) => `${e.stats.on_time_days} of ${plural(e.stats.present_days, 'day')} on time`,
+    tone: 'var(--tt-success)',
+  },
+  best_attendance: {
+    title: 'Best attendance',
+    measure: () => 'Present of working days',
+    detail: (e) => `${e.stats.present_days} present · ${e.stats.absent_days} absent`,
+    tone: 'var(--tt-primary)',
+  },
+  most_hours: {
+    title: 'Most hours',
+    measure: () => 'Hours worked',
+    detail: (e, p) => (p === 'day' || !e.stats.present_days ? e.department || '' : `${minutesText(Math.round(e.stats.worked_minutes / e.stats.present_days))} a day on average`),
+    tone: 'var(--tt-primary)',
+  },
+  most_overtime: {
+    title: 'Most overtime',
+    measure: () => 'Overtime worked',
+    detail: (e, p) => (p === 'day' ? e.department || '' : `over ${plural(e.stats.present_days, 'day')} present`),
+    tone: 'var(--tt-warning)',
+  },
+};
+
+export const leaderValueText = (e: LeaderEntryDto) => {
+  if (e.value === null) return '—';
+  if (e.unit === 'clock') return clockText(e.value);
+  if (e.unit === 'minutes') return minutesText(e.value);
+  if (e.unit === 'percent') return pctText(e.value);
+  return plural(e.value, 'day');
+};

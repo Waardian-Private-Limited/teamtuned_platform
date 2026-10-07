@@ -1,14 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Search, UserRound } from 'lucide-react';
+import { AlertTriangle, Search } from 'lucide-react';
+import { Dialog } from '@/components/ui/Dialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pagination } from '@/components/ui/Pagination';
 import { TableSkeleton } from '@/components/ui/TableSkeleton';
 import { cx } from '@/theme/tokens';
-import { minutesText, PAGE_SIZE, STATUS, timeText, VIEW_LABEL } from '../constants/dashboard.constants';
+import { dayText, minutesText, PAGE_SIZE, STATUS, timeText, VIEW_LABEL } from '../constants/dashboard.constants';
 import type { DashboardEmployeeDto, EmployeeView, EmployeesResponseDto, SummaryDto } from '../types/dashboard.dto';
-import { Card } from './Card';
+import { Avatar } from './Avatar';
 
 function Badge({ status }: { status: DashboardEmployeeDto['status'] }) {
   return (
@@ -17,12 +18,6 @@ function Badge({ status }: { status: DashboardEmployeeDto['status'] }) {
       {STATUS[status].short}
     </span>
   );
-}
-
-function Avatar({ e }: { e: DashboardEmployeeDto }) {
-  return e.photo_url
-    ? <img src={e.photo_url} alt="" className="h-9 w-9 shrink-0 rounded-full border border-line object-cover" loading="lazy" />
-    : <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-bg-subtle text-fg-muted"><UserRound className="h-4 w-4" /></span>;
 }
 
 const VIEWS: EmployeeView[] = ['all', 'present', 'working', 'late', 'not_checked_in', 'absent', 'on_leave', 'review'];
@@ -36,18 +31,28 @@ function countFor(v: EmployeeView, s: SummaryDto | null) {
   return s.counts[v];
 }
 
-/** The people behind the numbers: one tab per question, search, and a page at a time. */
-export function EmployeesPanel({ list, summary, isToday, view, onView, search, onSearch, page, onPage, loading, onReset }: {
+/**
+ * The people behind a number, in a popup opened from any tile: one tab per question,
+ * search, and a table a page at a time.
+ */
+export function EmployeesDialog({ open, onClose, date, list, summary, isToday, view, onView, search, onSearch, page, onPage, loading }: {
+  open: boolean; onClose: () => void; date: string;
   list: EmployeesResponseDto | null; summary: SummaryDto | null; isToday: boolean; view: EmployeeView; onView: (v: EmployeeView) => void;
-  search: string; onSearch: (s: string) => void; page: number; onPage: (p: number) => void; loading: boolean; onReset: () => void;
+  search: string; onSearch: (s: string) => void; page: number; onPage: (p: number) => void; loading: boolean;
 }) {
   const [term, setTerm] = useState(search);
+  useEffect(() => { if (open) setTerm(search); }, [open]);
   useEffect(() => { const t = setTimeout(() => term !== search && onSearch(term), 300); return () => clearTimeout(t); }, [term, search, onSearch]);
   const views = VIEWS.filter((v) => isToday || v !== 'not_checked_in');
   const rows = list?.employees ?? [];
 
   return (
-    <Card title="Employees" subtitle={VIEW_LABEL[view]}>
+    <Dialog open={open} onClose={onClose} maxWidthClassName="max-w-6xl" title={
+      <div className="min-w-0">
+        <h2 className="truncate text-base font-bold text-fg">{VIEW_LABEL[view]}</h2>
+        <p className="text-xs text-fg-muted">{date ? dayText(date) : ''}{list ? ` · ${list.total} ${list.total === 1 ? 'employee' : 'employees'}` : ''}</p>
+      </div>
+    }>
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1" role="tablist" aria-label="Show">
           {views.map((v) => {
@@ -72,12 +77,12 @@ export function EmployeesPanel({ list, summary, isToday, view, onView, search, o
         <EmptyState
           illustration={{ src: '/vectors/attendancedashboard.svg', width: 220, height: 160, alt: 'No employees' }}
           title={search ? `No one matches “${search}”` : `No one in “${VIEW_LABEL[view]}”`}
-          description={view === 'all' ? 'Try another date, sub-organisation or site.' : 'Pick another tab or widen the filters.'}
-          action={{ label: 'Reset filters', onClick: onReset, variant: 'link' }} />
+          description={view === 'all' ? 'Try another date, sub-organisation or site.' : 'Pick another tab, or widen the filters on the dashboard.'}
+          action={search ? { label: 'Clear search', onClick: () => { setTerm(''); onSearch(''); }, variant: 'link' } : undefined} />
       ) : (
         <div className={cx('transition-opacity', loading && 'opacity-60')}>
-          {/* Table from tablet up; stacked cards on phones. */}
-          <div className="hidden overflow-x-auto md:block">
+          {/* One table at every width; narrow screens scroll it sideways. */}
+          <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
             <table className="w-full min-w-[760px] text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-[11px] font-semibold uppercase tracking-wide text-fg-muted">
@@ -90,7 +95,7 @@ export function EmployeesPanel({ list, summary, isToday, view, onView, search, o
                   <tr key={e.employee_id} className="hover:bg-bg-subtle/60">
                     <td className="px-2 py-2.5">
                       <div className="flex min-w-0 items-center gap-3">
-                        <Avatar e={e} />
+                        <Avatar src={e.photo_url} />
                         <div className="min-w-0">
                           <p className="truncate font-bold text-fg">{e.name}</p>
                           <p className="truncate text-xs text-fg-muted">{[e.employee_code, e.department, e.role].filter(Boolean).join(' · ')}</p>
@@ -113,30 +118,11 @@ export function EmployeesPanel({ list, summary, isToday, view, onView, search, o
               </tbody>
             </table>
           </div>
-          <ul className="space-y-2 md:hidden">
-            {rows.map((e) => (
-              <li key={e.employee_id} className="rounded-lg border border-line p-3">
-                <div className="flex items-center gap-3">
-                  <Avatar e={e} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-bold text-fg">{e.name}</p>
-                    <p className="truncate text-xs text-fg-muted">{[e.employee_code, e.site].filter(Boolean).join(' · ')}</p>
-                  </div>
-                  <Badge status={e.status} />
-                </div>
-                <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                  <div><p className="text-fg-muted">In</p><p className="font-bold tabular-nums text-fg">{timeText(e.first_in_at)}</p></div>
-                  <div><p className="text-fg-muted">Out</p><p className="font-bold tabular-nums text-fg">{timeText(e.last_out_at)}</p></div>
-                  <div><p className="text-fg-muted">{e.late ? 'Late by' : 'Worked'}</p><p className={cx('font-bold tabular-nums', e.late ? 'text-[var(--tt-danger)]' : 'text-fg')}>{e.late ? minutesText(e.late_minutes) : e.worked_minutes ? minutesText(e.worked_minutes) : '—'}</p></div>
-                </div>
-              </li>
-            ))}
-          </ul>
           <div className="mt-4">
             <Pagination currentPage={page} totalPages={Math.max(1, Math.ceil((list?.total ?? 0) / PAGE_SIZE))} totalItems={list?.total ?? 0} pageSize={PAGE_SIZE} onPageChange={onPage} pageSizeOptions={[PAGE_SIZE]} />
           </div>
         </div>
       )}
-    </Card>
+    </Dialog>
   );
 }

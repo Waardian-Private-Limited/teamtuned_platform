@@ -33,7 +33,7 @@ function Tile({ icon: Icon, label, value, note, tone, onClick, active }: { icon:
  * The headline: attendance rate as the one big figure, then the counts a manager acts on.
  * Every count opens the matching list below.
  */
-export function Kpis({ summary, isToday, view, onView, loading }: { summary: SummaryDto | null; isToday: boolean; view: EmployeeView; onView: (v: EmployeeView) => void; loading: boolean }) {
+export function Kpis({ summary, isToday, view, onView, loading }: { summary: SummaryDto | null; isToday: boolean; view: EmployeeView | null; onView: (v: EmployeeView) => void; loading: boolean }) {
   if (loading || !summary) {
     return (
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,3fr)]">

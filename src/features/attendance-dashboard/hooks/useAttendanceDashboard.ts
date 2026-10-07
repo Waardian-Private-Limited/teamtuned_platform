@@ -12,7 +12,8 @@ const REFRESH_MS = 60_000;
 /**
  * Everything the dashboard shows, kept in step with the filters. Options reload when the
  * sub-org or department changes (sites, departments and roles depend on them); the overview
- * and the list reload on any filter change and every minute while looking at today.
+ * and the list reload on any filter change and every minute while looking at today (the
+ * list only while its popup is open).
  */
 export function useAttendanceDashboard() {
   const [filters, setFilters] = useState<DashboardFilters>({ date: '', subOrgId: null, siteId: null, departmentId: null, roleId: null });
@@ -20,6 +21,8 @@ export function useAttendanceDashboard() {
   const [overview, setOverview] = useState<OverviewDto | null>(null);
   const [list, setList] = useState<EmployeesResponseDto | null>(null);
   const [view, setView] = useState<EmployeeView>('all');
+  // The people list lives in a popup; it loads only while the popup is open.
+  const [listOpen, setListOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
@@ -80,7 +83,7 @@ export function useAttendanceDashboard() {
       }
     },
     isToday ? REFRESH_MS : 24 * 3600_000,
-    ready,
+    ready && listOpen,
     listKey,
   );
 
@@ -108,6 +111,9 @@ export function useAttendanceDashboard() {
     filters, update, reset, narrowed, options, overview, list, error, isToday,
     loadingOverview: loadingOverview && !overview, refreshingOverview: loadingOverview,
     loadingList, view, setView: (v: EmployeeView) => { setView(v); setPage(1); },
+    listOpen,
+    openList: (v: EmployeeView) => { setView(v); setSearch(''); setPage(1); setList(null); setListOpen(true); },
+    closeList: () => setListOpen(false),
     search, setSearch: (s: string) => { setSearch(s); setPage(1); }, page, setPage,
   };
 }

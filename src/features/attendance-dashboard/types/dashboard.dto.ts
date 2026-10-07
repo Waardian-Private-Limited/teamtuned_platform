@@ -87,3 +87,50 @@ export interface EmployeesResponseDto {
   total: number;
   employees: DashboardEmployeeDto[];
 }
+
+export type LeaderPeriod = 'day' | 'week' | 'month';
+export type LeaderBoardKey = 'early_birds' | 'late_comers' | 'most_punctual' | 'best_attendance' | 'most_hours' | 'most_overtime';
+
+export interface LeaderEntryDto {
+  rank: number;
+  employee_id: number;
+  employee_code: string | null;
+  name: string | null;
+  department: string | null;
+  photo_url: string | null;
+  value: number | null;
+  unit: 'clock' | 'minutes' | 'days' | 'percent';
+  stats: {
+    present_days: number;
+    absent_days: number;
+    on_time_days: number;
+    late_days: number;
+    late_minutes: number;
+    worked_minutes: number;
+    overtime_minutes: number;
+    average_arrival: number | null;
+  };
+}
+
+export interface LeaderBoardDto {
+  key: LeaderBoardKey;
+  total: number;
+  entries: LeaderEntryDto[];
+}
+
+export interface LeadersDto {
+  period: LeaderPeriod;
+  from: string;
+  to: string;
+  timezone: string;
+  boards: LeaderBoardDto[];
+}
+
+export interface LeaderBoardPageDto {
+  period: LeaderPeriod;
+  from: string;
+  to: string;
+  board: LeaderBoardKey;
+  total: number;
+  entries: LeaderEntryDto[];
+}

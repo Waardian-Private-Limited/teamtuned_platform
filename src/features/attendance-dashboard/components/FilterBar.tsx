@@ -25,7 +25,7 @@ const shift = (date: string, days: number) => {
 };
 
 /**
- * Date, then sub-organisation (only for people who can see more than one), site, department
+ * Date, then sub-organisation (whenever the person can see one), site, department
  * and role. A line under it says what is being shown, so an empty result always has a reason.
  */
 export function FilterBar({ filters, options, onChange, onReset, narrowed, headcount }: { filters: DashboardFilters; options: FilterOptionsDto | null; onChange: (p: Partial<DashboardFilters>) => void; onReset: () => void; narrowed: boolean; headcount: number | null }) {
@@ -34,7 +34,7 @@ export function FilterBar({ filters, options, onChange, onReset, narrowed, headc
     { label: 'Today', date: today },
     { label: 'Yesterday', date: today ? shift(today, -1) : '' },
   ];
-  const showSubOrg = !!options?.access.pick_sub_org;
+  const showSubOrg = !!options && options.sub_organizations.length > 0;
   const subOrg = options?.sub_organizations.find((s) => s.id === filters.subOrgId);
   const site = options?.sites.find((s) => s.id === filters.siteId);
   const dept = options?.departments.find((d) => d.id === filters.departmentId);
