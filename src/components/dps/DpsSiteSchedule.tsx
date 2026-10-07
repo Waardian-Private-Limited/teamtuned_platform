@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-    ArrowLeft, Building, Calendar, CalendarClock, Layers, ShieldCheck, Wrench, AlertCircle, Plus, Trash2, Clock, HardHat, PackageOpen, FileText, RefreshCw, CheckCircle2, ChevronRight, History as HistoryIcon
+    ArrowLeft, Building, Calendar, CalendarClock, Layers, ShieldCheck, Wrench, AlertCircle, Plus, Trash2, Clock, HardHat, PackageOpen, FileText, RefreshCw, CheckCircle2, ChevronRight, History as HistoryIcon, Save
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DpsPlanningForm, needsPlanCumulative, planPeriodKey } from './DpsPlanningForm';
@@ -130,6 +130,132 @@ export default function DpsSiteSchedule({ siteId, basePath }: DpsSiteSchedulePro
     const [equipments, setEquipments] = useState<any[]>([{ id: 1, towerId: 'Overall', name: '', required: '' }]);
     const [materials, setMaterials] = useState([{ id: 1, name: '', quantity: '', requiredDate: '' }]);
     const equipmentList = ['Crane', 'Excavator', 'Concrete Mixer', 'Bulldozer', 'Other (Add New)'];
+
+    const planningDraftKey = `dpr_planning_draft_${actualSiteId}_${unitId || 'all'}_${planType}_${scheduleId || (isNewPlan ? 'new' : 'edit')}`;
+    const [lastDraftSavedAt, setLastDraftSavedAt] = useState<string | null>(null);
+    const [hasRestoredPlanningDraft, setHasRestoredPlanningDraft] = useState<boolean>(false);
+
+    // Check and restore local draft if available
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(planningDraftKey);
+            if (raw) {
+                const draft = JSON.parse(raw);
+                if (draft && typeof draft === 'object' && draft.timestamp) {
+                    if (draft.scheduleValidFrom) setScheduleValidFrom(draft.scheduleValidFrom);
+                    if (draft.scheduleValidTill) setScheduleValidTill(draft.scheduleValidTill);
+                    if (draft.towers?.length) setTowers(draft.towers);
+                    if (draft.concretePlanning?.length) setConcretePlanning(draft.concretePlanning);
+                    if (draft.concreteCumulative) setConcreteCumulative(draft.concreteCumulative);
+                    if (draft.staffPlanning?.length) setStaffPlanning(draft.staffPlanning);
+                    if (draft.labourPlanning?.length) setLabourPlanning(draft.labourPlanning);
+                    if (draft.monthlySchedules?.length) setMonthlySchedules(draft.monthlySchedules);
+                    if (draft.equipments?.length) setEquipments(draft.equipments);
+                    if (draft.materials?.length) setMaterials(draft.materials);
+                    if (draft.concreteMode) setConcreteMode(draft.concreteMode);
+                    if (draft.concreteScope) setConcreteScope(draft.concreteScope);
+                    if (draft.staffMode) setStaffMode(draft.staffMode);
+                    if (draft.staffScope) setStaffScope(draft.staffScope);
+                    if (draft.labourMode) setLabourMode(draft.labourMode);
+                    if (draft.labourScope) setLabourScope(draft.labourScope);
+                    if (draft.equipmentMode) setEquipmentMode(draft.equipmentMode);
+                    if (draft.equipmentScope) setEquipmentScope(draft.equipmentScope);
+                    if (draft.clientBillTargetDate) setClientBillTargetDate(draft.clientBillTargetDate);
+                    if (draft.contractorBillTargetDate) setContractorBillTargetDate(draft.contractorBillTargetDate);
+                    if (draft.observationAction) setObservationAction(draft.observationAction);
+                    setLastDraftSavedAt(new Date(draft.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+                    setHasRestoredPlanningDraft(true);
+                    setIsEditMode(true);
+                }
+            }
+        } catch (e) {
+            console.warn('Error reading planning draft:', e);
+        }
+    }, [planningDraftKey]);
+
+    // Silently auto-save planning form every 10 seconds while editing so data is never lost on timeout or shutdown
+    useEffect(() => {
+        if (!isEditMode) return;
+        const interval = setInterval(() => {
+            try {
+                const hasData = scheduleValidFrom || scheduleValidTill || (monthlySchedules && monthlySchedules.length > 0) || (concretePlanning && concretePlanning.length > 0);
+                if (hasData) {
+                    const payload = {
+                        scheduleValidFrom,
+                        scheduleValidTill,
+                        towers,
+                        concretePlanning,
+                        concreteCumulative,
+                        staffPlanning,
+                        labourPlanning,
+                        monthlySchedules,
+                        equipments,
+                        materials,
+                        observationAction,
+                        concreteMode,
+                        concreteScope,
+                        staffMode,
+                        staffScope,
+                        labourMode,
+                        labourScope,
+                        equipmentMode,
+                        equipmentScope,
+                        clientBillTargetDate,
+                        contractorBillTargetDate,
+                        timestamp: Date.now()
+                    };
+                    localStorage.setItem(planningDraftKey, JSON.stringify(payload));
+                    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    setLastDraftSavedAt(timeStr);
+                }
+            } catch (err) {
+                console.warn('Silent auto-save planning error:', err);
+            }
+        }, 10000); // exactly every 10 seconds
+
+        return () => clearInterval(interval);
+    }, [
+        isEditMode, planningDraftKey, scheduleValidFrom, scheduleValidTill, towers,
+        concretePlanning, concreteCumulative, staffPlanning, labourPlanning, monthlySchedules,
+        equipments, materials, observationAction, concreteMode, concreteScope, staffMode,
+        staffScope, labourMode, labourScope, equipmentMode, equipmentScope, clientBillTargetDate,
+        contractorBillTargetDate
+    ]);
+
+    const handleSavePlanningDraft = () => {
+        try {
+            const payload = {
+                scheduleValidFrom,
+                scheduleValidTill,
+                towers,
+                concretePlanning,
+                concreteCumulative,
+                staffPlanning,
+                labourPlanning,
+                monthlySchedules,
+                equipments,
+                materials,
+                observationAction,
+                concreteMode,
+                concreteScope,
+                staffMode,
+                staffScope,
+                labourMode,
+                labourScope,
+                equipmentMode,
+                equipmentScope,
+                clientBillTargetDate,
+                contractorBillTargetDate,
+                timestamp: Date.now()
+            };
+            localStorage.setItem(planningDraftKey, JSON.stringify(payload));
+            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            setLastDraftSavedAt(timeStr);
+            toast.success('Planning draft saved locally.');
+        } catch (err) {
+            toast.error('Failed to save draft locally.');
+        }
+    };
 
     useEffect(() => {
         if (siteId) fetchSiteData();
@@ -542,7 +668,11 @@ export default function DpsSiteSchedule({ siteId, basePath }: DpsSiteSchedulePro
                 }
             }
 
-            if (res) setIsEditMode(false);
+            if (res) {
+                try { localStorage.removeItem(planningDraftKey); } catch (_) {}
+                setHasRestoredPlanningDraft(false);
+                setIsEditMode(false);
+            }
         } catch {
             toast.error('Failed to save schedule.');
         } finally {
@@ -730,6 +860,39 @@ export default function DpsSiteSchedule({ siteId, basePath }: DpsSiteSchedulePro
                 </div>
             )}
 
+            {/* Restored Draft Alert Banner */}
+            {hasRestoredPlanningDraft && (
+                <div className="flex items-center justify-between px-4 py-3 bg-amber-50 border border-amber-200 shadow-sm">
+                    <div className="flex items-center gap-2">
+                        <AlertCircle size={16} className="text-amber-600 flex-shrink-0" />
+                        <p className="text-sm text-amber-900">
+                            <span className="font-semibold">Restored auto-saved draft:</span> Unsaved planning work from a previous session was recovered automatically so you don't lose progress.
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                try { localStorage.removeItem(planningDraftKey); } catch (_) {}
+                                setHasRestoredPlanningDraft(false);
+                                if (siteId) fetchSiteData();
+                                toast.success('Draft discarded, reset to server version');
+                            }}
+                            className="font-bold text-rose-700 hover:text-rose-900 underline uppercase text-xs"
+                        >
+                            Discard Draft
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setHasRestoredPlanningDraft(false)}
+                            className="font-bold text-slate-500 hover:text-slate-800 text-xs uppercase"
+                        >
+                            Dismiss
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div className="flex flex-col gap-6">
                 {planType === 'cbd' ? (
                     <DpsCbdForm
@@ -874,12 +1037,26 @@ export default function DpsSiteSchedule({ siteId, basePath }: DpsSiteSchedulePro
                                 <button onClick={handleExport} className="px-6 py-2 bg-blue-600 text-white font-medium text-sm rounded-sm hover:bg-blue-700 transition-colors shadow-sm">Generate Excel</button>
                             </>
                         ) : (
-                            <>
+                            <div className="flex items-center gap-3">
+                                {lastDraftSavedAt && (
+                                    <span className="text-xs text-emerald-600 font-semibold bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                        Auto-saved {lastDraftSavedAt}
+                                    </span>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={handleSavePlanningDraft}
+                                    className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium text-sm rounded-sm hover:border-gray-900 hover:text-gray-900 transition-colors shadow-sm flex items-center gap-1.5"
+                                    title="Save draft locally"
+                                >
+                                    <Save size={14} /> Save Draft
+                                </button>
                                 <button onClick={() => router.push(backPath)} className="px-5 py-2 bg-gray-100 text-gray-900 font-medium text-sm rounded-sm hover:bg-gray-200 transition-colors">Discard</button>
                                 <button onClick={() => handleSave(false)} disabled={isSaving} className="px-6 py-2 bg-black text-white font-medium text-sm rounded-sm hover:bg-gray-800 transition-colors shadow-sm disabled:bg-gray-400">
                                     {isSaving ? 'Saving...' : (scheduleId && scheduleStatus === 'active' ? 'Save changes' : 'Create Plan')}
                                 </button>
-                            </>
+                            </div>
                         )}
                     </div>
                 </div>

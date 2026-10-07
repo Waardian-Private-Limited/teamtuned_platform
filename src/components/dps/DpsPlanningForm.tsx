@@ -553,7 +553,7 @@ function levelsForScope(siteConfig: any, scopeId: string): string[] {
         const out: string[] = [];
         for (let i = 1; i <= count(tower.basements); i++) out.push(`Basement ${i}`);
         for (let i = 1; i <= count(tower.plinths); i++) out.push(count(tower.plinths) === 1 ? 'Plinth' : `Plinth ${i}`);
-        for (let i = 1; i <= count(tower.floors); i++) out.push(`Floor ${i}`);
+        for (let i = 1; i <= count(tower.floors); i++) out.push(`Slab ${i}`);
         for (let i = 1; i <= count(tower.terraces); i++) out.push(count(tower.terraces) === 1 ? 'Terrace' : `Terrace ${i}`);
         return out;
     }
@@ -1367,6 +1367,31 @@ export function DpsPlanningForm({
         toast.success(`Set ${filled} target date${filled === 1 ? '' : 's'} on a ${days}-day cycle`);
     };
 
+    /**
+     * Record a milestone as already finished, or take that back.
+     *
+     * A plan is often cut after work has started, and a level that was cast last
+     * week is not something the site should be asked about every morning — the
+     * daily form carries whatever is due or overdue, so an unfinished record of
+     * a finished milestone reappears there for ever.
+     *
+     * An achievement typed in here stays the planner's to correct; one the site
+     * reported does not, and the two are told apart by `achieved_in_plan`.
+     */
+    const setMilestoneDone = (id: any, done: boolean) => {
+        setMonthlySchedules((rows: any[]) => rows.map(r => {
+            if (String(r.id) !== String(id)) return r;
+            return done
+                ? {
+                    ...r,
+                    is_achieved: true,
+                    achieved_in_plan: true,
+                    achieved_date: r.achieved_date || r.target_date || iso(new Date())
+                }
+                : { ...r, is_achieved: false, achieved_in_plan: false, achieved_date: null };
+        }));
+    };
+
     /* ── Period column ──────────────────────────────────────────────────────
        The month a row belongs to is a property of the plan, not something to ask
        the planner for: the cycle already says which month is being planned. So
@@ -1875,7 +1900,7 @@ export function DpsPlanningForm({
                 <Section
                     id="sec-milestones"
                     title="Milestone Schedule"
-                    caption="Target dates for every level in Site Config. Completed milestones lock so history stays intact."
+                    caption="Target dates for every level in Site Config. Mark anything already finished as done — it stays off the daily form. Milestones the site reported lock so history stays intact."
                     icon={<Clock size={16} />}
                     accent="violet"
                     actions={
@@ -1885,12 +1910,12 @@ export function DpsPlanningForm({
                                 icon={<Calendar size={13} />}
                                 variant="accent"
                                 disabled={monthlySchedules.length === 0}
-                                disabledReason="Add towers and floors in Site Config first"
+                                disabledReason="Add towers and slabs in Site Config first"
                             >
                                 Set dates by cycle
                             </ToolButton>
                             <ToolButton
-                                onClick={() => addRecord(setMonthlySchedules, { towerId: siteConfig?.towers?.[0]?.id || '', floor: '', target_date: '', purpose: '', is_achieved: false })}
+                                onClick={() => addRecord(setMonthlySchedules, { towerId: siteConfig?.towers?.[0]?.id || '', floor: '', target_date: '', purpose: '', work_item: '', is_achieved: false })}
                                 icon={<Plus size={13} />}
                             >
                                 Add milestone
@@ -1954,25 +1979,28 @@ export function DpsPlanningForm({
                         <EmptyRow
                             icon={<Clock size={36} strokeWidth={1} />}
                             message="No milestones set"
-                            hint="Milestones are generated automatically when you save towers and floors in Site Config."
+                            hint="Milestones are generated automatically when you save towers and slabs in Site Config."
                         />
                     ) : (
                         <div className="border border-slate-200">
-                            <div className="grid grid-cols-[1fr_1.2fr_1fr_1.6fr_0.9fr_auto] gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
+                            <div className="grid grid-cols-[1fr_1.1fr_0.9fr_1.3fr_1.3fr_0.9fr_auto] gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                                 <div className={headCls}>Tower / Area</div>
-                                <div className={headCls}>Level</div>
+                                <div className={headCls}>Slab / Level</div>
                                 <div className={headCls}>Target</div>
                                 <div className={headCls}>Purpose</div>
+                                <div className={headCls}>Work Item</div>
                                 <div className={headCls}>Status</div>
                                 <div className="w-8" />
                             </div>
                             <div className="max-h-[520px] overflow-y-auto divide-y divide-slate-100">
                                 {monthlySchedules.map(sched => {
                                     const done = sched.is_achieved === 'Yes' || sched.is_achieved === true;
+                                    // Entered here rather than reported by the site, so it stays correctable.
+                                    const planMarked = done && sched.achieved_in_plan === true;
                                     return (
                                         <div
                                             key={sched.id}
-                                            className={`grid grid-cols-[1fr_1.2fr_1fr_1.6fr_0.9fr_auto] gap-2 px-4 py-2 items-start group transition-colors ${done ? 'bg-emerald-50/40' : 'hover:bg-slate-50/60'}`}
+                                            className={`grid grid-cols-[1fr_1.1fr_0.9fr_1.3fr_1.3fr_0.9fr_auto] gap-2 px-4 py-2 items-start group transition-colors ${done ? 'bg-emerald-50/40' : 'hover:bg-slate-50/60'}`}
                                         >
                                             {/* Trimmed on both sides: milestones written before the
                                                 generator was fixed carry ids padded with spaces, and an
@@ -2001,7 +2029,7 @@ export function DpsPlanningForm({
                                             </select>
 
                                             {(() => {
-                                                // Levels come from Site Config — the basements, plinths, floors
+                                                // Levels come from Site Config — the basements, plinths, slabs
                                                 // and terraces recorded against this tower, or the area's
                                                 // sub-zones. A value the config no longer offers is still
                                                 // listed so an existing milestone never silently blanks out.
@@ -2019,7 +2047,7 @@ export function DpsPlanningForm({
                                                     >
                                                         <option value="">
                                                             {sched.towerId
-                                                                ? (levels.length ? 'Select level...' : 'No levels in Site Config')
+                                                                ? (levels.length ? 'Select slab...' : 'No slabs in Site Config')
                                                                 : 'Pick a tower or area first'}
                                                         </option>
                                                         {options.map(name => <option key={name} value={name}>{name}</option>)}
@@ -2056,31 +2084,67 @@ export function DpsPlanningForm({
                                                 placeholder="Activity..."
                                             />
 
-                                            {/* Read-only: a milestone you are planning is pending by
-                                                definition, and completion is recorded by the daily
-                                                report, not chosen here. */}
+                                            <input
+                                                disabled={done}
+                                                type="text"
+                                                value={sched.work_item || sched.workItem || ''}
+                                                onChange={e => updateRecord(setMonthlySchedules, sched.id, 'work_item', e.target.value)}
+                                                className={inputCls}
+                                                placeholder="Work Item..."
+                                            />
+
+                                            {/* Completion is normally recorded by the daily report.
+                                                It can also be entered here, for a milestone that was
+                                                already finished before this plan was cut. */}
                                             <div className="px-2.5 py-2 min-w-0">
                                                 {done ? (
-                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
-                                                        Done
-                                                        {sched.achieved_date && (
+                                                    <>
+                                                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                                                            Done{planMarked ? '' : ' · reported'}
+                                                        </span>
+                                                        {planMarked ? (
+                                                            <input
+                                                                type="date"
+                                                                value={sched.achieved_date || ''}
+                                                                onChange={e => updateRecord(setMonthlySchedules, sched.id, 'achieved_date', e.target.value)}
+                                                                className={`${inputCls} mt-1`}
+                                                            />
+                                                        ) : sched.achieved_date ? (
                                                             <span className="block text-[10px] font-medium normal-case tracking-normal text-emerald-600/80 mt-0.5">
                                                                 {new Date(sched.achieved_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
                                                             </span>
-                                                        )}
-                                                    </span>
+                                                        ) : null}
+                                                    </>
                                                 ) : (
-                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300">Pending</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setMilestoneDone(sched.id, true)}
+                                                        title="Already finished — keep it off the daily form"
+                                                        className="inline-flex items-center gap-1 px-2 py-1 border border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
+                                                    >
+                                                        <Check size={11} /> Mark done
+                                                    </button>
                                                 )}
                                             </div>
 
-                                            <button
-                                                disabled={done}
-                                                onClick={() => removeRecord(setMonthlySchedules, sched.id)}
-                                                className="w-8 p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100 disabled:hidden"
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
+                                            {planMarked ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setMilestoneDone(sched.id, false)}
+                                                    title="Back to pending"
+                                                    className="w-8 p-1.5 text-slate-300 hover:text-amber-600 hover:bg-amber-50 transition-colors opacity-0 group-hover:opacity-100"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    disabled={done}
+                                                    onClick={() => removeRecord(setMonthlySchedules, sched.id)}
+                                                    className="w-8 p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100 disabled:hidden"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            )}
                                         </div>
                                     );
                                 })}
