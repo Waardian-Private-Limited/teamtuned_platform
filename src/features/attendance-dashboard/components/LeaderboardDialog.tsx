@@ -30,8 +30,10 @@ export function LeaderboardDialog({ board, period, data, page, onPage, loading, 
       </div>
     }>
       {loading && !data ? <TableSkeleton rows={8} columns={6} /> : rows.length === 0 ? (
-        <EmptyState illustration={{ src: '/vectors/attendancedashboard.svg', width: 220, height: 160, alt: 'No one ranked' }}
-          title="No one to rank yet" description="Pick another period or date, or widen the filters on the dashboard." />
+        <EmptyState
+          illustration={{ src: '/vectors/attendancedashboard.svg', width: 480, height: 480, alt: 'No one ranked', className: 'max-w-[340px] sm:max-w-[420px] md:max-w-[460px]' }}
+          title="No one to rank yet"
+          description="Pick another period or date, or widen the filters on the dashboard." />
       ) : (
         <div className={cx('transition-opacity', loading && 'opacity-60')}>
           <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">

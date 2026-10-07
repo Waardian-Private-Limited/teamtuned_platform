@@ -177,7 +177,7 @@ export function EmployeesDialog({ open, onClose, date, list, summary, isToday, v
 
       {loading && !list ? <TableSkeleton rows={6} columns={5} /> : rows.length === 0 ? (
         <EmptyState
-          illustration={{ src: '/vectors/attendancedashboard.svg', width: 220, height: 160, alt: 'No employees' }}
+          illustration={{ src: '/vectors/attendancedashboard.svg', width: 480, height: 480, alt: 'No employees', className: 'max-w-[340px] sm:max-w-[420px] md:max-w-[460px]' }}
           title={search ? `No one matches “${search}”` : `No one in “${VIEW_LABEL[view]}”`}
           description={view === 'all' ? 'Try another date, sub-organisation or site.' : 'Pick another tab, or widen the filters on the dashboard.'}
           action={search ? { label: 'Clear search', onClick: () => { setTerm(''); onSearch(''); }, variant: 'link' } : undefined} />
