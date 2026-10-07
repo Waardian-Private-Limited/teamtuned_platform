@@ -14,7 +14,7 @@ import { TimelineEmployeePicker } from './TimelineEmployeePicker';
 import { TimelinePlayerSlider } from './TimelinePlayerSlider';
 
 const SEGMENT_LABEL = { site: 'At site', stay: 'Away, standing', move: 'Moving', gap: 'No signal' } as const;
-const GAP_LABEL = { gps_off: 'Location switched off', phone_off: 'Phone switched off', no_signal: 'No signal' } as const;
+const GAP_LABEL = { gps_off: 'Location switched off', phone_off: 'Phone switched off', app_closed: 'App closed by the employee', no_signal: 'No signal' } as const;
 const segmentLabel = (s: SegmentDto) => s.site_name || (s.kind === 'gap' && s.reason ? GAP_LABEL[s.reason] : SEGMENT_LABEL[s.kind]);
 const EVENT_LABEL: Record<string, string> = {
   gps_off: 'Location switched off', gps_on: 'Location switched on', permission_downgraded: 'Location permission removed', permission_restored: 'Location permission given',
@@ -22,6 +22,8 @@ const EVENT_LABEL: Record<string, string> = {
   recorder_started: 'Recording started', recorder_stopped: 'Recording stopped', mock_detected: 'Fake location app detected', time_tamper: 'Phone clock changed',
   low_battery: 'Battery low', power_save_on: 'Battery saver on', power_save_off: 'Battery saver off',
   tracking_stopped: 'Tracking stopped: left the site',
+  app_terminated: 'App closed by the employee', relaunched: 'Recording resumed after the app was closed',
+  precise_off: 'Precise location turned off', precise_on: 'Precise location turned on',
 };
 
 export function TimelinePage() {
