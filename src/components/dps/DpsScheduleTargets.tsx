@@ -158,7 +158,14 @@ export function ScheduleTargets({
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">
                                                     {item.tower_name || 'Site'}
                                                 </p>
-                                                <p className="text-sm font-semibold text-slate-900 truncate">{item.floor || '—'}</p>
+                                                <p className="text-sm font-semibold text-slate-900 truncate">
+                                                    {item.floor || '—'}
+                                                    {(item.work_item || item.workItem) && (
+                                                        <span className="ml-1.5 text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-none">
+                                                            {item.work_item || item.workItem}
+                                                        </span>
+                                                    )}
+                                                </p>
                                                 {item.purpose && (
                                                     <p className="text-[11px] text-slate-500 truncate mt-0.5">{item.purpose}</p>
                                                 )}
@@ -313,7 +320,13 @@ export function ScheduleTargets({
                                                     {t.tower_name || 'Site'}
                                                 </p>
                                                 <p className="text-sm font-semibold text-slate-900 truncate">
-                                                    {t.floor}{t.purpose ? ` — ${t.purpose}` : ''}
+                                                    {t.floor}
+                                                    {(t.work_item || t.workItem) && (
+                                                        <span className="ml-1.5 text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-none">
+                                                            {t.work_item || t.workItem}
+                                                        </span>
+                                                    )}
+                                                    {t.purpose ? ` — ${t.purpose}` : ''}
                                                 </p>
                                             </div>
                                             <div className="text-right flex-shrink-0 flex items-center gap-3">

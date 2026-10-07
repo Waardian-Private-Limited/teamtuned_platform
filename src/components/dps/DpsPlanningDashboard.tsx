@@ -597,7 +597,7 @@ function DpsPlanningDashboard() {
                                         <table className="w-full text-left border-collapse">
                                             <thead className="bg-slate-50 border-b border-black">
                                                 <tr className="text-[9px] font-bold text-black uppercase tracking-widest">
-                                                    <th className="py-2 px-4">Tower / Floor</th>
+                                                    <th className="py-2 px-4">Tower / Slab</th>
                                                     <th className="py-2 px-4">Purpose / Delay</th>
                                                     <th className="py-2 px-4 text-center">Status</th>
                                                     <th className="py-2 px-4 text-center">Log</th>
@@ -614,7 +614,7 @@ function DpsPlanningDashboard() {
 
                                                         let status = 'Pending';
                                                         if (isAchieved) {
-                                                            status = 'Achieved';
+                                                             status = 'Achieved';
                                                         } else if (isRevised) {
                                                             status = 'Revised';
                                                         } else {
@@ -634,7 +634,14 @@ function DpsPlanningDashboard() {
                                                             <tr key={i} className="group hover:bg-slate-50 transition-colors">
                                                                 <td className="py-2 px-4">
                                                                     <div className="font-bold text-black text-[11px]">{item.tower_name || item.towerName || item.tower_id || 'Site'}</div>
-                                                                    <div className="text-[8px] font-bold text-black uppercase">{item.floor || 'Execution'}</div>
+                                                                    <div className="text-[8px] font-bold text-black uppercase flex items-center gap-1.5 flex-wrap">
+                                                                        <span>{item.floor || 'Execution'}</span>
+                                                                        {(item.work_item || item.workItem) && (
+                                                                            <span className="text-[8px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1 py-0.2 rounded-none tracking-normal lowercase">
+                                                                                {item.work_item || item.workItem}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                 </td>
                                                                 <td className="py-2 px-4">
                                                                     <div className="text-[10px] font-bold text-black truncate max-w-[200px]">{item.purpose}</div>
@@ -1159,7 +1166,7 @@ function DpsPlanningDashboard() {
                             <table className="w-full text-left border-collapse">
                                 <thead className="bg-slate-50 border-b border-black sticky top-0">
                                     <tr className="text-[8px] font-black uppercase tracking-widest text-black">
-                                        <th className="py-2 px-3">Tower / Level</th>
+                                        <th className="py-2 px-3">Tower / Slab</th>
                                         <th className="py-2 px-3">Purpose</th>
                                         <th className="py-2 px-3">Target</th>
                                         <th className="py-2 px-3">Status</th>
@@ -1181,7 +1188,14 @@ function DpsPlanningDashboard() {
                                             <tr key={i} className="text-[10px]">
                                                 <td className="py-1.5 px-3">
                                                     <div className="font-bold text-black">{m.tower_name || m.towerName || m.tower_id || 'Site'}</div>
-                                                    <div className="text-[8px] font-bold text-slate-500 uppercase">{m.floor || '-'}</div>
+                                                    <div className="text-[8px] font-bold text-slate-500 uppercase flex items-center gap-1.5 flex-wrap">
+                                                        <span>{m.floor || '-'}</span>
+                                                        {(m.work_item || m.workItem) && (
+                                                            <span className="text-[8px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1 py-0.2 rounded-none tracking-normal lowercase">
+                                                                {m.work_item || m.workItem}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="py-1.5 px-3 text-black">{m.purpose || '-'}</td>
                                                 <td className="py-1.5 px-3 text-black tabular-nums">

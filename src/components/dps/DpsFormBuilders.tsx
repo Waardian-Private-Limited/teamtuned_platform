@@ -345,9 +345,10 @@ export function ExecutionFormBuilder({ data, setData, readonly }: { data: any, s
             {data.monthly_schedule_today?.length > 0 && (
                 <div className="bg-white p-6 border border-slate-200 space-y-5 transition-colors">
                     <h2 className="text-lg font-bold text-slate-800 tracking-tight">Monthly Schedule Target Dates</h2>
-                    <div className="grid grid-cols-[1.5fr_1.5fr_1fr_1fr] gap-4 font-bold text-xs text-slate-500 uppercase tracking-widest px-2">
+                    <div className="grid grid-cols-[1.3fr_1.3fr_1.3fr_1fr_1fr] gap-4 font-bold text-xs text-slate-500 uppercase tracking-widest px-2">
                         <div>Tower Name</div>
-                        <div>Floor / Subzone</div>
+                        <div>Slab / Subzone</div>
+                        <div>Work Item</div>
                         <div>Target Date</div>
                         <div>Achieved Date</div>
                     </div>
@@ -358,12 +359,13 @@ export function ExecutionFormBuilder({ data, setData, readonly }: { data: any, s
                             if (foundTower) displayName = foundTower.name;
                         }
                         return (
-                            <div key={i} className={`grid grid-cols-[1.5fr_1.5fr_1fr_1fr] gap-4 items-center p-4 border ${item.achieved ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50/50 border-slate-200'} hover:border-blue-200 transition-colors`}>
+                            <div key={i} className={`grid grid-cols-[1.3fr_1.3fr_1.3fr_1fr_1fr] gap-4 items-center p-4 border ${item.achieved ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50/50 border-slate-200'} hover:border-blue-200 transition-colors`}>
                                 <div className="flex flex-col gap-1">
                                     <span className="font-bold text-sm text-slate-800">{displayName}</span>
                                     {item.achieved && <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider bg-emerald-100/50 w-fit px-2 py-0.5">Already Achieved</span>}
                                 </div>
                                 <span className="text-slate-600 text-sm font-semibold">{item.floor} {item.purpose && <span className="text-slate-400 font-medium ml-1">({item.purpose})</span>}</span>
+                                <span className="text-indigo-700 text-sm font-semibold">{item.work_item || item.workItem || '—'}</span>
                                 <span className="text-blue-600 font-bold text-sm">{item.planned_target_date}</span>
                                 <input
                                     type="date"
@@ -1220,16 +1222,95 @@ export function DprMultiStepForm({ task, onClose, onSave, onSubmit, submitting, 
         };
     });
 
+    const reportDate = (task.report_date || task.due_date || (task as any).submitted_data?.planning_date || '')
+        .toString().split('T')[0];
+    const draftKey = `dpr_form_draft_${task.id || `${siteId}_${reportDate}`}`;
+    const [lastAutoSavedAt, setLastAutoSavedAt] = useState<string | null>(null);
+    const [hasRestoredDraft, setHasRestoredDraft] = useState<boolean>(false);
+
     useEffect(() => {
         const data = (initialData && typeof initialData === 'object' && Object.keys(initialData).length > 0)
             ? initialData
             : (task.submitted_data && typeof task.submitted_data === 'object' && Object.keys(task.submitted_data).length > 0)
                 ? task.submitted_data
                 : (task.dynamic_schema ?? null);
+
+        // Check if there is an unsaved local draft for this form
+        try {
+            const rawDraft = localStorage.getItem(draftKey);
+            if (rawDraft) {
+                const parsed = JSON.parse(rawDraft);
+                if (parsed?.data && typeof parsed.data === 'object' && Object.keys(parsed.data).length > 0) {
+                    setFormData(parsed.data);
+                    if (parsed.step && typeof parsed.step === 'number') {
+                        setStep(parsed.step);
+                    }
+                    setHasRestoredDraft(true);
+                    if (parsed.timestamp) {
+                        setLastAutoSavedAt(new Date(parsed.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+                    }
+                    return;
+                }
+            }
+        } catch (e) {
+            console.warn('Failed checking local draft:', e);
+        }
+
         if (data) {
             setFormData(JSON.parse(JSON.stringify(data)));
         }
-    }, [task.id, initialData]);
+    }, [task.id, initialData, draftKey]);
+
+    // Silently auto-save every 10 seconds to localStorage so no work is lost on crash, reload, or timeout
+    useEffect(() => {
+        if (readOnly) return;
+        const interval = setInterval(() => {
+            try {
+                if (formData && typeof formData === 'object' && Object.keys(formData).length > 0) {
+                    const payload = {
+                        data: formData,
+                        step,
+                        timestamp: Date.now()
+                    };
+                    localStorage.setItem(draftKey, JSON.stringify(payload));
+                    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    setLastAutoSavedAt(timeStr);
+                }
+            } catch (err) {
+                console.warn('Silent auto-save error:', err);
+            }
+        }, 10000); // exactly every 10 seconds
+
+        return () => clearInterval(interval);
+    }, [formData, step, readOnly, draftKey]);
+
+    const handleSaveDraft = async () => {
+        try {
+            const payload = {
+                data: formData,
+                step,
+                timestamp: Date.now()
+            };
+            localStorage.setItem(draftKey, JSON.stringify(payload));
+            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            setLastAutoSavedAt(timeStr);
+            if (onSave) {
+                await onSave(formData);
+            } else {
+                toast.success('Draft saved locally and safely.');
+            }
+        } catch (err: any) {
+            toast.error('Failed to save draft to server: ' + (err?.message || 'Saved locally only'));
+        }
+    };
+
+    const handleFormSubmit = async () => {
+        try {
+            localStorage.removeItem(draftKey);
+        } catch (_) {}
+        setHasRestoredDraft(false);
+        await onSubmit(formData);
+    };
 
     const [showRevisionsModal, setShowRevisionsModal] = useState(false);
 
@@ -1289,8 +1370,6 @@ export function DprMultiStepForm({ task, onClose, onSave, onSubmit, submitting, 
      * target dates all key off this rather than off "today" — which would ask
      * the site to report a day that has not happened yet.
      */
-    const reportDate = (task.report_date || task.due_date || formData.planning_date || '')
-        .toString().split('T')[0];
     const attendanceDate = reportDate;
     /** How much is carried in and unresolved — the backlog, not today's work. */
     const openItems = task.dynamic_schema?.open_items_summary as
@@ -1611,13 +1690,22 @@ export function DprMultiStepForm({ task, onClose, onSave, onSubmit, submitting, 
                     </div>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
+                    {lastAutoSavedAt && (
+                        <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            <span>Auto-saved {lastAutoSavedAt}</span>
+                        </div>
+                    )}
                     {!readOnly && (
                         <button
-                            onClick={() => onSave(formData)}
+                            type="button"
+                            onClick={handleSaveDraft}
                             disabled={submitting}
-                            className="px-4 py-2 bg-white hover:border-slate-900 hover:text-slate-900 text-slate-600 text-xs font-semibold border border-slate-200 transition-colors"
+                            className="px-3.5 py-1.5 bg-white hover:border-slate-900 hover:text-slate-900 text-slate-700 text-xs font-semibold border border-slate-300 transition-colors flex items-center gap-1.5 shadow-sm"
+                            title="Save draft to server and local backup"
                         >
+                            <Save size={13} />
                             {submitting ? 'Saving…' : 'Save Draft'}
                         </button>
                     )}
@@ -1626,6 +1714,42 @@ export function DprMultiStepForm({ task, onClose, onSave, onSubmit, submitting, 
                     </button>
                 </div>
             </header>
+
+            {/* Restored Draft Alert Banner */}
+            {hasRestoredDraft && (
+                <div className="bg-amber-50 border-b border-amber-200 px-6 py-2.5 flex items-center justify-between text-xs text-amber-900 z-10 sticky top-[73px]">
+                    <div className="flex items-center gap-2">
+                        <span className="font-bold">Restored auto-saved draft:</span>
+                        <span>Your unsaved progress was safely recovered from your local backup.</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                try { localStorage.removeItem(draftKey); } catch (_) {}
+                                setHasRestoredDraft(false);
+                                const orig = (initialData && typeof initialData === 'object' && Object.keys(initialData).length > 0)
+                                    ? initialData
+                                    : (task.submitted_data && typeof task.submitted_data === 'object' && Object.keys(task.submitted_data).length > 0)
+                                        ? task.submitted_data
+                                        : (task.dynamic_schema ?? null);
+                                if (orig) setFormData(JSON.parse(JSON.stringify(orig)));
+                                toast.success('Draft discarded, reset to server version');
+                            }}
+                            className="font-bold text-rose-700 hover:text-rose-900 underline uppercase text-[10px]"
+                        >
+                            Discard Draft
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setHasRestoredDraft(false)}
+                            className="font-bold text-slate-500 hover:text-slate-800 text-[10px] uppercase"
+                        >
+                            Dismiss
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Steps Navigation Bar */}
             <nav className="border-b border-slate-200 bg-white sticky top-[73px] z-[5] overflow-x-auto no-scrollbar">
@@ -2870,6 +2994,24 @@ export function DprMultiStepForm({ task, onClose, onSave, onSubmit, submitting, 
                 </button>
 
                 <div className="flex items-center gap-3">
+                    {lastAutoSavedAt && (
+                        <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            <span>Auto-saved {lastAutoSavedAt}</span>
+                        </div>
+                    )}
+                    {!readOnly && (
+                        <button
+                            type="button"
+                            onClick={handleSaveDraft}
+                            disabled={submitting}
+                            className="px-4 py-2 bg-white hover:border-slate-900 hover:text-slate-900 text-slate-700 font-semibold transition-colors flex items-center gap-1.5 border border-slate-300 text-xs shadow-sm"
+                            title="Save draft to server and local backup"
+                        >
+                            <Save size={13} />
+                            {submitting ? 'Saving…' : 'Save Draft'}
+                        </button>
+                    )}
                     {step < steps.length ? (
                         <button
                             onClick={handleNext}
@@ -2881,7 +3023,7 @@ export function DprMultiStepForm({ task, onClose, onSave, onSubmit, submitting, 
                     ) : (
                         !readOnly && (
                             <button
-                                onClick={() => onSubmit(formData)}
+                                onClick={handleFormSubmit}
                                 disabled={submitting}
                                 className="px-8 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors flex items-center gap-2 disabled:opacity-50 text-xs"
                             >

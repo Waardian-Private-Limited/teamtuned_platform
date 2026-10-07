@@ -230,7 +230,7 @@ export function DpsConfigForm({
                                         { label: 'Name', field: 'name', type: 'text' },
                                         { label: 'Start Date', field: 'startDate', type: 'date' },
                                         { label: 'End Date', field: 'endDate', type: 'date' },
-                                        { label: 'Total Floors', field: 'floors', type: 'number' },
+                                        { label: 'Total Slabs', field: 'floors', type: 'number' },
                                         { label: 'No. of Plinths', field: 'plinths', type: 'number' },
                                         { label: 'No. of Basements', field: 'basements', type: 'number' },
                                         { label: 'No. of Terraces', field: 'terraces', type: 'number' },

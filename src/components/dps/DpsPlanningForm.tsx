@@ -553,7 +553,7 @@ function levelsForScope(siteConfig: any, scopeId: string): string[] {
         const out: string[] = [];
         for (let i = 1; i <= count(tower.basements); i++) out.push(`Basement ${i}`);
         for (let i = 1; i <= count(tower.plinths); i++) out.push(count(tower.plinths) === 1 ? 'Plinth' : `Plinth ${i}`);
-        for (let i = 1; i <= count(tower.floors); i++) out.push(`Floor ${i}`);
+        for (let i = 1; i <= count(tower.floors); i++) out.push(`Slab ${i}`);
         for (let i = 1; i <= count(tower.terraces); i++) out.push(count(tower.terraces) === 1 ? 'Terrace' : `Terrace ${i}`);
         return out;
     }
@@ -1910,12 +1910,12 @@ export function DpsPlanningForm({
                                 icon={<Calendar size={13} />}
                                 variant="accent"
                                 disabled={monthlySchedules.length === 0}
-                                disabledReason="Add towers and floors in Site Config first"
+                                disabledReason="Add towers and slabs in Site Config first"
                             >
                                 Set dates by cycle
                             </ToolButton>
                             <ToolButton
-                                onClick={() => addRecord(setMonthlySchedules, { towerId: siteConfig?.towers?.[0]?.id || '', floor: '', target_date: '', purpose: '', is_achieved: false })}
+                                onClick={() => addRecord(setMonthlySchedules, { towerId: siteConfig?.towers?.[0]?.id || '', floor: '', target_date: '', purpose: '', work_item: '', is_achieved: false })}
                                 icon={<Plus size={13} />}
                             >
                                 Add milestone
@@ -1979,15 +1979,16 @@ export function DpsPlanningForm({
                         <EmptyRow
                             icon={<Clock size={36} strokeWidth={1} />}
                             message="No milestones set"
-                            hint="Milestones are generated automatically when you save towers and floors in Site Config."
+                            hint="Milestones are generated automatically when you save towers and slabs in Site Config."
                         />
                     ) : (
                         <div className="border border-slate-200">
-                            <div className="grid grid-cols-[1fr_1.2fr_1fr_1.6fr_0.9fr_auto] gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
+                            <div className="grid grid-cols-[1fr_1.1fr_0.9fr_1.3fr_1.3fr_0.9fr_auto] gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                                 <div className={headCls}>Tower / Area</div>
-                                <div className={headCls}>Level</div>
+                                <div className={headCls}>Slab / Level</div>
                                 <div className={headCls}>Target</div>
                                 <div className={headCls}>Purpose</div>
+                                <div className={headCls}>Work Item</div>
                                 <div className={headCls}>Status</div>
                                 <div className="w-8" />
                             </div>
@@ -1999,7 +2000,7 @@ export function DpsPlanningForm({
                                     return (
                                         <div
                                             key={sched.id}
-                                            className={`grid grid-cols-[1fr_1.2fr_1fr_1.6fr_0.9fr_auto] gap-2 px-4 py-2 items-start group transition-colors ${done ? 'bg-emerald-50/40' : 'hover:bg-slate-50/60'}`}
+                                            className={`grid grid-cols-[1fr_1.1fr_0.9fr_1.3fr_1.3fr_0.9fr_auto] gap-2 px-4 py-2 items-start group transition-colors ${done ? 'bg-emerald-50/40' : 'hover:bg-slate-50/60'}`}
                                         >
                                             {/* Trimmed on both sides: milestones written before the
                                                 generator was fixed carry ids padded with spaces, and an
@@ -2028,7 +2029,7 @@ export function DpsPlanningForm({
                                             </select>
 
                                             {(() => {
-                                                // Levels come from Site Config — the basements, plinths, floors
+                                                // Levels come from Site Config — the basements, plinths, slabs
                                                 // and terraces recorded against this tower, or the area's
                                                 // sub-zones. A value the config no longer offers is still
                                                 // listed so an existing milestone never silently blanks out.
@@ -2046,7 +2047,7 @@ export function DpsPlanningForm({
                                                     >
                                                         <option value="">
                                                             {sched.towerId
-                                                                ? (levels.length ? 'Select level...' : 'No levels in Site Config')
+                                                                ? (levels.length ? 'Select slab...' : 'No slabs in Site Config')
                                                                 : 'Pick a tower or area first'}
                                                         </option>
                                                         {options.map(name => <option key={name} value={name}>{name}</option>)}
@@ -2081,6 +2082,15 @@ export function DpsPlanningForm({
                                                 onChange={e => updateRecord(setMonthlySchedules, sched.id, 'purpose', e.target.value)}
                                                 className={inputCls}
                                                 placeholder="Activity..."
+                                            />
+
+                                            <input
+                                                disabled={done}
+                                                type="text"
+                                                value={sched.work_item || sched.workItem || ''}
+                                                onChange={e => updateRecord(setMonthlySchedules, sched.id, 'work_item', e.target.value)}
+                                                className={inputCls}
+                                                placeholder="Work Item..."
                                             />
 
                                             {/* Completion is normally recorded by the daily report.
