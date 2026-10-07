@@ -35,6 +35,7 @@ export function useNavTree(allNodes: NavNode[], ctx: NavContext) {
 
   const isOpen = useCallback((id: string) => {
     if (id in openOverride) return openOverride[id];
+    if (id === 'self' && (activeTrail.has('self') || activeTrail.size === 0)) return true;
     return activeTrail.has(id);
   }, [openOverride, activeTrail]);
 

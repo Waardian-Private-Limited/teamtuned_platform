@@ -1,7 +1,14 @@
 import type { NavLink, NavNode } from '../types/nav.model';
 
+function normalizePath(p: string): string {
+  if (!p) return '';
+  return p.length > 1 && p.endsWith('/') ? p.slice(0, -1) : p;
+}
+
 function matchesOne(href: string, mode: 'exact' | 'prefix', pathname: string): boolean {
-  return mode === 'prefix' ? pathname.startsWith(href) : pathname === href;
+  const p = normalizePath(pathname);
+  const h = normalizePath(href);
+  return mode === 'prefix' ? (p === h || p.startsWith(h + '/')) : p === h;
 }
 
 export function isLinkActive(link: NavLink, pathname: string | null): boolean {

@@ -5,6 +5,7 @@ import {
   Receipt, CheckSquare, ListTodo, UserPlus, PlusCircle, Package, LayoutGrid,
   Layers, Briefcase, HardHat, Thermometer, Camera, QrCode, Award, Cog,
   ArrowUpCircle, BarChart3, List, Heart, CalendarRange, Repeat, Inbox, Wrench, Navigation, Route,
+  User,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
 
@@ -27,9 +28,10 @@ import type { NavNode } from '../types/nav.model';
  */
 export const orgNav: NavNode[] = [
   {
-    kind: 'group', id: 'main', label: 'Main',
+    kind: 'group', id: 'self', label: 'Self', icon: User,
     children: [
       { kind: 'link', label: 'Dashboard', href: '/org-admin', icon: Home },
+      { kind: 'link', label: 'Approvals', href: '/org-admin/approvals', icon: Inbox, match: 'prefix' },
     ],
   },
   {
@@ -84,7 +86,6 @@ export const orgNav: NavNode[] = [
       { kind: 'link', label: 'Onboarding Settings', href: '/org-admin/onboarding-settings', icon: Cog },
       { kind: 'link', label: 'Departments', href: '/org-admin/departments', icon: Building },
       { kind: 'link', label: 'Roles', href: '/org-admin/roles', icon: UserCog },
-      { kind: 'link', label: 'Approvals', href: '/org-admin/approvals', icon: Inbox, match: 'prefix' },
       { kind: 'link', label: 'Approval Flows', href: '/org-admin/approval-flows', icon: ListChecks, match: 'prefix' },
     ],
   },

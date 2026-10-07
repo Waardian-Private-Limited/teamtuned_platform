@@ -4,7 +4,7 @@ import {
   AlertCircle, FileText, MinusCircle, Users, Phone, LayoutDashboard,
   ListChecks, LayoutGrid, Heart, UserCheck, Wallet, Receipt, ArrowUpCircle,
   Package, Coins, Briefcase, HardHat, Layers, QrCode, Award, UserPlus, List,
-  CalendarRange, Repeat, Inbox, Wrench, CalendarDays,
+  CalendarRange, Repeat, Inbox, Wrench, CalendarDays, User,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
 
@@ -26,20 +26,11 @@ import type { NavNode } from '../types/nav.model';
  * section (see e.g. the Main-vs-Attendance overlap in the legacy source).
  */
 export const employeeNav: NavNode[] = [
-  { kind: 'link', label: 'Dashboard', href: '/employee', icon: Home },
-
   {
-    kind: 'group', id: 'main', label: 'Main', gate: { feature: 'PAYROLL_FEATURE' },
+    kind: 'group', id: 'self', label: 'Self', icon: User,
     children: [
-      { kind: 'link', label: 'Organization Profile', href: '/employee/orgProfile', icon: Building2, match: 'prefix', gate: { anyPerm: ['ORGPROFILE_VIEW', 'ORGPROFILE_ADD', 'ORGPROFILE_EDIT', 'ORGPROFILE_DELETE'] } },
-      { kind: 'link', label: 'Sites', href: '/employee/sites', icon: MapPin, gate: { anyPerm: ['SITE_VIEW', 'SITE_ADD', 'SITE_EDIT', 'SITE_DELETE'] } },
-      { kind: 'link', label: 'Sub Organizations', href: '/employee/sub-organizations', icon: Building2, gate: { anyPerm: ['SITE_VIEW', 'SITE_ADD', 'SITE_EDIT', 'SITE_DELETE'] } },
-      { kind: 'link', label: 'Site-Sub-Org Mapper', href: '/employee/site-sub-org-mapper', icon: Link2, gate: { anyPerm: ['SITE_VIEW', 'SITE_ADD', 'SITE_EDIT', 'SITE_DELETE'] } },
-      { kind: 'link', label: 'Budget Requests', href: '/employee/site-budget-requests', icon: DollarSign, gate: { anyPerm: ['SITE_BUDGET_VIEW', 'SITE_BUDGET_REQUEST', 'SITE_BUDGET_APPROVE'] } },
-      { kind: 'link', label: 'Departments', href: '/employee/departments', icon: Building, match: 'prefix', gate: { anyPerm: ['DEPT_VIEW', 'DEPT_ADD', 'DEPT_EDIT', 'DEPT_DELETE'] } },
-      { kind: 'link', label: 'Roles', href: '/employee/roles', icon: UserCog, match: 'prefix', gate: { anyPerm: ['ROLE_VIEW', 'ROLE_ADD', 'ROLE_EDIT', 'ROLE_DELETE'] } },
+      { kind: 'link', label: 'Dashboard', href: '/employee', icon: Home },
       { kind: 'link', label: 'Approvals', href: '/employee/approvals', icon: Inbox, match: 'prefix' },
-      { kind: 'link', label: 'Approval Flows', href: '/employee/approval-flows', icon: ListChecks, match: 'prefix', gate: { anyPerm: ['APPROVAL_FLOW_VIEW', 'APPROVAL_FLOW_MANAGE', 'HR_MODE'] } },
     ],
   },
 
@@ -89,6 +80,7 @@ export const employeeNav: NavNode[] = [
       { kind: 'link', label: 'Compensation', href: '/employee/compensation', icon: Award, match: 'prefix', gate: { anyPerm: ['COMP_VIEW', 'COMP_ADD', 'COMP_EDIT', 'COMP_APPROVE', 'HR_MODE'] } },
       { kind: 'link', label: 'Departments', href: '/employee/departments', icon: Building, match: 'prefix', gate: { anyPerm: ['DEPT_VIEW', 'DEPT_ADD', 'DEPT_EDIT', 'DEPT_DELETE'] } },
       { kind: 'link', label: 'Roles', href: '/employee/roles', icon: UserCog, match: 'prefix', gate: { anyPerm: ['ROLE_VIEW', 'ROLE_ADD', 'ROLE_EDIT', 'ROLE_DELETE'] } },
+      { kind: 'link', label: 'Approval Flows', href: '/employee/approval-flows', icon: ListChecks, match: 'prefix', gate: { anyPerm: ['APPROVAL_FLOW_VIEW', 'APPROVAL_FLOW_MANAGE', 'HR_MODE'] } },
     ],
   },
 
