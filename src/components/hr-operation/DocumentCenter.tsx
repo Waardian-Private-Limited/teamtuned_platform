@@ -48,6 +48,36 @@ interface SignatureConfig {
     signatory_designation: string | null;
 }
 
+interface OfferModalState {
+    emp: Employee;
+    isEmail: boolean;
+    interviewDate: string;
+    joiningDate: string;
+    issueDate: string;
+}
+
+function toInputDate(dateStr?: string | null): string {
+    if (!dateStr) return "";
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return "";
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${y}-${m}-${day}`;
+    } catch {
+        return "";
+    }
+}
+
+function getTodayInput(): string {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+}
+
 const DOC_TYPES: DocConfig[] = [
     {
         type: "appointment",
@@ -114,38 +144,9 @@ export default function DocumentCenter() {
     const [emailModal, setEmailModal] = useState<{ emp: Employee; type: DocType } | null>(null);
 
     // Modal for Offer Letter dates (Final Interview Date & Joining Date)
-    interface OfferModalState {
-        emp: Employee;
-        isEmail: boolean;
-        interviewDate: string;
-        joiningDate: string;
-        issueDate: string;
-    }
     const [offerModal, setOfferModal] = useState<OfferModalState | null>(null);
 
-    const toInputDate = (dateStr?: string | null): string => {
-        if (!dateStr) return "";
-        try {
-            const d = new Date(dateStr);
-            if (isNaN(d.getTime())) return "";
-            const y = d.getFullYear();
-            const m = String(d.getMonth() + 1).padStart(2, "0");
-            const day = String(d.getDate()).padStart(2, "0");
-            return `${y}-${m}-${day}`;
-        } catch {
-            return "";
-        }
-    };
-
-    const getTodayInput = (): string => {
-        const d = new Date();
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, "0");
-        const day = String(d.getDate()).padStart(2, "0");
-        return `${y}-${m}-${day}`;
-    };
-
-    const openOfferModal = (emp: Employee, isEmail = false) => {
+    const openOfferModal = useCallback((emp: Employee, isEmail = false) => {
         const today = getTodayInput();
         const currentJoining = toInputDate(emp.joining_date) || today;
         setOfferModal({
@@ -155,7 +156,7 @@ export default function DocumentCenter() {
             joiningDate: currentJoining,
             issueDate: today,
         });
-    };
+    }, []);
 
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3002/api/v1";
 
@@ -318,6 +319,11 @@ export default function DocumentCenter() {
             issue_date?: string;
         }
     ) => {
+        if (type === "offer" && !extraData) {
+            openOfferModal(emp, sendEmail);
+            return;
+        }
+
         const key = `${emp.id}-${type}`;
         const setFn = sendEmail ? setEmailing : setGenerating;
         setFn(prev => ({ ...prev, [key]: true }));
@@ -358,7 +364,7 @@ export default function DocumentCenter() {
         } finally {
             setFn(prev => ({ ...prev, [key]: false }));
         }
-    }, [API_BASE, getAuthHeaders, includeSignature]);
+    }, [API_BASE, getAuthHeaders, includeSignature, openOfferModal]);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 p-6">
