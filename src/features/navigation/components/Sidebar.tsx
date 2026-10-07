@@ -140,15 +140,8 @@ export function Sidebar({
         </div>
       )}
 
-      {/* Section label */}
-      {!collapsed && (
-        <div className="px-6 pb-1 pt-3">
-          <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-fg-subtle">Main</span>
-        </div>
-      )}
-
       {/* Navigation tree */}
-      <nav className={cx('min-h-0 flex-1 space-y-0.5 px-3', scroll.hidden)} aria-label="Main">
+      <nav className={cx('min-h-0 flex-1 space-y-0.5 px-3 pt-1', scroll.hidden)} aria-label="Navigation">
         {filteredVisible.map((node) =>
           node.kind === 'link' ? (
             <NavItem key={node.href} link={node} collapsed={collapsed} onNavigate={onNavigate} />

@@ -50,6 +50,7 @@ export interface NavGroup {
   /** Stable key. Open/closed state is keyed on this, not on array position. */
   id: string;
   label: string;
+  icon?: LucideIcon;
   children: NavNode[];
   gate?: NavGate;
 }

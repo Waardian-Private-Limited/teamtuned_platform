@@ -3,6 +3,7 @@
 import { Plus, Search, Layers, ChevronDown } from 'lucide-react';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { SearchableFilterDropdown } from '@/components/ui/SearchableFilterDropdown';
 import { SubOrgFilter } from '@/features/sub-organizations/components/SubOrgFilter';
 import { ROLE_STATUS_FILTER_OPTIONS, type RoleStatusFilter } from '../../constants/roles.constants';
 
@@ -78,19 +79,13 @@ export function RolesToolbar({
         </div>
 
         {departments.length > 0 && (
-          <div className="relative w-full sm:w-40 md:w-44 2xl:w-52">
-            <select
-              value={departmentId ?? ''}
-              onChange={(e) => onDepartmentChange(e.target.value ? Number(e.target.value) : null)}
-              className="h-9 w-full appearance-none rounded-lg border border-line bg-surface pl-3 pr-8 text-xs text-fg outline-none transition-colors focus:border-[var(--tt-primary)] focus:ring-1 focus:ring-[var(--tt-primary)] cursor-pointer sm:text-sm 2xl:h-10 2xl:pr-9 2xl:text-base"
-            >
-              <option value="">All departments</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-fg-muted 2xl:right-3 2xl:h-4 2xl:w-4" />
-          </div>
+          <SearchableFilterDropdown
+            label="Department"
+            allLabel="All departments"
+            value={departmentId}
+            options={departments.map((d) => ({ value: d.id, label: d.name }))}
+            onChange={onDepartmentChange}
+          />
         )}
 
         <div className="w-full sm:w-44 md:w-48 lg:w-44 xl:w-48 2xl:w-56">

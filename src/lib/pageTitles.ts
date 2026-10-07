@@ -1,16 +1,18 @@
 const PAGE_TITLES: Record<string, { title: string; category: string }> = {
-    // Dashboard
-    '/employee': { title: 'Dashboard', category: 'Overview' },
-    '/org-admin': { title: 'Dashboard', category: 'Overview' },
+    // Self
+    '/employee': { title: 'Dashboard', category: 'Self' },
+    '/org-admin': { title: 'Dashboard', category: 'Self' },
+    '/employee/approvals': { title: 'Approvals', category: 'Self' },
+    '/org-admin/approvals': { title: 'Approvals', category: 'Self' },
 
-    // Main
-    '/employee/orgProfile': { title: 'Organization Profile', category: 'Main' },
-    '/employee/sites': { title: 'Sites', category: 'Main' },
-    '/employee/departments': { title: 'Departments', category: 'Main' },
-    '/org-admin/departments': { title: 'Departments', category: 'Main' },
-    '/employee/roles': { title: 'Roles', category: 'Main' },
-    '/employee/holidays': { title: 'Holidays', category: 'Main' },
-    '/employee/leave': { title: 'My Leave', category: 'Main' },
+    // Core
+    '/employee/orgProfile': { title: 'Organization Profile', category: 'Tools' },
+    '/employee/sites': { title: 'Sites', category: 'Management' },
+    '/employee/departments': { title: 'Departments', category: 'Management' },
+    '/org-admin/departments': { title: 'Departments', category: 'Management' },
+    '/employee/roles': { title: 'Roles', category: 'Management' },
+    '/employee/holidays': { title: 'Holidays', category: 'Attendance' },
+    '/employee/leave': { title: 'My Leave', category: 'Attendance' },
 
     // Management
     '/employee/policies': { title: 'Policies', category: 'Management' },

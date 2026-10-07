@@ -10,6 +10,7 @@ import { isLinkActive } from '../utils/nav-active';
 import type { NavGroup as NavGroupNode, NavLink } from '../types/nav.model';
 
 function representativeIcon(group: NavGroupNode): LucideIcon | undefined {
+  if (group.icon) return group.icon;
   for (const child of group.children) {
     if (child.kind === 'link') return child.icon;
     const icon = representativeIcon(child);
