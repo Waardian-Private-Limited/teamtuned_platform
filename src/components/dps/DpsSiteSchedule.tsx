@@ -227,41 +227,60 @@ export default function DpsSiteSchedule({ siteId, basePath }: DpsSiteSchedulePro
                 } catch (_) {}
             }
 
-            // 2. Scan ALL localStorage keys matching any planning draft prefix
-            for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-                if (!key) continue;
-                if (
-                    key.includes('planning_draft') ||
-                    key.startsWith('dpr_planning_draft') ||
-                    key.startsWith('dps_planning_draft')
-                ) {
-                    if (key.includes('_history_')) continue;
+            // 2. Scan ALL localStorage & sessionStorage keys matching any planning draft prefix
+            const scanStorage = (storage: Storage, storageName: string) => {
+                for (let i = 0; i < storage.length; i++) {
+                    const key = storage.key(i);
+                    if (!key) continue;
+                    if (
+                        key.includes('planning_draft') ||
+                        key.includes('dpr_planning') ||
+                        key.includes('dps_planning') ||
+                        key.startsWith('dpr_') ||
+                        key.startsWith('dps_') ||
+                        key.includes('draft')
+                    ) {
+                        if (key.includes('_history_')) continue;
 
-                    try {
-                        const raw = localStorage.getItem(key);
-                        if (!raw) continue;
-                        const parsed = JSON.parse(raw);
-                        if (!parsed || typeof parsed !== 'object') continue;
+                        try {
+                            const raw = storage.getItem(key);
+                            if (!raw) continue;
+                            const parsed = JSON.parse(raw);
+                            if (!parsed || typeof parsed !== 'object') continue;
 
-                        const ts = parsed.timestamp || 0;
-                        const msCount = parsed.monthlySchedules?.length || 0;
-                        if (ts || msCount > 0) {
-                            const effectiveTs = ts || Date.now();
-                            const id = `key-${key}-${effectiveTs}`;
-                            draftsMap.set(id, {
-                                id,
-                                key,
-                                timestamp: effectiveTs,
-                                source: key.includes('_new') ? 'New Plan Draft' : key.includes('_edit') ? 'Edit Plan Draft' : 'Saved Draft',
-                                milestonesCount: msCount,
-                                towersCount: parsed.towers?.length || 0,
-                                periodLabel: parsed.scheduleValidFrom ? `${parsed.scheduleValidFrom} to ${parsed.scheduleValidTill || '—'}` : 'Not set',
-                                data: parsed
-                            });
-                        }
-                    } catch (_) {}
+                            const milestones = parsed.monthlySchedules || parsed.data?.monthlySchedules || parsed.data?.monthly_schedules || parsed.data?.monthly_schedule_today || [];
+                            const towers = parsed.towers || parsed.data?.towers || [];
+                            const ts = parsed.timestamp || parsed.savedAt || 0;
+                            const msCount = Array.isArray(milestones) ? milestones.length : 0;
+
+                            if (ts || msCount > 0 || towers.length > 0) {
+                                const effectiveTs = ts ? Number(ts) : Date.now();
+                                const id = `${storageName}-${key}-${effectiveTs}`;
+                                const normalizedPayload = {
+                                    ...parsed,
+                                    monthlySchedules: msCount > 0 ? milestones : (parsed.monthlySchedules || []),
+                                    towers: towers.length > 0 ? towers : (parsed.towers || [])
+                                };
+
+                                draftsMap.set(id, {
+                                    id,
+                                    key: `${storageName}: ${key}`,
+                                    timestamp: effectiveTs,
+                                    source: key.includes('_new') ? 'New Plan Draft' : key.includes('_edit') ? 'Edit Plan Draft' : `${storageName === 'sessionStorage' ? 'Session' : 'Local'} Draft`,
+                                    milestonesCount: msCount,
+                                    towersCount: towers.length,
+                                    periodLabel: parsed.scheduleValidFrom ? `${parsed.scheduleValidFrom} to ${parsed.scheduleValidTill || '—'}` : 'Not set',
+                                    data: normalizedPayload
+                                });
+                            }
+                        } catch (_) {}
+                    }
                 }
+            };
+
+            scanStorage(localStorage, 'localStorage');
+            if (typeof sessionStorage !== 'undefined') {
+                scanStorage(sessionStorage, 'sessionStorage');
             }
         } catch (e) {
             console.warn('Error discovering drafts:', e);
@@ -294,11 +313,15 @@ export default function DpsSiteSchedule({ siteId, basePath }: DpsSiteSchedulePro
 
     /**
      * Save draft snapshot to primary key AND append to history list.
+     * Saved ONLY when user clicks the "Save Draft" button.
      */
-    const saveDraftSnapshot = (source: 'auto' | 'manual' = 'auto') => {
+    const saveDraftSnapshot = () => {
         try {
             const hasData = scheduleValidFrom || scheduleValidTill || (monthlySchedules && monthlySchedules.length > 0) || (concretePlanning && concretePlanning.length > 0);
-            if (!hasData) return;
+            if (!hasData) {
+                toast.error('No planning data entered yet to save as draft.');
+                return;
+            }
 
             const now = Date.now();
             const timeStr = new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -332,53 +355,30 @@ export default function DpsSiteSchedule({ siteId, basePath }: DpsSiteSchedulePro
             localStorage.setItem(planningDraftKey, JSON.stringify(payload));
             setLastDraftSavedAt(timeStr);
 
-            // 2. Append to version history (keeping up to 35 snapshots so 1 PM, 2 PM, etc. are never lost)
+            // 2. Append to version history (keeping up to 35 snapshots so versions are never lost)
             let history: any[] = [];
             try {
                 const existing = localStorage.getItem(planningDraftHistoryKey);
                 if (existing) history = JSON.parse(existing) || [];
             } catch (_) {}
 
-            const last = history[history.length - 1];
-            const isRecentIdentical = last && (now - last.timestamp < 45000) && (last.payload?.monthlySchedules?.length === monthlySchedules?.length);
+            history.push({
+                id: `draft_${now}`,
+                timestamp: now,
+                source: 'Manual Save',
+                payload
+            });
+            if (history.length > 35) history = history.slice(history.length - 35);
+            localStorage.setItem(planningDraftHistoryKey, JSON.stringify(history));
+            setAvailableDraftsCount(prev => prev + 1);
 
-            if (!isRecentIdentical || source === 'manual') {
-                history.push({
-                    id: `draft_${now}`,
-                    timestamp: now,
-                    source,
-                    payload
-                });
-                if (history.length > 35) history = history.slice(history.length - 35);
-                localStorage.setItem(planningDraftHistoryKey, JSON.stringify(history));
-                setAvailableDraftsCount(prev => prev + 1);
-            }
-
-            if (source === 'manual') {
-                toast.success('Planning draft saved locally.');
-            }
+            toast.success(`Planning draft saved at ${timeStr}`);
         } catch (err) {
-            if (source === 'manual') toast.error('Failed to save draft locally.');
+            toast.error('Failed to save draft locally.');
         }
     };
 
-    // Silently auto-save planning form every 10 seconds while editing
-    useEffect(() => {
-        if (!isEditMode) return;
-        const interval = setInterval(() => {
-            saveDraftSnapshot('auto');
-        }, 10000);
-
-        return () => clearInterval(interval);
-    }, [
-        isEditMode, planningDraftKey, scheduleValidFrom, scheduleValidTill, towers,
-        concretePlanning, concreteCumulative, staffPlanning, labourPlanning, monthlySchedules,
-        equipments, materials, observationAction, concreteMode, concreteScope, staffMode,
-        staffScope, labourMode, labourScope, equipmentMode, equipmentScope, clientBillTargetDate,
-        contractorBillTargetDate
-    ]);
-
-    const handleSavePlanningDraft = () => saveDraftSnapshot('manual');
+    const handleSavePlanningDraft = () => saveDraftSnapshot();
 
     useEffect(() => {
         if (siteId) fetchSiteData();
