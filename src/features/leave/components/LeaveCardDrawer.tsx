@@ -39,7 +39,7 @@ export function LeaveCardDrawer({ employee, canAdjust, canAdd, onClose, onAdjust
 
   const types = (card?.balances ?? []).filter((b: Balance) => b.cycle).map((b) => ({ id: b.leave_type_id, name: b.name }));
   return (
-    <Drawer open={Boolean(employee)} onClose={onClose} title="Leave card">
+    <Drawer open={Boolean(employee)} onClose={onClose} title="Leave card" maxWidthClassName="sm:max-w-xl md:max-w-2xl lg:max-w-3xl">
       <div className="space-y-4 p-4 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-lg font-bold tracking-tight text-fg">{employee?.name}</p>

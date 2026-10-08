@@ -19,12 +19,22 @@ import { shiftDate } from '../../utils/format';
 import { Avatar, controlClass, Select } from './controls';
 
 type Format = 'xlsx' | 'csv' | 'pdf';
+type Report = 'daily' | 'monthly' | 'data';
 const MAX_DAYS = 400;
 
+const REPORTS: Array<{ value: Report; label: string; hint: string }> = [
+  { value: 'daily', label: 'Daily report', hint: 'Everyone on one date, counts per site' },
+  { value: 'monthly', label: 'Monthly report', hint: 'A month grid per person, day by day' },
+  { value: 'data', label: 'Detailed data', hint: 'A summary per month and a line per day' },
+];
+
+/** What each report can be saved as; the daily and monthly reports are Excel or PDF. */
+const FORMATS_FOR: Record<Report, Format[]> = { daily: ['xlsx', 'pdf'], monthly: ['xlsx', 'pdf'], data: ['xlsx', 'csv', 'pdf'] };
+
 const FORMATS: Array<{ value: Format; label: string; hint: string; icon: typeof FileText }> = [
-  { value: 'xlsx', label: 'Excel', hint: 'A summary per month and a line per day', icon: FileSpreadsheet },
+  { value: 'xlsx', label: 'Excel', hint: 'Opens in Excel or Sheets', icon: FileSpreadsheet },
   { value: 'csv', label: 'CSV', hint: 'A line per day, opens anywhere', icon: Table2 },
-  { value: 'pdf', label: 'PDF', hint: 'The monthly summary, ready to print', icon: FileText },
+  { value: 'pdf', label: 'PDF', hint: 'Ready to print or share', icon: FileText },
 ];
 
 const startOfMonth = (d: string) => `${d.slice(0, 7)}-01`;
@@ -69,6 +79,8 @@ function Form({ today, date, filters: initial, options: initialOptions, onClose 
   const [emailOn, setEmailOn] = React.useState(false);
   const [emails, setEmails] = React.useState<string[]>([]);
   const [emailText, setEmailText] = React.useState('');
+  const [report, setReport] = React.useState<Report>('daily');
+  const [month, setMonth] = React.useState(today.slice(0, 7));
   const [from, setFrom] = React.useState(quick[0].from);
   const [to, setTo] = React.useState(quick[0].to);
   const [format, setFormat] = React.useState<Format>('xlsx');
@@ -107,7 +119,7 @@ function Form({ today, date, filters: initial, options: initialOptions, onClose 
   }, [pick, term, today, filters.subOrgId, filters.siteId, filters.departmentId, filters.roleId]);
 
   const days = from && to ? Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1 : 0;
-  const rangeError = !from || !to ? 'Pick the first and last date' : from > to ? 'The first date cannot be after the last' : days > MAX_DAYS ? `Pick at most ${MAX_DAYS} days` : null;
+  const rangeError = report === 'monthly' ? (month ? null : 'Pick the month') : report === 'daily' ? (from ? null : 'Pick the date') : !from || !to ? 'Pick the first and last date' : from > to ? 'The first date cannot be after the last' : days > MAX_DAYS ? `Pick at most ${MAX_DAYS} days` : null;
   const peopleError = pick && chosen.length === 0 ? 'Pick at least one person' : null;
   const addEmail = () => {
     const parts = emailText.split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter(Boolean);
@@ -127,10 +139,10 @@ function Form({ today, date, filters: initial, options: initialOptions, onClose 
     setError(null);
     try {
       const job = await api.requestExport({
-        from, to, format,
+        report, from: report === 'monthly' ? `${month}-01` : from, to: report === 'daily' ? from : to, month: report === 'monthly' ? month : undefined, format,
         subOrgId: filters.subOrgId, siteId: filters.siteId, departmentId: filters.departmentId, roleId: filters.roleId,
         employeeIds: pick ? chosen.map((c) => c.id) : undefined,
-        only: only.length ? only : undefined,
+        only: report === 'monthly' || !only.length ? undefined : only,
         emails: emailOn ? emails : undefined,
       });
       track(job);
@@ -162,6 +174,20 @@ function Form({ today, date, filters: initial, options: initialOptions, onClose 
     >
       <div className="space-y-5">
         <section>
+          <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-fg-muted">Report</h3>
+          <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Report">
+            {REPORTS.map((r) => (
+              <button key={r.value} type="button" role="radio" aria-checked={report === r.value} onClick={() => { setReport(r.value); if (!FORMATS_FOR[r.value].includes(format)) setFormat('xlsx'); }}
+                className={cx('flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors', report === r.value ? 'border-fg bg-bg-subtle ring-1 ring-fg' : 'border-line bg-surface hover:bg-bg-subtle')}>
+                <span className="text-sm font-bold text-fg">{r.label}</span>
+                <span className="text-[11px] leading-snug text-fg-muted">{r.hint}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {report === 'data' ? (
+        <section>
           <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-fg-muted">Dates</h3>
           <div className="mb-2.5 flex flex-wrap gap-1.5">
             {quick.map((p) => (
@@ -177,6 +203,24 @@ function Form({ today, date, filters: initial, options: initialOptions, onClose 
           </div>
           {rangeError ? <p className="mt-1.5 text-xs text-[var(--tt-danger)]">{rangeError}</p> : <p className="mt-1.5 text-xs text-fg-muted">{days} day{days === 1 ? '' : 's'}. Up to {MAX_DAYS} days in one file.</p>}
         </section>
+        ) : (
+        <section>
+          <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-fg-muted">{report === 'daily' ? 'Date' : 'Month'}</h3>
+          {report === 'daily' ? (
+            <>
+              <div className="mb-2.5 flex flex-wrap gap-1.5">
+                {[{ label: 'Today', v: today }, { label: 'Yesterday', v: shiftDate(today, -1) }, ...(date && date !== today && date !== shiftDate(today, -1) ? [{ label: 'The day on screen', v: date }] : [])].map((p) => (
+                  <button key={p.label} type="button" onClick={() => setFrom(p.v)} className={cx('h-8 rounded-lg border px-3 text-xs font-bold transition-colors', from === p.v ? 'border-fg bg-bg-subtle text-fg' : 'border-line text-fg-muted hover:bg-bg-subtle hover:text-fg')}>{p.label}</button>
+                ))}
+              </div>
+              <label className="flex max-w-[14rem] flex-col gap-1"><span className="sr-only">Date</span><input type="date" value={from} max={today} onChange={(e) => setFrom(e.target.value)} className={controlClass} /></label>
+            </>
+          ) : (
+            <label className="flex max-w-[14rem] flex-col gap-1"><span className="sr-only">Month</span><input type="month" value={month} max={today.slice(0, 7)} onChange={(e) => setMonth(e.target.value)} className={controlClass} /></label>
+          )}
+          {rangeError && <p className="mt-1.5 text-xs text-[var(--tt-danger)]">{rangeError}</p>}
+        </section>
+        )}
 
         <section>
           <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-fg-muted">Who</h3>
@@ -229,6 +273,7 @@ function Form({ today, date, filters: initial, options: initialOptions, onClose 
           )}
         </section>
 
+        {report !== 'monthly' && (
         <section>
           <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-fg-muted">Only days that were</h3>
           <div className="flex flex-wrap gap-1.5">
@@ -242,11 +287,12 @@ function Form({ today, date, filters: initial, options: initialOptions, onClose 
           </div>
           <p className="mt-1.5 text-xs text-fg-muted">{only.length ? 'The daily lines list only these days. Monthly totals still cover everything.' : 'Nothing picked: every day is listed.'}</p>
         </section>
+        )}
 
         <section>
           <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-fg-muted">File</h3>
           <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="File format">
-            {FORMATS.map(({ value, label, hint, icon: Icon }) => (
+            {FORMATS.filter((f) => FORMATS_FOR[report].includes(f.value)).map(({ value, label, hint, icon: Icon }) => (
               <button key={value} type="button" role="radio" aria-checked={format === value} onClick={() => setFormat(value)}
                 className={cx('flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors', format === value ? 'border-fg bg-bg-subtle ring-1 ring-fg' : 'border-line bg-surface hover:bg-bg-subtle')}>
                 <Icon className="h-5 w-5 text-fg" />

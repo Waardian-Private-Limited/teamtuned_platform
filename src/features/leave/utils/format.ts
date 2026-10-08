@@ -1,6 +1,10 @@
 import type { LeaveStatus, Session } from '../types/leave';
 
-export const days = (n: number | null | undefined) => (n == null ? '–' : `${Math.round(n * 1000) / 1000} d`);
+export const days = (n: number | null | undefined) => {
+  if (n == null) return '–';
+  const v = Math.round(Number(n) * 100) / 100;
+  return `${v} d`;
+};
 
 export const fmtDate = (iso: string) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });

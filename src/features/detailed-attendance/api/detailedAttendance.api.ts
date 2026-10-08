@@ -12,6 +12,7 @@ export interface ListQuery {
   siteId: number | null;
   departmentId: number | null;
   roleId: number | null;
+  status?: string | null;
   search: string;
   page: number;
   pageSize: number;
@@ -30,6 +31,7 @@ export function listEmployees(q: ListQuery, signal?: AbortSignal) {
       site_id: q.siteId ?? undefined,
       department_id: q.departmentId ?? undefined,
       role_id: q.roleId ?? undefined,
+      status: q.status || undefined,
       search: q.search || undefined,
       limit: q.pageSize,
       offset: (q.page - 1) * q.pageSize,

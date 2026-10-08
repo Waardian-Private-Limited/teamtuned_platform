@@ -9,11 +9,12 @@ interface DrawerProps {
   onClose: () => void;
   title?: string;
   children: React.ReactNode;
+  maxWidthClassName?: string;
 }
 
 // Shares Dialog's overlay, focus-trap, and scroll-lock behaviour but slides
 // in from the right; collapses to a full-screen sheet below the `sm` break.
-export function Drawer({ open, onClose, title, children }: DrawerProps) {
+export function Drawer({ open, onClose, title, children, maxWidthClassName }: DrawerProps) {
   const panelRef = useModalBehavior(open, onClose);
 
   if (!open) return null;
@@ -29,7 +30,8 @@ export function Drawer({ open, onClose, title, children }: DrawerProps) {
         tabIndex={-1}
         className={cx(
           'fixed inset-y-0 right-0 z-10 flex w-full flex-col bg-surface shadow-[var(--tt-shadow-lg)]',
-          'sm:inset-y-2 sm:right-2 sm:w-full sm:max-w-md sm:rounded-[var(--tt-radius-lg)]',
+          'sm:inset-y-2 sm:right-2 sm:w-full sm:rounded-[var(--tt-radius-lg)]',
+          maxWidthClassName || 'sm:max-w-md',
           'tt-fade-in'
         )}
       >

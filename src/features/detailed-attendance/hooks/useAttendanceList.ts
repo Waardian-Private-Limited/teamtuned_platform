@@ -15,9 +15,10 @@ export interface Filters {
   siteId: number | null;
   departmentId: number | null;
   roleId: number | null;
+  status: string | null;
 }
 
-const EMPTY: Filters = { date: '', subOrgId: null, siteId: null, departmentId: null, roleId: null };
+const EMPTY: Filters = { date: '', subOrgId: null, siteId: null, departmentId: null, roleId: null, status: null };
 
 /**
  * The list screen's state: the filters and what they offer, the page of employees, and a refresh
@@ -95,7 +96,7 @@ export function useAttendanceList() {
 
   const reload = useCallback(() => setNonce((n) => n + 1), []);
 
-  const narrowed = useMemo(() => !!(filters.subOrgId || filters.siteId || filters.departmentId || filters.roleId || search), [filters, search]);
+  const narrowed = useMemo(() => !!(filters.subOrgId || filters.siteId || filters.departmentId || filters.roleId || filters.status || search), [filters, search]);
 
   return {
     filters, options, update, reset, reload, narrowed, isToday,

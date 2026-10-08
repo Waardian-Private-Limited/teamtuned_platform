@@ -1261,28 +1261,7 @@ export function DprMultiStepForm({ task, onClose, onSave, onSubmit, submitting, 
         }
     }, [task.id, initialData, draftKey]);
 
-    // Silently auto-save every 10 seconds to localStorage so no work is lost on crash, reload, or timeout
-    useEffect(() => {
-        if (readOnly) return;
-        const interval = setInterval(() => {
-            try {
-                if (formData && typeof formData === 'object' && Object.keys(formData).length > 0) {
-                    const payload = {
-                        data: formData,
-                        step,
-                        timestamp: Date.now()
-                    };
-                    localStorage.setItem(draftKey, JSON.stringify(payload));
-                    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                    setLastAutoSavedAt(timeStr);
-                }
-            } catch (err) {
-                console.warn('Silent auto-save error:', err);
-            }
-        }, 10000); // exactly every 10 seconds
-
-        return () => clearInterval(interval);
-    }, [formData, step, readOnly, draftKey]);
+    // Draft is saved only when the user clicks Save Draft
 
     const handleSaveDraft = async () => {
         try {

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-    ArrowLeft, Building, Calendar, CalendarClock, Layers, ShieldCheck, Wrench, AlertCircle, Plus, Trash2, Clock, HardHat, PackageOpen, FileText, RefreshCw, CheckCircle2, ChevronRight, History as HistoryIcon, Save
+    ArrowLeft, Building, Calendar, CalendarClock, Layers, ShieldCheck, Wrench, AlertCircle, Plus, Trash2, Clock, HardHat, PackageOpen, FileText, RefreshCw, CheckCircle2, ChevronRight, History as HistoryIcon, Save, Eye, Copy, Download, ChevronDown, ChevronUp, RotateCcw, Check, X
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DpsPlanningForm, needsPlanCumulative, planPeriodKey } from './DpsPlanningForm';
@@ -131,99 +131,201 @@ export default function DpsSiteSchedule({ siteId, basePath }: DpsSiteSchedulePro
     const [materials, setMaterials] = useState([{ id: 1, name: '', quantity: '', requiredDate: '' }]);
     const equipmentList = ['Crane', 'Excavator', 'Concrete Mixer', 'Bulldozer', 'Other (Add New)'];
 
-    const planningDraftKey = `dpr_planning_draft_${actualSiteId}_${unitId || 'all'}_${planType}_${scheduleId || (isNewPlan ? 'new' : 'edit')}`;
+    // Stable keys for current site and plan type
+    const planningDraftKey = `dpr_planning_draft_${actualSiteId}_${unitId || 'all'}_${planType}`;
+    const planningDraftHistoryKey = `dpr_planning_draft_history_${actualSiteId}_${unitId || 'all'}_${planType}`;
+
     const [lastDraftSavedAt, setLastDraftSavedAt] = useState<string | null>(null);
     const [hasRestoredPlanningDraft, setHasRestoredPlanningDraft] = useState<boolean>(false);
+    const [showDraftVersionsModal, setShowDraftVersionsModal] = useState<boolean>(false);
+    const [availableDraftsCount, setAvailableDraftsCount] = useState<number>(0);
+    const hasRestoredDraftRef = React.useRef<boolean>(false);
 
-    // Check and restore local draft if available
-    useEffect(() => {
+    /**
+     * Restore any draft payload directly into the active form state.
+     */
+    const applyDraftPayload = (draft: any, customMsg?: string) => {
+        if (!draft || typeof draft !== 'object') return;
         try {
-            const raw = localStorage.getItem(planningDraftKey);
-            if (raw) {
-                const draft = JSON.parse(raw);
-                if (draft && typeof draft === 'object' && draft.timestamp) {
-                    if (draft.scheduleValidFrom) setScheduleValidFrom(draft.scheduleValidFrom);
-                    if (draft.scheduleValidTill) setScheduleValidTill(draft.scheduleValidTill);
-                    if (draft.towers?.length) setTowers(draft.towers);
-                    if (draft.concretePlanning?.length) setConcretePlanning(draft.concretePlanning);
-                    if (draft.concreteCumulative) setConcreteCumulative(draft.concreteCumulative);
-                    if (draft.staffPlanning?.length) setStaffPlanning(draft.staffPlanning);
-                    if (draft.labourPlanning?.length) setLabourPlanning(draft.labourPlanning);
-                    if (draft.monthlySchedules?.length) setMonthlySchedules(draft.monthlySchedules);
-                    if (draft.equipments?.length) setEquipments(draft.equipments);
-                    if (draft.materials?.length) setMaterials(draft.materials);
-                    if (draft.concreteMode) setConcreteMode(draft.concreteMode);
-                    if (draft.concreteScope) setConcreteScope(draft.concreteScope);
-                    if (draft.staffMode) setStaffMode(draft.staffMode);
-                    if (draft.staffScope) setStaffScope(draft.staffScope);
-                    if (draft.labourMode) setLabourMode(draft.labourMode);
-                    if (draft.labourScope) setLabourScope(draft.labourScope);
-                    if (draft.equipmentMode) setEquipmentMode(draft.equipmentMode);
-                    if (draft.equipmentScope) setEquipmentScope(draft.equipmentScope);
-                    if (draft.clientBillTargetDate) setClientBillTargetDate(draft.clientBillTargetDate);
-                    if (draft.contractorBillTargetDate) setContractorBillTargetDate(draft.contractorBillTargetDate);
-                    if (draft.observationAction) setObservationAction(draft.observationAction);
-                    setLastDraftSavedAt(new Date(draft.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-                    setHasRestoredPlanningDraft(true);
-                    setIsEditMode(true);
+            if (draft.scheduleValidFrom) setScheduleValidFrom(draft.scheduleValidFrom);
+            if (draft.scheduleValidTill) setScheduleValidTill(draft.scheduleValidTill);
+            if (Array.isArray(draft.towers) && draft.towers.length > 0) setTowers(withRowIds(draft.towers, 'tower'));
+            if (Array.isArray(draft.concretePlanning)) setConcretePlanning(withRowIds(draft.concretePlanning, 'conc'));
+            if (draft.concreteCumulative && typeof draft.concreteCumulative === 'object') setConcreteCumulative(draft.concreteCumulative);
+            if (Array.isArray(draft.staffPlanning)) setStaffPlanning(withRowIds(draft.staffPlanning, 'staff'));
+            if (Array.isArray(draft.labourPlanning)) setLabourPlanning(withRowIds(draft.labourPlanning, 'labour'));
+            if (Array.isArray(draft.monthlySchedules) && draft.monthlySchedules.length > 0) {
+                setMonthlySchedules(withRowIds(draft.monthlySchedules, 'mile'));
+            }
+            if (Array.isArray(draft.equipments)) setEquipments(withRowIds(draft.equipments, 'eq'));
+            if (Array.isArray(draft.materials)) setMaterials(withRowIds(draft.materials, 'mat'));
+            if (draft.concreteMode) setConcreteMode(draft.concreteMode);
+            if (draft.concreteScope) setConcreteScope(draft.concreteScope);
+            if (draft.staffMode) setStaffMode(draft.staffMode);
+            if (draft.staffScope) setStaffScope(draft.staffScope);
+            if (draft.labourMode) setLabourMode(draft.labourMode);
+            if (draft.labourScope) setLabourScope(draft.labourScope);
+            if (draft.equipmentMode) setEquipmentMode(draft.equipmentMode);
+            if (draft.equipmentScope) setEquipmentScope(draft.equipmentScope);
+            if (draft.clientBillTargetDate) setClientBillTargetDate(draft.clientBillTargetDate);
+            if (draft.contractorBillTargetDate) setContractorBillTargetDate(draft.contractorBillTargetDate);
+            if (draft.observationAction) setObservationAction(draft.observationAction);
+
+            setIsEditMode(true);
+            setHasRestoredPlanningDraft(true);
+            hasRestoredDraftRef.current = true;
+            const tStr = draft.timestamp
+                ? new Date(draft.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                : 'recently';
+            setLastDraftSavedAt(tStr);
+            const slabCount = draft.monthlySchedules?.length || 0;
+            toast.success(customMsg || `Draft loaded (${slabCount} slabs recovered)`);
+        } catch (err) {
+            console.error('Failed to apply draft:', err);
+            toast.error('Failed to load draft version.');
+        }
+    };
+
+    /**
+     * Scans browser localStorage for all drafts, history versions, and legacy keys.
+     */
+    const getAllDiscoveredDrafts = (): any[] => {
+        const draftsMap = new Map<string, any>();
+        if (typeof window === 'undefined') return [];
+
+        try {
+            // 1. Check dedicated history array for this site & planType
+            const histKeys = [
+                planningDraftHistoryKey,
+                `dpr_planning_draft_history_${actualSiteId}_all_${planType}`,
+                `dpr_planning_draft_history_${actualSiteId}`
+            ];
+            for (const hk of histKeys) {
+                try {
+                    const histRaw = localStorage.getItem(hk);
+                    if (histRaw) {
+                        const arr = JSON.parse(histRaw);
+                        if (Array.isArray(arr)) {
+                            arr.forEach((item: any, idx: number) => {
+                                if (item && item.timestamp) {
+                                    const p = item.payload || item;
+                                    const id = `hist-${item.timestamp}-${idx}`;
+                                    draftsMap.set(id, {
+                                        id,
+                                        key: hk,
+                                        timestamp: item.timestamp,
+                                        source: item.source === 'manual' ? 'Manual Save' : 'Auto-save Backup',
+                                        milestonesCount: p.monthlySchedules?.length || 0,
+                                        towersCount: p.towers?.length || 0,
+                                        periodLabel: p.scheduleValidFrom ? `${p.scheduleValidFrom} to ${p.scheduleValidTill || '—'}` : 'Not set',
+                                        data: p
+                                    });
+                                }
+                            });
+                        }
+                    }
+                } catch (_) {}
+            }
+
+            // 2. Scan ALL localStorage & sessionStorage keys matching any planning draft prefix
+            const scanStorage = (storage: Storage, storageName: string) => {
+                for (let i = 0; i < storage.length; i++) {
+                    const key = storage.key(i);
+                    if (!key) continue;
+                    if (
+                        key.includes('planning_draft') ||
+                        key.includes('dpr_planning') ||
+                        key.includes('dps_planning') ||
+                        key.startsWith('dpr_') ||
+                        key.startsWith('dps_') ||
+                        key.includes('draft')
+                    ) {
+                        if (key.includes('_history_')) continue;
+
+                        try {
+                            const raw = storage.getItem(key);
+                            if (!raw) continue;
+                            const parsed = JSON.parse(raw);
+                            if (!parsed || typeof parsed !== 'object') continue;
+
+                            const milestones = parsed.monthlySchedules || parsed.data?.monthlySchedules || parsed.data?.monthly_schedules || parsed.data?.monthly_schedule_today || [];
+                            const towers = parsed.towers || parsed.data?.towers || [];
+                            const ts = parsed.timestamp || parsed.savedAt || 0;
+                            const msCount = Array.isArray(milestones) ? milestones.length : 0;
+
+                            if (ts || msCount > 0 || towers.length > 0) {
+                                const effectiveTs = ts ? Number(ts) : Date.now();
+                                const id = `${storageName}-${key}-${effectiveTs}`;
+                                const normalizedPayload = {
+                                    ...parsed,
+                                    monthlySchedules: msCount > 0 ? milestones : (parsed.monthlySchedules || []),
+                                    towers: towers.length > 0 ? towers : (parsed.towers || [])
+                                };
+
+                                draftsMap.set(id, {
+                                    id,
+                                    key: `${storageName}: ${key}`,
+                                    timestamp: effectiveTs,
+                                    source: key.includes('_new') ? 'New Plan Draft' : key.includes('_edit') ? 'Edit Plan Draft' : `${storageName === 'sessionStorage' ? 'Session' : 'Local'} Draft`,
+                                    milestonesCount: msCount,
+                                    towersCount: towers.length,
+                                    periodLabel: parsed.scheduleValidFrom ? `${parsed.scheduleValidFrom} to ${parsed.scheduleValidTill || '—'}` : 'Not set',
+                                    data: normalizedPayload
+                                });
+                            }
+                        } catch (_) {}
+                    }
                 }
+            };
+
+            scanStorage(localStorage, 'localStorage');
+            if (typeof sessionStorage !== 'undefined') {
+                scanStorage(sessionStorage, 'sessionStorage');
             }
         } catch (e) {
-            console.warn('Error reading planning draft:', e);
+            console.warn('Error discovering drafts:', e);
         }
-    }, [planningDraftKey]);
 
-    // Silently auto-save planning form every 10 seconds while editing so data is never lost on timeout or shutdown
+        const list = Array.from(draftsMap.values());
+        list.sort((a, b) => b.timestamp - a.timestamp);
+        return list;
+    };
+
+    // Check and restore local draft if available on mount
     useEffect(() => {
-        if (!isEditMode) return;
-        const interval = setInterval(() => {
-            try {
-                const hasData = scheduleValidFrom || scheduleValidTill || (monthlySchedules && monthlySchedules.length > 0) || (concretePlanning && concretePlanning.length > 0);
-                if (hasData) {
-                    const payload = {
-                        scheduleValidFrom,
-                        scheduleValidTill,
-                        towers,
-                        concretePlanning,
-                        concreteCumulative,
-                        staffPlanning,
-                        labourPlanning,
-                        monthlySchedules,
-                        equipments,
-                        materials,
-                        observationAction,
-                        concreteMode,
-                        concreteScope,
-                        staffMode,
-                        staffScope,
-                        labourMode,
-                        labourScope,
-                        equipmentMode,
-                        equipmentScope,
-                        clientBillTargetDate,
-                        contractorBillTargetDate,
-                        timestamp: Date.now()
-                    };
-                    localStorage.setItem(planningDraftKey, JSON.stringify(payload));
-                    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                    setLastDraftSavedAt(timeStr);
-                }
-            } catch (err) {
-                console.warn('Silent auto-save planning error:', err);
-            }
-        }, 10000); // exactly every 10 seconds
-
-        return () => clearInterval(interval);
-    }, [
-        isEditMode, planningDraftKey, scheduleValidFrom, scheduleValidTill, towers,
-        concretePlanning, concreteCumulative, staffPlanning, labourPlanning, monthlySchedules,
-        equipments, materials, observationAction, concreteMode, concreteScope, staffMode,
-        staffScope, labourMode, labourScope, equipmentMode, equipmentScope, clientBillTargetDate,
-        contractorBillTargetDate
-    ]);
-
-    const handleSavePlanningDraft = () => {
         try {
+            const drafts = getAllDiscoveredDrafts();
+            setAvailableDraftsCount(drafts.length);
+
+            // Find the most relevant draft for this site
+            const latest = drafts.find(d => {
+                const p = d.data;
+                return p && (p.monthlySchedules?.length > 0 || p.towers?.length > 0 || p.scheduleValidFrom);
+            });
+
+            if (latest && !hasRestoredDraftRef.current) {
+                applyDraftPayload(latest.data);
+            }
+        } catch (e) {
+            console.warn('Error reading initial planning draft:', e);
+        }
+    }, [actualSiteId, unitId, planType]);
+
+    /**
+     * Save draft snapshot to MySQL server database AND local storage.
+     * Saved ONLY when user clicks the "Save Draft" button.
+     */
+    const saveDraftSnapshot = async () => {
+        try {
+            const hasData = scheduleValidFrom || scheduleValidTill || (monthlySchedules && monthlySchedules.length > 0) || (concretePlanning && concretePlanning.length > 0);
+            if (!hasData) {
+                toast.error('No planning data entered yet to save as draft.');
+                return;
+            }
+
+            const now = Date.now();
+            const timeStr = new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
             const payload = {
                 scheduleValidFrom,
                 scheduleValidTill,
@@ -246,16 +348,60 @@ export default function DpsSiteSchedule({ siteId, basePath }: DpsSiteSchedulePro
                 equipmentScope,
                 clientBillTargetDate,
                 contractorBillTargetDate,
-                timestamp: Date.now()
+                timestamp: now
             };
-            localStorage.setItem(planningDraftKey, JSON.stringify(payload));
-            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            setLastDraftSavedAt(timeStr);
-            toast.success('Planning draft saved locally.');
+
+            // 1. Save to MySQL database on the server
+            let serverSaved = false;
+            try {
+                const res = await apiClient<any>(`/dps-schedule/${actualSiteId}/draft`, {
+                    method: 'POST',
+                    body: {
+                        unitId: unitId || null,
+                        planType,
+                        title: `${isNewPlan ? 'New Plan' : 'Plan'} Draft (${monthlySchedules?.length || 0} slabs)`,
+                        draftData: payload
+                    },
+                    withAuth: true
+                });
+                if (res?.success) serverSaved = true;
+            } catch (err) {
+                console.warn('Server draft save error:', err);
+            }
+
+            // 2. Also save to local browser storage as immediate offline backup
+            try {
+                localStorage.setItem(planningDraftKey, JSON.stringify(payload));
+                setLastDraftSavedAt(timeStr);
+
+                let history: any[] = [];
+                try {
+                    const existing = localStorage.getItem(planningDraftHistoryKey);
+                    if (existing) history = JSON.parse(existing) || [];
+                } catch (_) {}
+
+                history.push({
+                    id: `draft_${now}`,
+                    timestamp: now,
+                    source: serverSaved ? 'Server Database' : 'Local Backup',
+                    payload
+                });
+                if (history.length > 35) history = history.slice(history.length - 35);
+                localStorage.setItem(planningDraftHistoryKey, JSON.stringify(history));
+                setAvailableDraftsCount(prev => prev + 1);
+            } catch (_) {}
+
+            if (serverSaved) {
+                toast.success(`Draft saved to database server at ${timeStr}`);
+            } else {
+                toast.success(`Draft saved locally at ${timeStr}`);
+            }
         } catch (err) {
-            toast.error('Failed to save draft locally.');
+            toast.error('Failed to save draft.');
         }
     };
+
+    const handleSavePlanningDraft = () => saveDraftSnapshot();
 
     useEffect(() => {
         if (siteId) fetchSiteData();
@@ -479,32 +625,34 @@ export default function DpsSiteSchedule({ siteId, basePath }: DpsSiteSchedulePro
                             return String(d).split('T')[0].trim();
                         }
                     };
-                    if (sched.schedule_valid_from) setScheduleValidFrom(formatDate(sched.schedule_valid_from));
-                    if (sched.schedule_valid_till) setScheduleValidTill(formatDate(sched.schedule_valid_till));
-                    if (sched.towers) setTowers(withRowIds(sched.towers, 'tower'));
-                    if (sched.concrete_planning) setConcretePlanning(withRowIds(sched.concrete_planning, 'conc'));
-                    setConcreteCumulative(
-                        sched.concrete_cumulative && typeof sched.concrete_cumulative === 'object' && !Array.isArray(sched.concrete_cumulative)
-                            ? sched.concrete_cumulative
-                            : {}
-                    );
-                    if (sched.staff_planning) setStaffPlanning(withRowIds(sched.staff_planning, 'staff'));
-                    if (sched.labour_planning) setLabourPlanning(withRowIds(sched.labour_planning, 'labour'));
-                    if (sched.monthly_schedules) setMonthlySchedules(withRowIds(sched.monthly_schedules, 'mile'));
-                    if (sched.equipments) setEquipments(withRowIds(sched.equipments, 'eq'));
-                    if (sched.materials) setMaterials(withRowIds(sched.materials, 'mat'));
-                    if (sched.concrete_mode) setConcreteMode(sched.concrete_mode);
-                    if (sched.concrete_scope) setConcreteScope(sched.concrete_scope);
-                    if (sched.staff_mode) setStaffMode(sched.staff_mode);
-                    if (sched.staff_scope) setStaffScope(sched.staff_scope);
-                    if (sched.labour_mode) setLabourMode(sched.labour_mode);
-                    if (sched.labour_scope) setLabourScope(sched.labour_scope);
-                    if (sched.equipment_mode) setEquipmentMode(sched.equipment_mode);
-                    if (sched.equipment_scope) setEquipmentScope(sched.equipment_scope);
-                    if (sched.client_bill_target_date) setClientBillTargetDate(formatDate(sched.client_bill_target_date));
-                    if (sched.contractor_bill_target_date) setContractorBillTargetDate(formatDate(sched.contractor_bill_target_date));
-                    if (sched.observation_action) setObservationAction(sched.observation_action);
-                    setIsEditMode(false);
+                    if (!hasRestoredDraftRef.current) {
+                        if (sched.schedule_valid_from) setScheduleValidFrom(formatDate(sched.schedule_valid_from));
+                        if (sched.schedule_valid_till) setScheduleValidTill(formatDate(sched.schedule_valid_till));
+                        if (sched.towers) setTowers(withRowIds(sched.towers, 'tower'));
+                        if (sched.concrete_planning) setConcretePlanning(withRowIds(sched.concrete_planning, 'conc'));
+                        setConcreteCumulative(
+                            sched.concrete_cumulative && typeof sched.concrete_cumulative === 'object' && !Array.isArray(sched.concrete_cumulative)
+                                ? sched.concrete_cumulative
+                                : {}
+                        );
+                        if (sched.staff_planning) setStaffPlanning(withRowIds(sched.staff_planning, 'staff'));
+                        if (sched.labour_planning) setLabourPlanning(withRowIds(sched.labour_planning, 'labour'));
+                        if (sched.monthly_schedules) setMonthlySchedules(withRowIds(sched.monthly_schedules, 'mile'));
+                        if (sched.equipments) setEquipments(withRowIds(sched.equipments, 'eq'));
+                        if (sched.materials) setMaterials(withRowIds(sched.materials, 'mat'));
+                        if (sched.concrete_mode) setConcreteMode(sched.concrete_mode);
+                        if (sched.concrete_scope) setConcreteScope(sched.concrete_scope);
+                        if (sched.staff_mode) setStaffMode(sched.staff_mode);
+                        if (sched.staff_scope) setStaffScope(sched.staff_scope);
+                        if (sched.labour_mode) setLabourMode(sched.labour_mode);
+                        if (sched.labour_scope) setLabourScope(sched.labour_scope);
+                        if (sched.equipment_mode) setEquipmentMode(sched.equipment_mode);
+                        if (sched.equipment_scope) setEquipmentScope(sched.equipment_scope);
+                        if (sched.client_bill_target_date) setClientBillTargetDate(formatDate(sched.client_bill_target_date));
+                        if (sched.contractor_bill_target_date) setContractorBillTargetDate(formatDate(sched.contractor_bill_target_date));
+                        if (sched.observation_action) setObservationAction(sched.observation_action);
+                        setIsEditMode(false);
+                    }
 
                     // These three feeds are independent of each other. They used to
                     // share one try/catch and one Promise.all, so a single failing
@@ -862,19 +1010,29 @@ export default function DpsSiteSchedule({ siteId, basePath }: DpsSiteSchedulePro
 
             {/* Restored Draft Alert Banner */}
             {hasRestoredPlanningDraft && (
-                <div className="flex items-center justify-between px-4 py-3 bg-amber-50 border border-amber-200 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-amber-50 border border-amber-200 shadow-sm">
                     <div className="flex items-center gap-2">
                         <AlertCircle size={16} className="text-amber-600 flex-shrink-0" />
                         <p className="text-sm text-amber-900">
-                            <span className="font-semibold">Restored auto-saved draft:</span> Unsaved planning work from a previous session was recovered automatically so you don't lose progress.
+                            <span className="font-semibold">Draft Loaded:</span> Recovered {monthlySchedules?.length || 0} slabs/milestones
+                            {lastDraftSavedAt ? ` (saved at ${lastDraftSavedAt})` : ''} so your progress is preserved.
                         </p>
                     </div>
                     <div className="flex items-center gap-3">
                         <button
                             type="button"
+                            onClick={() => setShowDraftVersionsModal(true)}
+                            className="font-bold text-blue-700 hover:text-blue-900 underline text-xs flex items-center gap-1 uppercase"
+                        >
+                            <HistoryIcon size={12} />
+                            View All Draft Versions
+                        </button>
+                        <button
+                            type="button"
                             onClick={() => {
                                 try { localStorage.removeItem(planningDraftKey); } catch (_) {}
                                 setHasRestoredPlanningDraft(false);
+                                hasRestoredDraftRef.current = false;
                                 if (siteId) fetchSiteData();
                                 toast.success('Draft discarded, reset to server version');
                             }}
@@ -1031,6 +1189,14 @@ export default function DpsSiteSchedule({ siteId, basePath }: DpsSiteSchedulePro
                                 {scheduleStatus === 'active' && !isExpired() && (
                                     <button onClick={() => setIsEditMode(true)} className="px-6 py-2 bg-gray-100 text-gray-900 font-medium text-sm rounded-sm hover:bg-gray-200 transition-colors shadow-sm">Edit Plan</button>
                                 )}
+                                <button
+                                    type="button"
+                                    onClick={() => setShowDraftVersionsModal(true)}
+                                    className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium text-sm rounded-sm hover:border-gray-900 hover:text-gray-900 transition-colors shadow-sm flex items-center gap-1.5"
+                                    title="View and restore previous draft versions"
+                                >
+                                    <HistoryIcon size={14} /> Draft Versions {availableDraftsCount > 0 ? `(${availableDraftsCount})` : ''}
+                                </button>
                                 <button onClick={handleCreateNew} className="px-6 py-2 bg-white border border-gray-300 text-gray-700 font-medium text-sm rounded-sm hover:border-gray-900 hover:text-gray-900 transition-colors">
                                     Create Plan for Next Period
                                 </button>
@@ -1044,6 +1210,14 @@ export default function DpsSiteSchedule({ siteId, basePath }: DpsSiteSchedulePro
                                         Auto-saved {lastDraftSavedAt}
                                     </span>
                                 )}
+                                <button
+                                    type="button"
+                                    onClick={() => setShowDraftVersionsModal(true)}
+                                    className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium text-sm rounded-sm hover:border-gray-900 hover:text-gray-900 transition-colors shadow-sm flex items-center gap-1.5"
+                                    title="View all draft versions & history"
+                                >
+                                    <HistoryIcon size={14} /> Draft Versions {availableDraftsCount > 0 ? `(${availableDraftsCount})` : ''}
+                                </button>
                                 <button
                                     type="button"
                                     onClick={handleSavePlanningDraft}
@@ -1167,6 +1341,328 @@ export default function DpsSiteSchedule({ siteId, basePath }: DpsSiteSchedulePro
                 onConfirm={confirmationModal.onConfirm}
                 onClose={closeConfirmation}
             />
+            {/* Draft Versions Modal */}
+            <DpsDraftVersionsModal
+                isOpen={showDraftVersionsModal}
+                onClose={() => setShowDraftVersionsModal(false)}
+                actualSiteId={actualSiteId}
+                unitId={unitId}
+                planType={planType}
+                onRestore={applyDraftPayload}
+                getAllDiscoveredDrafts={getAllDiscoveredDrafts}
+            />
+        </div>
+    );
+}
+
+// ── Draft Versions Modal Subcomponent ──────────────────────────────────────
+interface DpsDraftVersionsModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    actualSiteId: string | number;
+    unitId?: string | null;
+    planType: string;
+    onRestore: (draft: any, customMsg?: string) => void;
+    getAllDiscoveredDrafts: () => any[];
+}
+
+function DpsDraftVersionsModal({
+    isOpen,
+    onClose,
+    actualSiteId,
+    unitId,
+    planType,
+    onRestore,
+    getAllDiscoveredDrafts
+}: DpsDraftVersionsModalProps) {
+    const [drafts, setDrafts] = useState<any[]>([]);
+    const [expandedDraftId, setExpandedDraftId] = useState<string | null>(null);
+    const [copiedDraftId, setCopiedDraftId] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState<boolean>(false);
+
+    const refresh = async () => {
+        setIsLoading(true);
+        const localList = getAllDiscoveredDrafts();
+        let serverList: any[] = [];
+        try {
+            const q = new URLSearchParams();
+            if (unitId) q.append('unitId', unitId);
+            if (planType) q.append('planType', planType);
+            const res = await apiClient<any>(`/dps-schedule/${actualSiteId}/drafts?${q.toString()}`, {
+                method: 'GET',
+                withAuth: true
+            });
+            if (res?.drafts && Array.isArray(res.drafts)) {
+                serverList = res.drafts.map((sd: any) => {
+                    const ts = sd.createdAt ? new Date(sd.createdAt).getTime() : Date.now();
+                    return {
+                        id: `server-${sd.id}`,
+                        serverId: sd.id,
+                        key: `Server Database #${sd.id}`,
+                        timestamp: ts,
+                        source: 'Server Database (Cloud)',
+                        milestonesCount: sd.milestonesCount || sd.draftData?.monthlySchedules?.length || 0,
+                        towersCount: sd.towersCount || sd.draftData?.towers?.length || 0,
+                        periodLabel: sd.draftData?.scheduleValidFrom ? `${sd.draftData.scheduleValidFrom} to ${sd.draftData.scheduleValidTill || '—'}` : 'Not set',
+                        data: sd.draftData
+                    };
+                });
+            }
+        } catch (e) {
+            console.warn('Could not fetch server drafts:', e);
+        }
+
+        const merged = [...serverList];
+        for (const ld of localList) {
+            const exists = merged.some(m => Math.abs(m.timestamp - ld.timestamp) < 3000 && m.milestonesCount === ld.milestonesCount);
+            if (!exists) merged.push(ld);
+        }
+        merged.sort((a, b) => b.timestamp - a.timestamp);
+        setDrafts(merged);
+        setIsLoading(false);
+    };
+
+    useEffect(() => {
+        if (isOpen) refresh();
+    }, [isOpen, actualSiteId, unitId, planType]);
+
+    if (!isOpen) return null;
+
+    const handleDelete = async (d: any) => {
+        if (d.serverId) {
+            try {
+                await apiClient<any>(`/dps-schedule/${actualSiteId}/drafts/${d.serverId}`, { method: 'DELETE', withAuth: true });
+                toast.success('Draft removed from server');
+            } catch (_) {
+                toast.error('Failed to delete draft from server');
+            }
+        }
+        refresh();
+    };
+
+    const handleCopy = (d: any) => {
+        try {
+            navigator.clipboard.writeText(JSON.stringify(d.data, null, 2));
+            setCopiedDraftId(d.id);
+            toast.success('Draft JSON copied to clipboard');
+            setTimeout(() => setCopiedDraftId(null), 2500);
+        } catch (_) {
+            toast.error('Failed to copy');
+        }
+    };
+
+    const handleDownload = (d: any) => {
+        try {
+            const blob = new Blob([JSON.stringify(d.data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `dpr_planning_draft_${d.timestamp}.json`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (_) {}
+    };
+
+    return (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto overflow-x-hidden bg-black/60 backdrop-blur-sm p-4 text-sm animate-fade-in">
+            <div className="relative w-full max-w-3xl transform rounded-xl bg-white shadow-2xl border border-slate-200 flex flex-col max-h-[85vh]">
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 rounded-t-xl">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-100 text-blue-700 rounded-lg">
+                            <HistoryIcon size={20} />
+                        </div>
+                        <div>
+                            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                                Planning Draft Versions & History
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-semibold">
+                                    {drafts.length} saved {drafts.length === 1 ? 'version' : 'versions'}
+                                </span>
+                            </h3>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                                Select any saved version from today to restore into the planning form.
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={refresh}
+                            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-md transition-colors"
+                            title="Refresh drafts"
+                        >
+                            <RefreshCw size={15} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-md transition-colors"
+                            title="Close"
+                        >
+                            <X size={18} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Body */}
+                <div className="p-6 overflow-y-auto space-y-3.5 flex-1 divide-y divide-slate-100">
+                    {drafts.length === 0 ? (
+                        <div className="py-12 text-center">
+                            <AlertCircle className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                            <h4 className="text-sm font-semibold text-slate-700">No Drafts Found</h4>
+                            <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
+                                No local auto-saved drafts were found in this browser for this plan. As soon as you edit or click Save Draft, backups will appear here.
+                            </p>
+                        </div>
+                    ) : (
+                        drafts.map((d, index) => {
+                            const dateObj = new Date(d.timestamp);
+                            const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                            const dateStr = dateObj.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+                            const diffMin = Math.floor((Date.now() - d.timestamp) / 60000);
+                            const relativeStr = diffMin < 1 ? 'Just now' : diffMin < 60 ? `${diffMin}m ago` : `${Math.floor(diffMin / 60)}h ago`;
+                            const isExpanded = expandedDraftId === d.id;
+                            const milestones: any[] = d.data?.monthlySchedules || [];
+
+                            return (
+                                <div key={d.id} className={`pt-3.5 first:pt-0 p-4 rounded-lg border transition-all ${index === 0 ? 'bg-blue-50/40 border-blue-200' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-slate-100 text-slate-700 rounded-md">
+                                                <Clock size={16} />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-slate-900 text-sm">{timeStr}</span>
+                                                    <span className="text-xs text-slate-400">({dateStr} · {relativeStr})</span>
+                                                    {index === 0 && (
+                                                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                                                            Latest
+                                                        </span>
+                                                    )}
+                                                    <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                                                        {d.source}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-600">
+                                                    <span className="font-semibold text-slate-800">
+                                                        🏗️ {d.milestonesCount} Slabs / Milestones
+                                                    </span>
+                                                    <span>•</span>
+                                                    <span>🏢 {d.towersCount} Towers</span>
+                                                    {d.periodLabel && d.periodLabel !== 'Not set' && (
+                                                        <>
+                                                            <span>•</span>
+                                                            <span className="text-slate-500">📅 {d.periodLabel}</span>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            {milestones.length > 0 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setExpandedDraftId(isExpanded ? null : d.id)}
+                                                    className="px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded transition-colors flex items-center gap-1"
+                                                >
+                                                    <Eye size={12} />
+                                                    {isExpanded ? 'Hide Slabs' : 'Preview Slabs'}
+                                                    {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                                                </button>
+                                            )}
+
+                                            <button
+                                                type="button"
+                                                onClick={() => handleCopy(d)}
+                                                className="p-1.5 text-slate-400 hover:text-slate-700 bg-white border border-slate-200 rounded hover:bg-slate-50 transition-colors"
+                                                title="Copy draft JSON"
+                                            >
+                                                {copiedDraftId === d.id ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                                            </button>
+
+                                            {d.serverId && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDelete(d)}
+                                                    className="p-1.5 text-rose-500 hover:text-rose-700 bg-white border border-rose-200 rounded hover:bg-rose-50 transition-colors"
+                                                    title="Delete this draft from server"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            )}
+
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    onRestore(d.data, `Restored draft from ${timeStr} (${d.milestonesCount} slabs)`);
+                                                    onClose();
+                                                }}
+                                                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded shadow-sm transition-colors flex items-center gap-1.5"
+                                            >
+                                                <RotateCcw size={13} />
+                                                Restore This Version
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Preview Accordion */}
+                                    {isExpanded && milestones.length > 0 && (
+                                        <div className="mt-3.5 pt-3 border-t border-slate-200">
+                                            <div className="text-[11px] font-bold uppercase text-slate-400 mb-1.5">
+                                                Slabs / Milestones in this draft ({milestones.length}):
+                                            </div>
+                                            <div className="max-h-48 overflow-y-auto border border-slate-200 rounded bg-slate-50 divide-y divide-slate-200 text-xs">
+                                                {milestones.slice(0, 50).map((m: any, mIdx: number) => (
+                                                    <div key={mIdx} className="px-3 py-1.5 flex items-center justify-between text-slate-700">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-semibold text-slate-900">{m.towerId || 'Overall'}</span>
+                                                            <span className="text-slate-400">/</span>
+                                                            <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 font-medium text-[11px] border border-blue-200">
+                                                                {m.floor || 'Slab'}
+                                                            </span>
+                                                            {m.work_item && (
+                                                                <span className="text-slate-600 italic">
+                                                                    ({m.work_item})
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="text-right text-slate-500 text-[11px]">
+                                                            {m.target_date || m.date || 'No target date'}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                {milestones.length > 50 && (
+                                                    <div className="px-3 py-1 text-center text-slate-400 text-[11px] italic">
+                                                        ... and {milestones.length - 50} more slabs
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-3.5 border-t border-slate-100 flex items-center justify-between bg-slate-50 rounded-b-xl text-xs text-slate-500">
+                    <div>
+                        Tip: Auto-save creates silent backups every 10 seconds while editing.
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-4 py-1.5 bg-white border border-slate-300 text-slate-700 font-semibold rounded hover:bg-slate-100 transition-colors"
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }

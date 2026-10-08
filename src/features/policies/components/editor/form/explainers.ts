@@ -61,7 +61,7 @@ function deduction(action: unknown): string {
   return DEDUCTION[s(action, 'nothing') as keyof typeof DEDUCTION] || 'nothing';
 }
 
-const RESET = { month: 'every month', payroll_cycle: 'every payroll cycle', never: 'never' } as const;
+const RESET = { month: 'every month', payroll_cycle: 'every payroll cycle', quarter: 'every quarter', year: 'every year', never: 'never' } as const;
 const PAYOUT = { none: 'nothing', comp_off: 'comp off', paid: 'extra pay', employee_choice: 'comp off or extra pay, employee picks' } as const;
 
 function payoutLine(c: Config, label: string): string[] {
@@ -171,14 +171,19 @@ const WORK_RULES: Record<string, (c: Config) => CardSummary> = {
           rule: ['Any day with a check-in counts as a full day, however few hours were worked.'],
           example: 'Example: in at 9:00 am, out at 11:00 am — still a full day.',
         };
-      case 'worked_minutes':
+      case 'worked_minutes': {
+        const rule = [
+          `${duration(c.fullDayMinutes)} worked or more is a full day.`,
+          `${duration(c.halfDayMinutes)} to ${duration(c.fullDayMinutes)} is a half day; anything less is absent.`,
+        ];
+        if (b(c.enforceArrivalExitLimits)) {
+          rule.push(`Also marked half day if arrived more than ${duration(c.halfDayIfLateByMinutes)} late or left more than ${duration(c.halfDayIfEarlyByMinutes)} early.`);
+        }
         return {
-          rule: [
-            `${duration(c.fullDayMinutes)} worked or more is a full day.`,
-            `${duration(c.halfDayMinutes)} to ${duration(c.fullDayMinutes)} is a half day; anything less is absent.`,
-          ],
+          rule,
           example: `Example: ${duration(n(c.halfDayMinutes) + 30)} worked — half day. ${duration(n(c.fullDayMinutes) + 15)} worked — full day.`,
         };
+      }
       case 'clock_time':
         return {
           rule: [
@@ -187,14 +192,19 @@ const WORK_RULES: Record<string, (c: Config) => CardSummary> = {
           ],
           example: `Example: in at ${clock(addMinutes(s(c.halfDayIfInAfter), 20))} and worked at least ${duration(c.minWorkedMinutesForHalfDay ?? 240)} — half day. Less than ${duration(c.minWorkedMinutesForHalfDay ?? 240)} worked is absent.`,
         };
-      default:
+      default: {
+        const rule = [
+          `Working ${n(c.fullDayPercent)}% of the shift or more is a full day.`,
+          `${n(c.halfDayPercent)}% to ${n(c.fullDayPercent)}% is a half day; below ${n(c.halfDayPercent)}% the day is absent.`,
+        ];
+        if (b(c.enforceArrivalExitLimits)) {
+          rule.push(`Also marked half day if arrived more than ${n(c.halfDayIfLateByPercent)}% late or left more than ${n(c.halfDayIfEarlyByPercent)}% early.`);
+        }
         return {
-          rule: [
-            `Working ${n(c.fullDayPercent)}% of the shift or more is a full day.`,
-            `${n(c.halfDayPercent)}% to ${n(c.fullDayPercent)}% is a half day; below ${n(c.halfDayPercent)}% the day is absent.`,
-          ],
+          rule,
           example: `Example: on an 8h shift, ${duration((n(c.fullDayPercent) / 100) * 480)} worked is a full day, ${duration((n(c.halfDayPercent) / 100) * 480)} is a half day.`,
         };
+      }
     }
   },
 
@@ -207,12 +217,20 @@ const WORK_RULES: Record<string, (c: Config) => CardSummary> = {
         : `Late minutes are counted in blocks of ${duration(c.slotMinutes)}; each block owes ${duration(c.extensionMinutes)} extra.`,
     ];
     const graceDays = n(c.graceDaysAllowed, 3);
-    rule.push(`Not making it up is allowed ${graceDays} time${graceDays === 1 ? '' : 's'} before a penalty applies.`);
-    rule.push(
-      b(c.penaltyEnabled)
-        ? `After the grace days are used up, it is marked a ${deduction(c.penaltyAction)}.`
-        : 'No penalty is applied even after the grace days are used up.'
-    );
+    const pattern = s(c.deductionPattern, 'every_mark');
+    const resetText = RESET[s(c.resetEvery, 'month') as keyof typeof RESET] || 'every month';
+    const isRecurring = pattern === 'recurring_cycle';
+
+    if (b(c.penaltyEnabled)) {
+      if (isRecurring) {
+        rule.push(`Failing to make it up is penalized every ${ordinal(graceDays + 1)} time (${graceDays} grace chances between each penalty) as a ${deduction(c.penaltyAction)}.`);
+      } else {
+        rule.push(`Failing to make it up is allowed ${graceDays} time${graceDays === 1 ? '' : 's'}; every time after that is penalized as a ${deduction(c.penaltyAction)}.`);
+      }
+      rule.push(`The grace count resets ${resetText}.`);
+    } else {
+      rule.push(`Not making it up is allowed ${graceDays} time${graceDays === 1 ? '' : 's'} with no penalty.`);
+    }
     const late = Math.max(n(c.triggerAfterMinutes) + 10, 15);
     return {
       rule,
@@ -558,13 +576,25 @@ function markPenalty(c: Config, noun: string, kind: 'late' | 'early'): CardSumma
   if (action === 'nothing') {
     return { rule: [`${Noun}s are recorded but never deducted.`] };
   }
-  return {
-    rule: [
-      `${allowance} ${noun}${allowance === 1 ? '' : 's'} ${allowance === 1 ? 'is' : 'are'} free; every one after that costs a ${action}.`,
-      `The count resets ${RESET[s(c.resetEvery, 'month') as keyof typeof RESET]}.`,
-    ],
-    example: `Example: ${kind} on the 3rd, 9th and 14th with an allowance of ${allowance} — ${allowance >= 3 ? `nothing is deducted until the ${ordinal(allowance + 1)} one` : `the ${ordinal(allowance + 1)} one is deducted as a ${action}`}.`,
-  };
+  const pattern = s(c.deductionPattern, 'every_mark');
+  const resetText = RESET[s(c.resetEvery, 'month') as keyof typeof RESET] || 'every month';
+  const isRecurring = pattern === 'recurring_cycle';
+
+  const rule = isRecurring
+    ? [
+        `Every ${ordinal(allowance + 1)} ${noun} costs a ${action} (${allowance} free marks between each penalty).`,
+        `The count resets ${resetText}.`,
+      ]
+    : [
+        `${allowance} ${noun}${allowance === 1 ? '' : 's'} ${allowance === 1 ? 'is' : 'are'} free; every one after that costs a ${action}.`,
+        `The count resets ${resetText}.`,
+      ];
+
+  const example = isRecurring
+    ? `Example: with an allowance of ${allowance}, the ${ordinal(allowance + 1)}, ${ordinal((allowance + 1) * 2)} and ${ordinal((allowance + 1) * 3)} ${noun} are deducted as a ${action}.`
+    : `Example: ${kind} on the 3rd, 9th and 14th with an allowance of ${allowance} — ${allowance >= 3 ? `nothing is deducted until the ${ordinal(allowance + 1)} one` : `the ${ordinal(allowance + 1)} one is deducted as a ${action}`}.`;
+
+  return { rule, example };
 }
 
 const PAYROLL: Record<string, (c: Config, section: Config) => CardSummary> = {

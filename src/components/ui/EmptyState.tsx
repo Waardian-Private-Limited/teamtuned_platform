@@ -14,15 +14,18 @@ interface EmptyStateProps {
 export function EmptyState({ illustration, illustrationClassName, title, description, action, compact }: EmptyStateProps) {
   const actionVariant = action?.variant ?? 'primary';
   return (
-    <div className={cx('flex flex-col items-center justify-center text-center', compact ? 'py-8' : 'py-12')}>
+    <div className={cx('flex flex-col items-center justify-center text-center', compact ? 'py-8' : 'py-10')}>
       {illustration && !compact && (
-        <div className={cx('mb-6 w-full max-w-[360px] sm:max-w-[460px] md:max-w-[500px] flex justify-center', illustrationClassName || illustration.className)}>
+        <div
+          style={{ maxWidth: illustration.width ? `${illustration.width}px` : undefined }}
+          className={cx('mb-4 flex w-full max-w-[180px] justify-center sm:max-w-[220px]', illustrationClassName || illustration.className)}
+        >
           <Image
             src={illustration.src}
             alt={illustration.alt}
             width={illustration.width}
             height={illustration.height}
-            className="h-auto w-full max-h-[380px] object-contain"
+            className="h-auto w-auto max-h-[140px] object-contain sm:max-h-[160px]"
             priority={false}
           />
         </div>
