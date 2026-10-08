@@ -312,10 +312,10 @@ export default function DpsSiteSchedule({ siteId, basePath }: DpsSiteSchedulePro
     }, [actualSiteId, unitId, planType]);
 
     /**
-     * Save draft snapshot to primary key AND append to history list.
+     * Save draft snapshot to MySQL server database AND local storage.
      * Saved ONLY when user clicks the "Save Draft" button.
      */
-    const saveDraftSnapshot = () => {
+    const saveDraftSnapshot = async () => {
         try {
             const hasData = scheduleValidFrom || scheduleValidTill || (monthlySchedules && monthlySchedules.length > 0) || (concretePlanning && concretePlanning.length > 0);
             if (!hasData) {
@@ -351,30 +351,53 @@ export default function DpsSiteSchedule({ siteId, basePath }: DpsSiteSchedulePro
                 timestamp: now
             };
 
-            // 1. Primary key
-            localStorage.setItem(planningDraftKey, JSON.stringify(payload));
-            setLastDraftSavedAt(timeStr);
-
-            // 2. Append to version history (keeping up to 35 snapshots so versions are never lost)
-            let history: any[] = [];
+            // 1. Save to MySQL database on the server
+            let serverSaved = false;
             try {
-                const existing = localStorage.getItem(planningDraftHistoryKey);
-                if (existing) history = JSON.parse(existing) || [];
+                const res = await apiClient<any>(`/dps-schedule/${actualSiteId}/draft`, {
+                    method: 'POST',
+                    body: {
+                        unitId: unitId || null,
+                        planType,
+                        title: `${isNewPlan ? 'New Plan' : 'Plan'} Draft (${monthlySchedules?.length || 0} slabs)`,
+                        draftData: payload
+                    },
+                    withAuth: true
+                });
+                if (res?.success) serverSaved = true;
+            } catch (err) {
+                console.warn('Server draft save error:', err);
+            }
+
+            // 2. Also save to local browser storage as immediate offline backup
+            try {
+                localStorage.setItem(planningDraftKey, JSON.stringify(payload));
+                setLastDraftSavedAt(timeStr);
+
+                let history: any[] = [];
+                try {
+                    const existing = localStorage.getItem(planningDraftHistoryKey);
+                    if (existing) history = JSON.parse(existing) || [];
+                } catch (_) {}
+
+                history.push({
+                    id: `draft_${now}`,
+                    timestamp: now,
+                    source: serverSaved ? 'Server Database' : 'Local Backup',
+                    payload
+                });
+                if (history.length > 35) history = history.slice(history.length - 35);
+                localStorage.setItem(planningDraftHistoryKey, JSON.stringify(history));
+                setAvailableDraftsCount(prev => prev + 1);
             } catch (_) {}
 
-            history.push({
-                id: `draft_${now}`,
-                timestamp: now,
-                source: 'Manual Save',
-                payload
-            });
-            if (history.length > 35) history = history.slice(history.length - 35);
-            localStorage.setItem(planningDraftHistoryKey, JSON.stringify(history));
-            setAvailableDraftsCount(prev => prev + 1);
-
-            toast.success(`Planning draft saved at ${timeStr}`);
+            if (serverSaved) {
+                toast.success(`Draft saved to database server at ${timeStr}`);
+            } else {
+                toast.success(`Draft saved locally at ${timeStr}`);
+            }
         } catch (err) {
-            toast.error('Failed to save draft locally.');
+            toast.error('Failed to save draft.');
         }
     };
 
@@ -1355,17 +1378,67 @@ function DpsDraftVersionsModal({
     const [drafts, setDrafts] = useState<any[]>([]);
     const [expandedDraftId, setExpandedDraftId] = useState<string | null>(null);
     const [copiedDraftId, setCopiedDraftId] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState<boolean>(false);
 
-    const refresh = () => {
-        const list = getAllDiscoveredDrafts();
-        setDrafts(list);
+    const refresh = async () => {
+        setIsLoading(true);
+        const localList = getAllDiscoveredDrafts();
+        let serverList: any[] = [];
+        try {
+            const q = new URLSearchParams();
+            if (unitId) q.append('unitId', unitId);
+            if (planType) q.append('planType', planType);
+            const res = await apiClient<any>(`/dps-schedule/${actualSiteId}/drafts?${q.toString()}`, {
+                method: 'GET',
+                withAuth: true
+            });
+            if (res?.drafts && Array.isArray(res.drafts)) {
+                serverList = res.drafts.map((sd: any) => {
+                    const ts = sd.createdAt ? new Date(sd.createdAt).getTime() : Date.now();
+                    return {
+                        id: `server-${sd.id}`,
+                        serverId: sd.id,
+                        key: `Server Database #${sd.id}`,
+                        timestamp: ts,
+                        source: 'Server Database (Cloud)',
+                        milestonesCount: sd.milestonesCount || sd.draftData?.monthlySchedules?.length || 0,
+                        towersCount: sd.towersCount || sd.draftData?.towers?.length || 0,
+                        periodLabel: sd.draftData?.scheduleValidFrom ? `${sd.draftData.scheduleValidFrom} to ${sd.draftData.scheduleValidTill || '—'}` : 'Not set',
+                        data: sd.draftData
+                    };
+                });
+            }
+        } catch (e) {
+            console.warn('Could not fetch server drafts:', e);
+        }
+
+        const merged = [...serverList];
+        for (const ld of localList) {
+            const exists = merged.some(m => Math.abs(m.timestamp - ld.timestamp) < 3000 && m.milestonesCount === ld.milestonesCount);
+            if (!exists) merged.push(ld);
+        }
+        merged.sort((a, b) => b.timestamp - a.timestamp);
+        setDrafts(merged);
+        setIsLoading(false);
     };
 
     useEffect(() => {
         if (isOpen) refresh();
-    }, [isOpen]);
+    }, [isOpen, actualSiteId, unitId, planType]);
 
     if (!isOpen) return null;
+
+    const handleDelete = async (d: any) => {
+        if (d.serverId) {
+            try {
+                await apiClient<any>(`/dps-schedule/${actualSiteId}/drafts/${d.serverId}`, { method: 'DELETE', withAuth: true });
+                toast.success('Draft removed from server');
+            } catch (_) {
+                toast.error('Failed to delete draft from server');
+            }
+        }
+        refresh();
+    };
 
     const handleCopy = (d: any) => {
         try {
@@ -1510,6 +1583,17 @@ function DpsDraftVersionsModal({
                                             >
                                                 {copiedDraftId === d.id ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
                                             </button>
+
+                                            {d.serverId && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDelete(d)}
+                                                    className="p-1.5 text-rose-500 hover:text-rose-700 bg-white border border-rose-200 rounded hover:bg-rose-50 transition-colors"
+                                                    title="Delete this draft from server"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            )}
 
                                             <button
                                                 type="button"
