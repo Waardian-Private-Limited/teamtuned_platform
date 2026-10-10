@@ -3,9 +3,9 @@
 import { RotateCcw } from 'lucide-react';
 
 /** What an empty list means here, with the approvals illustration and a way out of the filters. */
-export function ApprovalsEmptyState({ filtered, onClear }: { filtered: boolean; onClear: () => void }) {
-  const title = filtered ? 'Nothing matches these filters' : 'You are all caught up';
-  const description = filtered ? 'Try another status, date range or site.' : 'Regularization requests that need your decision show up here.';
+export function ApprovalsEmptyState({ noun, filtered, tracking = false, onClear }: { noun: string; filtered: boolean; tracking?: boolean; onClear: () => void }) {
+  const title = filtered ? 'Nothing matches these filters' : tracking ? 'No requests yet' : 'You are all caught up';
+  const description = filtered ? 'Try another status, date range or site.' : tracking ? `${noun} from your sites show up here.` : `${noun} that need your decision show up here.`;
   return (
     <div className="flex flex-1 flex-col items-center justify-center p-6 text-center lg:p-10">
       <div className="mb-4 w-36 select-none sm:w-44 lg:w-52">

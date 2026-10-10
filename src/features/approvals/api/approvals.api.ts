@@ -1,6 +1,6 @@
 import { apiClient } from '@/lib/apiClient';
 import type {
-  Catalog, Coverage, Delegation, EmployeeRef, Flow, FlowInput, InboxResponse, Lookups, Preview, RequestDetail,
+  Catalog, Coverage, Delegation, EmployeeRef, Flow, FlowInput, Lookups, Preview, RequestDetail,
 } from '../types/approvals';
 
 const auth = { withAuth: true };
@@ -20,13 +20,9 @@ export const previewChain = (body: { requestType: string; employeeId: number; fa
 export const getCoverage = (requestType: string, subOrgId?: number | null) =>
   apiClient.get<Coverage>('/approvals/coverage', { requestType, subOrgId: subOrgId ?? undefined }, auth);
 
-export const getInbox = (params: { tab: string; type?: string; status?: string; page?: number }) =>
-  apiClient.get<InboxResponse>('/approvals/inbox', { tab: params.tab, type: params.type || undefined, status: params.status || undefined, page: params.page }, auth);
 export const getInboxCount = () => apiClient.get<{ pending: number }>('/approvals/inbox/count', undefined, auth);
 export const getRequest = (id: number) => apiClient.get<RequestDetail>(`/approvals/requests/${id}`, undefined, auth);
 export const decide = (id: number, decision: 'approve' | 'reject', note?: string) => apiClient.post<{ status: string }>(`/approvals/requests/${id}/decide`, { decision, note }, auth);
-export const bulkDecide = (ids: number[], decision: 'approve' | 'reject', note?: string) =>
-  apiClient.post<{ succeeded: number; failed: number; results: { id: number; ok: boolean; message?: string }[] }>('/approvals/requests/bulk-decide', { ids, decision, note }, auth);
 export const sendBack = (id: number, note: string) => apiClient.post(`/approvals/requests/${id}/send-back`, { note }, auth);
 export const withdraw = (id: number) => apiClient.post(`/approvals/requests/${id}/withdraw`, {}, auth);
 export const resubmit = (id: number) => apiClient.post(`/approvals/requests/${id}/resubmit`, {}, auth);

@@ -7,7 +7,7 @@ import { Alert } from '@/components/ui/Alert';
 import { COMP_OFF_REASON, COMP_OFF_STATE, FLAG_TEXT, SCHEDULE_TEXT } from '../../constants/detailed.constants';
 import { useDay } from '../../hooks/useDay';
 import type { DayDetail } from '../../types/detailed.model';
-import { clockText, dateTimeText, daysText, longDayText, minutesText, punchTimeText, timeText } from '../../utils/format';
+import { clockText, dateTimeText, daysText, leaveText, longDayText, minutesText, punchTimeText, timeText } from '../../utils/format';
 import { Avatar, Skeleton } from './controls';
 import { CompOffGrantsList } from './CompOffGrantsList';
 import { PunchCard } from './PunchCard';
@@ -179,7 +179,7 @@ function Body({ d, actions }: { d: DayDetail; actions?: DayViewProps['actions'] 
       {(d.holiday || d.leave || d.locked || d.nightOtYesterdayMinutes > 0) && (
         <ul className="space-y-1.5 text-sm">
           {d.holiday && <li className="flex items-center gap-2 text-fg"><CalendarDays className="h-4 w-4 shrink-0 text-fg-muted" /> {d.holiday.name}{d.holiday.half ? ' (half day)' : ''}</li>}
-          {d.leave && <li className="flex items-center gap-2 text-fg"><CalendarDays className="h-4 w-4 shrink-0 text-fg-muted" /> {d.leave.name}{d.leave.units === 0.5 ? ' (half day)' : ''}, {d.leave.isPaid ? 'paid' : 'unpaid'}</li>}
+          {d.leave && <li className="flex items-center gap-2 text-fg"><CalendarDays className="h-4 w-4 shrink-0 text-fg-muted" /> {leaveText(d.leave)}</li>}
           {d.nightOtYesterdayMinutes > 0 && <li className="flex items-center gap-2 text-fg"><Moon className="h-4 w-4 shrink-0 text-fg-muted" /> Worked night overtime last night, {minutesText(d.nightOtYesterdayMinutes)}</li>}
           {d.locked && <li className="flex items-center gap-2 text-fg"><Lock className="h-4 w-4 shrink-0 text-fg-muted" /> Locked for payroll, no changes</li>}
         </ul>

@@ -5,17 +5,17 @@ import { getFilterOptions } from '@/features/detailed-attendance/api/detailedAtt
 import type { FilterOptionsDto } from '@/features/attendance-dashboard/types/dashboard.dto';
 
 /**
- * The sites, departments and roles the signed-in person may filter by: their own sites, or every site
- * with HR mode or as an admin. Null when they have no attendance access at all, so those filters hide.
+ * The sites and departments the signed-in person may filter by: their own sites, or every site with
+ * HR mode or as an admin. Null when they have no attendance access at all, so those filters hide.
  */
-export function useFilterOptions(departmentId: number | null) {
+export function useFilterOptions() {
   const [options, setOptions] = useState<FilterOptionsDto | null>(null);
   useEffect(() => {
     const controller = new AbortController();
-    getFilterOptions(null, departmentId, controller.signal)
+    getFilterOptions(null, null, controller.signal)
       .then(setOptions)
       .catch(() => { if (!controller.signal.aborted) setOptions(null); });
     return () => controller.abort();
-  }, [departmentId]);
+  }, []);
   return options;
 }

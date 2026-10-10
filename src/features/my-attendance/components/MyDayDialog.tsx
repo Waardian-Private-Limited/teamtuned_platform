@@ -40,7 +40,7 @@ export function MyDayDialog({ date, reloadKey, onClose, onChanged }: Props) {
 
   return (
     <>
-      <DayView date={date} data={data} loading={loading} error={error} childOpen={regularize} onClose={onClose} actions={data && !data.locked ? actions : undefined} />
+      <DayView date={date} data={data} loading={loading} error={error} childOpen={regularize} onClose={onClose} actions={data && !data.locked && data.date <= data.today ? actions : undefined} />
       {regularize && date && (
         <RegularizeDialog date={date} onClose={() => setRegularize(false)} onDone={() => { setRegularize(false); setSaved((v) => v + 1); onChanged(); }} />
       )}

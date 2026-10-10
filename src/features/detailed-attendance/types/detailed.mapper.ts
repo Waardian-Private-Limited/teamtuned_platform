@@ -103,7 +103,7 @@ export function toMonth(dto: MonthResponseDto): Month {
       payableUnits: c.payable_units,
       lateMinutes: c.late_minutes,
       overtimeMinutes: c.overtime_minutes,
-      leave: c.leave ? { code: c.leave.code, name: c.leave.name, units: c.leave.units, isPaid: c.leave.is_paid } : null,
+      leave: c.leave ? { code: c.leave.code, name: c.leave.name, units: c.leave.units, isPaid: c.leave.is_paid, session: c.leave.session ?? null } : null,
       regularizationStatus: c.regularization_status ?? null,
     })),
     summary: {
@@ -202,7 +202,7 @@ export function toDay(dto: DayDetailDto): DayDetail {
       : null,
     form: { inTime: dto.form.in_time, outTime: dto.form.out_time, from: dto.form.from, forcedStatus: dto.form.forced_status },
     holiday: dto.holiday,
-    leave: dto.leave ? { code: dto.leave.code, name: dto.leave.name, units: dto.leave.units, isPaid: dto.leave.is_paid } : null,
+    leave: dto.leave ? { code: dto.leave.code, name: dto.leave.name, units: dto.leave.units, isPaid: dto.leave.is_paid, session: dto.leave.session ?? null } : null,
     nightOtYesterdayMinutes: dto.night_ot_yesterday_minutes,
     override: dto.override ? { status: dto.override.status, units: dto.override.units, reason: dto.override.reason, by: dto.override.by, at: dto.override.at, inTime: dto.override.in_time, outTime: dto.override.out_time } : null,
     punches: dto.punches.map((p) => ({ id: p.id, direction: p.direction, kind: p.kind, at: p.at, source: p.source, place: p.place, location: p.location, distanceM: p.distance_m, lat: p.lat, lng: p.lng, accuracyM: p.accuracy_m, hasImage: p.has_image, face: p.face, voided: p.voided, voidReason: p.void_reason })),

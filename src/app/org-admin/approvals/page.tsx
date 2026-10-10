@@ -1,7 +1,7 @@
 'use client';
 
-import { InboxPage } from '@/features/approvals/components/InboxPage';
+import { AttendanceApprovalsPage } from '@/features/attendance-approvals/components/AttendanceApprovalsPage';
 
-export default function OrgAdminApprovalsPage() {
-  return <InboxPage />;
+export default function ApprovalsRoute() {
+  return <AttendanceApprovalsPage />;
 }

@@ -62,3 +62,9 @@ export const initials = (name: string) =>
   name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
 
 export const unitsText = (units: number) => (units === 1 ? 'Full day' : units === 0.5 ? 'Half day' : units === 0 ? 'No pay' : `${daysText(units)} day`);
+
+const LEAVE_PART: Record<string, string> = { full: 'full day', first_half: 'first half', second_half: 'second half', hours: 'part of the day' };
+
+/** "Casual leave, second half, paid": the leave, the part of the day it covers, and pay. */
+export const leaveText = (leave: { name: string; units: number; isPaid: boolean; session: string | null }) =>
+  `${leave.name}, ${LEAVE_PART[leave.session ?? ''] ?? (leave.units === 0.5 ? 'half day' : 'full day')}, ${leave.isPaid ? 'paid' : 'unpaid'}`;

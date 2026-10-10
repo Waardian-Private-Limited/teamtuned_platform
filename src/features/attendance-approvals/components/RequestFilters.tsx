@@ -3,10 +3,11 @@
 import { RotateCcw, Search } from 'lucide-react';
 import { controlClass } from '@/features/detailed-attendance/components/components/controls';
 import type { FilterOptionsDto } from '@/features/attendance-dashboard/types/dashboard.dto';
-import { REVIEW_STATUS_OPTIONS, SORT_OPTIONS } from '../constants/review.constants';
-import type { ReviewFilters } from '../types/review.model';
+import { REVIEW_STATUS_OPTIONS, TRACK_STATUS_OPTIONS } from '../constants/review.constants';
+import type { ReviewFilters, ReviewScope } from '../types/review.model';
 
 interface Props {
+  scope: ReviewScope;
   filters: ReviewFilters;
   update: <K extends keyof ReviewFilters>(key: K, value: ReviewFilters[K]) => void;
   searchInput: string;
@@ -27,9 +28,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 const num = (v: string) => (v === '' ? null : Number(v));
 
-/** Status, place, team, attendance dates, name and order: everything a reviewer narrows a queue by. */
-export function RequestFilters({ filters, update, searchInput, onSearch, options, filtered, onClear }: Props) {
-  const roles = options ? options.roles.filter((r) => !filters.departmentId || r.department_id === filters.departmentId) : [];
+/** Status, place, team, attendance dates and name: everything a reviewer narrows a queue by. */
+export function RequestFilters({ scope, filters, update, searchInput, onSearch, options, filtered, onClear }: Props) {
   return (
     <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:flex xl:flex-wrap xl:items-end">
       <Field label="Employee">
@@ -39,8 +39,8 @@ export function RequestFilters({ filters, update, searchInput, onSearch, options
         </span>
       </Field>
       <Field label="Status">
-        <select className={`${controlClass} xl:w-40`} value={filters.status} onChange={(e) => update('status', e.target.value as ReviewFilters['status'])}>
-          {REVIEW_STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        <select className={`${controlClass} xl:w-40`} value={filters.status ?? ''} onChange={(e) => update('status', e.target.value as ReviewFilters['status'])}>
+          {(scope === 'all' ? TRACK_STATUS_OPTIONS : REVIEW_STATUS_OPTIONS).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </Field>
       {options && (
@@ -57,12 +57,6 @@ export function RequestFilters({ filters, update, searchInput, onSearch, options
               {options.departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
           </Field>
-          <Field label="Role">
-            <select className={`${controlClass} xl:w-40`} value={filters.roleId ?? ''} onChange={(e) => update('roleId', num(e.target.value))}>
-              <option value="">All roles</option>
-              {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-            </select>
-          </Field>
         </>
       )}
       <Field label="From">
@@ -70,11 +64,6 @@ export function RequestFilters({ filters, update, searchInput, onSearch, options
       </Field>
       <Field label="To">
         <input type="date" className={`${controlClass} xl:w-40`} value={filters.to} min={filters.from || undefined} onChange={(e) => update('to', e.target.value)} />
-      </Field>
-      <Field label="Sort by">
-        <select className={`${controlClass} xl:w-48`} value={filters.sort} onChange={(e) => update('sort', e.target.value as ReviewFilters['sort'])}>
-          {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
       </Field>
       {filtered && (
         <button type="button" onClick={onClear} className="inline-flex h-9 items-center justify-center gap-1.5 self-end rounded-lg border border-line px-3 text-xs font-semibold text-fg-muted hover:bg-bg-subtle hover:text-fg">

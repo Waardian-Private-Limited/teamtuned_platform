@@ -1,3 +1,6 @@
+/** Which part of the day a leave covers. */
+export type LeaveSession = 'full' | 'first_half' | 'second_half' | 'hours';
+
 export type BadgeTone = 'good' | 'warn' | 'bad' | 'info' | 'muted';
 
 export interface BadgeDto {
@@ -56,7 +59,7 @@ export interface MonthCellDto {
   payable_units: number;
   late_minutes: number;
   overtime_minutes: number;
-  leave: { code: string; name: string; units: number; is_paid: boolean } | null;
+  leave: { code: string; name: string; units: number; is_paid: boolean; session?: LeaveSession | null } | null;
   locked: boolean;
   /** Where the newest regularization request for the date stands (self views only carry it). */
   regularization_status?: string | null;
@@ -222,7 +225,7 @@ export interface DayDetailDto {
   schedule: { kind: 'absent' | 'week_off' | 'holiday' | 'leave' | 'unscheduled' | 'working'; roster: boolean; flexible: boolean; shift: ShiftDto | null } | null;
   form: { in_time: string | null; out_time: string | null; from: 'recorded' | 'shift' | 'empty'; forced_status: string | null };
   holiday: { name: string; half: boolean } | null;
-  leave: { code: string; name: string; units: number; is_paid: boolean } | null;
+  leave: { code: string; name: string; units: number; is_paid: boolean; session?: LeaveSession | null } | null;
   night_ot_yesterday_minutes: number;
   override: { status: string | null; units: number | null; reason: string | null; by: string | null; at: string | null; in_time: string | null; out_time: string | null } | null;
   punches: Array<{

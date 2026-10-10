@@ -2,11 +2,11 @@
 
 import React from 'react';
 import { Check, CornerUpLeft, Send, Undo2, UserRoundCog, X } from 'lucide-react';
+import { cx } from '@/theme/tokens';
 import { Drawer } from '@/components/ui/Drawer';
 import { Dialog } from '@/components/ui/Dialog';
 import { Textarea } from '@/components/ui/Textarea';
 import { Alert } from '@/components/ui/Alert';
-import { InfoRow } from '@/components/ui/FormControls';
 import { Btn } from '@/features/compensation/components/shared/Buttons';
 import { messageOf } from '@/lib/api/errors';
 import { showError, showSuccess } from '@/lib/toast';
@@ -17,6 +17,16 @@ import { ApprovalTimeline } from './ApprovalTimeline';
 import { EmployeeSearch } from './EmployeeSearch';
 
 type Action = 'approve' | 'reject' | 'send_back' | 'reassign';
+
+/** One labelled fact; long values (a reason, a place) take the full row so they never squeeze. */
+function Fact({ label, value, wide }: { label: string; value: React.ReactNode; wide?: boolean }) {
+  return (
+    <div className={cx('min-w-0', wide && 'sm:col-span-2')}>
+      <dt className="text-xs text-fg-muted">{label}</dt>
+      <dd className="mt-0.5 break-words text-sm font-semibold text-fg">{value}</dd>
+    </div>
+  );
+}
 
 export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; onClose: () => void; onChanged: () => void }) {
   const [request, setRequest] = React.useState<RequestDetail | null>(null);
@@ -54,30 +64,41 @@ export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; o
   const titles: Record<Action, string> = { approve: 'Approve request', reject: 'Reject request', send_back: 'Send back for changes', reassign: 'Reassign to another approver' };
 
   return (
-    <Drawer open={Boolean(id)} onClose={onClose} title={request?.detail?.title || request?.typeLabel || 'Request'}>
-      <div className="flex-1 space-y-5 overflow-y-auto p-4 sm:p-6">
-        {error && <Alert message={error} />}
-        {!request && !error && <div className="h-40 animate-pulse rounded-lg bg-bg-subtle" />}
-        {request && (
-          <>
-            <div className="space-y-1">
-              <InfoRow label="Type" value={request.typeLabel} />
-              <InfoRow label="Requested by" value={request.requester?.name || '—'} />
-              <InfoRow label="Status" value={STATUS_LABEL[request.status]} />
-              {request.detail?.lines.map((l) => <InfoRow key={l.label} label={l.label} value={l.value} />)}
-            </div>
+    <Drawer open={Boolean(id)} onClose={onClose} title={request?.detail?.title || request?.typeLabel || 'Request'} maxWidthClassName="sm:max-w-2xl xl:max-w-5xl">
+      {error && <Alert message={error} />}
+      {!request && !error && (
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]" aria-busy="true">
+          <div className="grid gap-3 sm:grid-cols-2">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-10 animate-pulse rounded-lg bg-bg-subtle" />)}</div>
+          <div className="h-40 animate-pulse rounded-lg bg-bg-subtle" />
+        </div>
+      )}
+      {request && (
+        // Wide enough to read a request at a glance: facts in two columns, the timeline beside them on large screens.
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
+          <div className="min-w-0 space-y-4">
+            <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+              <Fact label="Type" value={request.typeLabel} />
+              <Fact label="Requested by" value={request.requester?.name || '—'} />
+              <Fact label="Status" value={STATUS_LABEL[request.status]} />
+              {request.detail?.lines.map((l, i) => (
+                <Fact key={`${i}-${l.label}`} label={l.label} wide={l.value.length > 48}
+                  value={/^https?:\/\//.test(l.value) ? <a href={l.value} target="_blank" rel="noopener noreferrer" className="text-[var(--tt-primary)] underline-offset-2 hover:underline">View file</a> : l.value} />
+              ))}
+            </dl>
             {request.detail?.impact && (
               <div className="rounded-lg border border-line bg-bg-subtle p-3">
                 <p className="text-xs font-semibold text-fg">{request.detail.impact.label}</p>
-                <p className="mt-1 text-sm text-fg-muted">{request.detail.impact.items.join(', ')}</p>
+                <p className="mt-1 text-sm text-fg-muted">{(request.detail.impact.items ?? []).join(', ')}</p>
               </div>
             )}
+          </div>
+          <div className="min-w-0 xl:border-l xl:border-line xl:pl-5">
             <ApprovalTimeline request={request} />
-          </>
-        )}
-      </div>
+          </div>
+        </div>
+      )}
       {a && (a.decide || a.sendBack || a.withdraw || a.resubmit || a.override || a.reassign) && (
-        <div className="flex flex-wrap gap-2 border-t border-line p-4 sm:px-6">
+        <div className="mt-5 flex flex-wrap gap-2 border-t border-line pt-4">
           {(a.decide || a.override) && <Btn variant="primary" icon={<Check className="h-4 w-4" />} onClick={() => setAction('approve')}>{a.override ? 'Approve as admin' : 'Approve'}</Btn>}
           {(a.decide || a.override) && <Btn variant="danger" icon={<X className="h-4 w-4" />} onClick={() => setAction('reject')}>Reject</Btn>}
           {a.sendBack && <Btn icon={<CornerUpLeft className="h-4 w-4" />} onClick={() => setAction('send_back')}>Send back</Btn>}

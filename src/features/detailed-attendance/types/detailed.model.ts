@@ -46,6 +46,15 @@ export interface EmployeeHeader {
   exitDate: string | null;
 }
 
+/** Approved leave on a day: which part of the day it covers (null when the server did not say) and whether it is paid. */
+export interface Leave {
+  code: string;
+  name: string;
+  units: number;
+  isPaid: boolean;
+  session: 'full' | 'first_half' | 'second_half' | 'hours' | null;
+}
+
 export interface MonthCell {
   date: string;
   day: number;
@@ -57,7 +66,7 @@ export interface MonthCell {
   payableUnits: number;
   lateMinutes: number;
   overtimeMinutes: number;
-  leave: { code: string; name: string; units: number; isPaid: boolean } | null;
+  leave: Leave | null;
   /** pending, approved or rejected: where the newest regularization request for the date stands. */
   regularizationStatus: string | null;
 }
@@ -265,7 +274,7 @@ export interface DayDetail {
   schedule: DaySchedule | null;
   form: OverrideForm;
   holiday: { name: string; half: boolean } | null;
-  leave: { code: string; name: string; units: number; isPaid: boolean } | null;
+  leave: Leave | null;
   nightOtYesterdayMinutes: number;
   override: DayOverride | null;
   punches: Punch[];

@@ -88,14 +88,6 @@ export interface CoverageRow { employeeId: number; name: string; employeeCode: s
 export interface Coverage { total: number; covered: number; uncovered: number; rows: CoverageRow[] }
 
 export type RequestStatus = 'pending' | 'approved' | 'rejected' | 'sent_back' | 'withdrawn';
-export interface InboxItem {
-  id: number; requestType: string; typeLabel: string; subjectId: number; status: RequestStatus;
-  requester: { id: number | null; name: string | null; code: string | null };
-  stepName: string | null; stepNumber: number; stepCount: number;
-  summary: { title?: string; start?: string; end?: string; days?: number } | null;
-  createdAt: string; decidedAt: string | null;
-}
-export interface InboxResponse { items: InboxItem[]; page: number; pageSize: number; hasMore: boolean }
 
 export interface TaskView {
   id: number; status: string; assignee: { id: number; name: string } | null; permission: string | null;
