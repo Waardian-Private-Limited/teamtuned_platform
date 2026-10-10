@@ -51,6 +51,10 @@ export const FLAG_TEXT: Record<string, string> = {
   MISSED_CHECKOUT: 'No check-out',
   SANDWICH_LOSS: 'Week off lost under the sandwich rule',
   CLOCK_RULE_OUTSIDE_SHIFT: 'Policy late or early time falls outside this shift',
+  ABSENCE_COVERED_BY_LEAVE: 'Absence covered by leave balance',
+  ABSENCE_COVERED_BY_COMPOFF: 'Absence covered by comp-off',
+  PENALTY_COVERED_BY_LEAVE: 'Late penalty covered by leave balance',
+  PENALTY_COVERED_BY_COMPOFF: 'Late penalty covered by comp-off',
 };
 
 export const COMP_OFF_REASON: Record<string, string> = {

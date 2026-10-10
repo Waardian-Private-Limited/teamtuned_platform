@@ -4,7 +4,7 @@ import {
   AlertCircle, FileText, MinusCircle, Users, Phone, LayoutDashboard,
   ListChecks, LayoutGrid, Heart, UserCheck, Wallet, Receipt, ArrowUpCircle,
   Package, Coins, Briefcase, HardHat, Layers, QrCode, Award, UserPlus, List,
-  CalendarRange, Repeat, Inbox, Wrench, CalendarDays, User,
+  CalendarRange, Repeat, Inbox, Wrench, CalendarDays, CalendarCheck, User,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
 
@@ -30,6 +30,7 @@ export const employeeNav: NavNode[] = [
     kind: 'group', id: 'self', label: 'Self', icon: User,
     children: [
       { kind: 'link', label: 'Dashboard', href: '/employee', icon: Home },
+      { kind: 'link', label: 'My Attendance', href: '/employee/my-attendance', icon: CalendarCheck },
       { kind: 'link', label: 'Approvals', href: '/employee/approvals', icon: Inbox, match: 'prefix' },
     ],
   },
@@ -37,10 +38,11 @@ export const employeeNav: NavNode[] = [
   {
     kind: 'group', id: 'attendance', label: 'Attendance', gate: { feature: 'PAYROLL_FEATURE' },
     children: [
+      { kind: 'link', label: 'Approvals', href: '/employee/attendance/approvals', icon: CheckSquare },
       { kind: 'link', label: 'Dashboard', href: '/employee/attendance-dashboard', icon: BarChart3, match: 'prefix', gate: { anyPerm: ['ATTEND_VIEW', 'ATTEND_ADD', 'ATTEND_EDIT'] } },
       {
         kind: 'link', label: 'Detailed Attendance', href: '/employee/attendance', icon: ClipboardList,
-        activeTest: (p) => p === '/employee/attendance' || (p.startsWith('/employee/attendance/') && !p.startsWith('/employee/attendance-')),
+        activeTest: (p) => p === '/employee/attendance' || (p.startsWith('/employee/attendance/') && !p.startsWith('/employee/attendance-') && !p.startsWith('/employee/attendance/approvals')),
         gate: { anyPerm: ['ATTEND_VIEW', 'ATTEND_ADD', 'ATTEND_EDIT'] },
       },
       { kind: 'link', label: 'Holidays', href: '/employee/holidays', icon: Calendar, match: 'prefix' },

@@ -1,5 +1,5 @@
-import type { DayDetailDto, DayRecordDto, EmployeeHeaderDto, ImpactDto, ListResponseDto, MonthResponseDto } from './detailed.dto';
-import type { AttendanceList, DayDetail, DayRecord, EmployeeHeader, Impact, Month } from './detailed.model';
+import type { CompOffGrantDto, DayDetailDto, DayRecordDto, EmployeeHeaderDto, ImpactDto, ListResponseDto, MonthResponseDto } from './detailed.dto';
+import type { AttendanceList, CompOffGrant, DayDetail, DayRecord, EmployeeHeader, Impact, Month } from './detailed.model';
 
 const header = (e: EmployeeHeaderDto): EmployeeHeader => ({
   id: e.id, code: e.code, name: e.name, department: e.department, role: e.role, status: e.status, joiningDate: e.joining_date, exitDate: e.exit_date,
@@ -30,6 +30,54 @@ export function toList(dto: ListResponseDto): AttendanceList {
   };
 }
 
+export const toCompOffGrant = (g: CompOffGrantDto): CompOffGrant => ({
+  id: g.id || 0,
+  dayId: g.day_id || null,
+  workDate: g.work_date,
+  grantKey: g.grant_key,
+  reason: g.reason,
+  category: g.category || null,
+  units: g.units,
+  minutes: g.minutes,
+  kind: g.kind,
+  state: g.state,
+  expiresOn: g.expires_on || null,
+  description: g.description || '',
+  details: g.details ? {
+    workDate: g.details.work_date,
+    reason: g.details.reason,
+    category: g.details.category || null,
+    workedFrom: g.details.worked_from || null,
+    workedTo: g.details.worked_to || null,
+    durationText: g.details.duration_text || null,
+    holidayName: g.details.holiday_name || null,
+  } : undefined,
+  approval: g.approval ? {
+    requestId: g.approval.request_id,
+    status: g.approval.status,
+    currentStep: g.approval.current_step,
+    currentStepName: g.approval.current_step_name || null,
+    createdAt: g.approval.created_at || null,
+    decidedAt: g.approval.decided_at || null,
+    steps: (g.approval.steps || []).map((s) => ({
+      index: s.index,
+      name: s.name,
+      status: s.status,
+      assignee: s.assignee ? { id: s.assignee.id, name: s.assignee.name, code: s.assignee.code || null } : null,
+      actedAt: s.acted_at || null,
+      note: s.note || null,
+    })),
+    events: (g.approval.events || []).map((ev) => ({
+      id: ev.id,
+      step: ev.step,
+      action: ev.action,
+      actor: ev.actor || null,
+      note: ev.note || null,
+      at: ev.at || '',
+    })),
+  } : null,
+});
+
 export function toMonth(dto: MonthResponseDto): Month {
   const s = dto.summary;
   return {
@@ -39,10 +87,14 @@ export function toMonth(dto: MonthResponseDto): Month {
     from: dto.from,
     to: dto.to,
     today: dto.today,
-    policy: { resolved: dto.policy.resolved, lateDeduction: dto.policy.late_deduction, sandwich: dto.policy.sandwich },
-    cells: dto.cells.map((c) => ({
+    policy: {
+      resolved: dto.policy?.resolved ?? false,
+      lateDeduction: dto.policy?.late_deduction ?? false,
+      sandwich: dto.policy?.sandwich ?? false,
+    },
+    cells: (dto.cells || []).map((c) => ({
       date: c.date,
-      day: Number(c.date.slice(8)),
+      day: Number(c.date?.slice(8) || 1),
       weekday: c.weekday,
       badge: c.badge,
       inAt: c.in_at,
@@ -52,33 +104,55 @@ export function toMonth(dto: MonthResponseDto): Month {
       lateMinutes: c.late_minutes,
       overtimeMinutes: c.overtime_minutes,
       leave: c.leave ? { code: c.leave.code, name: c.leave.name, units: c.leave.units, isPaid: c.leave.is_paid } : null,
+      regularizationStatus: c.regularization_status ?? null,
     })),
     summary: {
-      calendarDays: s.calendar_days,
-      payableDays: s.payable_days,
-      payableDaysBeforeLateDeduction: s.payable_days_before_late_deduction,
-      lopDays: s.lop_days,
-      lop: { absent: s.lop.absent, halfDay: s.lop.half_day, other: s.lop.other, unpaidLeave: s.lop.unpaid_leave, sandwich: s.lop.sandwich, lateDeduction: s.lop.late_deduction },
-      present: s.present,
-      halfDays: s.half_days,
-      absent: s.absent,
-      leaveDays: s.leave_days,
-      paidLeaveDays: s.paid_leave_days,
-      unpaidLeaveDays: s.unpaid_leave_days,
-      holidays: s.holidays,
-      weekOffs: s.week_offs,
-      late: s.late,
-      early: { marks: s.early.marks, exitMinutes: s.early.exit_minutes },
-      overtime: s.overtime,
-      nightOt: s.night_ot,
-      worked: s.worked,
-      lateDeduction: { enabled: s.late_deduction.enabled, minutes: s.late_deduction.minutes, chargeableMinutes: s.late_deduction.chargeable_minutes, freeMinutes: s.late_deduction.free_minutes, days: s.late_deduction.days },
-      consecutiveAbsence: s.consecutive_absence,
+      calendarDays: s.calendar_days ?? s.total_days ?? 0,
+      totalDays: s.total_days ?? s.calendar_days ?? 0,
+      cycleDays: s.cycle_days ?? s.total_days ?? s.calendar_days ?? 0,
+      employedDays: s.employed_days ?? s.calendar_days ?? 0,
+      notJoined: s.not_joined ?? false,
+      joinedMidCycle: s.joined_mid_cycle ?? false,
+      basis: s.basis ?? 'calendar_days',
+      payableDays: s.payable_days ?? 0,
+      payableDaysBeforeLateDeduction: s.payable_days_before_late_deduction ?? 0,
+      lopDays: s.lop_days ?? 0,
+      lop: {
+        absent: s.lop?.absent ?? 0,
+        halfDay: s.lop?.half_day ?? 0,
+        other: s.lop?.other ?? 0,
+        unpaidLeave: s.lop?.unpaid_leave ?? 0,
+        sandwich: s.lop?.sandwich ?? 0,
+        lateDeduction: s.lop?.late_deduction ?? 0,
+      },
+      present: s.present ?? 0,
+      halfDays: s.half_days ?? 0,
+      absent: s.absent ?? 0,
+      leaveDays: s.leave_days ?? 0,
+      paidLeaveDays: s.paid_leave_days ?? 0,
+      unpaidLeaveDays: s.unpaid_leave_days ?? 0,
+      holidays: s.holidays ?? 0,
+      weekOffs: s.week_offs ?? 0,
+      late: s.late ?? { marks: 0, minutes: 0, hours: 0 },
+      early: { marks: s.early?.marks ?? 0, exitMinutes: s.early?.exit_minutes ?? 0 },
+      overtime: s.overtime ?? { minutes: 0, hours: 0 },
+      nightOt: s.night_ot ?? { minutes: 0, hours: 0 },
+      worked: s.worked ?? { minutes: 0, hours: 0 },
+      lateDeduction: {
+        enabled: s.late_deduction?.enabled ?? false,
+        minutes: s.late_deduction?.minutes ?? 0,
+        chargeableMinutes: s.late_deduction?.chargeable_minutes ?? 0,
+        freeMinutes: s.late_deduction?.free_minutes ?? 0,
+        days: s.late_deduction?.days ?? 0,
+      },
+      consecutiveAbsence: s.consecutive_absence ?? null,
     },
-    balances: dto.balances.map((b) => ({
+    balances: (dto.balances || []).map((b) => ({
       code: b.code, name: b.name, kind: b.kind, color: b.color, isPaid: b.is_paid, available: b.available, used: b.used, pending: b.pending, credited: b.credited, period: b.period,
       earned: b.earned ? { units: b.earned.units, pendingUnits: b.earned.pending_units, paidMinutes: b.earned.paid_minutes } : null,
+      grants: b.grants ? (b.grants || []).map(toCompOffGrant) : undefined,
     })),
+    compOffGrants: dto.comp_off_grants ? (dto.comp_off_grants || []).map(toCompOffGrant) : undefined,
   };
 }
 
@@ -133,10 +207,11 @@ export function toDay(dto: DayDetailDto): DayDetail {
     override: dto.override ? { status: dto.override.status, units: dto.override.units, reason: dto.override.reason, by: dto.override.by, at: dto.override.at, inTime: dto.override.in_time, outTime: dto.override.out_time } : null,
     punches: dto.punches.map((p) => ({ id: p.id, direction: p.direction, kind: p.kind, at: p.at, source: p.source, place: p.place, location: p.location, distanceM: p.distance_m, lat: p.lat, lng: p.lng, accuracyM: p.accuracy_m, hasImage: p.has_image, face: p.face, voided: p.voided, voidReason: p.void_reason })),
     breaks: dto.breaks.map((b) => ({ id: b.id, startedAt: b.started_at, endedAt: b.ended_at })),
-    compOff: dto.comp_off.map((g) => ({ reason: g.reason, kind: g.kind, units: g.units, minutes: g.minutes, state: g.state })),
+    compOff: (dto.comp_off || []).map(toCompOffGrant),
     history: dto.history,
     canOverride: dto.can_override,
     locked: dto.locked,
+    regularization: dto.regularization ? { id: dto.regularization.id, status: dto.regularization.status, kinds: dto.regularization.kinds, submittedAt: dto.regularization.submitted_at } : null,
   };
 }
 

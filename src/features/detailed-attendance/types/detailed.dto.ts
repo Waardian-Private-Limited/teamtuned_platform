@@ -58,10 +58,18 @@ export interface MonthCellDto {
   overtime_minutes: number;
   leave: { code: string; name: string; units: number; is_paid: boolean } | null;
   locked: boolean;
+  /** Where the newest regularization request for the date stands (self views only carry it). */
+  regularization_status?: string | null;
 }
 
 export interface MonthSummaryDto {
   calendar_days: number;
+  total_days?: number;
+  cycle_days?: number;
+  employed_days?: number;
+  not_joined?: boolean;
+  joined_mid_cycle?: boolean;
+  basis?: string;
   payable_days: number;
   payable_days_before_late_deduction: number;
   lop_days: number;
@@ -83,6 +91,58 @@ export interface MonthSummaryDto {
   consecutive_absence: { days: number; action: string } | null;
 }
 
+export interface CompOffApprovalStepDto {
+  index: number;
+  name: string;
+  status: 'pending' | 'approved' | 'rejected' | 'upcoming';
+  assignee: { id: number | null; name: string; code?: string | null } | null;
+  acted_at?: string | null;
+  note?: string | null;
+}
+
+export interface CompOffApprovalDto {
+  request_id: number;
+  status: string;
+  current_step: number;
+  current_step_name: string | null;
+  created_at: string | null;
+  decided_at: string | null;
+  steps: CompOffApprovalStepDto[];
+  events: Array<{
+    id: number;
+    step: number | null;
+    action: string;
+    actor: string | null;
+    note: string | null;
+    at: string | null;
+  }>;
+}
+
+export interface CompOffGrantDto {
+  id: number;
+  day_id?: number | null;
+  work_date: string;
+  grant_key?: string;
+  reason: string;
+  category?: string | null;
+  units: number;
+  minutes: number | null;
+  kind: 'comp_off' | 'paid';
+  state: string;
+  expires_on?: string | null;
+  description?: string;
+  details?: {
+    work_date: string;
+    reason: string;
+    category?: string | null;
+    worked_from?: string | null;
+    worked_to?: string | null;
+    duration_text?: string | null;
+    holiday_name?: string | null;
+  };
+  approval?: CompOffApprovalDto | null;
+}
+
 export interface BalanceDto {
   code: string;
   name: string;
@@ -96,6 +156,7 @@ export interface BalanceDto {
   cycle: { start: string; end: string } | null;
   period: 'monthly' | 'cycle';
   earned: { units: number; pending_units: number; paid_minutes: number } | null;
+  grants?: CompOffGrantDto[];
 }
 
 export interface MonthResponseDto {
@@ -109,6 +170,7 @@ export interface MonthResponseDto {
   cells: MonthCellDto[];
   summary: MonthSummaryDto;
   balances: BalanceDto[];
+  comp_off_grants?: CompOffGrantDto[];
 }
 
 export interface DayRecordDto {
@@ -183,8 +245,9 @@ export interface DayDetailDto {
     void_reason: string | null;
   }>;
   breaks: Array<{ id: number; started_at: string; ended_at: string | null; source: string }>;
-  comp_off: Array<{ reason: string; kind: 'comp_off' | 'paid'; units: number; minutes: number | null; state: string; expires_on: string | null }>;
+  comp_off: CompOffGrantDto[];
   history: Array<{ id: number; at: string; kind: string; summary: string | null; reason: string | null; by: string | null }>;
+  regularization?: { id: number; status: string; kinds: string[]; submitted_at: string | null } | null;
   can_override: boolean;
   locked: boolean;
 }
@@ -223,6 +286,7 @@ export interface OverrideBody {
   in_time: string;
   out_time: string;
   status?: OverrideStatus | null;
+  waivers?: { lateMark?: boolean; latePenalty?: boolean; earlyMark?: boolean; earlyPenalty?: boolean } | null;
 }
 
 export type OnlyKey = 'present' | 'half_day' | 'absent' | 'leave' | 'late' | 'no_checkout' | 'overridden';

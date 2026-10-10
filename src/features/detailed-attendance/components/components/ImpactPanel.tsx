@@ -29,7 +29,13 @@ function lines(impact: Impact): Array<{ text: string; strong?: boolean }> {
     else out.push({ text: `${what} comp-off of ${daysText(c.unitsFrom)} day${c.unitsFrom === 1 ? '' : 's'} is withdrawn` });
   }
   if (impact.leaveBalanceReturned) out.push({ text: `Leave balance is given back as the leave policy says${impact.leaveFraction === 0.5 ? ' (half a day worked)' : ''}` });
-  for (const o of impact.otherDays) out.push({ text: `${dayText(o.date)}: ${name(o.status.from)} to ${name(o.status.to)} (a night overtime credit moves)` });
+  for (const o of impact.otherDays) {
+    if (o.status.changed) {
+      out.push({ text: `${dayText(o.date)}: ${name(o.status.from)} to ${name(o.status.to)}` });
+    } else if (o.payableUnits.changed) {
+      out.push({ text: `${dayText(o.date)}: payable days adjusted from ${daysText(o.payableUnits.from)} to ${daysText(o.payableUnits.to)}` });
+    }
+  }
   return out;
 }
 

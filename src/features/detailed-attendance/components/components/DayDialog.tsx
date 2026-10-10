@@ -1,13 +1,15 @@
 'use client';
 
-import { AlertTriangle, CalendarDays, Coffee, Lock, Moon, PencilLine } from 'lucide-react';
+import React, { useState } from 'react';
+import { AlertTriangle, CalendarDays, ChevronDown, ChevronUp, Coffee, Lock, Moon, PencilLine } from 'lucide-react';
 import { Dialog } from '@/components/ui/Dialog';
 import { Alert } from '@/components/ui/Alert';
 import { COMP_OFF_REASON, COMP_OFF_STATE, FLAG_TEXT, SCHEDULE_TEXT } from '../../constants/detailed.constants';
 import { useDay } from '../../hooks/useDay';
 import type { DayDetail } from '../../types/detailed.model';
-import { clockText, dateTimeText, daysText, longDayText, minutesText, punchTimeText, time24, timeText } from '../../utils/format';
+import { clockText, dateTimeText, daysText, longDayText, minutesText, punchTimeText, timeText } from '../../utils/format';
 import { Avatar, Skeleton } from './controls';
+import { CompOffGrantsList } from './CompOffGrantsList';
 import { PunchCard } from './PunchCard';
 import { StatusBadge } from './StatusBadge';
 
@@ -22,11 +24,36 @@ interface Props {
   onOverride: (day: DayDetail) => void;
 }
 
-function Figure({ label, value, hint }: { label: string; value: string; hint?: string }) {
+/** The day as loaded by whoever shows it, and what that screen offers to do with it. */
+export interface DayViewProps {
+  date: string | null;
+  data: DayDetail | null;
+  loading: boolean;
+  error: string | null;
+  /** While a form is open on top, Escape closes only that. */
+  childOpen: boolean;
+  onClose: () => void;
+  /** The actions at the foot of the day, if the screen has any. */
+  actions?: (day: DayDetail) => React.ReactNode;
+}
+
+function Figure({
+  label,
+  value,
+  hint,
+  className = '',
+  valueClassName = '',
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  className?: string;
+  valueClassName?: string;
+}) {
   return (
-    <div className="min-w-0 rounded-xl border border-line p-3">
+    <div className={`min-w-0 rounded-xl border border-line p-3 ${className}`} title={value}>
       <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-fg-muted">{label}</p>
-      <p className="mt-1 truncate text-lg font-extrabold leading-none tabular-nums text-fg">{value}</p>
+      <p className={`mt-1 truncate font-extrabold leading-none tabular-nums text-fg ${valueClassName || 'text-lg'}`}>{value}</p>
       {hint && <p className="mt-1 truncate text-xs text-fg-muted">{hint}</p>}
     </div>
   );
@@ -68,8 +95,8 @@ function expectation(d: DayDetail): { value: string; hint?: string } {
   const sch = d.schedule;
   const day = d.day;
   const source = sch ? (sch.roster ? 'from the roster' : 'from the policy') : undefined;
-  if (day && day.shiftStartAt && day.shiftEndAt) return { value: `${time24(day.shiftStartAt, d.timezone)} – ${time24(day.shiftEndAt, d.timezone)}`, hint: sch ? source : undefined };
-  if (sch && sch.shift) return { value: `${sch.shift.start} – ${sch.shift.end}${sch.shift.endsNextDay ? ' (+1)' : ''}`, hint: source };
+  if (day && day.shiftStartAt && day.shiftEndAt) return { value: `${timeText(day.shiftStartAt, d.timezone)} – ${timeText(day.shiftEndAt, d.timezone)}`, hint: sch ? source : undefined };
+  if (sch && sch.shift) return { value: `${clockText(sch.shift.start)} – ${clockText(sch.shift.end)}${sch.shift.endsNextDay ? ' (+1)' : ''}`, hint: source };
   if (sch && sch.flexible) return { value: 'Flexible', hint: 'no fixed shift' };
   if (sch && sch.kind !== 'working' && sch.kind !== 'absent') return { value: SCHEDULE_TEXT[sch.kind], hint: sch.roster ? 'from the roster' : undefined };
   return { value: '—' };
@@ -89,7 +116,48 @@ function OverrideNote({ d }: { d: DayDetail }) {
   );
 }
 
-function Body({ d, onMonth, onOverride }: { d: DayDetail; onMonth: Props['onMonth']; onOverride: Props['onOverride'] }) {
+function HistorySection({ history, tz }: { history: DayDetail['history']; tz: string }) {
+  const [open, setOpen] = useState(false);
+  if (history.length === 0) return null;
+
+  return (
+    <section className="overflow-hidden rounded-xl border border-line bg-surface">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between p-3.5 text-left transition-colors hover:bg-bg-subtle/50"
+      >
+        <div className="flex items-center gap-2">
+          <h3 className="text-xs font-bold uppercase tracking-wide text-fg-muted">History</h3>
+          <span className="rounded-full bg-bg-subtle px-2 py-0.5 text-[11px] font-semibold text-fg-muted">
+            {history.length} {history.length === 1 ? 'event' : 'events'}
+          </span>
+        </div>
+        <span className="text-fg-muted">
+          {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </span>
+      </button>
+
+      {open && (
+        <div className="border-t border-line bg-bg-subtle/20 p-3.5">
+          <ol className="space-y-2.5 border-l border-line pl-4">
+            {history.map((h) => (
+              <li key={h.id} className="relative text-sm">
+                <span aria-hidden className="absolute -left-[1.3rem] top-1.5 h-2 w-2 rounded-full border border-line bg-surface" />
+                <p className="font-medium text-fg">{h.summary || h.kind}{h.by ? <span className="font-normal text-fg-muted"> · {h.by}</span> : null}</p>
+                {h.reason && <p className="text-xs text-fg-muted">{h.reason}</p>}
+                <p className="text-[11px] text-fg-subtle">{dateTimeText(h.at, tz)}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function Body({ d, actions }: { d: DayDetail; actions?: DayViewProps['actions'] }) {
   const day = d.day;
   const lines = policyLines(d);
   const tz = d.timezone;
@@ -119,11 +187,27 @@ function Body({ d, onMonth, onOverride }: { d: DayDetail; onMonth: Props['onMont
 
       <OverrideNote d={d} />
 
-      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
-        <Figure label={d.schedule && d.schedule.roster ? 'Rostered shift' : 'Shift'} value={exp.value} hint={exp.hint} />
-        <Figure label="Check-in" value={day && day.firstInAt ? timeText(day.firstInAt, tz) : '—'} />
-        <Figure label="Check-out" value={day && day.lastOutAt ? punchTimeText(day.lastOutAt, d.date, tz) : day && day.openSession ? 'Still in' : '—'} />
-        <Figure label="Worked" value={day ? minutesText(day.workedMinutes) : '—'} hint={day && day.expectedMinutes ? `of ${minutesText(day.expectedMinutes)}` : exp.value !== '—' && d.schedule && d.schedule.shift ? `of ${minutesText(d.schedule.shift.expectedMinutes)}` : undefined} />
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-[1.25fr_0.9fr_0.95fr_0.9fr]">
+        <Figure
+          label={d.schedule && d.schedule.roster ? 'Rostered shift' : 'Shift'}
+          value={exp.value}
+          hint={exp.hint}
+          valueClassName="text-sm sm:text-base md:text-lg"
+        />
+        <Figure
+          label="Check-in"
+          value={day && day.firstInAt ? timeText(day.firstInAt, tz) : '—'}
+        />
+        <Figure
+          label="Check-out"
+          value={day && day.lastOutAt ? punchTimeText(day.lastOutAt, d.date, tz) : day && day.openSession ? 'Still in' : '—'}
+          valueClassName="text-sm sm:text-base md:text-lg"
+        />
+        <Figure
+          label="Worked"
+          value={day ? minutesText(day.workedMinutes) : '—'}
+          hint={day && day.expectedMinutes ? `of ${minutesText(day.expectedMinutes)}` : exp.value !== '—' && d.schedule && d.schedule.shift ? `of ${minutesText(d.schedule.shift.expectedMinutes)}` : undefined}
+        />
       </div>
       {extras.length > 0 && <p className="-mt-2 text-sm text-fg-muted">{extras.join(' · ')}</p>}
 
@@ -133,31 +217,41 @@ function Body({ d, onMonth, onOverride }: { d: DayDetail; onMonth: Props['onMont
         </p>
       )}
 
-      {(lines.length > 0 || d.compOff.length > 0 || day?.reviewState === 'pending') && (
-        <Section title="What the policy did">
-          <ul className="space-y-1.5 text-sm text-fg">
-            {day?.reviewState === 'pending' && <li className="flex items-start gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--tt-warning)]" /> A check-in or check-out is waiting for review</li>}
-            {lines.map((l) => <li key={l} className="flex items-start gap-2"><span aria-hidden className="mt-2 h-1 w-1 shrink-0 rounded-full bg-fg-subtle" />{l}</li>)}
-            {d.compOff.map((g, i) => (
-              <li key={i} className="flex items-start gap-2">
+      {(lines.length > 0 || day?.reviewState === 'pending') && (
+        <div className="rounded-xl border border-line bg-bg-subtle/50 p-3">
+          <ul className="space-y-1.5 text-xs text-fg sm:text-sm">
+            {day?.reviewState === 'pending' && (
+              <li className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--tt-warning)]" />
+                <span>A check-in or check-out is waiting for review</span>
+              </li>
+            )}
+            {lines.map((l) => (
+              <li key={l} className="flex items-start gap-2">
                 <span aria-hidden className="mt-2 h-1 w-1 shrink-0 rounded-full bg-fg-subtle" />
-                <span>{COMP_OFF_REASON[g.reason] || g.reason}: {g.kind === 'paid' ? `paid${g.minutes ? ` ${minutesText(g.minutes)}` : ''}` : `${daysText(g.units)} day comp-off`}. {COMP_OFF_STATE[g.state] || g.state}</span>
+                <span>{l}</span>
               </li>
             ))}
           </ul>
-        </Section>
+        </div>
       )}
 
       {work.length > 0 && (
         <Section title="Check-ins">
-          <ol className="space-y-2.5">{work.map((p) => <PunchCard key={p.id} punch={p} workDate={d.date} tz={tz} />)}</ol>
+          <ol className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {work.map((p) => <PunchCard key={p.id} punch={p} workDate={d.date} tz={tz} />)}
+          </ol>
         </Section>
       )}
+
       {night.length > 0 && (
         <Section title="Night overtime">
-          <ol className="space-y-2.5">{night.map((p) => <PunchCard key={p.id} punch={p} workDate={d.date} tz={tz} />)}</ol>
+          <ol className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {night.map((p) => <PunchCard key={p.id} punch={p} workDate={d.date} tz={tz} />)}
+          </ol>
         </Section>
       )}
+
       {d.breaks.length > 0 && (
         <Section title="Breaks">
           <ul className="divide-y divide-line rounded-xl border border-line">
@@ -172,27 +266,15 @@ function Body({ d, onMonth, onOverride }: { d: DayDetail; onMonth: Props['onMont
         </Section>
       )}
 
-      {history.length > 0 && (
-        <Section title="History">
-          <ol className="space-y-2.5 border-l border-line pl-4">
-            {history.map((h) => (
-              <li key={h.id} className="relative text-sm">
-                <span aria-hidden className="absolute -left-[1.3rem] top-1.5 h-2 w-2 rounded-full border border-line bg-surface" />
-                <p className="text-fg">{h.summary || h.kind}{h.by ? <span className="text-fg-muted"> · {h.by}</span> : null}</p>
-                {h.reason && <p className="text-xs text-fg-muted">{h.reason}</p>}
-                <p className="text-[11px] text-fg-subtle">{dateTimeText(h.at, tz)}</p>
-              </li>
-            ))}
-          </ol>
+      {d.compOff.length > 0 && (
+        <Section title="Comp-off earned for this day">
+          <CompOffGrantsList grants={d.compOff} title="" defaultExpandedFirst={false} />
         </Section>
       )}
 
-      <div className="flex flex-wrap justify-end gap-2 border-t border-line pt-4">
-        {onMonth && <button type="button" onClick={() => onMonth(d.employee.id, d.date.slice(0, 7))} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-4 text-xs font-semibold text-fg hover:bg-bg-subtle sm:text-sm"><CalendarDays className="h-4 w-4" /> Monthly attendance</button>}
-        {d.canOverride && (
-          <button type="button" onClick={() => onOverride(d)} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--tt-primary)] px-4 text-xs font-semibold text-[var(--tt-on-primary)] hover:bg-[var(--tt-primary-hover)] sm:text-sm"><PencilLine className="h-4 w-4" /> Override attendance</button>
-        )}
-      </div>
+      {history.length > 0 && <HistorySection history={history} tz={tz} />}
+
+      {actions && <div className="flex flex-wrap justify-end gap-2 border-t border-line pt-4">{actions(d)}</div>}
     </div>
   );
 }
@@ -200,17 +282,15 @@ function Body({ d, onMonth, onOverride }: { d: DayDetail; onMonth: Props['onMont
 function Skeletons() {
   return (
     <div className="space-y-5" aria-busy="true">
-      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-[1.25fr_0.9fr_0.95fr_0.9fr]">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
       <Skeleton className="h-24 rounded-xl" /><Skeleton className="h-56 rounded-xl" />
     </div>
   );
 }
 
-/** One employee's day: the figures, what the policy decided, every check-in, who changed what. */
-export function DayDialog({ employeeId, date, reloadKey, childOpen, onClose, onMonth, onOverride }: Props) {
-  const { data, loading, error } = useDay(employeeId, date ? `${date}` : null, reloadKey);
-  const open = employeeId !== null && !!date;
-  if (!open) return null;
+/** A day's figures, what the policy decided, every check-in and who changed what; the data comes from the caller. */
+export function DayView({ date, data, loading, error, childOpen, onClose, actions }: DayViewProps) {
+  if (!date) return null;
   return (
     <Dialog
       open
@@ -222,13 +302,28 @@ export function DayDialog({ employeeId, date, reloadKey, childOpen, onClose, onM
           <div className="min-w-0">
             <h2 className="truncate text-base font-bold text-fg">{data ? data.employee.name : 'Attendance'}</h2>
             <p className="truncate text-xs text-fg-muted">{data ? [data.employee.code, data.employee.department, data.employee.role].filter(Boolean).join(' · ') : ' '}</p>
-            <p className="mt-0.5 flex items-center gap-2 text-xs text-fg-muted">{date ? longDayText(date) : ''}{data && <StatusBadge badge={data.badge} />}</p>
+            <p className="mt-0.5 flex items-center gap-2 text-xs text-fg-muted">{longDayText(date)}{data && <StatusBadge badge={data.badge} />}</p>
           </div>
         </div>
       }
     >
       {error && <Alert message={error} />}
-      {loading && !data ? <Skeletons /> : data ? <Body d={data} onMonth={onMonth} onOverride={onOverride} /> : null}
+      {loading && !data ? <Skeletons /> : data ? <Body d={data} actions={actions} /> : null}
     </Dialog>
   );
+}
+
+/** One employee's day for someone who may look at any employee: with a link to the month and the override. */
+export function DayDialog({ employeeId, date, reloadKey, childOpen, onClose, onMonth, onOverride }: Props) {
+  const { data, loading, error } = useDay(employeeId, date, reloadKey);
+  if (employeeId === null || !date) return null;
+  const actions = (d: DayDetail) => (
+    <>
+      {onMonth && <button type="button" onClick={() => onMonth(d.employee.id, d.date.slice(0, 7))} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-4 text-xs font-semibold text-fg hover:bg-bg-subtle sm:text-sm"><CalendarDays className="h-4 w-4" /> Monthly attendance</button>}
+      {d.canOverride && (
+        <button type="button" onClick={() => onOverride(d)} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--tt-primary)] px-4 text-xs font-semibold text-[var(--tt-on-primary)] hover:bg-[var(--tt-primary-hover)] sm:text-sm"><PencilLine className="h-4 w-4" /> Override attendance</button>
+      )}
+    </>
+  );
+  return <DayView date={date} data={data} loading={loading} error={error} childOpen={childOpen} onClose={onClose} actions={onMonth || data?.canOverride ? actions : undefined} />;
 }

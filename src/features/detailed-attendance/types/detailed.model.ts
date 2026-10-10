@@ -58,10 +58,18 @@ export interface MonthCell {
   lateMinutes: number;
   overtimeMinutes: number;
   leave: { code: string; name: string; units: number; isPaid: boolean } | null;
+  /** pending, approved or rejected: where the newest regularization request for the date stands. */
+  regularizationStatus: string | null;
 }
 
 export interface MonthSummary {
   calendarDays: number;
+  totalDays: number;
+  cycleDays: number;
+  employedDays: number;
+  notJoined: boolean;
+  joinedMidCycle: boolean;
+  basis: string;
   payableDays: number;
   payableDaysBeforeLateDeduction: number;
   lopDays: number;
@@ -83,6 +91,58 @@ export interface MonthSummary {
   consecutiveAbsence: { days: number; action: string } | null;
 }
 
+export interface CompOffApprovalStep {
+  index: number;
+  name: string;
+  status: 'pending' | 'approved' | 'rejected' | 'upcoming';
+  assignee: { id: number | null; name: string; code?: string | null } | null;
+  actedAt: string | null;
+  note: string | null;
+}
+
+export interface CompOffApproval {
+  requestId: number;
+  status: string;
+  currentStep: number;
+  currentStepName: string | null;
+  createdAt: string | null;
+  decidedAt: string | null;
+  steps: CompOffApprovalStep[];
+  events: Array<{
+    id: number;
+    step: number | null;
+    action: string;
+    actor: string | null;
+    note: string | null;
+    at: string | null;
+  }>;
+}
+
+export interface CompOffGrant {
+  id: number;
+  dayId?: number | null;
+  workDate: string;
+  grantKey?: string;
+  reason: string;
+  category: string | null;
+  units: number;
+  minutes: number | null;
+  kind: 'comp_off' | 'paid';
+  state: string;
+  expiresOn: string | null;
+  description: string;
+  details?: {
+    workDate: string;
+    reason: string;
+    category?: string | null;
+    workedFrom?: string | null;
+    workedTo?: string | null;
+    durationText?: string | null;
+    holidayName?: string | null;
+  };
+  approval: CompOffApproval | null;
+}
+
 /** A leave type or the comp-off balance: one list so everything the employee can take is in one place. */
 export interface Balance {
   code: string;
@@ -96,6 +156,7 @@ export interface Balance {
   credited: number;
   period: 'monthly' | 'cycle';
   earned: { units: number; pendingUnits: number; paidMinutes: number } | null;
+  grants?: CompOffGrant[];
 }
 
 export interface Month {
@@ -109,6 +170,7 @@ export interface Month {
   cells: MonthCell[];
   summary: MonthSummary;
   balances: Balance[];
+  compOffGrants?: CompOffGrant[];
 }
 
 export interface DayRecord {
@@ -208,10 +270,11 @@ export interface DayDetail {
   override: DayOverride | null;
   punches: Punch[];
   breaks: Array<{ id: number; startedAt: string; endedAt: string | null }>;
-  compOff: Array<{ reason: string; kind: 'comp_off' | 'paid'; units: number; minutes: number | null; state: string }>;
+  compOff: CompOffGrant[];
   history: Array<{ id: number; at: string; kind: string; summary: string | null; reason: string | null; by: string | null }>;
   canOverride: boolean;
   locked: boolean;
+  regularization: { id: number; status: string; kinds: string[]; submittedAt: string | null } | null;
 }
 
 export interface Change<T> {

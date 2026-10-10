@@ -1,6 +1,6 @@
 'use client';
 
-import { PencilLine } from 'lucide-react';
+import { Hourglass, PencilLine } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { TONE, WEEKDAYS } from '../../constants/detailed.constants';
 import type { MonthCell } from '../../types/detailed.model';
@@ -26,6 +26,7 @@ function Cell({ c, today, onOpen }: { c: MonthCell; today: string; onOpen: (date
       <span className="flex items-center justify-between pl-1">
         <span className={cx('text-sm font-bold tabular-nums', c.date === today ? 'text-fg' : 'text-fg-muted')}>{c.day}</span>
         {c.badge.overridden && <span title="Set by HR" className="inline-flex"><PencilLine aria-hidden className="h-3 w-3 text-fg-muted" /></span>}
+        {c.regularizationStatus === 'pending' && <span title="Regularization request waiting for approval" className="inline-flex"><Hourglass aria-hidden className="h-3 w-3 text-[var(--tt-warning)]" /></span>}
       </span>
       {shown && (
         <span className="mt-1 flex min-w-0 flex-1 flex-col gap-0.5 pl-1">
@@ -61,7 +62,7 @@ export function MonthCalendar({ cells, today, onOpen }: { cells: MonthCell[]; to
                 <span aria-hidden className={cx('h-8 w-1 shrink-0 rounded-full', tone.bar)} />
                 <span className="w-14 shrink-0 text-sm font-bold text-fg">{dayText(c.date)}</span>
                 <span className="min-w-0 flex-1">
-                  <span className={cx('flex items-center gap-1 text-sm font-bold', tone.text)}>{c.badge.label}{c.badge.overridden && <PencilLine aria-label="Set by HR" className="h-3 w-3" />}</span>
+                  <span className={cx('flex items-center gap-1 text-sm font-bold', tone.text)}>{c.badge.label}{c.badge.overridden && <PencilLine aria-label="Set by HR" className="h-3 w-3" />}{c.regularizationStatus === 'pending' && <Hourglass aria-label="Regularization request waiting for approval" className="h-3 w-3 text-[var(--tt-warning)]" />}</span>
                   {(times(c) || c.badge.note) && <span className="block truncate text-xs text-fg-muted">{[times(c), c.badge.note].filter(Boolean).join(' · ')}</span>}
                 </span>
               </button>

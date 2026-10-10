@@ -5,7 +5,7 @@ import {
   Receipt, CheckSquare, ListTodo, UserPlus, PlusCircle, Package, LayoutGrid,
   Layers, Briefcase, HardHat, Thermometer, Camera, QrCode, Award, Cog,
   ArrowUpCircle, BarChart3, List, Heart, CalendarRange, Repeat, Inbox, Wrench, Navigation, Route,
-  User,
+  User, CalendarCheck,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
 
@@ -31,6 +31,7 @@ export const orgNav: NavNode[] = [
     kind: 'group', id: 'self', label: 'Self', icon: User,
     children: [
       { kind: 'link', label: 'Dashboard', href: '/org-admin', icon: Home },
+      { kind: 'link', label: 'My Attendance', href: '/org-admin/my-attendance', icon: CalendarCheck },
       { kind: 'link', label: 'Approvals', href: '/org-admin/approvals', icon: Inbox, match: 'prefix' },
     ],
   },
@@ -39,6 +40,7 @@ export const orgNav: NavNode[] = [
     children: [
       { kind: 'link', label: 'Dashboard', href: '/org-admin/attendance/dashboard', icon: LayoutDashboard },
       { kind: 'link', label: 'Detailed Attendance', href: '/org-admin/attendance/employee', icon: UserCheck },
+      { kind: 'link', label: 'Approvals', href: '/org-admin/attendance/approvals', icon: CheckSquare },
       { kind: 'link', label: 'Holidays', href: '/org-admin/holidays', icon: Calendar },
       { kind: 'link', label: 'Leave', href: '/org-admin/leave', icon: ClipboardList },
       { kind: 'link', label: 'Payroll', href: '/org-admin/payroll', icon: ListChecks },

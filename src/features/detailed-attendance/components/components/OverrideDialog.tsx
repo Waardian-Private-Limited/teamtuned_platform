@@ -8,7 +8,7 @@ import { showSuccess } from '@/lib/toast';
 import { OVERRIDE_OPTIONS } from '../../constants/detailed.constants';
 import { useOverride } from '../../hooks/useOverride';
 import type { DayDetail } from '../../types/detailed.model';
-import { clockText, longDayText } from '../../utils/format';
+import { clockText, longDayText, minutesText } from '../../utils/format';
 import { controlClass } from './controls';
 import { ImpactPanel } from './ImpactPanel';
 
@@ -19,10 +19,18 @@ interface Props {
 }
 
 const FROM_TEXT = { recorded: 'Starting from the recorded times.', shift: 'Starting from the shift this day was rostered for.', empty: 'Nothing was recorded or rostered: enter the start and end time.' } as const;
+const cutText = (p: string | null) => (p === 'full_day' ? 'a full day' : 'half a day');
 
 function Form({ day, onClose, onSaved }: Props) {
   const f = useOverride(day.employee.id, day.date, day.form);
   const hasForced = !!day.form.forcedStatus;
+
+  const hasLateMark = !!(day.day && (day.day.lateMark || day.day.lateMinutes > 0));
+  const hasLatePenalty = !!(day.day && day.day.latePenalty);
+  const hasEarlyMark = !!(day.day && (day.day.earlyMark || day.day.earlyMinutes > 0));
+  const hasEarlyPenalty = !!(day.day && day.day.earlyPenalty);
+  const showWaivers = hasLateMark || hasLatePenalty || hasEarlyMark || hasEarlyPenalty;
+
   const submit = async () => {
     if (await f.save()) {
       showSuccess(f.mode === 'clear' ? 'Forced status removed' : 'Attendance updated');
@@ -76,6 +84,66 @@ function Form({ day, onClose, onSaved }: Props) {
               </select>
               <span className="text-xs text-fg-muted">Leave it on &quot;Let the policy decide&quot; and the policy works out late marks, penalties, comp-off and overtime from these times.</span>
             </label>
+
+            {showWaivers && (
+              <div className="rounded-xl border border-line bg-bg-subtle/40 p-3 space-y-2">
+                <p className="text-xs font-bold uppercase tracking-wide text-fg-muted">Policy Waivers</p>
+                <div className="space-y-2 text-xs text-fg">
+                  {hasLateMark && (
+                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={f.waiveLateMark}
+                        onChange={(e) => f.setWaiveLateMark(e.target.checked)}
+                        className="h-4 w-4 rounded border-line text-[var(--tt-primary)] focus:ring-[var(--tt-ring)]"
+                      />
+                      <span className="font-medium">
+                        Waive late mark <span className="text-fg-muted">({minutesText(day.day?.lateMinutes || 0)} late)</span>
+                      </span>
+                    </label>
+                  )}
+                  {hasLatePenalty && (
+                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={f.waiveLatePenalty}
+                        onChange={(e) => f.setWaiveLatePenalty(e.target.checked)}
+                        className="h-4 w-4 rounded border-line text-[var(--tt-primary)] focus:ring-[var(--tt-ring)]"
+                      />
+                      <span className="font-medium">
+                        Waive late-mark penalty <span className="text-fg-muted">({cutText(day.day?.latePenalty || null)} cut)</span>
+                      </span>
+                    </label>
+                  )}
+                  {hasEarlyMark && (
+                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={f.waiveEarlyMark}
+                        onChange={(e) => f.setWaiveEarlyMark(e.target.checked)}
+                        className="h-4 w-4 rounded border-line text-[var(--tt-primary)] focus:ring-[var(--tt-ring)]"
+                      />
+                      <span className="font-medium">
+                        Waive early-exit mark <span className="text-fg-muted">({minutesText(day.day?.earlyMinutes || 0)} early)</span>
+                      </span>
+                    </label>
+                  )}
+                  {hasEarlyPenalty && (
+                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={f.waiveEarlyPenalty}
+                        onChange={(e) => f.setWaiveEarlyPenalty(e.target.checked)}
+                        className="h-4 w-4 rounded border-line text-[var(--tt-primary)] focus:ring-[var(--tt-ring)]"
+                      />
+                      <span className="font-medium">
+                        Waive early-exit penalty <span className="text-fg-muted">({cutText(day.day?.earlyPenalty || null)} cut)</span>
+                      </span>
+                    </label>
+                  )}
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <p className="rounded-xl border border-line bg-bg-subtle/50 p-3 text-sm text-fg-muted">The forced status is removed and the policy decides from the recorded times.</p>
