@@ -1,5 +1,7 @@
-import SalaryAdvanceDashboard from "@/components/salary-advance/SalaryAdvanceDashboard";
+'use client';
 
-export default function EmployeeSalaryAdvancePage() {
-    return <SalaryAdvanceDashboard />;
+import { SalaryAdvanceOverviewPage } from '@/features/salary-advance/components/SalaryAdvanceOverviewPage';
+
+export default function SalaryAdvanceOverviewRoute() {
+  return <SalaryAdvanceOverviewPage />;
 }

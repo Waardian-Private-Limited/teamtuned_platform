@@ -48,6 +48,7 @@ export const FLAG_TEXT: Record<string, string> = {
   HALF_LEAVE_NOT_WORKED: 'Half-day leave, second half not worked',
   FLEXIBLE_WEEK_OFF: 'Used one of the flexible week offs',
   AUTO_CLOSED: 'Checked out automatically at shift end',
+  NIGHT_OT_NOT_ENDED: 'Night overtime was not ended; it stopped at the end of the night window',
   MISSED_CHECKOUT: 'No check-out',
   SANDWICH_LOSS: 'Week off lost under the sandwich rule',
   CLOCK_RULE_OUTSIDE_SHIFT: 'Policy late or early time falls outside this shift',

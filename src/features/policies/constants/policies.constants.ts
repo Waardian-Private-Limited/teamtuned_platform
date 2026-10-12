@@ -43,6 +43,7 @@ export const POLICY_SECTIONS = [
   { value: 'workRules', label: 'Work Rules' },
   { value: 'leave', label: 'Leave' },
   { value: 'payrollCycle', label: 'Payroll Cycle' },
+  { value: 'salaryAdvance', label: 'Salary Advance' },
 ] as const;
 
 export type PolicySectionKey = (typeof POLICY_SECTIONS)[number]['value'];

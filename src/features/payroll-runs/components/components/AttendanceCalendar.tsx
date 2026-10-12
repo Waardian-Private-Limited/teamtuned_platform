@@ -21,7 +21,7 @@ function unitsNote(c: DayCell) {
   return `${c.payableUnits} paid`;
 }
 
-export function AttendanceCalendar({ cells }: { cells: DayCell[] }) {
+export function AttendanceCalendar({ cells, onOpenDay }: { cells: DayCell[]; onOpenDay?: (date: string) => void }) {
   if (!cells.length) return null;
   const weekday = (date: string) => (new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7;
   const lead = weekday(cells[0].date);
@@ -29,6 +29,7 @@ export function AttendanceCalendar({ cells }: { cells: DayCell[] }) {
 
   return (
     <SectionCard title="Attendance in this period">
+      {onOpenDay && <p className="px-3 pt-3 text-[11px] text-fg-muted sm:px-4">Click a day to see punches, leave and overrides.</p>}
       <div className="p-3 sm:p-4">
         <div className="hidden sm:block">
           <div className="mb-1 grid grid-cols-7 gap-1">
@@ -46,16 +47,19 @@ export function AttendanceCalendar({ cells }: { cells: DayCell[] }) {
               const t = tone(c.tone);
               const note = unitsNote(c);
               return (
-                <div
+                <button
+                  type="button"
                   key={c.date}
-                  title={`${formatDate(c.date, 'weekday')}: ${c.label}${note ? ` · ${note}` : ''}`}
-                  className="relative flex min-h-[58px] min-w-0 flex-col overflow-hidden rounded-md border border-line bg-surface px-1.5 py-1 pl-2.5"
+                  disabled={!onOpenDay || c.key === 'upcoming'}
+                  onClick={() => onOpenDay?.(c.date)}
+                  title={`${formatDate(c.date, 'weekday')}: ${c.label}${c.leaveName ? ` · ${c.leaveName}` : ''}${note ? ` · ${note}` : ''}`}
+                  className="relative flex min-h-[58px] min-w-0 flex-col overflow-hidden rounded-md border border-line bg-surface px-1.5 py-1 pl-2.5 text-left transition-colors enabled:cursor-pointer enabled:hover:border-line-strong enabled:hover:bg-bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-fg/30 disabled:cursor-default"
                 >
                   <span aria-hidden className={cx('absolute inset-y-0 left-0 w-[3px]', t.bar)} />
                   <span className="text-[11px] font-bold tabular-nums text-fg-muted">{Number(c.date.slice(8, 10))}</span>
                   <span className={cx('truncate text-[10px] font-semibold leading-tight', t.text)}>{c.label}</span>
                   {note && <span className="truncate text-[10px] text-fg-muted">{note}</span>}
-                </div>
+                </button>
               );
             })}
           </div>
@@ -65,7 +69,11 @@ export function AttendanceCalendar({ cells }: { cells: DayCell[] }) {
             const t = tone(c.tone);
             const note = unitsNote(c);
             return (
-              <li key={c.date} className="flex items-center gap-3 px-3 py-2">
+              <li
+                key={c.date}
+                onClick={() => onOpenDay && c.key !== 'upcoming' && onOpenDay(c.date)}
+                className={cx('flex items-center gap-3 px-3 py-2', onOpenDay && c.key !== 'upcoming' && 'cursor-pointer active:bg-bg-subtle')}
+              >
                 <span aria-hidden className={cx('h-6 w-1 shrink-0 rounded-full', t.bar)} />
                 <span className="w-24 shrink-0 text-xs font-semibold text-fg">{formatDate(c.date, 'weekday')}</span>
                 <span className={cx('min-w-0 flex-1 truncate text-xs font-semibold', t.text)}>{c.label}</span>

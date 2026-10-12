@@ -51,6 +51,7 @@ export const orgNav: NavNode[] = [
     children: [
       { kind: 'link', label: 'Payroll', href: '/org-admin/payroll', icon: ListChecks, match: 'prefix' },
       { kind: 'link', label: 'Salary Slips', href: '/org-admin/salary-slips', icon: FileText },
+      { kind: 'link', label: 'Payouts', href: '/org-admin/payouts', icon: Wallet },
       { kind: 'link', label: 'Other Deductions', href: '/org-admin/other-deductions', icon: MinusCircle, match: 'prefix' },
       { kind: 'link', label: 'Payroll Setup', href: '/org-admin/payroll-setup', icon: Coins },
       { kind: 'link', label: 'Increments & Promotions', href: '/org-admin/salary-revisions', icon: ArrowUpCircle },
@@ -119,12 +120,9 @@ export const orgNav: NavNode[] = [
   {
     kind: 'group', id: 'salary-advance', label: 'Salary Advance',
     children: [
-      { kind: 'link', label: 'Dashboard', href: '/org-admin/salary-advance/dashboard', icon: LayoutDashboard },
-      { kind: 'link', label: 'All Requests', href: '/org-admin/salary-advance/requests', icon: ClipboardList },
-      { kind: 'link', label: 'Approval Queue', href: '/org-admin/salary-advance/approvals', icon: CheckSquare },
-      { kind: 'link', label: 'Repayment Schedule', href: '/org-admin/salary-advance/repayments', icon: Calendar },
-      { kind: 'link', label: 'Policy Configuration', href: '/org-admin/salary-advance/policy', icon: Settings },
-      { kind: 'link', label: 'Accounts', href: '/org-admin/salary-advance/accounts', icon: Users },
+      { kind: 'link', label: 'Overview', href: '/org-admin/salary-advance', icon: LayoutDashboard },
+      { kind: 'link', label: 'Advances', href: '/org-admin/salary-advance/advances', icon: ClipboardList, match: 'prefix' },
+      { kind: 'link', label: 'Advance types', href: '/org-admin/salary-advance/types', icon: Layers, match: 'prefix' },
     ],
   },
   {

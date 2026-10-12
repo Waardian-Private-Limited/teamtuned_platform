@@ -3,11 +3,12 @@
 import React from 'react';
 import { Dialog } from '@/components/ui/Dialog';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
-import { usePolicySchema } from '../../hooks/usePolicySchema';
+import { hasSection, usePolicySchema } from '../../hooks/usePolicySchema';
 import { POLICY_SECTIONS, type PolicySectionKey } from '../../constants/policies.constants';
 import type { PolicyVersion } from '../../types/policies.model';
 import { ConfigSummary, formatValue } from './form/ConfigSummary';
 import { diffConfig } from './form/schemaDefaults';
+import type { SectionNode } from './form/schemaTypes';
 
 interface PolicyVersionDialogProps {
   open: boolean;
@@ -16,7 +17,6 @@ interface PolicyVersionDialogProps {
   onClose: () => void;
 }
 
-const SECTION_TAB_OPTIONS = POLICY_SECTIONS.map((s) => ({ value: s.value, label: s.label }));
 
 /**
  * What a version actually contains, read-only — the missing half of version
@@ -27,6 +27,10 @@ const SECTION_TAB_OPTIONS = POLICY_SECTIONS.map((s) => ({ value: s.value, label:
 export function PolicyVersionDialog({ open, version, compareTo, onClose }: PolicyVersionDialogProps) {
   const { schema } = usePolicySchema();
   const [tab, setTab] = React.useState<PolicySectionKey>('workRules');
+  const sectionTabs = React.useMemo(
+    () => POLICY_SECTIONS.filter((s) => hasSection(schema, s.value)).map((s) => ({ value: s.value, label: s.label })),
+    [schema]
+  );
 
   React.useEffect(() => {
     if (open) setTab('workRules');
@@ -85,8 +89,10 @@ export function PolicyVersionDialog({ open, version, compareTo, onClose }: Polic
             </div>
           )}
 
-          <SegmentedControl options={SECTION_TAB_OPTIONS} value={tab} onChange={setTab} />
-          <ConfigSummary schema={schema[tab]} config={version.config?.[tab]} />
+          <div className="overflow-x-auto tt-scroll-hidden">
+            <SegmentedControl options={sectionTabs} value={tab} onChange={setTab} />
+          </div>
+          <ConfigSummary schema={(schema[tab] ?? {}) as SectionNode} config={version.config?.[tab]} />
         </div>
       )}
     </Dialog>

@@ -99,7 +99,13 @@ export interface RequestDetail {
   currentStep: number;
   steps: { index: number; name: string; mode: StepMode; quorum: number | null; approverType: string; tasks: TaskView[] }[];
   events: { id: number; step: number | null; action: string; actor: string | null; note: string | null; meta: Record<string, unknown> | null; at: string }[];
-  detail: { title: string; lines: { label: string; value: string }[]; impact: { label: string; items: string[] } | null } | null;
+  detail: {
+    title: string;
+    lines: { label: string; value: string }[];
+    impact: { label: string; items: string[] } | null;
+    /** A type-specific form the approver fills in; its values go back as `extra` when approving. */
+    decision_form?: { kind: string; advance_id?: number };
+  } | null;
   createdAt: string; decidedAt: string | null;
   actions: { decide: boolean; sendBack: boolean; withdraw: boolean; resubmit: boolean; override: boolean; reassign: boolean };
 }

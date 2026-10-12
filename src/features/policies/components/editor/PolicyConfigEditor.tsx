@@ -4,10 +4,12 @@ import React from 'react';
 import { AlertTriangle, Code2, Save, SlidersHorizontal } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
-import { usePolicySchema } from '../../hooks/usePolicySchema';
+import { hasSection, usePolicySchema } from '../../hooks/usePolicySchema';
+import { useAdvanceTypeOptions } from '@/features/salary-advance/hooks/useAdvanceTypeOptions';
 import { useLeaveTypeList } from '../../hooks/useLeaveTypeList';
 import { useSalaryComponentList } from '../../hooks/useSalaryComponentList';
 import { SchemaForm } from './form/SchemaForm';
+import type { SectionNode } from './form/schemaTypes';
 import { POLICY_SECTIONS, type PolicySectionKey } from '../../constants/policies.constants';
 
 interface PolicyConfigEditorProps {
@@ -33,12 +35,12 @@ function splitViolation(line: string): { path: string; message: string } | null 
  * here the moment it's added there. An advanced JSON view stays available
  * for edits the generated form doesn't have a control for yet.
  */
-const SECTION_TAB_OPTIONS = POLICY_SECTIONS.map((s) => ({ value: s.value, label: s.label }));
 
 export function PolicyConfigEditor({ config, isSaving, onSave }: PolicyConfigEditorProps) {
   const { schema, isLoading: schemaLoading, error: schemaError } = usePolicySchema();
   const { leaveTypes } = useLeaveTypeList();
   const { salaryComponents } = useSalaryComponentList();
+  const { types: advanceTypes } = useAdvanceTypeOptions(true);
 
   const [mode, setMode] = React.useState<'form' | 'json'>('form');
   const [activeTab, setActiveTab] = React.useState<PolicySectionKey>('workRules');
@@ -53,6 +55,12 @@ export function PolicyConfigEditor({ config, isSaving, onSave }: PolicyConfigEdi
     setValue(config || {});
     setText(JSON.stringify(config, null, 2));
   }, [config]);
+
+  const sectionTabs = React.useMemo(
+    () => POLICY_SECTIONS.filter((s) => hasSection(schema, s.value)).map((s) => ({ value: s.value, label: s.label })),
+    [schema]
+  );
+  const advanceTypeOptions = React.useMemo(() => advanceTypes.map((t) => ({ id: t.id, name: t.name, code: t.code, active: t.status === 'active' })), [advanceTypes]);
 
   const leaveTypeOptions = React.useMemo(() => leaveTypes.map((lt) => ({ id: lt.id, name: lt.name, code: lt.code, genderEligibility: lt.genderEligibility })), [leaveTypes]);
 
@@ -178,14 +186,17 @@ export function PolicyConfigEditor({ config, isSaving, onSave }: PolicyConfigEdi
           </p>
         ) : (
           <div ref={sectionTopRef} className="flex flex-col gap-3">
-            <SegmentedControl options={SECTION_TAB_OPTIONS} value={activeTab} onChange={handleTabChange} />
+            <div className="overflow-x-auto tt-scroll-hidden">
+              <SegmentedControl options={sectionTabs} value={activeTab} onChange={handleTabChange} />
+            </div>
             <SchemaForm
               section={activeTab}
-              node={schema[activeTab]}
+              node={(schema[activeTab] ?? {}) as SectionNode}
               value={(value[activeTab] as Record<string, unknown>) || {}}
               onChange={(next) => setValue((prev) => ({ ...prev, [activeTab]: next }))}
               leaveTypeOptions={leaveTypeOptions}
               salaryComponentOptions={salaryComponents}
+              advanceTypeOptions={advanceTypeOptions}
               fieldErrors={fieldErrors}
             />
           </div>

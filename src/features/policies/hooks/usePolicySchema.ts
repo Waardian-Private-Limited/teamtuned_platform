@@ -9,6 +9,11 @@ export interface PolicyConfigSchemaDescribe {
   workRules: SectionNode;
   leave: SectionNode;
   payrollCycle: SectionNode;
+  salaryAdvance?: SectionNode;
+}
+
+export function hasSection(schema: PolicyConfigSchemaDescribe | null, key: string): boolean {
+  return Boolean(schema && (schema as unknown as Record<string, unknown>)[key]);
 }
 
 // The config editor's field metadata — fetched once per session (it only

@@ -33,6 +33,7 @@ export const employeeNav: NavNode[] = [
       { kind: 'link', label: 'My Attendance', href: '/employee/my-attendance', icon: CalendarCheck },
       { kind: 'link', label: 'My Leave', href: '/employee/leave', icon: TreePalm, match: 'prefix' },
       { kind: 'link', label: 'My payslips', href: '/employee/my-payslips', icon: Receipt, gate: { feature: 'PAYROLL_FEATURE' } },
+      { kind: 'link', label: 'My advances', href: '/employee/my-advances', icon: Wallet, gate: { feature: 'PAYROLL_FEATURE' } },
       { kind: 'link', label: 'Approvals', href: '/employee/approvals', icon: Inbox, match: 'prefix' },
     ],
   },
@@ -57,6 +58,7 @@ export const employeeNav: NavNode[] = [
     children: [
       { kind: 'link', label: 'Payroll', href: '/employee/payroll', icon: DollarSign, match: 'prefix', gate: { anyPerm: ['PAYROLL_VIEW', 'HR_MODE'] } },
       { kind: 'link', label: 'Salary Slips', href: '/employee/salary-slips', icon: FileText, match: 'prefix', gate: { anyPerm: ['PAYROLL_VIEW', 'HR_MODE'] } },
+      { kind: 'link', label: 'Payouts', href: '/employee/payouts', icon: Wallet, gate: { anyPerm: ['PAYOUTS_VIEW', 'PAYOUTS_PAY'] } },
       { kind: 'link', label: 'Other Deductions', href: '/employee/other-deductions', icon: MinusCircle, match: 'prefix', gate: { anyPerm: ['HR_MODE', 'COMP_VIEW', 'COMP_ADD', 'COMP_DELETE'] } },
       { kind: 'link', label: 'Payroll Setup', href: '/employee/payroll-setup', icon: Coins, match: 'prefix', gate: { anyPerm: ['SALARY_CONFIG_VIEW', 'SALARY_CONFIG_ADD', 'DEBIT_RULE_VIEW', 'DEBIT_RULE_ADD', 'HR_MODE', 'PAYROLL_ADMIN'] } },
       { kind: 'link', label: 'Increments & Promotions', href: '/employee/salary-revisions', icon: ArrowUpCircle, match: 'prefix', gate: { anyPerm: ['COMP_VIEW', 'COMP_ADD', 'COMP_EDIT', 'COMP_APPROVE', 'HR_MODE'] } },
@@ -126,15 +128,12 @@ export const employeeNav: NavNode[] = [
   {
     kind: 'group', id: 'salary-advance', label: 'Salary Advance', gate: {
       feature: 'PAYROLL_FEATURE',
-      anyPerm: ['SALADV_VIEW', 'SALADV_APPROVE', 'SALADV_POLICY', 'SALADV_PAY'],
+      anyPerm: ['SALADV_VIEW', 'SALADV_PAY', 'SALADV_CREATE', 'SALADV_POLICY'],
     },
     children: [
-      { kind: 'link', label: 'Dashboard', href: '/employee/salary-advance/dashboard', icon: LayoutDashboard },
-      { kind: 'link', label: 'All Requests', href: '/employee/salary-advance/requests', icon: ClipboardList, match: 'prefix', gate: { anyPerm: ['SALADV_VIEW'] } },
-      { kind: 'link', label: 'Approval Queue', href: '/employee/salary-advance/approvals', icon: CheckSquare, match: 'prefix', gate: { anyPerm: ['SALADV_APPROVE'] } },
-      { kind: 'link', label: 'Repayment Schedule', href: '/employee/salary-advance/repayments', icon: Calendar, match: 'prefix', gate: { anyPerm: ['SALADV_VIEW'] } },
-      { kind: 'link', label: 'Policy Configuration', href: '/employee/salary-advance/policy', icon: Settings, match: 'prefix', gate: { anyPerm: ['SALADV_POLICY'] } },
-      { kind: 'link', label: 'Accounts', href: '/employee/salary-advance/accounts', icon: Users, match: 'prefix', gate: { anyPerm: ['SALADV_PAY'] } },
+      { kind: 'link', label: 'Overview', href: '/employee/salary-advance', icon: LayoutDashboard, gate: { anyPerm: ['SALADV_VIEW'] } },
+      { kind: 'link', label: 'Advances', href: '/employee/salary-advance/advances', icon: ClipboardList, match: 'prefix', gate: { anyPerm: ['SALADV_VIEW', 'SALADV_PAY', 'SALADV_CREATE'] } },
+      { kind: 'link', label: 'Advance types', href: '/employee/salary-advance/types', icon: Layers, match: 'prefix', gate: { anyPerm: ['SALADV_POLICY'] } },
     ],
   },
 

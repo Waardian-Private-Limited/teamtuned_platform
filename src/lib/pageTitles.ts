@@ -43,11 +43,15 @@ const PAGE_TITLES: Record<string, { title: string; category: string }> = {
     '/employee/insurance/beneficiaries': { title: 'Beneficiaries', category: 'Insurance' },
 
     // Salary Advance
-    '/employee/salary-advance/requests': { title: 'All Requests', category: 'Salary Advance' },
-    '/employee/salary-advance/approvals': { title: 'Approval Queue', category: 'Salary Advance' },
-    '/employee/salary-advance/repayments': { title: 'Repayment Schedule', category: 'Salary Advance' },
-    '/employee/salary-advance/analytics': { title: 'Analytics', category: 'Salary Advance' },
-    '/employee/salary-advance/policy': { title: 'Policy Configuration', category: 'Salary Advance' },
+    '/employee/my-advances': { title: 'My advances', category: 'Self' },
+    '/employee/payouts': { title: 'Payouts', category: 'Payroll' },
+    '/org-admin/payouts': { title: 'Payouts', category: 'Payroll' },
+    '/employee/salary-advance': { title: 'Overview', category: 'Salary Advance' },
+    '/org-admin/salary-advance': { title: 'Overview', category: 'Salary Advance' },
+    '/employee/salary-advance/advances': { title: 'Advances', category: 'Salary Advance' },
+    '/org-admin/salary-advance/advances': { title: 'Advances', category: 'Salary Advance' },
+    '/employee/salary-advance/types': { title: 'Advance types', category: 'Salary Advance' },
+    '/org-admin/salary-advance/types': { title: 'Advance types', category: 'Salary Advance' },
 
     // Task
     '/employee/tasks': { title: 'Templates', category: 'Task' },

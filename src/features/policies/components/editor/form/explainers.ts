@@ -260,12 +260,6 @@ const WORK_RULES: Record<string, (c: Config) => CardSummary> = {
       };
       rule.push(`Early exit minutes are added to the late minutes. An early exit is ${early[s(c.earlyExitBasis)] || 'checking out before the shift ends'}.`);
     }
-    const missed: Record<string, string> = {
-      full_day: 'counts as a full day',
-      half_day: 'counts as a half day',
-      absent: 'counts as absent',
-    };
-    if (missed[s(c.missedCheckout)]) rule.push(`When check-out is required, a day with a check-in but no check-out ${missed[s(c.missedCheckout)]}.`);
     const over = per * 2 + Math.round(per / 6);
     const raw = over / per;
     const days = rounding === 'round_up' ? Math.ceil(raw) : rounding === 'round_down' ? Math.floor(raw) : rounding === 'round_nearest' ? Math.round(raw) : raw;
@@ -299,8 +293,22 @@ const WORK_RULES: Record<string, (c: Config) => CardSummary> = {
           rule: [`A forgotten checkout closes itself ${duration(c.autoCloseAfterMinutes)} after shift end.`],
           example: `Example: shift ends 6:00 pm, no checkout — the day is closed at ${clock(addMinutes('18:00:00', n(c.autoCloseAfterMinutes)))}.`,
         };
-      default:
-        return { rule: ['A checkout is required — until it happens the day stays open and unscored.'] };
+      default: {
+        const missed: Record<string, string> = {
+          full_day: 'counts as a full day',
+          half_day: 'counts as a half day',
+          absent: 'counts as absent',
+        };
+        const then = missed[s(c.missedCheckout)];
+        return {
+          rule: [
+            'A checkout is required.',
+            then
+              ? `If there is none by the time the day closes (shift end plus carry-over hours), the day ${then}.`
+              : 'If there is none by the time the day closes (shift end plus carry-over hours), the day stays unpaid until a regularization fixes it.',
+          ],
+        };
+      }
     }
   },
 
@@ -1066,6 +1074,127 @@ export function summarizeLeaveRule(rule: Config): string {
   return parts.join(' · ');
 }
 
+function rupees(value: number): string {
+  return `₹${Math.round(value).toLocaleString('en-IN')}`;
+}
+
+const ADVANCE_BASIS: Record<string, string> = {
+  earned_salary: 'salary earned so far this pay cycle',
+  monthly_gross: 'monthly gross salary',
+};
+
+const SALARY_ADVANCE: Record<string, (c: Config) => CardSummary> = {
+  eligibility(c) {
+    const rule: string[] = [];
+    const days = n(c.minServiceDays);
+    rule.push(days > 0 ? `Available once an employee has worked here for ${days} days.` : 'Available from the joining date.');
+    rule.push(b(c.allowDuringProbation) ? 'Employees on probation can request it.' : 'Not available while an employee is on probation.');
+    rule.push(b(c.allowWhileNoticePeriod) ? 'Employees serving notice can still request it.' : 'Not available once an employee has resigned or is serving notice.');
+    return { rule };
+  },
+  limit(c) {
+    const rule: string[] = [];
+    const basis = s(c.basis, 'earned_salary');
+    const fixedMax = n(c.fixedMax);
+    const min = n(c.minAmount);
+    if (basis === 'no_limit') {
+      rule.push('No limit: the employee can ask for any amount. The approver decides how much to approve.');
+      if (min > 0) rule.push(`Requests below ${rupees(min)} are not allowed.`);
+      return { rule };
+    }
+    if (basis === 'fixed') rule.push(fixedMax > 0 ? `Up to a fixed ${rupees(fixedMax)}.` : 'No limit on the amount. Set a fixed maximum to cap it.');
+    else {
+      rule.push(`Up to ${n(c.percent, 50)}% of the ${ADVANCE_BASIS[basis] || 'salary'}.`);
+      if (fixedMax > 0) rule.push(`Never more than ${rupees(fixedMax)}, whatever the salary.`);
+    }
+    rule.push('Anything the employee still owes on other advances is taken off the limit first.');
+    const round = n(c.roundDownTo);
+    if (round > 1) rule.push(`The limit is rounded down to the nearest ${rupees(round)}.`);
+    if (min > 0) rule.push(`Requests below ${rupees(min)} are not allowed.`);
+    let example: string | undefined;
+    if (basis === 'earned_salary') {
+      const earned = 15000;
+      let max = (earned * n(c.percent, 50)) / 100;
+      if (fixedMax > 0) max = Math.min(max, fixedMax);
+      if (round > 1) max = Math.floor(max / round) * round;
+      example = `Example: earned ${rupees(earned)} by mid-month with nothing owed → can take up to ${rupees(max)}.`;
+    }
+    return { rule, example };
+  },
+  frequency(c) {
+    const rule: string[] = [];
+    const open = n(c.maxOpen, 1);
+    rule.push(open === 1 ? 'Only one advance of this type can be open at a time.' : `Up to ${open} advances of this type can be open at a time.`);
+    const perYear = n(c.maxPerYear);
+    if (perYear > 0) rule.push(`At most ${perYear} per calendar year.`);
+    const cooldown = n(c.cooldownDays);
+    if (cooldown > 0) rule.push(`A new request needs ${cooldown} days since the last one.`);
+    return { rule };
+  },
+  repayment(c) {
+    const rule: string[] = [];
+    rule.push('The employee asks for a number of installments and a first deduction month; the approver decides the plan (one go or installments, first month, merging).');
+    rule.push(`Payroll never takes more than ${n(c.maxPercentOfNet, 50)}% of a month’s net pay for advances; the rest carries to the next month.`);
+    if (b(c.recoverOnExit)) rule.push('If the employee leaves, everything still owed is recovered from the final settlement.');
+    return { rule };
+  },
+  interest(c) {
+    const mode = s(c.mode, 'none');
+    const rate = n(c.annualRate);
+    if (mode === 'none' || rate <= 0) return { rule: ['No interest. The employee repays exactly what they took.'] };
+    const amount = 30000;
+    const months = 6;
+    if (mode === 'flat') {
+      const interest = Math.round((amount * rate * months) / 1200);
+      return {
+        rule: [`Flat interest of ${rate}% a year on the full amount, for the whole term.`],
+        example: `Example: ${rupees(amount)} over ${months} months → ${rupees(interest)} interest, ${rupees((amount + interest) / months)} a month.`,
+      };
+    }
+    const r = rate / 1200;
+    const f = Math.pow(1 + r, months);
+    const emi = Math.round((amount * r * f) / (f - 1));
+    return {
+      rule: [`Interest of ${rate}% a year on the balance still owed, so it falls as the advance is repaid.`],
+      example: `Example: ${rupees(amount)} over ${months} months → about ${rupees(emi)} a month, ${rupees(emi * months - amount)} interest in total.`,
+    };
+  },
+  disbursement(c) {
+    return s(c.mode, 'manual') === 'payroll'
+      ? { rule: ['Paid as a non-taxable earning in the next payroll after approval.', 'HR can still choose to pay a single advance by bank transfer instead.'] }
+      : { rule: ['Paid by Accounts after approval, who record the transfer reference here.', 'HR can still choose to pay a single advance with payroll instead.'] };
+  },
+  request(c) {
+    const rule: string[] = [];
+    rule.push(b(c.reasonRequired) ? 'The employee must say what the advance is for.' : 'A reason is optional.');
+    if (b(c.attachmentRequired)) rule.push('A supporting document must be attached.');
+    rule.push(b(c.hideLimitsFromEmployee) ? 'Employees do not see their maximum amount; they only learn if a request is too high.' : 'Employees see the most they can take before they apply.');
+    rule.push(b(c.employeeCanChooseInstallments) ? 'Employees pick the number of instalments, up to the maximum.' : 'The default number of instalments is always used.');
+    return { rule };
+  },
+  approval(c) {
+    return b(c.required)
+      ? { rule: ['Requests go through the salary advance approval flow before anything is paid.'] }
+      : { rule: ['Requests are approved straight away, with no approval step.'] };
+  },
+};
+
+export function summarizeAdvanceRule(rule: Config): string {
+  const parts: string[] = [];
+  const limit = (rule.limit || {}) as Config;
+  const basis = s(limit.basis, 'earned_salary');
+  if (basis === 'no_limit') parts.push('no amount limit');
+  else if (basis === 'fixed') parts.push(n(limit.fixedMax) > 0 ? `up to ${rupees(n(limit.fixedMax))}` : 'no amount cap');
+  else parts.push(`${n(limit.percent, 50)}% of ${basis === 'monthly_gross' ? 'gross' : 'earned salary'}`);
+  const interest = (rule.interest || {}) as Config;
+  parts.push(s(interest.mode, 'none') === 'none' || n(interest.annualRate) <= 0 ? 'no interest' : `${n(interest.annualRate)}% ${s(interest.mode)}`);
+  const disb = (rule.disbursement || {}) as Config;
+  parts.push(s(disb.mode, 'manual') === 'payroll' ? 'paid with payroll' : 'paid by Accounts');
+  const approval = (rule.approval || {}) as Config;
+  if (approval.required === false) parts.push('no approval');
+  return parts.join(' · ');
+}
+
 function addMinutes(time: string, minutes: number): string {
   const [h, m] = time.split(':').map(Number);
   const total = (h * 60 + (m || 0) + Math.round(minutes) + 1440) % 1440;
@@ -1087,6 +1216,7 @@ export function explainCard(section: string, group: string, value: unknown, sect
     if (section === 'workRules') return WORK_RULES[group]?.(config) ?? null;
     if (section === 'payrollCycle') return PAYROLL[group]?.(config, (sectionValue || {}) as Config) ?? null;
     if (section === 'leave') return LEAVE_RULE[group]?.(config) ?? null;
+    if (section === 'salaryAdvance') return SALARY_ADVANCE[group]?.(config) ?? null;
     return null;
   } catch {
     // A summary is a convenience: a malformed draft config must never stop

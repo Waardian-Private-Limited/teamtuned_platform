@@ -18,6 +18,7 @@ import { PaySummaryTiles } from './components/PaySummaryTiles';
 import { HoldDialog } from './components/RunDialogs';
 import { WarningsList } from './components/WarningsList';
 import { PayrollEmptyState } from './components/PayrollEmptyState';
+import { DayPopup } from '@/features/detailed-attendance/components/DayPopup';
 
 function PageSkeleton() {
   return (
@@ -48,6 +49,7 @@ export function EmployeePayPage({ basePath }: { basePath: string }) {
   const pay = useEmployeePay(valid ? runId : null, valid ? employeeId : null);
   const data = pay.data;
   const [holdOpen, setHoldOpen] = React.useState(false);
+  const [openDay, setOpenDay] = React.useState<string | null>(null);
   const [order, setOrder] = React.useState<number[]>([]);
 
   React.useEffect(() => {
@@ -160,7 +162,7 @@ export function EmployeePayPage({ basePath }: { basePath: string }) {
           </div>
 
           <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
-            <AttendanceCalendar cells={item.attendance?.cells || []} />
+            <AttendanceCalendar cells={item.attendance?.cells || []} onOpenDay={setOpenDay} />
             <div className="space-y-4">
               <LinesTable title="Employer contributions" lines={item.employerLines} total={item.employer} empty="No employer contributions." />
               <SalaryUsed segments={item.segments} revisionsHref={`${basePath}/salary-revisions`} />
@@ -171,6 +173,15 @@ export function EmployeePayPage({ basePath }: { basePath: string }) {
           {item.payslipNumber && <p className="text-xs text-fg-muted">Payslip number {item.payslipNumber}</p>}
         </div>
       )}
+
+      <DayPopup
+        employeeId={openDay && item ? item.employee.id : null}
+        date={openDay}
+        onClose={() => setOpenDay(null)}
+        onChanged={() => {
+          if (run?.status === 'draft' && !pending) pay.recompute();
+        }}
+      />
 
       <HoldDialog
         open={holdOpen}

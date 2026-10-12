@@ -10,13 +10,16 @@ import {
   Clock,
   Wallet,
   FileText,
+  HandCoins,
   ShieldCheck,
 } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { Dialog } from '@/components/ui/Dialog';
 import { SubOrgPicker } from '@/features/sub-organizations/components/SubOrgPicker';
 import { usePermission } from '@/lib/hooks/usePermission';
-import { usePolicySchema } from '../../hooks/usePolicySchema';
+import { hasSection, usePolicySchema } from '../../hooks/usePolicySchema';
+import { useAdvanceTypeOptions } from '@/features/salary-advance/hooks/useAdvanceTypeOptions';
+import type { SectionNode } from '../editor/form/schemaTypes';
 import { useLeaveTypeList } from '../../hooks/useLeaveTypeList';
 import { useSalaryComponentList } from '../../hooks/useSalaryComponentList';
 import { POLICY_SECTIONS, type PolicySectionKey } from '../../constants/policies.constants';
@@ -49,6 +52,7 @@ const STEPS: StepItem[] = [
   { key: 'workRules', label: 'Work Rules', icon: Clock, description: 'Grace, marks & hours' },
   { key: 'leave', label: 'Leave Policy', icon: Calendar, description: 'Quotas & carry-forward' },
   { key: 'payrollCycle', label: 'Payroll Cycle', icon: Wallet, description: 'Pay days & cutoffs' },
+  { key: 'salaryAdvance', label: 'Salary Advance', icon: HandCoins, description: 'Limits & repayment' },
   { key: 'review', label: 'Review & Confirm', icon: ShieldCheck, description: 'Summary & draft' },
 ];
 
@@ -66,6 +70,8 @@ export function PolicyCreateWizard({ open, isSaving, fieldError, onClose, onSubm
   const { schema, isLoading: schemaLoading, error: schemaError } = usePolicySchema();
   const { leaveTypes } = useLeaveTypeList();
   const { salaryComponents } = useSalaryComponentList();
+  const { types: advanceTypes } = useAdvanceTypeOptions(true);
+  const advanceTypeOptions = React.useMemo(() => advanceTypes.map((t) => ({ id: t.id, name: t.name, code: t.code, active: t.status === 'active' })), [advanceTypes]);
 
   const [stepIndex, setStepIndex] = React.useState(0);
   const [name, setName] = React.useState('');
@@ -80,7 +86,7 @@ export function PolicyCreateWizard({ open, isSaving, fieldError, onClose, onSubm
   const defaults = React.useMemo(() => {
     if (!schema) return null;
     return Object.fromEntries(
-      POLICY_SECTIONS.map((section) => [section.value, sectionDefaults(schema[section.value])])
+      POLICY_SECTIONS.filter((section) => hasSection(schema, section.value)).map((section) => [section.value, sectionDefaults(schema[section.value] as SectionNode)])
     ) as Record<PolicySectionKey, Record<string, unknown>>;
   }, [schema]);
 
@@ -102,9 +108,13 @@ export function PolicyCreateWizard({ open, isSaving, fieldError, onClose, onSubm
     setConfig((prev) => (Object.keys(prev).length ? prev : structuredClone(defaults)));
   }, [open, defaults]);
 
-  const step = STEPS[stepIndex];
+  const steps = React.useMemo(
+    () => STEPS.filter((s) => s.key === 'details' || s.key === 'review' || hasSection(schema, s.key)),
+    [schema]
+  );
+  const step = steps[Math.min(stepIndex, steps.length - 1)];
   const nameMissing = !name.trim();
-  const isLastStep = stepIndex === STEPS.length - 1;
+  const isLastStep = stepIndex === steps.length - 1;
 
   const wizardTopRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -152,7 +162,7 @@ export function PolicyCreateWizard({ open, isSaving, fieldError, onClose, onSubm
       setNameTouched(true);
       return;
     }
-    setStepIndex((i) => Math.min(i + 1, STEPS.length - 1));
+    setStepIndex((i) => Math.min(i + 1, steps.length - 1));
   };
 
   const setSection = (key: PolicySectionKey, next: Record<string, unknown>) =>
@@ -176,7 +186,7 @@ export function PolicyCreateWizard({ open, isSaving, fieldError, onClose, onSubm
             </span>
           </div>
           <p className="mt-0.5 text-[11px] text-fg-muted sm:text-xs truncate">
-            Step {stepIndex + 1} of {STEPS.length} · {step.label} — saved as a draft; publish anytime from editor.
+            Step {stepIndex + 1} of {steps.length} · {step.label} — saved as a draft; publish anytime from editor.
           </p>
         </div>
       }
@@ -227,8 +237,8 @@ export function PolicyCreateWizard({ open, isSaving, fieldError, onClose, onSubm
       <div ref={wizardTopRef} className="flex flex-col gap-4">
         {/* Step Navigation Bar */}
         <nav aria-label="Wizard Steps" className="rounded-xl border border-line bg-surface p-1.5">
-          <ol className="grid grid-cols-2 gap-1 sm:grid-cols-5">
-            {STEPS.map((s, i) => {
+          <ol className={cx('grid grid-cols-2 gap-1', steps.length > 5 ? 'sm:grid-cols-3 lg:grid-cols-6' : 'sm:grid-cols-5')}>
+            {steps.map((s, i) => {
               const Icon = s.icon;
               const isCurrent = i === stepIndex;
               const isPast = i < stepIndex;
@@ -373,11 +383,12 @@ export function PolicyCreateWizard({ open, isSaving, fieldError, onClose, onSubm
           ) : (
             <SchemaForm
               section={step.key}
-              node={schema[step.key as PolicySectionKey]}
+              node={(schema[step.key as PolicySectionKey] ?? {}) as SectionNode}
               value={(config[step.key] as Record<string, unknown>) || {}}
               onChange={(next) => setSection(step.key as PolicySectionKey, next)}
               leaveTypeOptions={leaveTypeOptions}
               salaryComponentOptions={salaryComponents}
+              advanceTypeOptions={advanceTypeOptions}
             />
           )
         )}

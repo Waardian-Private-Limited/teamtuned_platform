@@ -162,7 +162,16 @@ export function toLine(dto: LineDto): PayLine {
 
 function toAttendance(dto: AttendanceDto | null): Attendance | null {
   if (!dto) return null;
+  const leaveType = (t: { code: string | null; name: string | null; is_paid: boolean; days: number; covered_absence_days?: number }) => ({
+    code: t.code,
+    name: t.name || t.code || 'Leave',
+    isPaid: t.is_paid !== false,
+    days: n(t.days),
+    coveredAbsenceDays: n(t.covered_absence_days),
+  });
   return {
+    leaveByType: (dto.leave_by_type || []).map(leaveType),
+    sandwichLeave: { days: n(dto.leave_sandwich?.days), byType: (dto.leave_sandwich?.by_type || []).map(leaveType) },
     cycleDays: n(dto.cycle_days),
     payableDays: n(dto.payable_days),
     lopDays: n(dto.lop_days),
@@ -185,7 +194,8 @@ function toAttendance(dto: AttendanceDto | null): Attendance | null {
       label: c.label || '—',
       tone: c.tone || 'muted',
       payableUnits: nOrNull(c.payable_units),
-      leave: c.leave,
+      leave: typeof c.leave === 'string' ? c.leave : c.leave?.code ?? null,
+      leaveName: typeof c.leave === 'string' ? c.leave : c.leave?.name ?? c.leave?.code ?? null,
       lateMinutes: n(c.late_minutes),
       overtimeMinutes: n(c.overtime_minutes),
     })),

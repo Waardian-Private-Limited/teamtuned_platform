@@ -121,6 +121,7 @@ export interface DayCell {
   tone: string;
   payableUnits: number | null;
   leave: string | null;
+  leaveName: string | null;
   lateMinutes: number;
   overtimeMinutes: number;
 }
@@ -134,7 +135,17 @@ export interface LopBreakdown {
   lateDeduction: number;
 }
 
+export interface LeaveTypeDays {
+  code: string | null;
+  name: string;
+  isPaid: boolean;
+  days: number;
+  coveredAbsenceDays: number;
+}
+
 export interface Attendance {
+  leaveByType: LeaveTypeDays[];
+  sandwichLeave: { days: number; byType: LeaveTypeDays[] };
   cycleDays: number;
   payableDays: number;
   lopDays: number;

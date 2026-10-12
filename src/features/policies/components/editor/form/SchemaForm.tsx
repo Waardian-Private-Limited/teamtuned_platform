@@ -21,6 +21,7 @@ import {
   type SectionNode,
 } from './schemaTypes';
 import { LeaveRulesConfigurator } from './LeaveRulesConfigurator';
+import { SalaryAdvanceRulesConfigurator } from './SalaryAdvanceRulesConfigurator';
 import { WeeklyOffScheduleEditor, type DayKey, type DayScheduleConfig } from './WeeklyOffScheduleEditor';
 
 export interface LeaveTypeOption {
@@ -35,6 +36,15 @@ export interface SalaryComponentOption {
   id: number;
   name: string;
 }
+
+export interface AdvanceTypeOption {
+  id: number;
+  name: string;
+  code?: string;
+  active?: boolean;
+}
+
+const AdvanceTypeOptionsContext = React.createContext<AdvanceTypeOption[]>([]);
 
 const GROSS_SALARY_COMPONENT: SalaryComponentOption = { id: 0, name: 'Gross (all active components)' };
 
@@ -217,7 +227,23 @@ interface ScalarControlProps {
 }
 
 export function ScalarControl({ label, node, value, onChange, leaveTypeOptions, salaryComponentOptions, fieldKey, error }: ScalarControlProps) {
-  const ref = node.ref || (fieldKey === 'leaveTypeId' ? 'leaveType' : fieldKey === 'salaryComponentId' ? 'salaryComponent' : undefined);
+  const advanceTypeOptions = React.useContext(AdvanceTypeOptionsContext);
+  const ref = node.ref || (fieldKey === 'leaveTypeId' ? 'leaveType' : fieldKey === 'salaryComponentId' ? 'salaryComponent' : fieldKey === 'advanceTypeId' ? 'advanceType' : undefined);
+
+  if (ref === 'advanceType') {
+    return (
+      <FieldShell label={label} help={node.help} error={error}>
+        <select value={String(value ?? 0)} onChange={(e) => onChange(Number(e.target.value))} className={controlClass(error)}>
+          <option value="0">Select advance type…</option>
+          {advanceTypeOptions.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+      </FieldShell>
+    );
+  }
 
   if (node.type === 'idList' && ref === 'leaveType') {
     return (
@@ -646,6 +672,7 @@ export function SchemaForm({
   onChange,
   leaveTypeOptions,
   salaryComponentOptions,
+  advanceTypeOptions = [],
   section,
   fieldErrors = {},
 }: {
@@ -654,11 +681,22 @@ export function SchemaForm({
   onChange: (nextValue: Record<string, unknown>) => void;
   leaveTypeOptions?: LeaveTypeOption[];
   salaryComponentOptions?: SalaryComponentOption[];
+  advanceTypeOptions?: AdvanceTypeOption[];
   section: string;
   /** Backend violations keyed by full config path. */
   fieldErrors?: Record<string, string>;
 }) {
   const handleChange = (path: PathKey[], v: unknown) => onChange(setAtPath(value, path, v));
+
+  if (section === 'salaryAdvance') {
+    return (
+      <FieldErrorsProvider section={section} errors={fieldErrors}>
+        <AdvanceTypeOptionsContext.Provider value={advanceTypeOptions}>
+          <SalaryAdvanceRulesConfigurator node={node} value={value} onChange={handleChange} advanceTypeOptions={advanceTypeOptions} />
+        </AdvanceTypeOptionsContext.Provider>
+      </FieldErrorsProvider>
+    );
+  }
 
   if (section === 'leave') {
     return (

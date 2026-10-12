@@ -22,7 +22,7 @@ export const getCoverage = (requestType: string, subOrgId?: number | null) =>
 
 export const getInboxCount = () => apiClient.get<{ pending: number }>('/approvals/inbox/count', undefined, auth);
 export const getRequest = (id: number) => apiClient.get<RequestDetail>(`/approvals/requests/${id}`, undefined, auth);
-export const decide = (id: number, decision: 'approve' | 'reject', note?: string) => apiClient.post<{ status: string }>(`/approvals/requests/${id}/decide`, { decision, note }, auth);
+export const decide = (id: number, decision: 'approve' | 'reject', note?: string, extra?: Record<string, unknown>) => apiClient.post<{ status: string }>(`/approvals/requests/${id}/decide`, { decision, note, extra }, auth);
 export const sendBack = (id: number, note: string) => apiClient.post(`/approvals/requests/${id}/send-back`, { note }, auth);
 export const withdraw = (id: number) => apiClient.post(`/approvals/requests/${id}/withdraw`, {}, auth);
 export const resubmit = (id: number) => apiClient.post(`/approvals/requests/${id}/resubmit`, {}, auth);

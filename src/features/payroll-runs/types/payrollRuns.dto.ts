@@ -139,12 +139,22 @@ export interface CellDto {
   label: string | null;
   tone: string | null;
   payable_units: number | null;
-  leave: string | null;
+  leave: string | { code: string | null; name: string | null; units: number | null; is_paid: boolean | null } | null;
   late_minutes: number | null;
   overtime_minutes: number | null;
 }
 
+export interface LeaveTypeDaysDto {
+  code: string | null;
+  name: string | null;
+  is_paid: boolean;
+  days: number;
+  covered_absence_days?: number;
+}
+
 export interface AttendanceDto {
+  leave_by_type?: LeaveTypeDaysDto[] | null;
+  leave_sandwich?: { days: number; by_type: LeaveTypeDaysDto[] } | null;
   cycle_days?: number | null;
   raw_calendar_days?: number | null;
   employed_days?: number | null;

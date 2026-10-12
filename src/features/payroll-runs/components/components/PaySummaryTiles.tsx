@@ -34,6 +34,37 @@ interface LopPart {
   detail?: string;
 }
 
+function Row({ label, value, note, danger, divider }: { label: string; value: string; note?: string; danger?: boolean; divider?: boolean }) {
+  return (
+    <li className={cx('flex items-baseline justify-between gap-4', divider && 'mt-1 border-t border-bg/20 pt-1')}>
+      <span className="min-w-0">
+        {label}
+        {note && <span className="block text-[10px] leading-tight opacity-70">{note}</span>}
+      </span>
+      <span className={cx('shrink-0 font-semibold tabular-nums', danger && 'text-[var(--tt-danger-soft)]')}>{value}</span>
+    </li>
+  );
+}
+
+function BreakdownInfo({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <Tooltip align="end" side="bottom" content={<ul className="min-w-[13rem] space-y-0.5 py-0.5 text-[11px]">{children}</ul>}>
+      <button type="button" aria-label={label} className="-m-1 rounded p-1 text-fg-subtle transition-colors hover:text-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-fg/30">
+        <Info className="h-3.5 w-3.5" />
+      </button>
+    </Tooltip>
+  );
+}
+
+function leaveSummary(a: NonNullable<PayDetail['attendance']>) {
+  const parts = [`${days(a.paidLeaveDays)} paid`];
+  if (a.unpaidLeaveDays > 0) parts.push(`${days(a.unpaidLeaveDays)} unpaid`);
+  const sandwich = a.sandwichLeave.days + a.lop.sandwich;
+  if (sandwich > 0) parts.push(`${days(sandwich)} sandwich`);
+  if (a.leaveByType.length > 1) parts.push(`${a.leaveByType.length} types`);
+  return parts.join(' · ');
+}
+
 export function PaySummaryTiles({ item }: { item: PayDetail }) {
   const a = item.attendance;
   const ld = item.lateDeduction;
@@ -80,24 +111,43 @@ export function PaySummaryTiles({ item }: { item: PayDetail }) {
         label="LOP days"
         value={days(item.lopDays)}
         danger={item.lopDays > 0}
-        sub={shown.length ? undefined : 'No loss of pay'}
-        footer={
-          shown.length > 0 && (
-            <ul className="mt-2 space-y-0.5 text-[11px] text-fg-muted" aria-label="Loss of pay breakdown">
-              {shown.map((p) => (
-                <li key={p.label} className="flex items-baseline justify-between gap-2">
-                  <span className="truncate">{p.label}</span>
-                  <span className="shrink-0 text-right tabular-nums">
-                    <span className="font-semibold text-fg">{days(p.days)}</span>
-                    {p.detail && <span className="block text-[10px] leading-tight">{p.detail}</span>}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )
-        }
-      />
-      <Tile label="Leaves" value={days(item.leaveDays)} sub={a ? `${days(a.paidLeaveDays)} paid · ${days(a.unpaidLeaveDays)} unpaid` : undefined} />
+        sub={shown.length ? shown.slice(0, 2).map((p) => `${p.label} ${days(p.days)}`).join(' · ') + (shown.length > 2 ? ` · +${shown.length - 2}` : '') : 'No loss of pay'}
+      >
+        {shown.length > 0 && (
+          <BreakdownInfo label="Loss of pay breakdown">
+            {shown.map((p) => (
+              <Row key={p.label} label={p.label} value={days(p.days)} note={p.detail} />
+            ))}
+          </BreakdownInfo>
+        )}
+      </Tile>
+      <Tile
+        label="Leaves"
+        value={days(item.leaveDays)}
+        sub={a ? leaveSummary(a) : undefined}
+      >
+        {a && (a.leaveByType.length > 0 || a.sandwichLeave.days > 0 || a.lop.sandwich > 0) && (
+          <BreakdownInfo label="Leave breakdown">
+            {a.leaveByType.map((t) => (
+              <Row
+                key={`${t.code}-${t.isPaid}`}
+                label={`${t.name}${t.isPaid ? '' : ' (unpaid)'}`}
+                value={days(t.days)}
+                note={t.coveredAbsenceDays > 0 ? `${days(t.coveredAbsenceDays)} covering absence` : undefined}
+              />
+            ))}
+            {a.sandwichLeave.days > 0 && (
+              <Row
+                label="Sandwich charged as leave"
+                value={days(a.sandwichLeave.days)}
+                note={a.sandwichLeave.byType.map((t) => `${t.name} ${days(t.days)}`).join(' · ')}
+                divider
+              />
+            )}
+            {a.lop.sandwich > 0 && <Row label="Sandwich as loss of pay" value={days(a.lop.sandwich)} note="Off days between days not worked" danger />}
+          </BreakdownInfo>
+        )}
+      </Tile>
       <Tile label="Present" value={a ? days(a.present) : '—'} sub={a && a.halfDays ? `and ${days(a.halfDays)} half day${a.halfDays === 1 ? '' : 's'}` : a ? `${days(a.weekOffs)} week off · ${days(a.holidays)} holiday` : undefined} />
     </div>
   );
