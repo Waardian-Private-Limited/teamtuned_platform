@@ -4,6 +4,7 @@ import { ArrowRight } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { SubOrgBadge } from '@/features/sub-organizations/components/SubOrgBadge';
 import { StatusBadge } from '@/features/compensation/components/shared/StatusBadge';
+import { AllocationChanges } from '@/features/compensation/components/shared/AllocationChanges';
 import type { RevisionDto } from '@/features/compensation/types/compensation.dto';
 import { date, inr, pct } from '@/features/compensation/utils/format';
 import { RevisionRowActions, type RevisionActionHandlers, type RevisionPerms } from './RevisionRowActions';
@@ -60,11 +61,17 @@ export function RevisionTable({ revisions, selected, onToggle, onToggleAll, perm
                 {r.status === 'approved' && r.switch_on && <span className="block text-[11px] text-fg-muted">Payroll from {date(r.switch_on)}</span>}
               </td>
               <td className={cx(td, 'whitespace-nowrap')}>
-                <span className="inline-flex items-center gap-1 text-fg-muted">{inr(r.previous_ctc)} <ArrowRight className="h-3 w-3" /></span> <b>{inr(r.new_ctc)}</b>
-                {r.arrears_amount ? <span className="block text-[11px] text-fg-muted">Arrears {inr(r.arrears_amount)}</span> : null}
+                <span className={cx(r.status === 'voided' && 'line-through')}>
+                  <span className="inline-flex items-center gap-1 text-fg-muted">{inr(r.previous_ctc)} <ArrowRight className="h-3 w-3" /></span> <b>{inr(r.new_ctc)}</b>
+                </span>
+                {r.arrears_amount ? <span className={cx('block text-[11px] text-fg-muted', r.status === 'voided' && 'line-through')}>Arrears {inr(r.arrears_amount)}</span> : null}
+                <AllocationChanges previous={r.previous_allocations} next={r.new_allocations} struck={r.status === 'voided'} className="mt-1" />
               </td>
               <td className={cx(td, 'font-semibold')}>{pct(r.change_percent)}</td>
-              <td className={td}><StatusBadge status={r.status} /></td>
+              <td className={td}>
+                <StatusBadge status={r.status} />
+                {r.status === 'voided' && r.void_reason && <span className="mt-1 block max-w-[220px] text-[11px] text-fg-muted">{r.void_reason}</span>}
+              </td>
               <td className={td}><RevisionRowActions revision={r} perms={perms} busy={busyIds.has(r.id)} handlers={handlers} /></td>
             </tr>
           ))}

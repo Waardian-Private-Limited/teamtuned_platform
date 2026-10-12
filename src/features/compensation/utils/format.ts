@@ -1,3 +1,5 @@
+import { addMonths, formatDate, orgMonth, orgToday } from '@/lib/datetime';
+
 export function inr(n: number | null | undefined, { sign = false } = {}) {
   if (n === null || n === undefined || !Number.isFinite(Number(n))) return '—';
   const v = Number(n);
@@ -13,8 +15,7 @@ export function pct(n: number | null | undefined) {
 }
 
 export function date(value: string | null | undefined) {
-  if (!value) return '—';
-  return new Date(`${value.slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  return formatDate(value, 'medium');
 }
 
 export function month(value: string | null | undefined) {
@@ -22,18 +23,17 @@ export function month(value: string | null | undefined) {
   return new Date(`${value}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
+/** The organization's month, `offset` months away, 'yyyy-MM'. */
 export function currentMonth(offset = 0) {
-  const d = new Date();
-  d.setUTCDate(1);
-  d.setUTCMonth(d.getUTCMonth() + offset);
-  return d.toISOString().slice(0, 7);
+  return addMonths(orgMonth(), offset);
 }
 
 export function today() {
-  return new Date().toISOString().slice(0, 10);
+  return orgToday();
 }
 
+/** The April-to-March financial year that is current in the organization, by its starting year. */
 export function currentFyStart() {
-  const d = new Date();
-  return d.getUTCMonth() >= 3 ? d.getUTCFullYear() : d.getUTCFullYear() - 1;
+  const t = orgToday();
+  return Number(t.slice(5, 7)) >= 4 ? Number(t.slice(0, 4)) : Number(t.slice(0, 4)) - 1;
 }

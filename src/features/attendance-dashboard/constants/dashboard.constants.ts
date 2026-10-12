@@ -1,3 +1,4 @@
+import { formatClock, formatDate, formatTime } from '@/lib/datetime';
 import type { DayStatus, EmployeeView, LeaderBoardKey, LeaderEntryDto, LeaderPeriod } from '../types/dashboard.dto';
 
 /**
@@ -38,18 +39,14 @@ export const minutesText = (m: number) => {
 
 export const pctText = (v: number | null | undefined) => (v === null || v === undefined ? '—' : `${v % 1 === 0 ? v : v.toFixed(1)}%`);
 
-export const timeText = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—');
+export const timeText = (iso: string | null, tz?: string | null) => formatTime(iso, tz);
 
-export const dayText = (date: string) => new Date(`${date}T00:00:00`).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+export const dayText = (date: string) => formatDate(date, 'weekday');
 
 export const hourText = (h: number) => `${((h + 11) % 12) + 1}${h < 12 ? 'am' : 'pm'}`;
 
-/** Minutes after midnight (org time) as a clock time, e.g. 8:40 am. */
-export const clockText = (m: number | null) => {
-  if (m === null) return '—';
-  const h = Math.floor(m / 60);
-  return `${((h + 11) % 12) + 1}:${String(m % 60).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`;
-};
+/** Minutes after midnight (org time) as a clock time, e.g. 8:40 AM. */
+export const clockText = (m: number | null) => formatClock(m);
 
 export const PERIOD_LABEL: Record<LeaderPeriod, string> = { day: 'Day', week: 'This week', month: 'This month' };
 

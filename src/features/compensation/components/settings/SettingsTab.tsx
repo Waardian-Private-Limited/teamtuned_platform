@@ -57,9 +57,10 @@ export function SettingsTab({ data, canEdit, onSaved }: { data: SettingsResponse
       <fieldset disabled={!canEdit} className="mx-auto max-w-4xl space-y-4 pb-4">
         {data.inherited && data.sub_organization_id && <p className="rounded-lg border border-dashed border-line p-3 text-xs text-fg-muted">This sub-organization uses organization defaults. Saving creates its own settings.</p>}
         <Section title="Approvals" description="Maker-checker for salary changes and payouts">
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             <Toggle checked={s.approval.revisions} onChange={(v) => patch('approval', { revisions: v })} label="Approve salary revisions" hint="Off = revisions apply when submitted" />
             <Toggle checked={s.approval.payouts} onChange={(v) => patch('approval', { payouts: v })} label="Approve payouts" hint="Bonus, incentives, gratuity" />
+            <Toggle checked={Boolean(s.approval.deductions)} onChange={(v) => patch('approval', { deductions: v })} label="Approve other deductions" hint="Off = deductions HR adds are scheduled for payroll straight away" />
             <Toggle checked={s.approval.allowSelfApproval} onChange={(v) => patch('approval', { allowSelfApproval: v })} label="Allow self-approval" hint="Off = proposer cannot approve own request" />
           </div>
         </Section>

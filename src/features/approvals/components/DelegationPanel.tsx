@@ -10,8 +10,9 @@ import { showError, showSuccess } from '@/lib/toast';
 import * as api from '../api/approvals.api';
 import type { Delegation, EmployeeRef } from '../types/approvals';
 import { EmployeeSearch } from './EmployeeSearch';
+import { orgToday } from '@/lib/datetime';
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => orgToday();
 
 export function DelegationPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [items, setItems] = React.useState<Delegation[]>([]);

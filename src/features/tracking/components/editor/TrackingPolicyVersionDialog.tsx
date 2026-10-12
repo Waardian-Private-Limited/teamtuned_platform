@@ -3,6 +3,7 @@
 import React from 'react';
 import { Dialog } from '@/components/ui/Dialog';
 import type { TrackingPolicyDto } from '../../types/tracking.dto';
+import { formatDateTime } from '@/lib/datetime';
 
 interface TrackingPolicyVersionDialogProps {
   open: boolean;
@@ -29,7 +30,7 @@ export function TrackingPolicyVersionDialog({
           </h2>
           <p className="mt-0.5 truncate text-[11px] text-fg-muted sm:text-xs">
             {policy.name} · status {policy.status} · last updated{' '}
-            {new Date(policy.updated_at).toLocaleString()}
+            {formatDateTime(policy.updated_at)}
           </p>
         </div>
       }

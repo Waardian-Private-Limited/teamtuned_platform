@@ -10,6 +10,7 @@ import { cx } from '@/theme/tokens';
 import { useSubmissionReview } from '../hooks/useSubmissionReview';
 import { DownloadProfilesDialog } from './components/DownloadProfilesDialog';
 import type { ReviewDocumentDto } from '../types/onboarding-review.dto';
+import { formatDate, orgDateOf } from '@/lib/datetime';
 
 const COMPACT = '!h-10 !w-auto !text-sm';
 const HEADER_BUTTON = '!h-8 !w-auto !px-3 !text-xs';
@@ -72,7 +73,7 @@ export function SubmissionReviewPage({ employeeId, backHref }: { employeeId: num
             <h1 className="truncate text-base font-bold tracking-tight text-fg sm:text-lg">{detail.name || detail.employee_code}</h1>
             <p className="text-xs text-fg-muted">
               {detail.employee_code} · {STATUS_LABEL[detail.status] ?? detail.status}
-              {detail.submitted_at && ` · submitted ${new Date(detail.submitted_at).toLocaleDateString()}`}
+              {detail.submitted_at && ` · submitted ${formatDate(orgDateOf(detail.submitted_at))}`}
               {detail.reviewed_by_name && ` · reviewed by ${detail.reviewed_by_name}`}
             </p>
           </div>
@@ -91,7 +92,7 @@ export function SubmissionReviewPage({ employeeId, backHref }: { employeeId: num
       {resubmission && (
         <div className="rounded-xl border border-[var(--tt-primary)]/40 bg-surface p-3 text-sm">
           <p className="font-semibold text-fg">
-            Resubmitted after your change request of {new Date(resubmission.requested_at).toLocaleDateString()}
+            Resubmitted after your change request of {formatDate(orgDateOf(resubmission.requested_at))}
           </p>
           <p className="mt-0.5 text-xs text-fg-muted">
             Fields you flagged are highlighted with what they were before. Re-uploaded documents are marked in the document tabs.

@@ -117,7 +117,7 @@ export function PayoutDialog({ open, payoutTypes, onClose, onSaved }: Props) {
           <SelectField<AmountMode> label="Amount" required value={mode} onChange={(v) => setMode(v || 'fixed')} options={AMOUNT_MODES.map((m) => ({ value: m.value, label: m.label }))} />
           <TextField label={mode === 'fixed' ? 'Amount per employee (₹)' : 'Percent'} required inputMode="decimal" value={value} onChange={(v) => setValue(v.replace(/[^\d.]/g, ''))} error={errors.amount_value} hint={estimate ? `About ${inr(estimate)} in total` : undefined} />
           <TextField label="Payroll month" required type="month" value={monthKey} onChange={setMonthKey} error={errors.payout_month} />
-          <TextField label="Split into installments" type="number" min={1} max={24} value={installments} onChange={setInstallments} hint="Paid in consecutive months" />
+          <TextField label="Split into installments" type="number" min={1} value={installments} onChange={setInstallments} hint="Paid in consecutive months" />
           <TextField label="Clawback period (months)" type="number" min={0} max={60} value={clawback} onChange={setClawback} hint="Recover if the employee leaves early" />
           <SelectField<string> label="Tax treatment" value={taxable ? 'taxable' : 'exempt'} onChange={(v) => setTaxable(v !== 'exempt')} options={[{ value: 'taxable', label: 'Taxable (added to TDS income)' }, { value: 'exempt', label: 'Exempt' }]} />
         </div>

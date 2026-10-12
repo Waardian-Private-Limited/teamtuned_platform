@@ -1,5 +1,6 @@
 import type { ScheduleDay } from '../types/roster.types';
 import { addDays, daysBetween, formatDay, todayLocal } from './rosterTime';
+import { orgNowMinutes } from '@/lib/datetime';
 
 export function minutesOfDay(dateTime: string): number {
   const [h, m] = dateTime.slice(11, 16).split(':').map(Number);
@@ -16,8 +17,8 @@ export function workedMinutes(day: Pick<ScheduleDay, 'start_at' | 'end_at' | 'br
 }
 
 export function nowWall(): number {
-  const n = new Date();
-  return wallMinutes(`${todayLocal()} ${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}:00`);
+  const minutes = orgNowMinutes();
+  return wallMinutes(`${todayLocal()} ${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}:00`);
 }
 
 export function groupByDate(days: ScheduleDay[]): Map<string, ScheduleDay[]> {

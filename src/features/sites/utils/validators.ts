@@ -1,4 +1,5 @@
 import type { SiteFormInput } from '../types/sites.model';
+import { orgToday } from '@/lib/datetime';
 
 export function validateSiteName(name: string): string | null {
   const trimmed = name.trim();
@@ -17,10 +18,7 @@ export function validateSiteCode(code: string): string | null {
 export function validateExpiryDate(input: SiteFormInput): string | null {
   if (!input.hasExpiry) return null;
   if (!input.expiryDate) return 'Expiry date is required when expiry is enabled';
-  const expiry = new Date(`${input.expiryDate}T00:00:00`);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  if (expiry < today) return 'Expiry date must be in the future';
+  if (input.expiryDate < orgToday()) return 'Expiry date must be in the future';
   return null;
 }
 

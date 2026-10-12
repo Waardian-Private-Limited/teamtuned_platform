@@ -1,3 +1,4 @@
+import { formatClock as formatClockOf } from '@/lib/datetime';
 import type { ShiftTemplateFormInput } from '../types/shiftTemplates.model';
 import { MAX_SHIFT_MINUTES, type ShiftFieldName } from '../constants/shiftTemplates.constants';
 
@@ -6,14 +7,9 @@ function minutesOf(time: string): number {
   return h * 60 + (m || 0);
 }
 
-/** 'HH:MM[:SS]' -> '9:00 am' */
+/** 'HH:MM[:SS]' -> '9:00 AM' */
 export function formatClock(time: string): string {
-  const total = minutesOf(time);
-  const h = Math.floor(total / 60);
-  const m = total % 60;
-  const suffix = h < 12 ? 'am' : 'pm';
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${String(m).padStart(2, '0')} ${suffix}`;
+  return formatClockOf(time);
 }
 
 export function formatHours(minutes: number): string {

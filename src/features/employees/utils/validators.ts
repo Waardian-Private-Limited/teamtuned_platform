@@ -1,6 +1,6 @@
 import type { FormStepKey } from '../constants/employees.constants';
 import type { EmployeeFormState, FormErrors } from '../types/employees.form';
-import type { SalaryPlan } from './salary';
+import { statutoryClash, type SalaryPlan } from './salary';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PHONE = /^[6-9][0-9]{9}$/;
@@ -70,8 +70,36 @@ function schedule(f: EmployeeFormState, effectivePolicyId: number | null, timing
   return e;
 }
 
-function salary(plan: SalaryPlan): FormErrors {
-  return plan.error ? { salary_breakdown: plan.error } : {};
+interface SalaryContext {
+  plan: SalaryPlan;
+  allocationPlans: SalaryPlan[];
+  allocationsReady: boolean[];
+  sendSalary: boolean;
+  needsSubOrg: boolean;
+}
+
+function salary(f: EmployeeFormState, ctx: SalaryContext): FormErrors {
+  if (!ctx.sendSalary) return {};
+  if (!f.multiCompany) return ctx.plan.error ? { salary_breakdown: ctx.plan.error } : {};
+  const e: FormErrors = {};
+  if (f.allocations.length < 2) e.salary_allocations = 'Add a second company or turn off "Paid by multiple companies"';
+  if (f.allocations.filter((a) => a.isPrimary).length !== 1) e.salary_allocations = 'Mark one company as primary';
+  const seen = new Set<number | null>();
+  f.allocations.forEach((a, i) => {
+    const key = `salary_allocations[${i}]`;
+    const plan = ctx.allocationPlans[i];
+    if (ctx.needsSubOrg && !a.subOrganizationId) e[key] = 'Pick the paying company';
+    else if (seen.has(a.subOrganizationId)) e[key] = 'This company is already added';
+    else if (!ctx.allocationsReady[i]) e[key] = 'Salary setup for this company is still loading';
+    else if (!plan || plan.gross <= 0) e[key] = 'Enter CTC or monthly gross';
+    else if (plan.error) e[key] = plan.error;
+    else {
+      const clash = statutoryClash(plan);
+      if (clash) e[key] = clash;
+    }
+    seen.add(a.subOrganizationId);
+  });
+  return e;
 }
 
 function bank(f: EmployeeFormState): FormErrors {
@@ -90,13 +118,13 @@ function bank(f: EmployeeFormState): FormErrors {
 export function validateStep(
   step: FormStepKey,
   f: EmployeeFormState,
-  ctx: { plan: SalaryPlan; effectivePolicyId: number | null; needsSubOrg: boolean; timingMode: string | null }
+  ctx: Omit<SalaryContext, 'needsSubOrg'> & { effectivePolicyId: number | null; needsSubOrg: boolean; timingMode: string | null }
 ): FormErrors {
   switch (step) {
     case 'basic': return basic(f);
     case 'job': return job(f, ctx.needsSubOrg);
     case 'schedule': return schedule(f, ctx.effectivePolicyId, ctx.timingMode);
-    case 'salary': return salary(ctx.plan);
+    case 'salary': return salary(f, ctx);
     case 'bank': return bank(f);
     default: return {};
   }

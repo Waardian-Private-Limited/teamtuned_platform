@@ -8,7 +8,7 @@ import type { LedgerEntry } from '../types/leave';
 import { ENTRY_LABEL, fmtDate } from '../utils/format';
 
 // Full history behind a balance: every credit, request, lapse and adjustment, newest first.
-export function LedgerTable({ employeeId, typeId }: { employeeId?: number; typeId?: number | null }) {
+export function LedgerTable({ employeeId, typeId }: { employeeId: number; typeId?: number | null }) {
   const [page, setPage] = React.useState(1);
   const [rows, setRows] = React.useState<LedgerEntry[] | null>(null);
   const [pages, setPages] = React.useState(1);
@@ -18,7 +18,7 @@ export function LedgerTable({ employeeId, typeId }: { employeeId?: number; typeI
   React.useEffect(() => {
     setRows(null);
     const p = { leave_type_id: typeId ?? undefined, page, pageSize: 20 };
-    (employeeId ? api.employeeLedger(employeeId, p) : api.myLedger(p)).then((r) => { setRows(r.entries); setPages(Math.max(1, r.pages)); }).catch((e) => setError(messageOf(e)));
+    api.employeeLedger(employeeId, p).then((r) => { setRows(r.entries); setPages(Math.max(1, r.pages)); }).catch((e) => setError(messageOf(e)));
   }, [employeeId, typeId, page]);
 
   if (error) return <Alert message={error} tone="error" />;

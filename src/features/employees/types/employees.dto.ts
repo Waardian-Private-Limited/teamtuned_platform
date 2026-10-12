@@ -148,6 +148,15 @@ export interface FormOptionsDto {
   week_off_schema: Record<string, Record<string, SchemaField> | SchemaField>;
 }
 
+export interface SalaryAllocationDto {
+  sub_organization_id: number | null;
+  is_primary: boolean;
+  ctc: number | null;
+  monthly_gross: number;
+  salary_breakdown: { component_id: number; name: string | null; amount: number }[];
+  debit_ids: number[];
+}
+
 export interface EmployeeDetailDto {
   id: number;
   employee_code: string | null;
@@ -183,6 +192,9 @@ export interface EmployeeDetailDto {
   monthly_gross: number | null;
   salary_breakdown: { component_id: number; name: string; amount: number }[];
   debit_ids: number[];
+  salary_allocations?: SalaryAllocationDto[];
+  multi_company_pay?: boolean;
+  salary_locked_month?: string | null;
   payment_mode: PaymentMode;
   esic_ip_number: string | null;
   bank_account_no: string | null;

@@ -1,7 +1,9 @@
 'use client';
 
 import { ArrowRight } from 'lucide-react';
+import { cx } from '@/theme/tokens';
 import { StatusBadge } from '@/features/compensation/components/shared/StatusBadge';
+import { AllocationChanges } from '@/features/compensation/components/shared/AllocationChanges';
 import type { RevisionDto } from '@/features/compensation/types/compensation.dto';
 import { date, inr, pct } from '@/features/compensation/utils/format';
 import { RevisionRowActions, type RevisionActionHandlers, type RevisionPerms } from './RevisionRowActions';
@@ -28,9 +30,11 @@ export function RevisionCardList({ revisions, selected, onToggle, perms, busyIds
             </label>
             <StatusBadge status={r.status} />
           </div>
-          <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-fg-muted">
+          <p className={cx('mt-2 flex flex-wrap items-center gap-1.5 text-xs text-fg-muted', r.status === 'voided' && 'line-through')}>
             {inr(r.previous_ctc)} <ArrowRight className="h-3 w-3" /> <b className="text-fg">{inr(r.new_ctc)}</b> <span className="font-semibold text-fg">{pct(r.change_percent)}</span>
           </p>
+          <AllocationChanges previous={r.previous_allocations} next={r.new_allocations} struck={r.status === 'voided'} className="mt-1.5" />
+          {r.status === 'voided' && r.void_reason && <p className="mt-1 text-[11px] text-fg-muted">Voided: {r.void_reason}</p>}
           {r.new_designation && r.new_designation !== r.previous_designation && <p className="mt-1 text-[11px] text-fg-muted">{r.previous_designation || '—'} → {r.new_designation}</p>}
           <div className="mt-2.5 border-t border-line/60 pt-2">
             <RevisionRowActions revision={r} perms={perms} busy={busyIds.has(r.id)} handlers={handlers} />

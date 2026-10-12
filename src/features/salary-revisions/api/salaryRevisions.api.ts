@@ -59,3 +59,4 @@ export const cancelRevisions = (ids: number[]) => apiClient.post<{ cancelled: nu
 export const getLetter = (id: number) => apiClient.get<LetterDto>(`/salary-revisions/${id}/letter`, undefined, auth);
 export const getMyLetter = (id: number) => apiClient.get<LetterDto>(`/salary-revisions/me/${id}/letter`, undefined, auth);
 export const listRoles = () => apiClient.get<{ id: number; name: string }[]>('/organization/roles', undefined, auth);
+export const voidRevision = (id: number, reason: string) => apiClient.post<RevisionDto>(`/salary-revisions/${id}/void`, { reason }, auth);

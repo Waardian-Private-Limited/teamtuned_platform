@@ -1,4 +1,4 @@
-/** Wire shapes of the attendance review lists (regularizations and attendance reviews). */
+/** Wire shapes of the reviewer lists (regularizations, attendance reviews and leave). */
 
 export interface ReviewRowDto {
   id: number;
@@ -18,7 +18,40 @@ export interface ReviewRowDto {
   reason?: string | null;
   has_attachment?: boolean;
   punches?: PunchDto[];
+  leave?: LeaveDto;
+  compoff?: CompOffDto;
+  absence_cover?: AbsenceCoverDto;
   submitted_at: string | null;
+}
+
+/** A leave request in the reviewer's list. */
+export interface LeaveDto {
+  type: { id: number; name: string; color: string | null };
+  end_date: string;
+  start_session: string;
+  end_session: string;
+  unit: string;
+  hours: number | null;
+  days: number;
+  lop_days: number;
+}
+
+/** A comp-off or extra-work grant in the reviewer's list. */
+export interface CompOffDto {
+  reason: string;
+  category: string | null;
+  kind: 'comp_off' | 'paid';
+  units: number;
+  minutes: number | null;
+  expires_on: string | null;
+}
+
+/** An absence cover request in the reviewer's list. */
+export interface AbsenceCoverDto {
+  leave_type: { id: number; name: string; color: string | null };
+  days: number;
+  is_comp_off: boolean;
+  is_penalty: boolean;
 }
 
 /** A punch sent for review, as the server describes it. */

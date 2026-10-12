@@ -7,13 +7,14 @@ import { usePermission } from '@/lib/hooks/usePermission';
 import { RequestsTab } from './RequestsTab';
 import { BalancesTab } from './BalancesTab';
 import { CalendarTab } from './CalendarTab';
+import { PayrollAdjustmentsTab } from './PayrollAdjustmentsTab';
 import { RequestDrawer } from './RequestDrawer';
 import { LeaveCardDrawer } from './LeaveCardDrawer';
 import { AdjustDialog } from './AdjustDialog';
 import { ApplyLeaveDialog } from './ApplyLeaveDialog';
 import * as api from '../api/leave.api';
 
-const TABS = [['requests', 'Requests'], ['balances', 'Balances'], ['calendar', 'Calendar']] as const;
+const TABS = [['requests', 'Requests'], ['balances', 'Balances'], ['calendar', 'Calendar'], ['payroll', 'Absence cover']] as const;
 type Tab = (typeof TABS)[number][0];
 
 // Everything HR does with leave in one place: decide requests, see and adjust balances, see who is off.
@@ -59,8 +60,9 @@ export function LeaveHubPage() {
       {tab === 'requests' && <RequestsTab onOpen={setRequestId} refreshKey={refreshKey} />}
       {tab === 'balances' && <BalancesTab refreshKey={refreshKey} canAdjust={canAdjust} onOpen={setCard} onBulk={openBulk} />}
       {tab === 'calendar' && <CalendarTab refreshKey={refreshKey} />}
+      {tab === 'payroll' && <PayrollAdjustmentsTab />}
 
-      <RequestDrawer id={requestId} mode="admin" canApprove={canApprove} canEdit={canEdit} onClose={() => setRequestId(null)} onChanged={refresh} />
+      <RequestDrawer id={requestId} canApprove={canApprove} canEdit={canEdit} onClose={() => setRequestId(null)} onChanged={refresh} />
       <LeaveCardDrawer
         employee={card} canAdjust={canAdjust} canAdd={canAdd} refreshKey={refreshKey} onClose={() => setCard(null)}
         onAdjust={(types, typeId) => card && setAdjust({ ids: [card.id], label: card.name, types, typeId })}
@@ -68,7 +70,7 @@ export function LeaveHubPage() {
         onOpenRequest={(r) => setRequestId(r.id)}
       />
       <AdjustDialog open={Boolean(adjust)} onClose={() => setAdjust(null)} onDone={refresh} employeeIds={adjust?.ids ?? []} label={adjust?.label ?? ''} types={adjust?.types ?? allTypes} defaultTypeId={adjust?.typeId} />
-      <ApplyLeaveDialog open={Boolean(applyFor)} employee={applyFor ?? undefined} onClose={() => setApplyFor(null)} onApplied={refresh} />
+      {applyFor && <ApplyLeaveDialog open employee={applyFor} onClose={() => setApplyFor(null)} onApplied={refresh} />}
     </div>
   );
 }

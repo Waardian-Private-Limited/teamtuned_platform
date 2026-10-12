@@ -18,6 +18,7 @@ import { PolicyImpactDialog } from './PolicyImpactDialog';
 import { PolicyAssignments } from './PolicyAssignments';
 import { PolicyDetailsDialog } from './PolicyDetailsDialog';
 import { PayCalendarDialog } from './PayCalendarDialog';
+import { orgToday } from '@/lib/datetime';
 
 const secondaryButtonCls =
   'inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-fg transition-colors hover:bg-bg-subtle sm:text-sm';
@@ -34,7 +35,7 @@ export function PolicyEditorPage({ policyId }: { policyId: number }) {
   const [showPayCalendar, setShowPayCalendar] = React.useState(false);
   const [viewVersion, setViewVersion] = React.useState<PolicyVersion | null>(null);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = orgToday();
   const [effectiveFrom, setEffectiveFrom] = React.useState(today);
 
   const openPublishFlow = async () => {

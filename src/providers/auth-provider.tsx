@@ -1,5 +1,6 @@
 'use client';
 
+import { setOrgTimezone } from '@/lib/datetime';
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api/client';
@@ -30,6 +31,7 @@ interface Organization {
   id: number;
   name: string;
   logo_url?: string | null;
+  timezone?: string | null;
   organization_features?: Array<{ id: number; code: string; name: string }>;
 }
 
@@ -86,6 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setEmployee(null);
     setEmployeeId(null);
     setOrganization(null);
+    setOrgTimezone(null);
     setPermissions([]);
     setNextStep(null);
     setIsAuthenticated(false);
@@ -108,6 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             ? { ...data.organization, organization_features: data.organization_features }
             : null
         );
+        setOrgTimezone(data.organization?.timezone);
         setPermissions(data.employee?.permissions || []);
         setNextStep(data.next_step || 'dashboard');
         setIsAuthenticated(true);
@@ -155,6 +159,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           ? { ...data.organization, organization_features: data.organization_features }
           : null
       );
+      setOrgTimezone(data.organization?.timezone);
       setPermissions(data.employee?.permissions || []);
       setNextStep(data.next_step || 'dashboard');
       setIsAuthenticated(true);

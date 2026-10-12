@@ -7,6 +7,7 @@ import type { TeamsCatalog } from '../../../hooks/useTeamsCatalog';
 import type { DemandDraft } from '../../../utils/teamDemand';
 import { btnPrimary, btnSecondary, iconBtn, miniInput } from '../../catalog-shared/catalogUi';
 import { WeekdayChips } from './WeekdayChips';
+import { orgToday } from '@/lib/datetime';
 
 interface Props {
   row: DemandDraft;
@@ -78,7 +79,7 @@ export function DemandRowEditor({ row, catalog, error, onChange, onRemove, onCop
           <WeekdayChips mask={row.mask} disabled={Boolean(row.specificDate)} onChange={(mask) => onChange({ mask })} />
           <div className="flex items-center gap-2">
             <label className="flex items-center gap-1.5 text-[11px] text-fg-muted">
-              <input type="checkbox" checked={Boolean(row.specificDate)} onChange={(e) => onChange({ specificDate: e.target.checked ? new Date().toISOString().slice(0, 10) : '' })} />
+              <input type="checkbox" checked={Boolean(row.specificDate)} onChange={(e) => onChange({ specificDate: e.target.checked ? orgToday() : '' })} />
               Only on one date
             </label>
             {row.specificDate && <input type="date" value={row.specificDate} onChange={(e) => onChange({ specificDate: e.target.value })} className={cx(miniInput, 'h-8 w-40')} />}

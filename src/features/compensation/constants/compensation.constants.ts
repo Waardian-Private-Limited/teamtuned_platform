@@ -42,6 +42,7 @@ export const STATUS_LABEL: Record<string, string> = {
   paid: 'Paid',
   rejected: 'Rejected',
   cancelled: 'Cancelled',
+  voided: 'Voided',
   in_review: 'In review',
   closed: 'Closed',
 };
@@ -54,6 +55,7 @@ export const STATUS_TONE: Record<string, 'active' | 'inactive' | 'terminated' | 
   paid: 'active',
   rejected: 'inactive',
   cancelled: 'terminated',
+  voided: 'terminated',
   in_review: 'neutral',
   closed: 'terminated',
 };

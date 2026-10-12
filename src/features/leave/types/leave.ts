@@ -63,7 +63,15 @@ export interface Balance {
   available: number | null;
   locked?: number;
   expiring?: { quantity: number; on: string } | null;
+  expiring_lots?: { quantity: number; on: string }[];
+  credit_view?: { scope: 'earned' | 'month' | 'quarter' | 'half_year' | 'year'; period: { start: string; end: string }; credited: number; brought_forward: number | null };
+  used_breakdown?: BalanceSource[];
+  pending_breakdown?: BalanceSource[];
+  /** Null: absences are not adjusted against this type. */
+  absence_adjust?: { pending_quantity: number; items: { date: string; quantity: number; status: string }[] } | null;
 }
+
+export interface BalanceSource { kind: 'leave_request' | 'absence_adjusted' | 'expired' | 'encashed' | 'other'; ref: number | null; date: string; quantity: number }
 
 export interface BalanceCard { employee: { id: number; name: string }; policy_version_id: number | null; balances: Balance[] }
 
@@ -95,4 +103,10 @@ export interface ApplyInput {
   hours?: number | null;
   reason?: string;
   employee_id?: number;
+}
+
+export interface PayrollAdjustment {
+  id: number; employee_id: number; employee_code: string | null; employee_name: string;
+  work_date: string; slot: number; leave_type_id: number; leave_type_code: string; leave_type_name: string;
+  quantity: number; status: 'proposed' | 'applied' | 'dismissed'; is_comp_off: boolean;
 }

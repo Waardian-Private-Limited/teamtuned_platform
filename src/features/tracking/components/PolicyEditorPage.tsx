@@ -18,6 +18,7 @@ import { TrackingPolicyVersionHistory } from './editor/TrackingPolicyVersionHist
 import { TrackingPolicyDetailsDialog } from './editor/TrackingPolicyDetailsDialog';
 import { TrackingPolicyPublishDialog } from './editor/TrackingPolicyPublishDialog';
 import { TrackingPolicyVersionDialog } from './editor/TrackingPolicyVersionDialog';
+import { formatDate, orgDateOf } from '@/lib/datetime';
 
 const secondaryButtonCls =
   'inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-fg transition-colors hover:bg-bg-subtle sm:text-sm';
@@ -174,7 +175,7 @@ export function PolicyEditorPage({ policyId }: { policyId: number }) {
               {policy.assigned !== undefined && (
                 <> · {policy.assigned} employee{policy.assigned === 1 ? '' : 's'} assigned</>
               )}
-              {policy.updated_at && <> · updated {new Date(policy.updated_at).toLocaleDateString()}</>}
+              {policy.updated_at && <> · updated {formatDate(orgDateOf(policy.updated_at))}</>}
             </p>
           </div>
         </div>

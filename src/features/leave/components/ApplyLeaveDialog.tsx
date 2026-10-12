@@ -14,8 +14,8 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onApplied: () => void;
-  /** Admin applying for an employee; omit for "my leave". */
-  employee?: { id: number; name: string };
+  /** The employee HR is adding leave for. Employees apply from My Leave. */
+  employee: { id: number; name: string };
 }
 
 const SESSIONS: Session[] = ['full', 'first_half', 'second_half'];
@@ -40,7 +40,7 @@ export function ApplyLeaveDialog({ open, onClose, onApplied, employee }: Props) 
     if (!open) return;
     const t = todayIso();
     setStart(t); setEnd(t); setStartSession('full'); setEndSession('full'); setByHour(false); setHours(''); setReason(''); setQuote(null); setError('');
-    (employee ? api.employeeBalances(employee.id) : api.myBalances())
+    api.employeeBalances(employee.id)
       .then((c) => { setTypes(c.balances); setTypeId(c.balances[0]?.leave_type_id ?? null); })
       .catch((e) => setError(messageOf(e)));
   }, [open, employee]);
@@ -50,7 +50,7 @@ export function ApplyLeaveDialog({ open, onClose, onApplied, employee }: Props) 
     return {
       leave_type_id: typeId, start_date: start, end_date: end < start ? start : end, unit: byHour ? 'hour' : 'day',
       start_session: startSession, end_session: start === end ? startSession : endSession, hours: byHour ? Number(hours) || null : null,
-      ...(employee ? { employee_id: employee.id } : {}),
+      employee_id: employee.id,
     };
   }, [typeId, start, end, startSession, endSession, byHour, hours, employee]);
 
@@ -59,7 +59,7 @@ export function ApplyLeaveDialog({ open, onClose, onApplied, employee }: Props) 
     if (!open || !input) { setQuote(null); return; }
     setChecking(true);
     const t = setTimeout(() => {
-      (employee ? api.previewFor(input) : api.myPreview(input))
+      api.previewFor(input)
         .then(setQuote).catch((e) => setError(messageOf(e))).finally(() => setChecking(false));
     }, 350);
     return () => clearTimeout(t);
@@ -72,8 +72,8 @@ export function ApplyLeaveDialog({ open, onClose, onApplied, employee }: Props) 
     if (!input) return;
     setSaving(true);
     try {
-      await (employee ? api.applyFor({ ...input, reason }) : api.myApply({ ...input, reason }));
-      showSuccess(employee ? 'Leave added' : 'Leave request sent');
+      await api.applyFor({ ...input, reason });
+      showSuccess('Leave added');
       onApplied();
       onClose();
     } catch (e) { showError(messageOf(e)); } finally { setSaving(false); }
@@ -95,14 +95,14 @@ export function ApplyLeaveDialog({ open, onClose, onApplied, employee }: Props) 
       open={open}
       onClose={onClose}
       maxWidthClassName="max-w-2xl"
-      title={employee ? `Add leave for ${employee.name}` : 'Apply for leave'}
+      title={`Add leave for ${employee.name}`}
       footer={
         <div className="flex items-center justify-between gap-2">
           <p className="text-xs text-fg-muted">{checking ? 'Checking rules…' : quote ? (quote.ok ? 'All rules are met' : `${quote.violations.length} thing${quote.violations.length === 1 ? '' : 's'} to fix`) : ''}</p>
           <div className="flex gap-2">
             <button type="button" onClick={onClose} className="h-9 rounded-lg border border-line px-4 text-sm font-semibold text-fg hover:bg-bg-subtle">Cancel</button>
             <button type="button" disabled={saving || checking || !quote?.ok} onClick={submit} className="h-9 rounded-lg bg-[var(--tt-primary)] px-4 text-sm font-semibold text-[var(--tt-on-primary)] hover:bg-[var(--tt-primary-hover)] disabled:opacity-50">
-              {saving ? 'Sending…' : employee ? 'Add leave' : 'Send request'}
+              {saving ? 'Sending…' : 'Add leave'}
             </button>
           </div>
         </div>

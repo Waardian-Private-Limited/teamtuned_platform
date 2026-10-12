@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Avatar } from '@/features/detailed-attendance/components/components/controls';
 import { MonthBody, MonthNav } from '@/features/detailed-attendance/components/components/MonthBody';
 import { useMyMonth } from '../hooks/useMyMonth';
+import { FlexibleOffCard } from './FlexibleOffCard';
 import { MyDayDialog } from './MyDayDialog';
 
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -41,6 +42,8 @@ export function MyAttendancePage() {
         </div>
         <MonthNav data={data} onGo={go} />
       </header>
+
+      <FlexibleOffCard month={m.month} onChanged={() => setVersion((v) => v + 1)} />
 
       <MonthBody data={data} error={m.error} loading={m.loading} refreshing={m.refreshing} onOpenDay={setDay} />
 

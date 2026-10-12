@@ -361,9 +361,12 @@ const WORK_RULES: Record<string, (c: Config) => CardSummary> = {
         ? `Pre-populates flexible shift of ${n(c.flexibleHours, 8)} working hours/day with ${duration(c.breakMinutes)} break.`
         : `Pre-populates shift from ${clock(c.shiftStartTime)} to ${clock(c.shiftEndTime)} with ${duration(c.breakMinutes)} break.`,
     ];
+    if (timingMode === 'flexible' && Number(c.flexibleWeeklyHours) > 0) {
+      rule.push(`Weekly target: ${n(c.flexibleWeeklyHours, 0)} hours per working week. A short day is not penalised once the week reaches the target; holidays and leave days lower it by one day of hours each.`);
+    }
     const mode = s(c.weeklyOffMode, 'fixed_days');
     if (mode === 'flexible') {
-      rule.push(`Flexible weekly off: up to ${n(c.flexibleDaysPerMonth, 4)} off-days per month, assigned by manager.`);
+      rule.push(`Flexible weekly off: up to ${n(c.flexibleDaysPerMonth, 4)} off-days per month. The employee picks the dates each month; days not picked are normal working days (absence if not worked).`);
     } else {
       const dayKeys = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
       const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
@@ -642,9 +645,11 @@ const PAYROLL: Record<string, (c: Config, section: Config) => CardSummary> = {
 
   payslipRelease: (c) => ({
     rule: [
-      n(c.daysAfterPayDay) === 0
-        ? 'Payslips are visible on pay day itself.'
-        : `Payslips become visible ${n(c.daysAfterPayDay)} day${n(c.daysAfterPayDay) === 1 ? '' : 's'} after pay day.`,
+      s(c.mode, 'after_pay_day') === 'manual'
+        ? 'Employees see a payslip only when HR releases it from Payroll.'
+        : n(c.daysAfterPayDay) === 0
+          ? 'Payslips are visible on pay day itself, or earlier if HR releases them.'
+          : `Payslips become visible ${n(c.daysAfterPayDay)} day${n(c.daysAfterPayDay) === 1 ? '' : 's'} after pay day, or earlier if HR releases them.`,
     ],
   }),
 
@@ -967,8 +972,8 @@ const LEAVE_RULE: Record<string, (c: Config) => CardSummary> = {
     if (!b(c.enabled)) return { rule: ['Not used for absences with no leave applied — those stay loss of pay unless another leave type covers them.'] };
     return {
       rule: [
-        `At payroll, an absent day with no leave applied is taken from this balance (order ${n(c.priority, 1)} among leave types that do this); what no balance covers is loss of pay.`,
-        s(c.mode) === 'automatic' ? 'Applied automatically.' : 'Proposed in the payroll run for HR to confirm.',
+        `Once an absent day is final and no leave was applied, it is taken from this balance (order ${n(c.priority, 1)} among leave types that do this); what no balance covers is loss of pay.`,
+        b(c.requiresApproval) ? 'Each day goes to the approval flow (request type "Absence cover") and the days are held meanwhile; rejected or undecided days stay loss of pay.' : 'Taken straight away, with no approval.',
         b(c.halfDays) ? 'Half-day absences are covered too.' : 'Half-day absences stay loss of pay.',
         b(c.penaltyDays) ? 'Late / early-exit penalty deductions are covered too.' : 'Late / early-exit penalties stay a pay cut.',
       ],

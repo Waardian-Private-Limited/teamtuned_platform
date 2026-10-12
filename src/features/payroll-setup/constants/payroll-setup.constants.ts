@@ -1,4 +1,5 @@
 import type { DebitConfigValue } from '../types/payroll-setup.model';
+import { orgToday } from '@/lib/datetime';
 
 export const PAYROLL_TABS = [
   { value: 'components', label: 'Salary Components' },
@@ -196,9 +197,9 @@ export type TaxProfileFieldName = 'pan' | 'financial_year' | 'estimated_annual_t
 export type ChallanFieldName = 'amount' | 'quarter' | 'financial_year' | 'deposit_date';
 
 export function currentFinancialYear(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const start = now.getMonth() + 1 >= 4 ? y : y - 1;
+  const today = orgToday();
+  const y = Number(today.slice(0, 4));
+  const start = Number(today.slice(5, 7)) >= 4 ? y : y - 1;
   return `${start}-${String((start + 1) % 100).padStart(2, '0')}`;
 }
 

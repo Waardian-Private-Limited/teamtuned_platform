@@ -4,7 +4,7 @@ import {
   AlertCircle, FileText, MinusCircle, Users, Phone, LayoutDashboard,
   ListChecks, LayoutGrid, Heart, UserCheck, Wallet, Receipt, ArrowUpCircle,
   Package, Coins, Briefcase, HardHat, Layers, QrCode, Award, UserPlus, List,
-  CalendarRange, Repeat, Inbox, Wrench, CalendarDays, CalendarCheck, User,
+  CalendarRange, Repeat, Inbox, Wrench, CalendarDays, CalendarCheck, User, TreePalm,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
 
@@ -31,6 +31,8 @@ export const employeeNav: NavNode[] = [
     children: [
       { kind: 'link', label: 'Dashboard', href: '/employee', icon: Home },
       { kind: 'link', label: 'My Attendance', href: '/employee/my-attendance', icon: CalendarCheck },
+      { kind: 'link', label: 'My Leave', href: '/employee/leave', icon: TreePalm, match: 'prefix' },
+      { kind: 'link', label: 'My payslips', href: '/employee/my-payslips', icon: Receipt, gate: { feature: 'PAYROLL_FEATURE' } },
       { kind: 'link', label: 'Approvals', href: '/employee/approvals', icon: Inbox, match: 'prefix' },
     ],
   },
@@ -46,11 +48,19 @@ export const employeeNav: NavNode[] = [
         gate: { anyPerm: ['ATTEND_VIEW', 'ATTEND_ADD', 'ATTEND_EDIT'] },
       },
       { kind: 'link', label: 'Holidays', href: '/employee/holidays', icon: Calendar, match: 'prefix' },
-      { kind: 'link', label: 'My Leave', href: '/employee/leave', icon: Calendar, match: 'prefix' },
       { kind: 'link', label: 'Leave Management', href: '/employee/leave-requests', icon: Calendar, match: 'prefix', gate: { anyPerm: ['LEAVE_VIEW', 'LEAVE_ADD', 'LEAVE_EDIT', 'LEAVE_APPROVE'] } },
+    ],
+  },
+
+  {
+    kind: 'group', id: 'payroll', label: 'Payroll', gate: { feature: 'PAYROLL_FEATURE' },
+    children: [
       { kind: 'link', label: 'Payroll', href: '/employee/payroll', icon: DollarSign, match: 'prefix', gate: { anyPerm: ['PAYROLL_VIEW', 'HR_MODE'] } },
       { kind: 'link', label: 'Salary Slips', href: '/employee/salary-slips', icon: FileText, match: 'prefix', gate: { anyPerm: ['PAYROLL_VIEW', 'HR_MODE'] } },
-      { kind: 'link', label: 'Other Deductions', href: '/employee/other-deductions', icon: MinusCircle, match: 'prefix', gate: { anyPerm: ['HR_MODE', 'PAYROLL_ADMIN'] } },
+      { kind: 'link', label: 'Other Deductions', href: '/employee/other-deductions', icon: MinusCircle, match: 'prefix', gate: { anyPerm: ['HR_MODE', 'COMP_VIEW', 'COMP_ADD', 'COMP_DELETE'] } },
+      { kind: 'link', label: 'Payroll Setup', href: '/employee/payroll-setup', icon: Coins, match: 'prefix', gate: { anyPerm: ['SALARY_CONFIG_VIEW', 'SALARY_CONFIG_ADD', 'DEBIT_RULE_VIEW', 'DEBIT_RULE_ADD', 'HR_MODE', 'PAYROLL_ADMIN'] } },
+      { kind: 'link', label: 'Increments & Promotions', href: '/employee/salary-revisions', icon: ArrowUpCircle, match: 'prefix', gate: { anyPerm: ['COMP_VIEW', 'COMP_ADD', 'COMP_EDIT', 'COMP_APPROVE', 'HR_MODE'] } },
+      { kind: 'link', label: 'Compensation', href: '/employee/compensation', icon: Award, match: 'prefix', gate: { anyPerm: ['COMP_VIEW', 'COMP_ADD', 'COMP_EDIT', 'COMP_APPROVE', 'HR_MODE'] } },
     ],
   },
 
@@ -77,9 +87,6 @@ export const employeeNav: NavNode[] = [
       { kind: 'link', label: 'Sites', href: '/employee/sites', icon: MapPin, gate: { anyPerm: ['SITE_VIEW', 'SITE_ADD', 'SITE_EDIT', 'SITE_DELETE'] } },
       { kind: 'link', label: 'Other Locations', href: '/employee/other-locations', icon: MapPin, match: 'prefix', gate: { anyPerm: ['EMPSITE_VIEW', 'EMPLOYEE_ASSIGN_SITE'] } },
       { kind: 'link', label: 'Sub Organizations', href: '/employee/sub-organizations', icon: Building2, gate: { anyPerm: ['SITE_VIEW', 'SITE_ADD', 'SITE_EDIT', 'SITE_DELETE'] } },
-      { kind: 'link', label: 'Payroll Setup', href: '/employee/payroll-setup', icon: Coins, match: 'prefix', gate: { anyPerm: ['SALARY_CONFIG_VIEW', 'SALARY_CONFIG_ADD', 'DEBIT_RULE_VIEW', 'DEBIT_RULE_ADD', 'HR_MODE', 'PAYROLL_ADMIN'] } },
-      { kind: 'link', label: 'Increments & Promotions', href: '/employee/salary-revisions', icon: ArrowUpCircle, match: 'prefix', gate: { anyPerm: ['COMP_VIEW', 'COMP_ADD', 'COMP_EDIT', 'COMP_APPROVE', 'HR_MODE'] } },
-      { kind: 'link', label: 'Compensation', href: '/employee/compensation', icon: Award, match: 'prefix', gate: { anyPerm: ['COMP_VIEW', 'COMP_ADD', 'COMP_EDIT', 'COMP_APPROVE', 'HR_MODE'] } },
       { kind: 'link', label: 'Departments', href: '/employee/departments', icon: Building, match: 'prefix', gate: { anyPerm: ['DEPT_VIEW', 'DEPT_ADD', 'DEPT_EDIT', 'DEPT_DELETE'] } },
       { kind: 'link', label: 'Roles', href: '/employee/roles', icon: UserCog, match: 'prefix', gate: { anyPerm: ['ROLE_VIEW', 'ROLE_ADD', 'ROLE_EDIT', 'ROLE_DELETE'] } },
       { kind: 'link', label: 'Approval Flows', href: '/employee/approval-flows', icon: ListChecks, match: 'prefix', gate: { anyPerm: ['APPROVAL_FLOW_VIEW', 'APPROVAL_FLOW_MANAGE', 'HR_MODE'] } },

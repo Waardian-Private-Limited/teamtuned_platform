@@ -5,7 +5,7 @@ import {
   Receipt, CheckSquare, ListTodo, UserPlus, PlusCircle, Package, LayoutGrid,
   Layers, Briefcase, HardHat, Thermometer, Camera, QrCode, Award, Cog,
   ArrowUpCircle, BarChart3, List, Heart, CalendarRange, Repeat, Inbox, Wrench, Navigation, Route,
-  User, CalendarCheck,
+  User, CalendarCheck, TreePalm,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
 
@@ -32,6 +32,7 @@ export const orgNav: NavNode[] = [
     children: [
       { kind: 'link', label: 'Dashboard', href: '/org-admin', icon: Home },
       { kind: 'link', label: 'My Attendance', href: '/org-admin/my-attendance', icon: CalendarCheck },
+      { kind: 'link', label: 'My Leave', href: '/org-admin/my-leave', icon: TreePalm },
       { kind: 'link', label: 'Approvals', href: '/org-admin/approvals', icon: Inbox, match: 'prefix' },
     ],
   },
@@ -43,9 +44,17 @@ export const orgNav: NavNode[] = [
       { kind: 'link', label: 'Approvals', href: '/org-admin/attendance/approvals', icon: CheckSquare },
       { kind: 'link', label: 'Holidays', href: '/org-admin/holidays', icon: Calendar },
       { kind: 'link', label: 'Leave', href: '/org-admin/leave', icon: ClipboardList },
-      { kind: 'link', label: 'Payroll', href: '/org-admin/payroll', icon: ListChecks },
+    ],
+  },
+  {
+    kind: 'group', id: 'payroll', label: 'Payroll',
+    children: [
+      { kind: 'link', label: 'Payroll', href: '/org-admin/payroll', icon: ListChecks, match: 'prefix' },
       { kind: 'link', label: 'Salary Slips', href: '/org-admin/salary-slips', icon: FileText },
       { kind: 'link', label: 'Other Deductions', href: '/org-admin/other-deductions', icon: MinusCircle, match: 'prefix' },
+      { kind: 'link', label: 'Payroll Setup', href: '/org-admin/payroll-setup', icon: Coins },
+      { kind: 'link', label: 'Increments & Promotions', href: '/org-admin/salary-revisions', icon: ArrowUpCircle },
+      { kind: 'link', label: 'Compensation', href: '/org-admin/compensation', icon: Award, match: 'prefix' },
     ],
   },
   {
@@ -80,9 +89,6 @@ export const orgNav: NavNode[] = [
       { kind: 'link', label: 'Sites', href: '/org-admin/sites', icon: MapPin },
       { kind: 'link', label: 'Other Locations', href: '/org-admin/other-locations', icon: MapPin },
       { kind: 'link', label: 'Sub Organizations', href: '/org-admin/sub-organizations', icon: Building2 },
-      { kind: 'link', label: 'Payroll Setup', href: '/org-admin/payroll-setup', icon: Coins },
-      { kind: 'link', label: 'Increments & Promotions', href: '/org-admin/salary-revisions', icon: ArrowUpCircle },
-      { kind: 'link', label: 'Compensation', href: '/org-admin/compensation', icon: Award, match: 'prefix' },
       { kind: 'link', label: 'Employee Onboarding', href: '/org-admin/employee-onboarding', icon: UserPlus },
       { kind: 'link', label: 'Onboarding Settings', href: '/org-admin/onboarding-settings', icon: Cog },
       { kind: 'link', label: 'Departments', href: '/org-admin/departments', icon: Building },

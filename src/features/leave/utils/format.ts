@@ -1,3 +1,4 @@
+import { formatDate, orgToday } from '@/lib/datetime';
 import type { LeaveStatus, Session } from '../types/leave';
 
 export const days = (n: number | null | undefined) => {
@@ -6,8 +7,7 @@ export const days = (n: number | null | undefined) => {
   return `${v} d`;
 };
 
-export const fmtDate = (iso: string) =>
-  new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+export const fmtDate = (iso: string) => formatDate(iso, 'medium');
 
 export const range = (s: string, e: string) => (s === e ? fmtDate(s) : `${fmtDate(s)} – ${fmtDate(e)}`);
 
@@ -23,4 +23,4 @@ export const ENTRY_LABEL: Record<string, string> = {
   hold_release: 'Request released', transfer_in: 'Moved in', transfer_out: 'Moved out',
 };
 
-export const todayIso = () => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+export const todayIso = () => orgToday();

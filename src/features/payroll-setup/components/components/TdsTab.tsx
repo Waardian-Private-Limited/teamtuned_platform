@@ -7,10 +7,14 @@ import { Alert } from '@/components/ui/Alert';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Dialog } from '@/components/ui/Dialog';
 import { showError } from '@/lib/toast';
+import { messageOf } from '@/lib/api/errors';
+import { useDownloadCenter } from '@/features/downloads/context/DownloadCenterContext';
 import * as api from '../../api/payrollSetup.api';
 import { useTdsAdmin } from '../../hooks/useTdsAdmin';
 import { useTdsReadiness } from '../../hooks/useTdsReadiness';
-import type { TdsChallan, TdsSettings } from '../../types/payroll-setup.model';
+import type { ChallanCompanyFilter, TdsChallan, TdsSettings } from '../../types/payroll-setup.model';
+import { useManageableSubOrgs } from '@/features/sub-organizations/hooks/useManageableSubOrgs';
+import { usePermission } from '@/lib/hooks/usePermission';
 import { currentFinancialYear } from '../../constants/payroll-setup.constants';
 import { formatCurrency, formatDate, validateChallan, validateTdsSettings } from '../../utils/validators';
 import { FlowStep, type StepStatus } from '../tds/FlowStep';
@@ -73,6 +77,18 @@ function IDENTITY_TARGETS(
   ];
 }
 
+type CompanyOption = { value: number | null; label: string };
+
+function encodeCompany(value: ChallanCompanyFilter): string {
+  if (value === 'all') return 'all';
+  return value === null ? 'org' : String(value);
+}
+
+function decodeCompany(raw: string): ChallanCompanyFilter {
+  if (raw === 'all') return 'all';
+  return raw === 'org' ? null : Number(raw);
+}
+
 function fyOptions(): string[] {
   const current = currentFinancialYear();
   const start = Number(current.split('-')[0]);
@@ -87,8 +103,29 @@ export function TdsTab({
   onNavigateToRules?: () => void;
 }) {
   const tds = useTdsAdmin();
+  const { track } = useDownloadCenter();
   const readinessState = useTdsReadiness(tds.financialYear);
   const readiness = readinessState.readiness;
+  const { subOrgs } = useManageableSubOrgs();
+  const { isOrgAdmin } = usePermission();
+  const hasCompanies = subOrgs.length > 0;
+
+  const companyName = React.useCallback(
+    (id: number | null) => {
+      if (id === null) return 'Organization';
+      return subOrgs.find((s) => s.id === id)?.name ?? `Company ${id}`;
+    },
+    [subOrgs]
+  );
+
+  const companyOptions: CompanyOption[] = [
+    ...(isOrgAdmin || !hasCompanies ? [{ value: null, label: 'Organization' }] : []),
+    ...subOrgs.map((s) => ({ value: s.id, label: s.name })),
+  ];
+  const defaultChallanCompany: number | null =
+    tds.challanCompany !== 'all'
+      ? tds.challanCompany
+      : isOrgAdmin || !hasCompanies ? null : subOrgs[0]?.id ?? null;
 
   const [editChallan, setEditChallan] = React.useState<TdsChallan | null>(null);
   const [challanOpen, setChallanOpen] = React.useState(false);
@@ -121,6 +158,36 @@ export function TdsTab({
   const [form16Candidates, setForm16Candidates] = React.useState<Array<{ id: number; name: string; designation: string | null }>>([]);
   const [form16Searching, setForm16Searching] = React.useState(false);
   const [downloading, setDownloading] = React.useState(false);
+  const [form16Companies, setForm16Companies] = React.useState<Array<number | null>>([]);
+  const [form16Company, setForm16Company] = React.useState<number | null>(null);
+  const [form16CompaniesLoading, setForm16CompaniesLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    setForm16Companies([]);
+    setForm16Company(null);
+    if (!form16EmployeeId) return;
+    let active = true;
+    setForm16CompaniesLoading(true);
+    api
+      .getForm16Companies(form16EmployeeId, tds.financialYear)
+      .then((dto) => {
+        if (!active) return;
+        const list = Array.isArray(dto.companies) ? dto.companies : [];
+        setForm16Companies(list);
+        setForm16Company(dto.company ?? list[0] ?? null);
+      })
+      .catch(() => {
+        if (active) setForm16Companies([]);
+      })
+      .finally(() => {
+        if (active) setForm16CompaniesLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [form16EmployeeId, tds.financialYear]);
+
+  const form16MultiCompany = form16Companies.length > 1;
 
   React.useEffect(() => {
     if (!form16EmployeeQuery.trim()) {
@@ -145,17 +212,9 @@ export function TdsTab({
     if (!form16EmployeeId) return;
     setDownloading(true);
     try {
-      const { blob } = await api.downloadForm16(form16EmployeeId, tds.financialYear);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Form16_${tds.financialYear}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      track(await api.exportForm16(form16EmployeeId, tds.financialYear, form16MultiCompany ? form16Company : undefined));
     } catch (err) {
-      showError(err instanceof Error ? err.message : 'Failed to generate Form 16');
+      showError(messageOf(err) || 'Failed to generate Form 16');
     } finally {
       setDownloading(false);
     }
@@ -544,24 +603,44 @@ export function TdsTab({
             <p className="text-[11px] text-fg-muted">
               Deposited in FY {tds.financialYear}: <span className="font-semibold text-fg">{formatCurrency(totalDeposited)}</span>
             </p>
-            {canEdit && (
-              <button
-                type="button"
-                onClick={() => { setEditChallan(null); setChallanOpen(true); }}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-xs font-semibold text-fg transition-colors hover:bg-bg-subtle"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Add Challan</span>
-              </button>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {hasCompanies && (
+                <select
+                  value={encodeCompany(tds.challanCompany)}
+                  onChange={(e) => tds.setChallanCompany(decodeCompany(e.target.value))}
+                  aria-label="Filter challans by company"
+                  className="h-8 rounded-lg border border-line bg-surface px-2.5 text-xs font-semibold text-fg outline-none focus:border-[var(--tt-primary)]"
+                >
+                  <option value="all">All companies</option>
+                  {companyOptions.map((option) => (
+                    <option key={encodeCompany(option.value)} value={encodeCompany(option.value)}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => { setEditChallan(null); setChallanOpen(true); }}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-xs font-semibold text-fg transition-colors hover:bg-bg-subtle"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Add Challan</span>
+                </button>
+              )}
+            </div>
           </div>
 
-          {tds.challans.length === 0 ? (
+          {tds.challansLoading && tds.challans.length === 0 ? (
+            <div className="h-16 animate-pulse rounded-lg bg-bg-subtle" />
+          ) : tds.challans.length === 0 ? (
             <div className="rounded-lg border border-dashed border-line p-5 text-center">
               <AlertTriangle className="mx-auto h-5 w-5 text-fg-subtle" />
               <p className={cx(text.caption, 'mt-2')}>
-                No challans recorded for FY {tds.financialYear}. Form 16 cannot be issued until at least one deposit is
-                recorded.
+                No challans recorded for FY {tds.financialYear}
+                {tds.challanCompany !== 'all' ? ` for ${companyName(tds.challanCompany)}` : ''}. Form 16 cannot be issued
+                until at least one deposit is recorded.
               </p>
             </div>
           ) : (
@@ -586,6 +665,11 @@ export function TdsTab({
                           {challan.depositDate ? ` · ${formatDate(challan.depositDate)}` : ''}
                         </div>
                       </div>
+                      {hasCompanies && (
+                        <span className="ml-auto max-w-[40%] shrink-0 truncate rounded-full border border-line px-2 py-0.5 text-[10px] font-semibold text-fg-muted sm:text-[11px]">
+                          {companyName(challan.subOrganizationId)}
+                        </span>
+                      )}
                       {canEdit && (
                         <div className="flex items-center gap-1">
                           <button
@@ -667,14 +751,44 @@ export function TdsTab({
             )}
           </div>
 
+          {form16MultiCompany && (
+            <div>
+              <label className={labelClass}>Company</label>
+              <select
+                value={encodeCompany(form16Company)}
+                onChange={(e) => {
+                  const next = decodeCompany(e.target.value);
+                  setForm16Company(next === 'all' ? null : next);
+                }}
+                className={inputClass}
+              >
+                {form16Companies.map((id) => (
+                  <option key={encodeCompany(id)} value={encodeCompany(id)}>
+                    {companyName(id)}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-fg-muted">
+                Paid by {form16Companies.length} companies in FY {tds.financialYear}. Each issues its own Form 16 under
+                its TAN.
+              </p>
+            </div>
+          )}
+
           <button
             type="button"
-            disabled={!form16EmployeeId || downloading || !readiness?.form16.ready}
+            disabled={!form16EmployeeId || downloading || form16CompaniesLoading || !readiness?.form16.ready}
             onClick={downloadForm16}
             className={primaryButton}
           >
             {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-            <span>{downloading ? 'Generating…' : `Download Form 16 for FY ${tds.financialYear}`}</span>
+            <span>
+              {downloading
+                ? 'Generating…'
+                : form16MultiCompany
+                  ? `Download Form 16 — ${companyName(form16Company)}`
+                  : `Download Form 16 for FY ${tds.financialYear}`}
+            </span>
           </button>
         </div>
       </FlowStep>
@@ -683,6 +797,11 @@ export function TdsTab({
         open={challanOpen}
         initial={editChallan}
         defaultFy={tds.financialYear}
+        defaultCompany={defaultChallanCompany}
+        companyOptions={companyOptions}
+        showCompany={hasCompanies}
+        allowOrganization={isOrgAdmin || !hasCompanies}
+        companyName={companyName}
         isSaving={tds.isSaving}
         onClose={() => setChallanOpen(false)}
         onSubmit={async (payload) => {
@@ -701,6 +820,11 @@ function ChallanDialog({
   open,
   initial,
   defaultFy,
+  defaultCompany,
+  companyOptions,
+  showCompany,
+  allowOrganization,
+  companyName,
   isSaving,
   onClose,
   onSubmit,
@@ -708,6 +832,11 @@ function ChallanDialog({
   open: boolean;
   initial: TdsChallan | null;
   defaultFy: string;
+  defaultCompany: number | null;
+  companyOptions: CompanyOption[];
+  showCompany: boolean;
+  allowOrganization: boolean;
+  companyName: (id: number | null) => string;
   isSaving: boolean;
   onClose: () => void;
   onSubmit: (payload: {
@@ -718,6 +847,7 @@ function ChallanDialog({
     challan_serial_no?: string;
     deposit_date?: string;
     amount: number;
+    sub_organization_id: number | null;
   }) => Promise<void> | void;
 }) {
   const [financialYear, setFinancialYear] = React.useState(defaultFy);
@@ -727,21 +857,33 @@ function ChallanDialog({
   const [depositDate, setDepositDate] = React.useState('');
   const [amount, setAmount] = React.useState('');
   const [error, setError] = React.useState('');
+  const [company, setCompany] = React.useState<number | null>(defaultCompany);
+  const [companyError, setCompanyError] = React.useState('');
+
+  const options = React.useMemo(() => {
+    if (!initial || companyOptions.some((o) => o.value === initial.subOrganizationId)) return companyOptions;
+    return [{ value: initial.subOrganizationId, label: companyName(initial.subOrganizationId) }, ...companyOptions];
+  }, [companyOptions, initial, companyName]);
 
   React.useEffect(() => {
     if (!open) return;
     setError('');
+    setCompanyError('');
+    setCompany(initial ? initial.subOrganizationId : defaultCompany);
     setFinancialYear(initial?.financialYear ?? defaultFy);
     setQuarter(initial?.quarter ?? 'Q1');
     setBsrCode(initial?.bsrCode ?? '');
     setSerial(initial?.challanSerialNo ?? '');
     setDepositDate(initial?.depositDate ? String(initial.depositDate).slice(0, 10) : '');
     setAmount(initial ? String(initial.amount) : '');
-  }, [open, initial, defaultFy]);
+  }, [open, initial, defaultFy, defaultCompany]);
 
   const submit = () => {
+    const companyMissing = showCompany && company === null && !allowOrganization && !(initial && initial.subOrganizationId === null);
+    setCompanyError(companyMissing ? 'Choose the company that deposited this challan' : '');
     const message = validateChallan({ amount, financialYear, quarter, depositDate });
     if (message) { setError(message); return; }
+    if (companyMissing) return;
     setError('');
     onSubmit({
       id: initial?.id,
@@ -751,6 +893,7 @@ function ChallanDialog({
       challan_serial_no: serial.trim() || undefined,
       deposit_date: depositDate || undefined,
       amount: Number(amount),
+      sub_organization_id: showCompany ? company : null,
     });
   };
 
@@ -777,6 +920,33 @@ function ChallanDialog({
           Enter the challan exactly as it appears on the receipt from the bank or the e-payment portal. The BSR code and
           serial number are what let the department match your deposit to this employee&apos;s Form 16.
         </p>
+        {showCompany && (
+          <div>
+            <label className={labelClass}>
+              Company <span className="text-[var(--tt-danger)]">*</span>
+            </label>
+            <select
+              value={company === null && !options.some((o) => o.value === null) ? '' : company === null ? 'org' : String(company)}
+              onChange={(e) => {
+                setCompanyError('');
+                setCompany(e.target.value === 'org' || e.target.value === '' ? null : Number(e.target.value));
+              }}
+              className={companyError ? errorInputClass : inputClass}
+            >
+              {!options.some((o) => o.value === null) && (
+                <option value="" disabled>Select a company…</option>
+              )}
+              {options.map((option) => (
+                <option key={option.value === null ? 'org' : option.value} value={option.value === null ? 'org' : String(option.value)}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {companyError
+              ? <p className={fieldErrorClass}>{companyError}</p>
+              : <p className="mt-1 text-[11px] text-fg-muted">The entity whose TAN this deposit was made under.</p>}
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={labelClass}>Financial Year</label>

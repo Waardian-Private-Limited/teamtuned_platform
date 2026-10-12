@@ -4,6 +4,8 @@ import { Paperclip } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { dateTimeText, dayText } from '@/features/detailed-attendance/utils/format';
 import { since } from '../utils/since';
+import { EARNED_REASON } from '@/features/my-leave/constants/leave.constants';
+import { daysText, minutesText } from '@/features/my-leave/utils/format';
 import { KIND_TEXT } from '@/features/my-attendance/constants/regularization.constants';
 import { PUNCH_ISSUE_TEXT, ROW_STATUS } from '../constants/review.constants';
 import type { Place, RequestRow, RequestType } from '../types/review.model';
@@ -72,6 +74,93 @@ function Punches({ row }: { row: RequestRow }) {
   );
 }
 
+const HALF: Record<string, string> = { first_half: '1st half', second_half: '2nd half' };
+
+/** The leave asked for, with its type's colour. */
+function LeaveKind({ row }: { row: RequestRow }) {
+  const l = row.leave;
+  if (!l) return <span className="text-fg-subtle">—</span>;
+  return (
+    <span className="flex items-center gap-1.5 text-xs font-semibold text-fg">
+      <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: l.type.color || 'var(--tt-primary)' }} />
+      {l.type.name}
+      {row.hasAttachment && <Paperclip aria-label="Document attached" className="h-3.5 w-3.5 text-fg-muted" />}
+    </span>
+  );
+}
+
+/** The days a leave covers, with half days and hours. */
+function LeaveDates({ row }: { row: RequestRow }) {
+  const l = row.leave;
+  if (!l) return <>{dayText(row.date)}</>;
+  if (l.unit === 'hour') return <>{dayText(row.date)} · {l.hours ?? 0}h</>;
+  const one = row.date === l.endDate;
+  const first = HALF[l.startSession];
+  const last = HALF[l.endSession];
+  return (
+    <span className="flex flex-col">
+      <span>{dayText(row.date)}{one ? '' : ` – ${dayText(l.endDate)}`}</span>
+      {(first || (!one && last)) && <span className="text-[11px] font-normal text-fg-muted">{one ? first : [first && `starts ${first}`, last && `ends ${last}`].filter(Boolean).join(' · ')}</span>}
+    </span>
+  );
+}
+
+function LeaveDays({ row }: { row: RequestRow }) {
+  const l = row.leave;
+  if (!l) return <span className="text-fg-subtle">—</span>;
+  return (
+    <span className="flex flex-col text-xs tabular-nums">
+      <span className="font-semibold text-fg">{l.unit === 'hour' ? `${l.hours ?? 0}h` : `${l.days} ${l.days === 1 ? 'day' : 'days'}`}</span>
+      {l.lopDays > 0 && <span className="font-semibold text-[var(--tt-danger)]">{l.lopDays} unpaid</span>}
+    </span>
+  );
+}
+
+/** What the extra work was, and whether it earns comp-off leave or pay. */
+function CompOffKind({ row }: { row: RequestRow }) {
+  const c = row.compoff;
+  if (!c) return <span className="text-fg-subtle">—</span>;
+  return (
+    <span className="flex flex-col text-xs">
+      <span className="font-semibold text-fg">{EARNED_REASON[c.reason] ?? 'Extra work'}</span>
+      <span className="text-fg-muted">{c.kind === 'paid' ? 'Paid in salary' : 'Comp-off leave'}</span>
+    </span>
+  );
+}
+
+/** What it earns: days of comp-off, or the paid time. */
+function CompOffAmount({ row }: { row: RequestRow }) {
+  const c = row.compoff;
+  if (!c) return <span className="text-fg-subtle">—</span>;
+  const amount = c.kind === 'paid' && c.minutes ? minutesText(c.minutes) : c.units ? daysText(c.units) : c.minutes ? minutesText(c.minutes) : '–';
+  return (
+    <span className="flex flex-col text-xs tabular-nums">
+      <span className="font-semibold text-fg">{amount}</span>
+      {c.kind === 'comp_off' && c.expiresOn && <span className="text-fg-muted">expires {dayText(c.expiresOn)}</span>}
+    </span>
+  );
+}
+
+/** The balance an absence is paid from, with its colour. */
+function CoverFrom({ row }: { row: RequestRow }) {
+  const c = row.absenceCover;
+  if (!c) return <span className="text-fg-subtle">—</span>;
+  return (
+    <span className="flex flex-col text-xs">
+      <span className="flex items-center gap-1.5 font-semibold text-fg">
+        <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: c.type.color || 'var(--tt-primary)' }} />
+        {c.type.name}
+      </span>
+      <span className="text-fg-muted">{c.isPenalty ? 'Late / early-exit penalty' : 'Otherwise unpaid'}</span>
+    </span>
+  );
+}
+
+function CoverDays({ row }: { row: RequestRow }) {
+  const c = row.absenceCover;
+  return <span className="text-xs font-semibold tabular-nums text-fg">{c ? daysText(c.days) : '—'}</span>;
+}
+
 /** The reasons the employee gave: the request's, or each reviewed punch's. */
 const reasonOf = (row: RequestRow) => row.reason || [...new Set(row.punches.map((p) => p.reason).filter(Boolean))].join(' · ') || null;
 
@@ -86,10 +175,21 @@ function Kinds({ row }: { row: RequestRow }) {
 
 /**
  * A table from tablet up and cards on a phone; a row opens its approval, when it went to one. A
- * regularization shows what is asked for and the times; an attendance review shows its punches.
+ * regularization shows what is asked for and the times; an attendance review shows its punches; a
+ * leave shows its type, dates and days; comp-off shows the extra work and what it earns.
  */
 export function RequestTable({ type, rows, onOpen }: { type: RequestType; rows: RequestRow[]; onOpen: (row: RequestRow) => void }) {
   const regularize = type === 'regularize';
+  const leave = type === 'leave';
+  const compoff = type === 'compoff';
+  const cover = type === 'absence_cover';
+  const columns = regularize ? ['Asking for', 'Times'] : leave ? ['Leave', 'Days'] : compoff ? ['Extra work', 'Earns'] : cover ? ['Covered from', 'Days'] : ['Punches'];
+  const cells = (r: RequestRow) => (regularize
+    ? [<Kinds key="k" row={r} />, <Times key="t" row={r} />]
+    : leave ? [<LeaveKind key="k" row={r} />, <LeaveDays key="d" row={r} />]
+      : compoff ? [<CompOffKind key="k" row={r} />, <CompOffAmount key="a" row={r} />]
+        : cover ? [<CoverFrom key="k" row={r} />, <CoverDays key="d" row={r} />]
+          : [<Punches key="p" row={r} />]);
   return (
     <>
       <div className="hidden h-full overflow-auto tt-scroll-hidden md:block">
@@ -97,8 +197,8 @@ export function RequestTable({ type, rows, onOpen }: { type: RequestType; rows: 
           <thead className="sticky top-0 z-10">
             <tr>
               <th className={head}>Employee</th>
-              <th className={head}>Attendance date</th>
-              {regularize ? <><th className={head}>Asking for</th><th className={head}>Times</th></> : <th className={head}>Punches</th>}
+              <th className={head}>{leave ? 'Dates' : compoff ? 'Worked on' : cover ? 'Absent on' : 'Attendance date'}</th>
+              {columns.map((c) => <th key={c} className={head}>{c}</th>)}
               <th className={head}>Reason</th>
               <th className={head}>Sent</th>
               <th className={head}>Status</th>
@@ -112,8 +212,8 @@ export function RequestTable({ type, rows, onOpen }: { type: RequestType; rows: 
                   <p className="font-semibold text-fg">{r.employee.name}</p>
                   <p className="text-xs text-fg-muted">{[r.employee.code, r.employee.department, r.employee.role].filter(Boolean).join(' · ')}</p>
                 </td>
-                <td className={cx(cell, 'whitespace-nowrap font-medium text-fg')}>{dayText(r.date)}</td>
-                {regularize ? <><td className={cell}><Kinds row={r} /></td><td className={cell}><Times row={r} /></td></> : <td className={cell}><Punches row={r} /></td>}
+                <td className={cx(cell, 'whitespace-nowrap font-medium text-fg')}><LeaveDates row={r} /></td>
+                {cells(r).map((c, i) => <td key={i} className={cell}>{c}</td>)}
                 <td className={cx(cell, 'max-w-[16rem]')}>
                   <p className="line-clamp-2 text-xs text-fg-muted">{reasonOf(r) || '—'}</p>
                 </td>
@@ -133,11 +233,11 @@ export function RequestTable({ type, rows, onOpen }: { type: RequestType; rows: 
               <span className="flex items-start justify-between gap-2">
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-semibold text-fg">{r.employee.name}</span>
-                  <span className="block text-sm text-fg">{dayText(r.date)}</span>
+                  <span className="block text-sm text-fg"><LeaveDates row={r} /></span>
                 </span>
                 <Status row={r} />
               </span>
-              {regularize ? <><Kinds row={r} /><Times row={r} /></> : <Punches row={r} />}
+              {cells(r)}
               {r.waitingOn && <WaitingOn row={r} />}
               {reasonOf(r) && <span className="line-clamp-2 text-xs text-fg-muted">{reasonOf(r)}</span>}
             </button>

@@ -8,19 +8,18 @@ import { messageOf } from '@/lib/api/errors';
 import { showError, showSuccess } from '@/lib/toast';
 import * as api from '../api/leave.api';
 import type { LeaveRequestDetail } from '../types/leave';
-import { SESSION_LABEL, STATUS_TONE, days, fmtDate, range, todayIso } from '../utils/format';
+import { SESSION_LABEL, STATUS_TONE, days, fmtDate, range } from '../utils/format';
 
 interface Props {
   id: number | null;
-  /** admin: approve / reject / cancel any request in scope; self: only the owner's cancel. */
-  mode: 'admin' | 'self';
   canApprove?: boolean;
   canEdit?: boolean;
   onClose: () => void;
   onChanged: () => void;
 }
 
-export function RequestDrawer({ id, mode, canApprove, canEdit, onClose, onChanged }: Props) {
+/** HR's view of a leave request: approve, reject or cancel any request in scope. Employees use My Leave. */
+export function RequestDrawer({ id, canApprove, canEdit, onClose, onChanged }: Props) {
   const [d, setD] = React.useState<LeaveRequestDetail | null>(null);
   const [error, setError] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -30,8 +29,8 @@ export function RequestDrawer({ id, mode, canApprove, canEdit, onClose, onChange
   const load = React.useCallback(() => {
     if (!id) return;
     setError('');
-    (mode === 'admin' ? api.getRequest(id) : api.myRequest(id)).then(setD).catch((e) => setError(messageOf(e)));
-  }, [id, mode]);
+    api.getRequest(id).then(setD).catch((e) => setError(messageOf(e)));
+  }, [id]);
   React.useEffect(() => { setD(null); setNote(''); setNoteError(''); load(); }, [load]);
 
   async function act(kind: 'approve' | 'reject' | 'cancel') {
@@ -41,15 +40,15 @@ export function RequestDrawer({ id, mode, canApprove, canEdit, onClose, onChange
     try {
       const next = kind === 'approve' ? await api.approve(d.id, note || undefined)
         : kind === 'reject' ? await api.reject(d.id, note)
-        : mode === 'admin' ? await api.cancel(d.id, note || undefined) : await api.myCancel(d.id, note || undefined);
+        : await api.cancel(d.id, note || undefined);
       setD(next);
       showSuccess(kind === 'approve' ? 'Approved' : kind === 'reject' ? 'Rejected' : 'Cancelled');
       onChanged();
     } catch (e) { showError(messageOf(e)); } finally { setBusy(false); }
   }
 
-  const mayDecide = d?.status === 'Pending' && Boolean(d.approval_can_decide || (mode === 'admin' && canApprove));
-  const canCancel = d && (d.status === 'Pending' || (d.status === 'Approved' && (mode === 'admin' ? canEdit : d.start_date > todayIso())));
+  const mayDecide = d?.status === 'Pending' && Boolean(d.approval_can_decide || canApprove);
+  const canCancel = d && (d.status === 'Pending' || (d.status === 'Approved' && canEdit));
   const btn = 'h-9 rounded-lg px-4 text-sm font-semibold disabled:opacity-60';
 
   return (

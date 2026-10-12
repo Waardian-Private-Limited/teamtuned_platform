@@ -7,6 +7,7 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Pagination } from '@/components/ui/Pagination';
 import { cx, text } from '@/theme/tokens';
 import type { RoleDetail, RoleAuditResult } from '../../types/roles.model';
+import { formatDateTime } from '@/lib/datetime';
 
 interface RoleDetailDrawerProps {
   open: boolean;
@@ -97,7 +98,7 @@ export function RoleDetailDrawer({ open, detail, isLoading, audit, auditLoading,
                             {entry.action === 'grant' ? 'Granted' : 'Revoked'} {entry.permissionCode}
                           </span>
                           <span className={cx(text.caption, 'block')}>
-                            {new Date(entry.createdAt).toLocaleString()} · {entry.source}
+                            {formatDateTime(entry.createdAt)} · {entry.source}
                           </span>
                         </span>
                       </li>

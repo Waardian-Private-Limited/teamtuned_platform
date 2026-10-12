@@ -5,8 +5,9 @@ import { Check, Clock, CornerUpLeft, X } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { EVENT_LABEL } from '../constants';
 import type { RequestDetail } from '../types/approvals';
+import { formatDayTime } from '@/lib/datetime';
 
-const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
+const fmt = (iso: string | null) => (iso ? formatDayTime(iso) : '');
 
 function taskTone(status: string) {
   if (status === 'approved') return 'border-[var(--tt-success)]/30 text-[var(--tt-success)]';

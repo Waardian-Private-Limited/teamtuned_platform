@@ -20,6 +20,12 @@ export function toReviewPage(dto: ReviewPageDto): RowPage {
       kinds: kindsOf(r.kinds), inTime: r.in_time ?? null, outTime: r.out_time ?? null, recordedInTime: r.recorded_in_time ?? null, recordedOutTime: r.recorded_out_time ?? null,
       recordedInPlace: place(r.recorded_in_place), recordedOutPlace: place(r.recorded_out_place),
       reason: r.reason ?? null, hasAttachment: !!r.has_attachment, punches: (r.punches ?? []).map(punch), submittedAt: r.submitted_at,
+      leave: r.leave ? {
+        type: r.leave.type, endDate: r.leave.end_date, startSession: r.leave.start_session, endSession: r.leave.end_session,
+        unit: r.leave.unit === 'hour' ? 'hour' : 'day', hours: r.leave.hours, days: Number(r.leave.days) || 0, lopDays: Number(r.leave.lop_days) || 0,
+      } : null,
+      compoff: r.compoff ? { reason: r.compoff.reason, kind: r.compoff.kind, units: Number(r.compoff.units) || 0, minutes: r.compoff.minutes, expiresOn: r.compoff.expires_on } : null,
+      absenceCover: r.absence_cover ? { type: r.absence_cover.leave_type, days: Number(r.absence_cover.days) || 0, isCompOff: r.absence_cover.is_comp_off, isPenalty: r.absence_cover.is_penalty } : null,
     })),
     total: dto.total, page: dto.page, pageSize: dto.page_size,
     counts: dto.counts ?? {},

@@ -1,3 +1,5 @@
+import { formatClock, orgToday } from '@/lib/datetime';
+
 const DAY_MS = 86400000;
 
 export function toDate(s: string): Date {
@@ -36,8 +38,7 @@ export function monthRange(year: number, month: number): { from: string; to: str
 }
 
 export function todayLocal(): string {
-  const n = new Date();
-  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+  return orgToday();
 }
 
 export function formatDay(s: string, opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }): string {
@@ -45,12 +46,7 @@ export function formatDay(s: string, opts: Intl.DateTimeFormatOptions = { day: '
 }
 
 export function formatMinutes(min: number): string {
-  const m = ((min % 1440) + 1440) % 1440;
-  const h = Math.floor(m / 60);
-  const mm = m % 60;
-  const suffix = h >= 12 ? 'PM' : 'AM';
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${String(mm).padStart(2, '0')} ${suffix}`;
+  return formatClock(min);
 }
 
 export function formatRange(startMin: number, durationMin: number): string {

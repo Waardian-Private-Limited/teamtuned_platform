@@ -5,6 +5,7 @@ import { Drawer } from '@/components/ui/Drawer';
 import { cx } from '@/theme/tokens';
 import { useDownloadCenter } from '../context/DownloadCenterContext';
 import type { ExportJobDto } from '../types/downloads.dto';
+import { formatDayTime } from '@/lib/datetime';
 
 function size(bytes: number | null) {
   if (!bytes) return '';
@@ -14,8 +15,7 @@ function size(bytes: number | null) {
 
 function when(value: string | null) {
   if (!value) return '';
-  const d = new Date(value);
-  return d.toLocaleString(undefined, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return formatDayTime(value);
 }
 
 function statusLine(job: ExportJobDto) {

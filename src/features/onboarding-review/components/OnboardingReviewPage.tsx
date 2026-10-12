@@ -9,6 +9,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { useSubmissionList } from '../hooks/useSubmissionList';
 import { OnboardingReviewEmptyState } from './components/OnboardingReviewEmptyState';
 import { DownloadProfilesDialog } from './components/DownloadProfilesDialog';
+import { formatDate, orgDateOf } from '@/lib/datetime';
 
 const TABS = [
   { value: '', label: 'All' },
@@ -137,7 +138,7 @@ export function OnboardingReviewPage() {
                     <td className="px-4 py-2.5 text-sm text-fg-muted">{row.progress}%</td>
                     <td className="px-4 py-2.5 text-sm text-fg">{STATUS_LABEL[row.status] || row.status}</td>
                     <td className="px-4 py-2.5 text-sm text-fg-muted">
-                      {row.submitted_at ? new Date(row.submitted_at).toLocaleDateString() : '—'}
+                      {row.submitted_at ? formatDate(orgDateOf(row.submitted_at)) : '—'}
                     </td>
                     <td className="px-4 py-2.5 text-right">
                       <div className="flex items-center justify-end gap-1.5">

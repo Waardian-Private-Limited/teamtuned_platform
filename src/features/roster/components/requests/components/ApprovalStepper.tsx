@@ -4,6 +4,7 @@ import { Check, X } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { APPROVAL_LEVEL_LABELS } from '../../../constants/roster.constants';
 import type { SwapRequest } from '../../../types/roster.types';
+import { formatDayTime } from '@/lib/datetime';
 
 function levelName(request: SwapRequest, index: number): string {
   const level = request.chain_snapshot[index];
@@ -13,9 +14,8 @@ function levelName(request: SwapRequest, index: number): string {
 }
 
 function formatAt(at: string): string {
-  const d = new Date(at);
-  if (Number.isNaN(d.getTime())) return '';
-  return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(d);
+  const text = formatDayTime(at);
+  return text === '—' ? '' : text;
 }
 
 export function ApprovalStepper({ request }: { request: SwapRequest }) {

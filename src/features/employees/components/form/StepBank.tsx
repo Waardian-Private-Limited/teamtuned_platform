@@ -14,8 +14,8 @@ export function StepBank({ c }: { c: EmployeeFormController }) {
   const { form, set, errors } = c;
   const [ifscState, setIfscState] = React.useState<{ loading: boolean; error: string; resolved: string }>({ loading: false, error: '', resolved: '' });
   const lastLookup = React.useRef('');
-  const esiSelected = c.plan.debits.some((d) => d.rule.category === 'esi' && d.selected);
-  const pfSelected = c.plan.debits.some((d) => d.rule.category === 'epf' && d.selected);
+  const esiSelected = c.salaryDebits.some((d) => d.rule.category === 'esi' && d.selected);
+  const pfSelected = c.salaryDebits.some((d) => d.rule.category === 'epf' && d.selected);
 
   const lookup = React.useCallback(async (raw: string) => {
     const code = upper(raw);

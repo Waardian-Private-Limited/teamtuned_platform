@@ -17,6 +17,7 @@ import { ONLY_OPTIONS } from '../../constants/detailed.constants';
 import type { OnlyKey } from '../../types/detailed.model';
 import { shiftDate } from '../../utils/format';
 import { Avatar, controlClass, Select } from './controls';
+import { monthRange } from '@/lib/datetime';
 
 type Format = 'xlsx' | 'csv' | 'pdf';
 type Report = 'daily' | 'monthly' | 'data';
@@ -40,8 +41,7 @@ const FORMATS: Array<{ value: Format; label: string; hint: string; icon: typeof 
 const startOfMonth = (d: string) => `${d.slice(0, 7)}-01`;
 const endOfMonth = (d: string) => {
   const [y, m] = d.split('-').map(Number);
-  const last = new Date(y, m, 0).getDate();
-  return `${y}-${String(m).padStart(2, '0')}-${String(last).padStart(2, '0')}`;
+  return monthRange(`${y}-${String(m).padStart(2, '0')}`).to;
 };
 
 function presets(today: string, date: string) {

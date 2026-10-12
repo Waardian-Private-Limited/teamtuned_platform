@@ -126,6 +126,31 @@ body {
   background: var(--tt-fg-muted);
 }
 
+/* Scrollbar that stays painted (also on macOS overlay scrollbars), so people see a list scrolls. */
+.tt-scrollbar-strong {
+  scrollbar-width: thin;
+  scrollbar-color: var(--tt-fg-subtle) var(--tt-bg-subtle);
+}
+
+.tt-scrollbar-strong::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.tt-scrollbar-strong::-webkit-scrollbar-track {
+  background: var(--tt-bg-subtle);
+}
+
+.tt-scrollbar-strong::-webkit-scrollbar-thumb {
+  background: var(--tt-fg-subtle);
+  border-radius: 9999px;
+  border: 2px solid var(--tt-bg-subtle);
+}
+
+.tt-scrollbar-strong::-webkit-scrollbar-thumb:hover {
+  background: var(--tt-fg-muted);
+}
+
 /* Step-to-step entrance inside a form. Opacity and transform only, so it runs
    on the compositor and cannot stutter the input it appears behind. */
 @keyframes tt-fade-in {

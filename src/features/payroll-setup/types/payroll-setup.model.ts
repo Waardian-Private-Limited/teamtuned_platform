@@ -173,4 +173,7 @@ export interface TdsChallan {
   challanSerialNo: string;
   depositDate: string;
   amount: number;
+  subOrganizationId: number | null;
 }
+
+export type ChallanCompanyFilter = 'all' | number | null;

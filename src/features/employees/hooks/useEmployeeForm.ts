@@ -7,14 +7,39 @@ import { ApiError, messageOf } from '@/lib/api/errors';
 import { showError, showSuccess } from '@/lib/toast';
 import { useManageableSubOrgs } from '@/features/sub-organizations/hooks/useManageableSubOrgs';
 import { FIELD_STEP, FORM_STEPS } from '../constants/employees.constants';
-import type { EmployeeDetailDto, FormOptionsDto, PolicyOptionDto, PolicyPreviewDto } from '../types/employees.dto';
-import { emptyForm, formFromDetail, toPayload, type EmployeeFormState, type FormErrors } from '../types/employees.form';
+import type { EmployeeDetailDto, FormOptionsDto, PolicyOptionDto, PolicyPreviewDto, SalaryAllocationDto } from '../types/employees.dto';
+import { emptyForm, formFromDetail, salaryFields, toPayload, type EmployeeFormState, type FormErrors } from '../types/employees.form';
 import { computeSalary, defaultInputs, inputsFromAmounts } from '../utils/salary';
+import { allocationPlan, initPending, newAllocation, subOrgKey, type AllocationDraft } from '../utils/allocations';
 import { validateStep } from '../utils/validators';
 import { useEmployeeRoutes } from './useEmployeeRoutes';
+import { useSalaryOptions } from './useSalaryOptions';
 
 const PREVIEW_DEBOUNCE_MS = 300;
 const SCHEDULE_STEP = FORM_STEPS.findIndex((s) => s.key === 'schedule');
+const SALARY_STEP = FORM_STEPS.findIndex((s) => s.key === 'salary');
+const SALARY_KEYS = new Set<keyof EmployeeFormState>(['driver', 'componentInputs', 'debitOverrides', 'multiCompany', 'allocations']);
+
+export interface SalaryLock {
+  month: string;
+  allocations: SalaryAllocationDto[];
+}
+
+function lockOf(d: EmployeeDetailDto): SalaryLock | null {
+  if (!d.salary_locked_month) return null;
+  const allocations = d.salary_allocations?.length
+    ? d.salary_allocations
+    : d.monthly_gross
+      ? [{ sub_organization_id: d.sub_organization_id, is_primary: true, ctc: d.ctc, monthly_gross: d.monthly_gross, salary_breakdown: d.salary_breakdown, debit_ids: d.debit_ids }]
+      : [];
+  return { month: d.salary_locked_month, allocations };
+}
+
+function stepOfField(field: string) {
+  if (field.startsWith('salary_allocations')) return SALARY_STEP;
+  const key = FIELD_STEP[field];
+  return key ? FORM_STEPS.findIndex((s) => s.key === key) : -1;
+}
 
 function keep<T extends { id: number }>(list: T[], id: number | null) {
   return id !== null && list.some((x) => x.id === id) ? id : null;
@@ -65,6 +90,7 @@ export function useEmployeeForm(employeeId: number | null) {
   const [inherited, setInherited] = useState<PolicyPreviewDto | null>(null);
   const [inheritedLoading, setInheritedLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [salaryLock, setSalaryLock] = useState<SalaryLock | null>(null);
 
   const optionsCache = useRef(new Map<string, FormOptionsDto>());
   const detailRef = useRef<EmployeeDetailDto | null>(null);
@@ -79,6 +105,7 @@ export function useEmployeeForm(employeeId: number | null) {
       .then((detail) => {
         if (!active) return;
         detailRef.current = detail;
+        setSalaryLock(lockOf(detail));
         setForm(formFromDetail(detail));
         setReady(true);
       })
@@ -163,11 +190,36 @@ export function useEmployeeForm(employeeId: number | null) {
     tax: options?.tax ?? null,
   }), [form.driver, form.componentInputs, form.debitOverrides, form.gender, options, siteState]);
 
+  const allocationSubOrgs = useMemo(
+    () => [...form.allocations.filter((a) => a.subOrganizationId !== null || !needsSubOrg).map((a) => a.subOrganizationId), ...(salaryLock?.allocations.map((a) => a.sub_organization_id) || [])],
+    [form.allocations, salaryLock, needsSubOrg]
+  );
+  const salaryOptions = useSalaryOptions(allocationSubOrgs, form.multiCompany || Boolean(salaryLock));
+
+  useEffect(() => {
+    setForm((f) => {
+      const allocations = initPending(f.allocations, salaryOptions.byKey);
+      return allocations === f.allocations ? f : { ...f, allocations };
+    });
+  }, [salaryOptions.byKey, form.allocations]);
+
+  const allocationPlans = useMemo(
+    () => form.allocations.map((a) => allocationPlan(a, salaryOptions.byKey[subOrgKey(a.subOrganizationId)], { siteState, gender: form.gender || null })),
+    [form.allocations, salaryOptions.byKey, siteState, form.gender]
+  );
+  const allocationsReady = useMemo(
+    () => form.allocations.map((a) => a.initFor === subOrgKey(a.subOrganizationId)),
+    [form.allocations]
+  );
+
   const set = useCallback(<K extends keyof EmployeeFormState>(key: K, value: EmployeeFormState[K]) => {
-    setForm((f) => ({ ...f, [key]: value }));
+    setForm((f) => ({ ...f, [key]: value, ...(SALARY_KEYS.has(key) ? { salaryTouched: true } : {}) }));
     setErrors((e) => {
       if (!Object.keys(e).length) return e;
       const next = { ...e };
+      if (SALARY_KEYS.has(key)) {
+        for (const k of Object.keys(next)) if (k.startsWith('salary_allocations')) delete next[k];
+      }
       const field = String(key).replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
       delete next[field];
       if (key === 'email' || key === 'phone') { delete next.email; delete next.phone; }
@@ -181,8 +233,46 @@ export function useEmployeeForm(employeeId: number | null) {
     });
   }, []);
 
+  const setMultiCompany = useCallback((on: boolean) => {
+    if (on && !form.allocations.length) {
+      const home = newAllocation(form.subOrganizationId, true, {
+        driver: form.driver,
+        componentInputs: form.componentInputs,
+        debitOverrides: form.debitOverrides,
+        initFor: options ? subOrgKey(form.subOrganizationId) : null,
+      });
+      const other = subOrgs.find((s) => s.id !== form.subOrganizationId)?.id ?? null;
+      set('allocations', [home, newAllocation(other, false)]);
+    }
+    set('multiCompany', on);
+  }, [form.allocations.length, form.subOrganizationId, form.driver, form.componentInputs, form.debitOverrides, options, subOrgs, set]);
+
+  const updateAllocation = useCallback((index: number, patch: Partial<AllocationDraft>) => {
+    set('allocations', form.allocations.map((a, i) => {
+      if (i !== index) return patch.isPrimary ? { ...a, isPrimary: false } : a;
+      const moved = patch.subOrganizationId !== undefined && patch.subOrganizationId !== a.subOrganizationId;
+      return { ...a, ...patch, ...(moved ? { initFor: null, seed: null, componentInputs: {}, debitOverrides: {} } : {}) };
+    }));
+  }, [form.allocations, set]);
+
+  const addAllocation = useCallback(() => {
+    const used = new Set(form.allocations.map((a) => a.subOrganizationId));
+    const free = subOrgs.find((s) => !used.has(s.id))?.id ?? null;
+    set('allocations', [...form.allocations, newAllocation(free, form.allocations.length === 0)]);
+  }, [form.allocations, subOrgs, set]);
+
+  const removeAllocation = useCallback((index: number) => {
+    const rest = form.allocations.filter((_, i) => i !== index);
+    if (rest.length && !rest.some((a) => a.isPrimary)) rest[0] = { ...rest[0], isPrimary: true };
+    set('allocations', rest);
+  }, [form.allocations, set]);
+
   const timingMode = policy?.schedule.timingMode ?? null;
-  const validate = useCallback((index: number) => validateStep(FORM_STEPS[index].key, form, { plan, effectivePolicyId, needsSubOrg, timingMode }), [form, plan, effectivePolicyId, needsSubOrg, timingMode]);
+  const sendSalary = !employeeId || (!salaryLock && form.salaryTouched);
+  const validate = useCallback(
+    (index: number) => validateStep(FORM_STEPS[index].key, form, { plan, allocationPlans, allocationsReady, sendSalary, effectivePolicyId, needsSubOrg, timingMode }),
+    [form, plan, allocationPlans, allocationsReady, sendSalary, effectivePolicyId, needsSubOrg, timingMode]
+  );
 
   const next = useCallback(() => {
     const found = validate(step);
@@ -218,23 +308,25 @@ export function useEmployeeForm(employeeId: number | null) {
     }
     setSaving(true);
     try {
-      const payload = toPayload(form, plan, policy?.schedule.timingMode ?? null);
+      const payload = toPayload(form, policy?.schedule.timingMode ?? null, sendSalary ? salaryFields(form, plan, allocationPlans) : null);
       if (employeeId) await employeesApi.updateEmployee(employeeId, payload);
       else await employeesApi.createEmployee(payload);
       showSuccess(employeeId ? 'Employee updated' : 'Employee added');
       router.push(routes.list);
     } catch (err) {
       const field = err instanceof ApiError ? (err.data as { field?: string } | null)?.field : undefined;
-      if (field && FIELD_STEP[field]) {
-        setErrors({ [field]: messageOf(err) });
-        setStep(FORM_STEPS.findIndex((s) => s.key === FIELD_STEP[field]));
+      const locked = err instanceof ApiError && err.code === 'SALARY_LOCKED_BY_PAYROLL';
+      const target = locked ? SALARY_STEP : field ? stepOfField(field) : -1;
+      if (target >= 0) {
+        setErrors({ [locked ? 'salary_allocations' : field as string]: messageOf(err) });
+        setStep(target);
       } else {
         showError(messageOf(err));
       }
     } finally {
       setSaving(false);
     }
-  }, [validate, form, plan, policy, employeeId, router, routes.list]);
+  }, [validate, form, plan, allocationPlans, sendSalary, policy, employeeId, router, routes.list]);
 
   return {
     form,
@@ -256,8 +348,18 @@ export function useEmployeeForm(employeeId: number | null) {
     effectivePolicyId,
     policy,
     plan,
+    allocationPlans,
+    allocationsReady,
+    salaryOptions,
+    salaryLock,
+    setMultiCompany,
+    updateAllocation,
+    addAllocation,
+    removeAllocation,
+    salaryDebits: form.multiCompany ? allocationPlans.flatMap((p) => p.debits) : plan.debits,
     siteState,
     needsSubOrg,
+    subOrgs,
     isEdit: Boolean(employeeId),
   };
 }

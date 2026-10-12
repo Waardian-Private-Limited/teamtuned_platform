@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, FileText, History, Send, SquarePen, X, Ban } from 'lucide-react';
+import { Check, CircleOff, FileText, History, Send, SquarePen, X, Ban } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { Tooltip } from '@/components/ui/Tooltip';
 import type { RevisionDto } from '@/features/compensation/types/compensation.dto';
@@ -19,6 +19,7 @@ export interface RevisionActionHandlers {
   onSubmit: (r: RevisionDto) => void;
   onDecide: (r: RevisionDto, decision: 'approve' | 'reject') => void;
   onCancel: (r: RevisionDto) => void;
+  onVoid: (r: RevisionDto) => void;
 }
 
 const btn = 'rounded-[var(--tt-radius-sm)] p-1.5 2xl:p-2 text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg disabled:cursor-not-allowed disabled:opacity-40';
@@ -49,6 +50,7 @@ export function RevisionRowActions({ revision: r, perms, busy, handlers }: { rev
         </>
       )}
       {perms.remove && (open || r.status === 'approved') && <Action tip="Cancel" busy={busy} danger onClick={() => handlers.onCancel(r)}><Ban className={icon} /></Action>}
+      {perms.approve && r.status === 'applied' && <Action tip="Void" busy={busy} danger onClick={() => handlers.onVoid(r)}><CircleOff className={icon} /></Action>}
     </div>
   );
 }

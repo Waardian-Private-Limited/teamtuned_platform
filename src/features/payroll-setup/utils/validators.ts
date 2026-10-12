@@ -1,5 +1,6 @@
 import type { DebitFormInput } from '../types/payroll-setup.model';
 import { ptSlabs } from './professionalTax';
+import { formatDate as formatDateOf, formatDateTime as formatDateTimeOf } from '@/lib/datetime';
 
 export function validateComponentName(name: string): string | null {
   if (!name.trim()) return 'Component name is required';
@@ -119,7 +120,6 @@ export function formatCurrency(value: number | null | undefined): string {
 
 export function formatDate(value: string | null | undefined): string {
   if (!value) return '—';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const text = value.length > 10 ? formatDateTimeOf(value) : formatDateOf(value, 'medium');
+  return text === '—' ? value : text;
 }

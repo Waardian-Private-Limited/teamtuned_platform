@@ -8,10 +8,11 @@ import { myHolidays } from '../api/holidays.api';
 import { SESSION_LABEL } from '../constants';
 import type { MyHoliday } from '../types/holidays';
 import { HolidaysEmptyState } from './HolidaysEmptyState';
+import { orgToday } from '@/lib/datetime';
 
 // Employee view: only the holidays that apply to them (their sub-organization and sites).
-export function MyHolidays({ compact = false }: { compact?: boolean }) {
-  const [year, setYear] = React.useState(new Date().getFullYear());
+export function MyHolidays() {
+  const [year, setYear] = React.useState(() => Number(orgToday().slice(0, 4)));
   const [rows, setRows] = React.useState<MyHoliday[] | null>(null);
   const [error, setError] = React.useState('');
 
@@ -20,19 +21,17 @@ export function MyHolidays({ compact = false }: { compact?: boolean }) {
     myHolidays(year).then((r) => setRows(r.holidays)).catch((e) => setError(messageOf(e)));
   }, [year]);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = orgToday();
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      {!compact && (
-        <div className="flex items-center justify-between rounded-xl border border-line bg-surface p-3.5">
-          <h1 className="text-lg font-bold tracking-tight text-fg">Holidays</h1>
-          <div className="flex items-center rounded-lg border border-line">
-            <button type="button" aria-label="Previous year" onClick={() => setYear(year - 1)} className="grid h-8 w-8 place-items-center hover:bg-bg-subtle"><ChevronLeft className="h-4 w-4" /></button>
-            <span className="min-w-14 text-center text-sm font-semibold">{year}</span>
-            <button type="button" aria-label="Next year" onClick={() => setYear(year + 1)} className="grid h-8 w-8 place-items-center hover:bg-bg-subtle"><ChevronRight className="h-4 w-4" /></button>
-          </div>
+      <div className="flex items-center justify-between rounded-xl border border-line bg-surface p-3.5">
+        <h1 className="text-lg font-bold tracking-tight text-fg">Holidays</h1>
+        <div className="flex items-center rounded-lg border border-line">
+          <button type="button" aria-label="Previous year" onClick={() => setYear(year - 1)} className="grid h-8 w-8 place-items-center hover:bg-bg-subtle"><ChevronLeft className="h-4 w-4" /></button>
+          <span className="min-w-14 text-center text-sm font-semibold">{year}</span>
+          <button type="button" aria-label="Next year" onClick={() => setYear(year + 1)} className="grid h-8 w-8 place-items-center hover:bg-bg-subtle"><ChevronRight className="h-4 w-4" /></button>
         </div>
-      )}
+      </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-surface">
         {error && <div className="p-3"><Alert message={error} tone="error" /></div>}
         {rows === null ? (

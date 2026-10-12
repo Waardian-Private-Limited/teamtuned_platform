@@ -9,6 +9,7 @@ import { SubOrgMultiPicker } from '@/features/sub-organizations/components/SubOr
 import { usePermission } from '@/lib/hooks/usePermission';
 import type { Site, SiteFormInput, SiteStatus } from '../../types/sites.model';
 import type { FieldError } from '../../hooks/useSiteMutations';
+import { orgToday } from '@/lib/datetime';
 
 interface SiteFormDialogProps {
   open: boolean;
@@ -92,10 +93,7 @@ export function SiteFormDialog({
     setLocating(false);
   }, [open, initial]);
 
-  const today = React.useMemo(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  }, []);
+  const today = React.useMemo(() => orgToday(), []);
 
   const triggerPincodeLookup = (pinToLookup?: string) => {
     const pin = (pinToLookup ?? pincode).trim();

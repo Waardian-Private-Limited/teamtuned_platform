@@ -76,9 +76,17 @@ export function removeSubOrgAdmin(id: number, userId: number) {
 function toBody(input: SubOrganizationFormInput) {
   return {
     name: input.name.trim(),
+    legal_name: input.legalName.trim() || null,
     code: input.code.trim(),
     address: input.address.trim() || null,
     gst_number: input.gstNumber.trim() || null,
+    pan: input.pan.trim().toUpperCase() || null,
+    tan: input.tan.trim().toUpperCase() || null,
+    pf_establishment_code: input.pfEstablishmentCode.trim() || null,
+    esi_employer_code: input.esiEmployerCode.trim() || null,
+    pt_registration_no: input.ptRegistrationNo.trim() || null,
+    lwf_registration_no: input.lwfRegistrationNo.trim() || null,
+    registered_state: input.registeredState.trim() || null,
     logo_url: input.logoUrl.trim() || null,
     status: input.status,
   };

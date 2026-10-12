@@ -1,3 +1,4 @@
+import { formatTime, orgToday } from '@/lib/datetime';
 import type { TrackingState } from '../types/tracking.dto';
 
 export const TRACKING_PERMISSIONS = {
@@ -41,5 +42,5 @@ export const ATTENTION: TrackingState[] = ['off_site', 'gps_off', 'signal_lost']
 
 export const minutesText = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`);
 export const kmText = (meters: number) => `${(meters / 1000).toFixed(meters >= 10000 ? 0 : 1)} km`;
-export const timeText = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-');
-export const todayInput = () => new Date().toLocaleDateString('en-CA');
+export const timeText = (iso: string | null | undefined, tz?: string | null) => (iso ? formatTime(iso, tz) : '-');
+export const todayInput = () => orgToday();

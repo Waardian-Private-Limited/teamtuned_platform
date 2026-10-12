@@ -155,6 +155,8 @@ export interface BalanceDto {
   available: number;
   used: number;
   pending: number;
+  absence_adjusted?: number;
+  absence_pending?: number;
   credited: number;
   cycle: { start: string; end: string } | null;
   period: 'monthly' | 'cycle';

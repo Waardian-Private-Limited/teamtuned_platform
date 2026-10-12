@@ -1,9 +1,11 @@
 import { apiClient } from '@/lib/apiClient';
+import type { ExportJobDto } from '@/features/downloads/types/downloads.dto';
 import type {
   AssignmentListResponseDto,
   DebitListResponseDto,
   DebitRuleDto,
   EmployeeSearchResultDto,
+  Form16CompaniesDto,
   SalaryComponentDto,
   TdsChallanDto,
   TdsPreviewResponseDto,
@@ -234,11 +236,30 @@ export function saveTdsSettings(payload: Record<string, string>) {
   return apiClient.put<{ settings: TdsSettingsDto }>('/payroll/tds/settings', payload, { withAuth: true });
 }
 
-export function listTdsChallans(fy?: string) {
-  return apiClient.get<{ challans: TdsChallanDto[] }>('/payroll/tds/challans', { fy }, { withAuth: true });
+function companyParam(company: number | null): string {
+  return company === null ? 'org' : String(company);
 }
 
-export function saveTdsChallan(payload: { financial_year: string; quarter: string; bsr_code?: string; challan_serial_no?: string; deposit_date?: string; amount: number }, id?: number) {
+export function listTdsChallans(fy?: string, company?: number | null) {
+  return apiClient.get<{ challans: TdsChallanDto[] }>(
+    '/payroll/tds/challans',
+    { fy, company: company === undefined ? undefined : companyParam(company) },
+    { withAuth: true }
+  );
+}
+
+export function saveTdsChallan(
+  payload: {
+    financial_year: string;
+    quarter: string;
+    bsr_code?: string;
+    challan_serial_no?: string;
+    deposit_date?: string;
+    amount: number;
+    sub_organization_id: number | null;
+  },
+  id?: number
+) {
   return id
     ? apiClient.put<{ challan: TdsChallanDto }>(`/payroll/tds/challans/${id}`, payload, { withAuth: true })
     : apiClient.post<{ challan: TdsChallanDto }>('/payroll/tds/challans', payload, { withAuth: true });
@@ -248,11 +269,12 @@ export function deleteTdsChallan(id: number) {
   return apiClient.delete<{ success: boolean }>(`/payroll/tds/challans/${id}`, { withAuth: true });
 }
 
-export async function downloadForm16(employeeId: number, fy: string): Promise<{ blob: Blob; filename: string }> {
-  const blob = await apiClient<Blob>(`/payroll/form16/${employeeId}?fy=${encodeURIComponent(fy)}&format=pdf`, {
-    method: 'GET',
-    withAuth: true,
-    responseType: 'blob',
-  });
-  return { blob, filename: `Form16_${fy}.pdf` };
+export function getForm16Companies(employeeId: number, fy: string) {
+  return apiClient.get<Form16CompaniesDto>(`/payroll/form16/${employeeId}`, { fy, format: 'json' }, { withAuth: true });
+}
+
+export function exportForm16(employeeId: number, fy: string, company?: number | null) {
+  const body: { employeeIds: number[]; financialYear: string; company?: number | 'org' } = { employeeIds: [employeeId], financialYear: fy };
+  if (company !== undefined) body.company = company === null ? 'org' : company;
+  return apiClient.post<ExportJobDto>('/exports/form16', body, { withAuth: true });
 }

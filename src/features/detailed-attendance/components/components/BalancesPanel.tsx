@@ -19,10 +19,14 @@ function detail(b: Balance) {
     if (b.earned && b.earned.pendingUnits > 0) parts.push(`${daysText(b.earned.pendingUnits)} waiting for approval`);
     if (b.earned && b.earned.paidMinutes > 0) parts.push(`${hoursText(Math.round((b.earned.paidMinutes / 60) * 10) / 10)} paid instead`);
     if (b.used) parts.push(`${daysText(b.used)} used`);
+    if (b.absenceAdjusted > 0) parts.push(`${daysText(b.absenceAdjusted)} covered absences`);
+    if (b.absencePending > 0) parts.push(`${daysText(b.absencePending)} waiting to cover absences`);
     return parts.join(' · ') || (b.period === 'monthly' ? 'for this month' : 'for this cycle');
   }
   parts.push(b.used ? `${daysText(b.used)} used of ${daysText(b.credited)}` : `of ${daysText(b.credited)}`);
   if (b.pending) parts.push(`${daysText(b.pending)} pending`);
+  if (b.absenceAdjusted > 0) parts.push(`${daysText(b.absenceAdjusted)} covered absences`);
+  if (b.absencePending > 0) parts.push(`${daysText(b.absencePending)} waiting to cover absences`);
   return parts.join(' · ');
 }
 

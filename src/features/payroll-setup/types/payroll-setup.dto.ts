@@ -164,6 +164,13 @@ export interface TdsChallanDto {
   challan_serial_no: string | null;
   deposit_date: string | null;
   amount: number;
+  sub_organization_id: number | null;
+}
+
+export interface Form16CompaniesDto {
+  company: number | null;
+  companies: Array<number | null>;
+  employer?: { name?: string; tan?: string | null };
 }
 
 export interface TdsReadinessDto {

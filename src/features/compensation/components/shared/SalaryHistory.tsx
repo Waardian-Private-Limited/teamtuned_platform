@@ -3,9 +3,11 @@
 import React from 'react';
 import { ArrowRight, FileText, Gift, TrendingUp } from 'lucide-react';
 import { cx } from '@/theme/tokens';
+import { orgDateOf } from '@/lib/datetime';
 import type { HistoryDto } from '../../types/compensation.dto';
 import { date, inr, month, pct } from '../../utils/format';
 import { StatusBadge } from './StatusBadge';
+import { AllocationChanges } from './AllocationChanges';
 import { Stat } from './Panel';
 
 type Item =
@@ -49,16 +51,16 @@ export function SalaryHistory({ history, compact = false, onLetter }: { history:
               <span className={cx('h-1.5 w-1.5 rounded-full', it.kind === 'revision' ? 'bg-[var(--tt-primary)]' : 'bg-fg-subtle')} />
             </span>
             {it.kind === 'revision' ? (
-              <div className="rounded-lg border border-line p-3">
+              <div className={cx('rounded-lg border border-line p-3', it.data.status === 'voided' && 'border-dashed')}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="flex items-center gap-1.5 text-sm font-semibold text-fg">
+                  <p className={cx('flex items-center gap-1.5 text-sm font-semibold text-fg', it.data.status === 'voided' && 'text-fg-muted line-through')}>
                     <TrendingUp className="h-3.5 w-3.5" />
                     {it.data.revision_type_label}
                     {it.data.change_percent !== null && <span className="text-xs font-semibold text-fg-muted">{pct(it.data.change_percent)}</span>}
                   </p>
                   <StatusBadge status={it.data.status} />
                 </div>
-                <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-fg-muted">
+                <p className={cx('mt-1 flex flex-wrap items-center gap-1.5 text-xs text-fg-muted', it.data.status === 'voided' && 'line-through')}>
                   {it.data.previous_ctc !== null ? inr(it.data.previous_ctc) : 'New'}
                   <ArrowRight className="h-3 w-3" />
                   <span className="font-semibold text-fg">{inr(it.data.new_ctc)}</span>
@@ -69,7 +71,13 @@ export function SalaryHistory({ history, compact = false, onLetter }: { history:
                     {it.data.previous_designation || '—'} <ArrowRight className="inline h-3 w-3" /> <span className="font-semibold text-fg">{it.data.new_designation || it.data.new_role_name}</span>
                   </p>
                 )}
-                {it.data.arrears_amount ? <p className="mt-1 text-xs text-fg-muted">Arrears {inr(it.data.arrears_amount)}</p> : null}
+                <AllocationChanges previous={it.data.previous_allocations} next={it.data.new_allocations} struck={it.data.status === 'voided'} className="mt-1" />
+                {it.data.arrears_amount ? <p className={cx('mt-1 text-xs text-fg-muted', it.data.status === 'voided' && 'line-through')}>Arrears {inr(it.data.arrears_amount)}</p> : null}
+                {it.data.status === 'voided' && (
+                  <p className="mt-1 text-xs text-fg">
+                    Voided{it.data.voided_at ? ` on ${date(orgDateOf(it.data.voided_at))}` : ''}{it.data.void_reason ? `: ${it.data.void_reason}` : ''}
+                  </p>
+                )}
                 {it.data.reason && <p className="mt-1 text-xs text-fg-muted">{it.data.reason}</p>}
                 {onLetter && it.data.revision_type !== 'joining' && ['approved', 'applied'].includes(it.data.status) && (
                   <button type="button" onClick={() => onLetter(it.data.id)} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-fg hover:underline">

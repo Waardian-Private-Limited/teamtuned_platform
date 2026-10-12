@@ -22,6 +22,7 @@ import { RevisionsEmptyState } from './components/RevisionsEmptyState';
 import { RevisionFormDialog } from './components/RevisionFormDialog';
 import { RevisionLetterDrawer } from './components/RevisionLetterDrawer';
 import { RevisionDecisionDialog, type DecisionTarget } from './components/RevisionDecisionDialog';
+import { RevisionVoidDialog } from './components/RevisionVoidDialog';
 import type { RevisionActionHandlers } from './components/RevisionRowActions';
 
 export function SalaryRevisionsPage() {
@@ -41,6 +42,7 @@ export function SalaryRevisionsPage() {
   const [historyId, setHistoryId] = React.useState<number | null>(null);
   const [letterId, setLetterId] = React.useState<number | null>(null);
   const [decision, setDecision] = React.useState<DecisionTarget | null>(null);
+  const [voiding, setVoiding] = React.useState<RevisionDto | null>(null);
 
   React.useEffect(() => setSelected(new Set()), [list.revisions]);
 
@@ -55,6 +57,7 @@ export function SalaryRevisionsPage() {
     onSubmit: (r) => setDecision({ ids: [r.id], decision: 'submit', label: r.employee.name }),
     onDecide: (r, d) => setDecision({ ids: [r.id], decision: d, label: r.employee.name }),
     onCancel: (r) => setDecision({ ids: [r.id], decision: 'cancel', label: r.employee.name }),
+    onVoid: (r) => setVoiding(r),
   };
 
   const confirm = (note: string) => {
@@ -130,6 +133,7 @@ export function SalaryRevisionsPage() {
 
       <RevisionFormDialog open={form.open} revision={form.revision} revisionTypes={settings.data?.catalog.revision_types || []} onClose={() => setForm({ open: false })} onSaved={list.refetch} />
       <RevisionDecisionDialog target={decision} onClose={() => setDecision(null)} onConfirm={confirm} />
+      <RevisionVoidDialog revision={voiding} onClose={() => setVoiding(null)} onVoided={list.refetch} />
       <RevisionLetterDrawer revisionId={letterId} load={loadLetter} onClose={() => setLetterId(null)} />
       <SalaryHistoryDrawer employeeId={historyId} onClose={() => setHistoryId(null)} />
     </div>

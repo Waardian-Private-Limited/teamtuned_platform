@@ -7,6 +7,9 @@ const auth = { withAuth: true } as const;
 const PATHS: Record<RequestType, string> = {
   regularize: '/attendance/regularizations/review',
   verification: '/attendance/reviews/review',
+  leave: '/leave/requests/review',
+  compoff: '/leave/compoff/review',
+  absence_cover: '/leave/absence-cover/review',
 };
 
 /** Requests of one type the signed-in reviewer is part of; the server decides which, from the approval flows. */

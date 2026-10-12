@@ -5,9 +5,10 @@ import { messageOf } from '@/lib/api/errors';
 import * as api from '../api/holidays.api';
 import type { Holiday } from '../types/holidays';
 import type { HolidayStatusFilter } from '../constants';
+import { orgToday } from '@/lib/datetime';
 
 export function useHolidays() {
-  const [year, setYear] = useState(new Date().getFullYear());
+  const [year, setYear] = useState(() => Number(orgToday().slice(0, 4)));
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<HolidayStatusFilter>('all');

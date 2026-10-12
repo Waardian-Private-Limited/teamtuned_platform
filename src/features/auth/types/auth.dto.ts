@@ -23,6 +23,7 @@ export interface OrganizationDto {
   id: number | string;
   name: string;
   logo_url?: string | null;
+  timezone?: string | null;
 }
 
 export interface AuthUserDto {

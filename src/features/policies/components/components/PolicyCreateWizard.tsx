@@ -25,6 +25,7 @@ import type { FieldError } from '../../hooks/usePolicyMutations';
 import { SchemaForm } from '../editor/form/SchemaForm';
 import { sectionDefaults, diffConfig } from '../editor/form/schemaDefaults';
 import { formatValue } from '../editor/form/ConfigSummary';
+import { orgToday } from '@/lib/datetime';
 
 interface PolicyCreateWizardProps {
   open: boolean;
@@ -70,7 +71,7 @@ export function PolicyCreateWizard({ open, isSaving, fieldError, onClose, onSubm
   const [name, setName] = React.useState('');
   const [code, setCode] = React.useState('');
   const [description, setDescription] = React.useState('');
-  const [effectiveFrom, setEffectiveFrom] = React.useState(() => new Date().toISOString().slice(0, 10));
+  const [effectiveFrom, setEffectiveFrom] = React.useState(() => orgToday());
   const [config, setConfig] = React.useState<Record<string, unknown>>({});
   const [subOrganizationId, setSubOrganizationId] = React.useState<number | null>(null);
   const [nameTouched, setNameTouched] = React.useState(false);
@@ -91,7 +92,7 @@ export function PolicyCreateWizard({ open, isSaving, fieldError, onClose, onSubm
     setName('');
     setCode('');
     setDescription('');
-    setEffectiveFrom(new Date().toISOString().slice(0, 10));
+    setEffectiveFrom(orgToday());
     setNameTouched(false);
     setConfig(defaults ? structuredClone(defaults) : {});
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps

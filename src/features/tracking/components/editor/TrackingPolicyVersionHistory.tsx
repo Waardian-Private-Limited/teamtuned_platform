@@ -4,6 +4,7 @@ import React from 'react';
 import { Eye, History } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import type { TrackingPolicyDto } from '../../types/tracking.dto';
+import { formatDate, orgDateOf } from '@/lib/datetime';
 
 interface TrackingPolicyVersionHistoryProps {
   policy: TrackingPolicyDto;
@@ -46,7 +47,7 @@ export function TrackingPolicyVersionHistory({
               )}
             </div>
             <div className="mt-0.5 truncate text-[11px] text-fg-muted">
-              Live policy · updated {new Date(policy.updated_at).toLocaleDateString()}
+              Live policy · updated {formatDate(orgDateOf(policy.updated_at))}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">

@@ -7,16 +7,16 @@ import { messageOf } from '@/lib/api/errors';
 import { cx } from '@/theme/tokens';
 import * as api from '../api/leave.api';
 import type { CalendarResponse } from '../types/leave';
+import { formatMonth, monthRange, orgToday } from '@/lib/datetime';
 
 // Who is off, by day, with holidays: the month at a glance.
 export function CalendarTab({ refreshKey }: { refreshKey: number }) {
-  const now = new Date();
-  const [cursor, setCursor] = React.useState({ y: now.getFullYear(), m: now.getMonth() });
+  const [cursor, setCursor] = React.useState(() => { const t = orgToday(); return { y: Number(t.slice(0, 4)), m: Number(t.slice(5, 7)) - 1 }; });
   const [data, setData] = React.useState<CalendarResponse | null>(null);
   const [error, setError] = React.useState('');
 
-  const first = `${cursor.y}-${String(cursor.m + 1).padStart(2, '0')}-01`;
-  const last = `${cursor.y}-${String(cursor.m + 1).padStart(2, '0')}-${String(new Date(cursor.y, cursor.m + 1, 0).getDate()).padStart(2, '0')}`;
+  const month = `${cursor.y}-${String(cursor.m + 1).padStart(2, '0')}`;
+  const { from: first, to: last } = monthRange(month);
   React.useEffect(() => { setData(null); api.calendar({ from: first, to: last }).then(setData).catch((e) => setError(messageOf(e))); }, [first, last, refreshKey]);
 
   const lead = new Date(Date.UTC(cursor.y, cursor.m, 1)).getUTCDay();
@@ -26,7 +26,7 @@ export function CalendarTab({ refreshKey }: { refreshKey: number }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-surface">
       <div className="flex items-center justify-between border-b border-line p-3">
-        <p className="text-sm font-bold text-fg">{new Date(cursor.y, cursor.m, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</p>
+        <p className="text-sm font-bold text-fg">{formatMonth(month)}</p>
         <div className="flex gap-1">
           <button type="button" aria-label="Previous month" onClick={() => move(-1)} className="grid h-8 w-8 place-items-center rounded-lg border border-line hover:bg-bg-subtle"><ChevronLeft className="h-4 w-4" /></button>
           <button type="button" aria-label="Next month" onClick={() => move(1)} className="grid h-8 w-8 place-items-center rounded-lg border border-line hover:bg-bg-subtle"><ChevronRight className="h-4 w-4" /></button>

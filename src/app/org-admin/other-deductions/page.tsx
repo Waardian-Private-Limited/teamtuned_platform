@@ -1,7 +1,7 @@
 'use client';
 
-import OtherDeductionsManagement from '@/components/employee/OtherDeductionsManagement';
+import { OtherDeductionsPage } from '@/features/other-deductions/components/OtherDeductionsPage';
 
-export default function OtherDeductionsPage() {
-    return <OtherDeductionsManagement />;
+export default function OtherDeductionsRoute() {
+  return <OtherDeductionsPage />;
 }

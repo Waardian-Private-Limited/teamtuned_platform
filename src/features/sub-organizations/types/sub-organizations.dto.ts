@@ -2,9 +2,17 @@ export interface SubOrganizationDto {
   id: number;
   organization_id: number;
   name: string;
+  legal_name: string | null;
   code: string;
   address: string | null;
   gst_number: string | null;
+  pan: string | null;
+  tan: string | null;
+  pf_establishment_code: string | null;
+  esi_employer_code: string | null;
+  pt_registration_no: string | null;
+  lwf_registration_no: string | null;
+  registered_state: string | null;
   logo_url: string | null;
   is_primary: number;
   status: 'active' | 'inactive';

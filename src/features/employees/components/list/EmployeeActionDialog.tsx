@@ -6,6 +6,7 @@ import { cx } from '@/theme/tokens';
 import type { EmployeeListItemDto } from '../../types/employees.dto';
 import type { StatusAction } from '../../hooks/useEmployeeStatus';
 import { FieldMessage, TextField, labelClass, shellClass } from '@/components/ui/FormControls';
+import { orgToday } from '@/lib/datetime';
 
 interface EmployeeActionDialogProps {
   target: { employee: EmployeeListItemDto; action: StatusAction } | null;
@@ -28,7 +29,7 @@ export function EmployeeActionDialog({ target, busy, onClose, onConfirm }: Emplo
 
   React.useEffect(() => {
     if (!target) return;
-    setExitDate(new Date().toISOString().slice(0, 10));
+    setExitDate(orgToday());
     setReason('');
     setErrors({});
   }, [target]);

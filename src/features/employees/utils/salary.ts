@@ -44,6 +44,9 @@ export interface SalaryPlan {
   error: string | null;
 }
 
+export const PRIMARY_ONLY_CATEGORIES = new Set(['professional_tax', 'tds']);
+const STATUTORY_CATEGORIES = new Set(['epf', 'esi', 'professional_tax', 'lwf', 'tds']);
+
 const round = (n: number) => Math.round(n);
 const num = (v: unknown, fallback: number) => {
   const n = Number(v);
@@ -278,8 +281,9 @@ export function computeSalary(args: {
   siteState: string | null;
   gender: string | null;
   tax: TaxThresholdDto | null;
+  primary?: boolean;
 }): SalaryPlan {
-  const { driver, components, inputs, debitRules, debitOverrides, siteState, gender, tax } = args;
+  const { driver, components, inputs, debitRules, debitOverrides, siteState, gender, tax, primary = true } = args;
   const epf = ruleOf(debitRules, 'epf');
   const esi = ruleOf(debitRules, 'esi');
 
@@ -289,7 +293,9 @@ export function computeSalary(args: {
 
   const autoContext: AutoContext = { gross, basic, lines, siteState, gender, tax };
   const debits: DebitView[] = debitRules.map((rule) => {
-    const auto = autoDebit(rule, autoContext);
+    const auto = !primary && PRIMARY_ONLY_CATEGORIES.has(rule.category)
+      ? { eligible: false, auto: false, reason: 'Deducted by primary company' }
+      : autoDebit(rule, autoContext);
     const override = debitOverrides[rule.id];
     const selected = auto.eligible && (override ?? auto.auto);
     const employee = selected ? employeeDeduction(rule, gross, basic, lines, gender) : null;
@@ -328,6 +334,17 @@ export function computeSalary(args: {
     debits,
     error: gross > 0 ? error : null,
   };
+}
+
+export function statutoryClash(plan: SalaryPlan) {
+  const seen = new Map<string, string>();
+  for (const d of plan.debits) {
+    if (!d.selected || !STATUTORY_CATEGORIES.has(d.rule.category)) continue;
+    const prev = seen.get(d.rule.category);
+    if (prev) return `${d.rule.name} and ${prev} are the same statutory deduction. Keep one.`;
+    seen.set(d.rule.category, d.rule.name);
+  }
+  return null;
 }
 
 export function formatInr(n: number | null | undefined) {

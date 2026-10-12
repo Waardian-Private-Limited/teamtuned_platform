@@ -9,6 +9,7 @@ import { showError, showSuccess } from '@/lib/toast';
 import { messageOf } from '@/lib/api/errors';
 import * as api from '../api/privacy.api';
 import type { ConsentPurposeDto, NoticeVersionsResponseDto, PrivacyNoticeAdminResponseDto } from '../types/privacy.dto';
+import { formatDate, orgDateOf } from '@/lib/datetime';
 
 export function PrivacyNoticeAdminPage() {
   const [data, setData] = useState<PrivacyNoticeAdminResponseDto | null>(null);
@@ -119,7 +120,7 @@ export function PrivacyNoticeAdminPage() {
             <thead><tr className="text-left text-[11px] uppercase tracking-wide text-fg-muted"><th className="py-1">Version</th><th>Status</th><th>Change</th><th>Published</th><th>Accepted by</th></tr></thead>
             <tbody className="divide-y divide-line">
               {versions.versions.map((v) => (
-                <tr key={v.id}><td className="py-1.5 font-semibold">v{v.version}</td><td>{v.status}</td><td>{v.change_type}</td><td>{v.published_at ? new Date(v.published_at).toLocaleDateString() : '-'}</td><td>{v.accepted_users} of {versions.active_users} users</td></tr>
+                <tr key={v.id}><td className="py-1.5 font-semibold">v{v.version}</td><td>{v.status}</td><td>{v.change_type}</td><td>{v.published_at ? formatDate(orgDateOf(v.published_at)) : '-'}</td><td>{v.accepted_users} of {versions.active_users} users</td></tr>
               ))}
             </tbody>
           </table>

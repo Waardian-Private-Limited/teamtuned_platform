@@ -148,7 +148,7 @@ export function toMonth(dto: MonthResponseDto): Month {
       consecutiveAbsence: s.consecutive_absence ?? null,
     },
     balances: (dto.balances || []).map((b) => ({
-      code: b.code, name: b.name, kind: b.kind, color: b.color, isPaid: b.is_paid, available: b.available, used: b.used, pending: b.pending, credited: b.credited, period: b.period,
+      code: b.code, name: b.name, kind: b.kind, color: b.color, isPaid: b.is_paid, available: b.available, used: b.used, pending: b.pending, absenceAdjusted: b.absence_adjusted ?? 0, absencePending: b.absence_pending ?? 0, credited: b.credited, period: b.period,
       earned: b.earned ? { units: b.earned.units, pendingUnits: b.earned.pending_units, paidMinutes: b.earned.paid_minutes } : null,
       grants: b.grants ? (b.grants || []).map(toCompOffGrant) : undefined,
     })),

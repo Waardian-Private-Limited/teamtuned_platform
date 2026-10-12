@@ -5,7 +5,14 @@ import { Check } from 'lucide-react';
 import { Dialog } from '@/components/ui/Dialog';
 import type { SubOrganization, SubOrganizationFormInput } from '../../types/sub-organizations.model';
 import type { SubOrgFieldError } from '../../hooks/useSubOrganizationMutations';
-import { GST_LENGTH } from '../../constants/sub-organizations.constants';
+import {
+  GST_LENGTH,
+  LEGAL_NAME_MAX_LENGTH,
+  PAN_LENGTH,
+  REGISTERED_STATE_MAX_LENGTH,
+  REGISTRATION_CODE_FIELDS,
+  TAN_LENGTH,
+} from '../../constants/sub-organizations.constants';
 
 const inputClass =
   'w-full min-w-0 rounded-lg border border-line bg-surface px-3 h-10 text-sm text-fg placeholder:text-fg-subtle outline-none transition-colors focus:border-[var(--tt-primary)] focus:ring-1 focus:ring-[var(--tt-primary)]';
@@ -14,13 +21,22 @@ const errorInputClass =
 const labelClass = 'mb-1.5 block text-xs font-semibold text-fg sm:text-[13px]';
 const errorClass = 'mt-1 text-[11px] font-medium text-[var(--tt-danger)]';
 const hintClass = 'mt-1 text-[11px] text-fg-muted';
+const sectionTitleClass = 'text-xs font-bold text-fg sm:text-[13px]';
 
 function initialState(initial?: SubOrganization): SubOrganizationFormInput {
   return {
     name: initial?.name ?? '',
+    legalName: initial?.legalName ?? '',
     code: initial?.code ?? '',
     address: initial?.address ?? '',
     gstNumber: initial?.gstNumber ?? '',
+    pan: initial?.pan ?? '',
+    tan: initial?.tan ?? '',
+    pfEstablishmentCode: initial?.pfEstablishmentCode ?? '',
+    esiEmployerCode: initial?.esiEmployerCode ?? '',
+    ptRegistrationNo: initial?.ptRegistrationNo ?? '',
+    lwfRegistrationNo: initial?.lwfRegistrationNo ?? '',
+    registeredState: initial?.registeredState ?? '',
     logoUrl: initial?.logoUrl ?? '',
     status: initial?.status ?? 'active',
   };
@@ -171,6 +187,79 @@ export function SubOrganizationFormDialog({
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
             </select>
+          </div>
+        </div>
+
+        <div className="space-y-3.5 border-t border-line pt-3.5">
+          <div>
+            <h3 className={sectionTitleClass}>Legal employer details</h3>
+            <p className={hintClass}>Needed when this company pays salary. Used for TDS, PF, ESI and PT filings.</p>
+          </div>
+
+          <div>
+            <label className={labelClass}>Legal name</label>
+            <input
+              value={form.legalName}
+              onChange={(e) => setForm((p) => ({ ...p, legalName: e.target.value }))}
+              placeholder="Name as registered with the Income Tax department"
+              maxLength={LEGAL_NAME_MAX_LENGTH}
+              className={fieldError?.field === 'legal_name' ? errorInputClass : inputClass}
+            />
+            {fieldError?.field === 'legal_name' && <p className={errorClass}>{fieldError.message}</p>}
+          </div>
+
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+            <div>
+              <label className={labelClass}>PAN</label>
+              <input
+                value={form.pan}
+                onChange={(e) => setForm((p) => ({ ...p, pan: e.target.value.toUpperCase() }))}
+                placeholder="AAAAA9999A"
+                maxLength={PAN_LENGTH}
+                className={fieldError?.field === 'pan' ? errorInputClass : inputClass}
+              />
+              {fieldError?.field === 'pan' && <p className={errorClass}>{fieldError.message}</p>}
+            </div>
+            <div>
+              <label className={labelClass}>TAN</label>
+              <input
+                value={form.tan}
+                onChange={(e) => setForm((p) => ({ ...p, tan: e.target.value.toUpperCase() }))}
+                placeholder="AAAA99999A"
+                maxLength={TAN_LENGTH}
+                className={fieldError?.field === 'tan' ? errorInputClass : inputClass}
+              />
+              {fieldError?.field === 'tan' && <p className={errorClass}>{fieldError.message}</p>}
+            </div>
+            {REGISTRATION_CODE_FIELDS.map(({ key, field, label, maxLength, placeholder }) => (
+              <div key={field}>
+                <label className={labelClass}>{label}</label>
+                <input
+                  value={form[key]}
+                  onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))}
+                  placeholder={placeholder}
+                  maxLength={maxLength}
+                  className={fieldError?.field === field ? errorInputClass : inputClass}
+                />
+                {fieldError?.field === field && <p className={errorClass}>{fieldError.message}</p>}
+              </div>
+            ))}
+          </div>
+
+          <div>
+            <label className={labelClass}>Registered state</label>
+            <input
+              value={form.registeredState}
+              onChange={(e) => setForm((p) => ({ ...p, registeredState: e.target.value }))}
+              placeholder="e.g., Maharashtra"
+              maxLength={REGISTERED_STATE_MAX_LENGTH}
+              className={fieldError?.field === 'registered_state' ? errorInputClass : inputClass}
+            />
+            {fieldError?.field === 'registered_state' ? (
+              <p className={errorClass}>{fieldError.message}</p>
+            ) : (
+              <p className={hintClass}>State of registration, used for PT and LWF.</p>
+            )}
           </div>
         </div>
       </form>

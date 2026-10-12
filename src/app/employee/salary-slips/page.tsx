@@ -1,8 +1,7 @@
-"use client";
+'use client';
 
-import React from "react";
-import SalarySlipGenerator from "@/components/payroll/SalarySlipGenerator";
+import { SalarySlipsPage } from '@/features/salary-slips/components/SalarySlipsPage';
 
-export default function EmployeeSalarySlipsPage() {
-    return <SalarySlipGenerator />;
+export default function SalarySlipsRoute() {
+  return <SalarySlipsPage />;
 }

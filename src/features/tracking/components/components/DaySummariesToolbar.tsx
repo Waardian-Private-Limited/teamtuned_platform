@@ -4,6 +4,7 @@ import { Calendar, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { todayInput } from '../../constants/tracking.constants';
 import type { TrackingFilters as Filters } from '../../types/tracking.dto';
 import { TrackingFilters } from '../TrackingFilters';
+import { addDays } from '@/lib/datetime';
 
 interface DaySummariesToolbarProps {
   total: number;
@@ -27,10 +28,7 @@ export function DaySummariesToolbar({
   const isToday = date === todayInput();
 
   const stepDate = (offsetDays: number) => {
-    const current = new Date(date);
-    if (Number.isNaN(current.getTime())) return;
-    current.setDate(current.getDate() + offsetDays);
-    const nextDate = current.toLocaleDateString('en-CA');
+    const nextDate = addDays(date, offsetDays);
     if (nextDate <= todayInput()) {
       onDateChange(nextDate);
     }

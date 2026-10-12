@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { cx } from '@/theme/tokens';
 
 interface TooltipProps {
@@ -11,36 +12,86 @@ interface TooltipProps {
   className?: string;
 }
 
+const GAP = 6;
+const EDGE = 8;
+
+function place(anchor: DOMRect, tip: DOMRect, side: TooltipProps['side'], align: TooltipProps['align']) {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  let s = side;
+  if (s === 'top' && anchor.top - tip.height - GAP < EDGE) s = 'bottom';
+  else if (s === 'bottom' && anchor.bottom + tip.height + GAP > vh - EDGE) s = 'top';
+  else if (s === 'left' && anchor.left - tip.width - GAP < EDGE) s = 'right';
+  else if (s === 'right' && anchor.right + tip.width + GAP > vw - EDGE) s = 'left';
+
+  let top;
+  let left;
+  if (s === 'top' || s === 'bottom') {
+    top = s === 'top' ? anchor.top - tip.height - GAP : anchor.bottom + GAP;
+    left = align === 'end' ? anchor.right - tip.width : align === 'start' ? anchor.left : anchor.left + anchor.width / 2 - tip.width / 2;
+  } else {
+    left = s === 'left' ? anchor.left - tip.width - GAP : anchor.right + GAP;
+    top = align === 'end' ? anchor.bottom - tip.height : align === 'start' ? anchor.top : anchor.top + anchor.height / 2 - tip.height / 2;
+  }
+  return {
+    top: Math.min(Math.max(EDGE, top), vh - tip.height - EDGE),
+    left: Math.min(Math.max(EDGE, left), vw - tip.width - EDGE),
+  };
+}
+
 export function Tooltip({ content, children, side = 'top', align = 'center', className }: TooltipProps) {
+  const anchorRef = React.useRef<HTMLDivElement>(null);
+  const tipRef = React.useRef<HTMLDivElement>(null);
+  const [open, setOpen] = React.useState(false);
+  const [pos, setPos] = React.useState<{ top: number; left: number } | null>(null);
+
+  React.useLayoutEffect(() => {
+    if (!open || !anchorRef.current || !tipRef.current) return;
+    const update = () => {
+      if (!anchorRef.current || !tipRef.current) return;
+      setPos(place(anchorRef.current.getBoundingClientRect(), tipRef.current.getBoundingClientRect(), side, align));
+    };
+    update();
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [open, side, align, content]);
+
   if (!content) return <>{children}</>;
 
-  let positionClass = '';
-
-  if (side === 'top' || side === 'bottom') {
-    const vertical = side === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5';
-    const horizontal =
-      align === 'end' ? 'right-0' : align === 'start' ? 'left-0' : 'left-1/2 -translate-x-1/2';
-    positionClass = `${vertical} ${horizontal}`;
-  } else {
-    const horizontal = side === 'left' ? 'right-full mr-1.5' : 'left-full ml-1.5';
-    const vertical =
-      align === 'end' ? 'bottom-0' : align === 'start' ? 'top-0' : 'top-1/2 -translate-y-1/2';
-    positionClass = `${horizontal} ${vertical}`;
-  }
+  const show = () => setOpen(true);
+  const hide = () => {
+    setOpen(false);
+    setPos(null);
+  };
 
   return (
-    <div className={cx('group/tooltip relative inline-flex', className)}>
+    <div
+      ref={anchorRef}
+      className={cx('relative inline-flex [&_button:disabled]:pointer-events-none', className)}
+      onMouseEnter={show}
+      onMouseLeave={hide}
+      onFocus={show}
+      onBlur={hide}
+    >
       {children}
-      <div
-        role="tooltip"
-        className={cx(
-          'pointer-events-none absolute z-50 whitespace-nowrap rounded-md bg-fg px-2 py-1 text-[11px] font-medium text-bg shadow-md',
-          'opacity-0 transition-all duration-150 group-hover/tooltip:opacity-100 group-hover/tooltip:translate-y-0 scale-95 group-hover/tooltip:scale-100',
-          positionClass
-        )}
-      >
-        {content}
-      </div>
+      {open && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={tipRef}
+          role="tooltip"
+          style={{ position: 'fixed', top: pos?.top ?? -9999, left: pos?.left ?? -9999, zIndex: 10050 }}
+          className={cx(
+            'pointer-events-none max-w-xs whitespace-normal rounded-md bg-fg px-2 py-1 text-[11px] font-medium text-bg shadow-md transition-opacity duration-150',
+            pos ? 'opacity-100' : 'opacity-0'
+          )}
+        >
+          {content}
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ListChecks, MapPinCheck, Plane } from 'lucide-react';
+import { CalendarX, Clock, ListChecks, MapPinCheck, Plane, TreePalm } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { Alert } from '@/components/ui/Alert';
 import { Pagination } from '@/components/ui/Pagination';
@@ -25,14 +25,17 @@ const SCOPES: ReadonlyArray<{ value: ReviewScope; label: string }> = [
 ];
 const COUNTED: RowStatus[] = ['pending', 'approved', 'rejected', 'cancelled'];
 
-/** Request types this page covers, each its own tab. Leave and comp-off join here later. */
+/** Request types this page covers, each its own tab. */
 const TYPES: ReadonlyArray<{ value: RequestType; label: string; noun: string; icon: typeof ListChecks }> = [
   { value: 'regularize', label: 'Regularization', noun: 'Regularization requests', icon: ListChecks },
   { value: 'verification', label: 'Attendance review', noun: 'Attendance reviews', icon: MapPinCheck },
+  { value: 'leave', label: 'Leave', noun: 'Leave requests', icon: TreePalm },
+  { value: 'compoff', label: 'Comp-off', noun: 'Comp-off requests', icon: Clock },
+  { value: 'absence_cover', label: 'Absence cover', noun: 'Absence cover requests', icon: CalendarX },
 ];
 
 /**
- * Attendance approvals for a reviewer, one tab per request type: the requests assigned to them
+ * Approvals for a reviewer, one tab per request type (regularization, attendance review, leave, comp-off): the requests assigned to them
  * (waiting, and the ones they decided), and, for org admins, HR mode and holders of that type's
  * permissions, every request in their reach to follow. The server decides who may follow what and who
  * may decide; the filters only narrow it. A row opens the request with its timeline. Used both as the

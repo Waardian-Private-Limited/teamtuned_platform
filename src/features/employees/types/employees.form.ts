@@ -1,5 +1,7 @@
 import type { ComponentInput, SalaryDriver, SalaryPlan } from '../utils/salary';
+import { allocationFromDto, allocationPayload, type AllocationDraft } from '../utils/allocations';
 import type { EmployeeDetailDto, Gender, ManagerDto, PaymentMode, ShiftSource, WeekOffConfig } from './employees.dto';
+import { orgToday } from '@/lib/datetime';
 
 export interface EmployeeFormState {
   employeeCode: string;
@@ -34,6 +36,9 @@ export interface EmployeeFormState {
   driver: SalaryDriver;
   componentInputs: Record<number, ComponentInput>;
   debitOverrides: Record<number, boolean>;
+  multiCompany: boolean;
+  allocations: AllocationDraft[];
+  salaryTouched: boolean;
   paymentMode: PaymentMode;
   esicIpNumber: string;
   bankAccountNo: string;
@@ -64,7 +69,7 @@ export function emptyForm(): EmployeeFormState {
     reportingManager: null,
     employmentTypeId: null,
     codeTouched: false,
-    joiningDate: new Date().toISOString().slice(0, 10),
+    joiningDate: orgToday(),
     probationMonths: '',
     noticePeriodDays: '',
     siteIds: [],
@@ -81,6 +86,9 @@ export function emptyForm(): EmployeeFormState {
     driver: { source: 'ctc', value: 0 },
     componentInputs: {},
     debitOverrides: {},
+    multiCompany: false,
+    allocations: [],
+    salaryTouched: false,
     paymentMode: 'bank',
     esicIpNumber: '',
     bankAccountNo: '',
@@ -128,6 +136,8 @@ export function formFromDetail(d: EmployeeDetailDto): EmployeeFormState {
     weekOffMode: d.week_off_config ? 'custom' : 'policy',
     weekOffConfig: d.week_off_config,
     driver: d.ctc ? { source: 'ctc', value: d.ctc } : { source: 'gross', value: d.monthly_gross || 0 },
+    multiCompany: Boolean(d.multi_company_pay),
+    allocations: d.multi_company_pay ? (d.salary_allocations || []).map(allocationFromDto) : [],
     paymentMode: d.payment_mode || 'bank',
     esicIpNumber: d.esic_ip_number || '',
     bankAccountNo: d.bank_account_no || '',
@@ -143,7 +153,17 @@ export function formFromDetail(d: EmployeeDetailDto): EmployeeFormState {
 const blank = (v: string) => (v.trim() === '' ? null : v.trim());
 const intOrNull = (v: string) => (v.trim() === '' ? null : Number(v));
 
-export function toPayload(f: EmployeeFormState, plan: SalaryPlan, timingMode: string | null) {
+export function salaryFields(f: EmployeeFormState, plan: SalaryPlan, allocationPlans: SalaryPlan[]): Record<string, unknown> {
+  if (f.multiCompany) return { salary_allocations: f.allocations.map((a, i) => allocationPayload(a, allocationPlans[i])) };
+  return {
+    ctc: plan.gross > 0 ? plan.ctcAnnual : null,
+    monthly_gross: plan.gross > 0 ? plan.gross : null,
+    salary_breakdown: plan.gross > 0 ? plan.lines.map((l) => ({ component_id: l.componentId, amount: l.amount })) : [],
+    debit_ids: plan.debits.filter((d) => d.selected).map((d) => d.rule.id),
+  };
+}
+
+export function toPayload(f: EmployeeFormState, timingMode: string | null, salary: Record<string, unknown> | null) {
   return {
     employee_code: blank(f.employeeCode),
     first_name: f.firstName.trim(),
@@ -172,10 +192,7 @@ export function toPayload(f: EmployeeFormState, plan: SalaryPlan, timingMode: st
     shift_end: timingMode === 'fixed_time' && f.shiftSource === 'custom' ? f.customShiftEnd : null,
     shift_break_minutes: timingMode === 'fixed_time' && f.shiftSource === 'custom' ? intOrNull(f.customBreak) : null,
     week_off_config: timingMode !== 'roster' && f.weekOffMode === 'custom' ? f.weekOffConfig : null,
-    ctc: plan.gross > 0 ? plan.ctcAnnual : null,
-    monthly_gross: plan.gross > 0 ? plan.gross : null,
-    salary_breakdown: plan.gross > 0 ? plan.lines.map((l) => ({ component_id: l.componentId, amount: l.amount })) : [],
-    debit_ids: plan.debits.filter((d) => d.selected).map((d) => d.rule.id),
+    ...(salary ?? {}),
     payment_mode: f.paymentMode,
     esic_ip_number: blank(f.esicIpNumber),
     bank_account_no: blank(f.bankAccountNo),

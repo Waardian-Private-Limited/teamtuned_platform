@@ -9,19 +9,19 @@ import { SalaryHistoryPanel } from '@/features/compensation/components/SalaryHis
 import { getAuditLog, getJobHistory } from '../../api/employees.api';
 import { AUDIT_ACTION_LABELS, JOB_EVENT_LABELS, type TimelineTab } from '../../constants/employees.constants';
 import type { AuditEntryDto, HistoryChangeDto, HistoryPageDto, JobEventDto } from '../../types/employees.dto';
+import { formatDate as formatDateOnly, formatDateTime as formatDateTimeText, orgDateOf } from '@/lib/datetime';
 
 const PAGE_SIZE = 20;
 
 const TAB_LABELS: Record<TimelineTab, string> = { job: 'Job history', salary: 'Salary', audit: 'Change log' };
 
 function formatDate(value: string) {
-  const d = new Date(value.length === 10 ? `${value}T00:00:00` : value);
-  return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  return value.length === 10 ? formatDateOnly(value, 'medium') : formatDateOnly(orgDateOf(value), 'medium');
 }
 
 function formatDateTime(value: string) {
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? value : d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const text = formatDateTimeText(value);
+  return text === '—' ? value : text;
 }
 
 function formatValue(value: string | number | null) {

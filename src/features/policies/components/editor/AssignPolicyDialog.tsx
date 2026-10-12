@@ -8,6 +8,7 @@ import { useScopeTargets } from '../../hooks/useScopeTargets';
 import { SCOPE_TYPE_OPTIONS, SCOPE_TYPES_WITHOUT_PICKER } from '../../constants/policies.constants';
 import type { ScopeType } from '../../types/policies.model';
 import type { AssignInput } from '../../hooks/usePolicyAssignments';
+import { orgToday } from '@/lib/datetime';
 
 interface AssignPolicyDialogProps {
   open: boolean;
@@ -26,7 +27,7 @@ export function AssignPolicyDialog({ open, policyName, isSaving, onClose, onConf
   const [scopeType, setScopeType] = React.useState<ScopeType>('organization');
   const [scopeId, setScopeId] = React.useState<string>('');
   const [priority, setPriority] = React.useState('0');
-  const [effectiveFrom, setEffectiveFrom] = React.useState(() => new Date().toISOString().slice(0, 10));
+  const [effectiveFrom, setEffectiveFrom] = React.useState(() => orgToday());
   const [effectiveTo, setEffectiveTo] = React.useState('');
   const [touched, setTouched] = React.useState(false);
 
@@ -37,7 +38,7 @@ export function AssignPolicyDialog({ open, policyName, isSaving, onClose, onConf
     setScopeType('organization');
     setScopeId('');
     setPriority('0');
-    setEffectiveFrom(new Date().toISOString().slice(0, 10));
+    setEffectiveFrom(orgToday());
     setEffectiveTo('');
     setTouched(false);
   }, [open]);

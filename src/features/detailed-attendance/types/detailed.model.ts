@@ -162,6 +162,9 @@ export interface Balance {
   available: number;
   used: number;
   pending: number;
+  /** Absences this month already covered by this balance at payroll, and those still to be. */
+  absenceAdjusted: number;
+  absencePending: number;
   credited: number;
   period: 'monthly' | 'cycle';
   earned: { units: number; pendingUnits: number; paidMinutes: number } | null;

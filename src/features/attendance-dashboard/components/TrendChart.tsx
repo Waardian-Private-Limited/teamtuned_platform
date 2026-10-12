@@ -36,7 +36,7 @@ export function TrendChart({ trend, loading }: { trend: TrendPointDto[] | null; 
                 </linearGradient>
               </defs>
               <CartesianGrid vertical={false} stroke="var(--tt-border)" strokeDasharray="0" />
-              <XAxis dataKey="date" tickFormatter={(d: string) => new Date(`${d}T00:00:00`).getDate().toString()} tick={{ fontSize: 11, fill: 'var(--tt-fg-muted)' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+              <XAxis dataKey="date" tickFormatter={(d: string) => String(Number(d.slice(8, 10)))} tick={{ fontSize: 11, fill: 'var(--tt-fg-muted)' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
               <YAxis domain={[0, 100]} ticks={[0, 50, 100]} tickFormatter={(v: number) => `${v}%`} tick={{ fontSize: 11, fill: 'var(--tt-fg-muted)' }} axisLine={false} tickLine={false} width={44} />
               <Tooltip content={<TrendTooltip />} cursor={{ stroke: 'var(--tt-border-strong)', strokeWidth: 1 }} />
               <Area type="monotone" dataKey="rate" stroke="var(--tt-primary)" strokeWidth={2} fill="url(#att-trend)" connectNulls dot={false} activeDot={{ r: 4, strokeWidth: 2, stroke: 'var(--tt-surface)', fill: 'var(--tt-primary)' }} isAnimationActive={false} />

@@ -6,6 +6,7 @@ import * as api from '../api/myAttendance.api';
 import { toOptions, toRequest } from '../types/regularization.mapper';
 import { asksIn, asksOut, isTimeKind } from '../types/regularization.model';
 import type { RegularizationKind, RegularizationOptions } from '../types/regularization.model';
+import { getOrgTimezone } from '@/lib/datetime';
 
 /** The wall-clock date and time right now in the organization's timezone. */
 function orgNow(timezone: string) {
@@ -82,7 +83,7 @@ export function useRegularize(date: string) {
         ...(needsOut ? { out_time: outTime } : {}),
         reason: reason.trim(),
         client_at: new Date().toISOString(),
-        client_tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        client_tz: getOrgTimezone(),
       }, file));
       setOptions((o) => (o ? { ...o, eligible: false, blockedReason: 'ATTENDANCE_REGULARIZE_ALREADY_REQUESTED', request } : o));
       return true;

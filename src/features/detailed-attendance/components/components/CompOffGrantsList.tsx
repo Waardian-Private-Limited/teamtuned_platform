@@ -14,6 +14,7 @@ import {
 import { cx } from '@/theme/tokens';
 import type { CompOffGrant } from '../../types/detailed.model';
 import { daysText, minutesText } from '../../utils/format';
+import { formatDate as formatDateOnly, formatTime as formatClockTime, orgDateOf } from '@/lib/datetime';
 
 interface Props {
   grants: CompOffGrant[];
@@ -63,21 +64,11 @@ function stateBadge(state: string) {
 
 function formatDate(isoOrDate: string | null) {
   if (!isoOrDate) return '';
-  try {
-    const d = isoOrDate.includes('T') ? new Date(isoOrDate) : new Date(`${isoOrDate}T00:00:00`);
-    return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-  } catch {
-    return isoOrDate;
-  }
+  return isoOrDate.includes('T') ? formatDateOnly(orgDateOf(isoOrDate), 'medium') : formatDateOnly(isoOrDate, 'medium');
 }
 
 function formatTime(iso: string | null) {
-  if (!iso) return '';
-  try {
-    return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return '';
-  }
+  return iso ? formatClockTime(iso) : '';
 }
 
 function getLevelInfo(grant: CompOffGrant) {

@@ -1,5 +1,6 @@
 import { apiClient } from '@/lib/apiClient';
 import type { DayDetailDto, MonthResponseDto } from '@/features/detailed-attendance/types/detailed.dto';
+import type { FlexibleOff } from '../types/flexibleOff.model';
 import type { RegularizationOptionsDto, RegularizationRequestDto, RegularizationSubmitBody } from '../types/regularization.dto';
 
 const auth = { withAuth: true } as const;
@@ -33,4 +34,16 @@ export function submitRegularization(body: RegularizationSubmitBody, attachment:
 
 export function cancelRegularization(id: number) {
   return apiClient.post<RegularizationRequestDto>(`/attendance/me/regularizations/${id}/cancel`, undefined, auth);
+}
+
+export function getFlexibleOff(month: string, signal?: AbortSignal) {
+  return apiClient.get<FlexibleOff>('/attendance/me/flexible-off', { month: month || undefined }, { ...auth, signal });
+}
+
+export function pickFlexibleOff(date: string) {
+  return apiClient.post<FlexibleOff>('/attendance/me/flexible-off', { date }, auth);
+}
+
+export function cancelFlexibleOff(date: string) {
+  return apiClient.delete<FlexibleOff>(`/attendance/me/flexible-off/${date}`, auth);
 }

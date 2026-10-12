@@ -5,8 +5,17 @@ import * as api from '../api/subOrganizations.api';
 import { showError, showSuccess } from '@/lib/toast';
 import { ApiError } from '@/lib/api/errors';
 import { FieldValidationError, asFieldError, messageOf } from '../utils/asyncAction';
-import { validateCode, validateGstNumber, validateName } from '../utils/validators';
-import type { SubOrgFieldName } from '../constants/sub-organizations.constants';
+import {
+  validateCode,
+  validateGstNumber,
+  validateLegalName,
+  validateName,
+  validatePan,
+  validateRegisteredState,
+  validateRegistrationCode,
+  validateTan,
+} from '../utils/validators';
+import { REGISTRATION_CODE_FIELDS, type SubOrgFieldName } from '../constants/sub-organizations.constants';
 import type { SubOrganization, SubOrganizationFormInput } from '../types/sub-organizations.model';
 
 export interface SubOrgFieldError {
@@ -51,6 +60,18 @@ export function useSubOrganizationMutations(
     if (codeError) throw new FieldValidationError('code', codeError);
     const gstError = validateGstNumber(input.gstNumber);
     if (gstError) throw new FieldValidationError('gst_number', gstError);
+    const legalNameError = validateLegalName(input.legalName);
+    if (legalNameError) throw new FieldValidationError('legal_name', legalNameError);
+    const panError = validatePan(input.pan);
+    if (panError) throw new FieldValidationError('pan', panError);
+    const tanError = validateTan(input.tan);
+    if (tanError) throw new FieldValidationError('tan', tanError);
+    for (const { key, field, label, maxLength } of REGISTRATION_CODE_FIELDS) {
+      const codeFieldError = validateRegistrationCode(input[key], label, maxLength);
+      if (codeFieldError) throw new FieldValidationError(field, codeFieldError);
+    }
+    const stateError = validateRegisteredState(input.registeredState);
+    if (stateError) throw new FieldValidationError('registered_state', stateError);
   };
 
   const createSubOrganization = useCallback((input: SubOrganizationFormInput) => run(async () => {

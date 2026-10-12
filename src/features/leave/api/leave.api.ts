@@ -1,19 +1,10 @@
 import { apiClient } from '@/lib/apiClient';
-import type { ApplyInput, BalanceCard, BalanceGrid, CalendarResponse, LedgerEntry, LeaveRequest, LeaveRequestDetail, Quote, RequestsResponse } from '../types/leave';
+import type { ApplyInput, BalanceCard, BalanceGrid, CalendarResponse, LedgerEntry, LeaveRequest, LeaveRequestDetail, PayrollAdjustment, Quote, RequestsResponse } from '../types/leave';
 
 const auth = { withAuth: true } as const;
 type P = Record<string, string | number | boolean | undefined | null>;
 
-/* my leave */
-export const myBalances = () => apiClient.get<BalanceCard>('/leave/me/balances', undefined, auth);
-export const myLedger = (p: P) => apiClient.get<{ entries: LedgerEntry[]; total: number; pages: number }>('/leave/me/ledger', p, auth);
-export const myRequests = (p: P) => apiClient.get<RequestsResponse>('/leave/me/requests', p, auth);
-export const myRequest = (id: number) => apiClient.get<LeaveRequestDetail>(`/leave/me/requests/${id}`, undefined, auth);
-export const myPreview = (b: ApplyInput) => apiClient.post<Quote>('/leave/me/preview', b, auth);
-export const myApply = (b: ApplyInput) => apiClient.post<{ application: LeaveRequest; quote: Quote }>('/leave/me/requests', b, auth);
-export const myCancel = (id: number, reason?: string) => apiClient.post<LeaveRequestDetail>(`/leave/me/requests/${id}/cancel`, { reason }, auth);
-
-/* admin */
+/* HR: the employee's own leave lives in features/my-leave. */
 export const listRequests = (p: P) => apiClient.get<RequestsResponse>('/leave/requests', p, auth);
 export const getRequest = (id: number) => apiClient.get<LeaveRequestDetail>(`/leave/requests/${id}`, undefined, auth);
 export const previewFor = (b: ApplyInput) => apiClient.post<Quote>('/leave/requests/preview', b, auth);
@@ -28,3 +19,5 @@ export const adjust = (b: { employee_id: number; leave_type_id: number; quantity
 export const bulkAdjust = (b: { employee_ids: number[]; leave_type_id: number; quantity: number; reason: string }) =>
   apiClient.post<{ applied: number; failed: number; results: { employee_id: number; ok: boolean; error?: string }[] }>('/leave/balances/bulk-adjust', b, auth);
 export const calendar = (p: P) => apiClient.get<CalendarResponse>('/leave/calendar', p, auth);
+
+export const payrollAdjustments = (month: string) => apiClient.get<{ adjustments: PayrollAdjustment[] }>('/leave/payroll-adjustments', { month }, auth);

@@ -1,8 +1,7 @@
-"use client";
+'use client';
 
-import React from "react";
-import PayrollManagement from "@/components/payroll/PayrollManagement";
+import { PayrollRunsPage } from '@/features/payroll-runs/components/PayrollRunsPage';
 
 export default function OrgPayrollPage() {
-  return <PayrollManagement />;
+  return <PayrollRunsPage basePath="/org-admin" />;
 }

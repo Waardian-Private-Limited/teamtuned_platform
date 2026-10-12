@@ -1,4 +1,4 @@
-export type RevisionStatus = 'draft' | 'pending' | 'approved' | 'applied' | 'rejected' | 'cancelled';
+export type RevisionStatus = 'draft' | 'pending' | 'approved' | 'applied' | 'rejected' | 'cancelled' | 'voided';
 export type PayoutStatus = 'draft' | 'pending' | 'approved' | 'paid' | 'rejected' | 'cancelled';
 export type CycleStatus = 'draft' | 'in_review' | 'approved' | 'closed';
 export type ChangeMode = 'percent' | 'ctc' | 'gross';
@@ -8,6 +8,15 @@ export interface BreakdownItem {
   component_id: number;
   name?: string | null;
   amount: number;
+}
+
+export interface AllocationSnapshot {
+  sub_organization_id: number | null;
+  is_primary: boolean;
+  ctc: number | null;
+  gross: number;
+  breakdown: BreakdownItem[];
+  debit_ids: number[];
 }
 
 export interface EmployeeRef {
@@ -35,6 +44,8 @@ export interface RevisionDto {
   new_gross: number | null;
   previous_breakdown: BreakdownItem[] | null;
   new_breakdown: BreakdownItem[] | null;
+  previous_allocations?: AllocationSnapshot[] | null;
+  new_allocations?: AllocationSnapshot[] | null;
   previous_designation: string | null;
   new_designation: string | null;
   new_role_id: number | null;
@@ -43,6 +54,9 @@ export interface RevisionDto {
   reason: string | null;
   status: RevisionStatus;
   decision_note: string | null;
+  void_reason?: string | null;
+  voided_at?: string | null;
+  replaces_revision_id?: number | null;
   created_by: number | null;
   decided_at: string | null;
   applied_at: string | null;
@@ -134,7 +148,7 @@ export interface PayoutTypeConfig {
 }
 
 export interface CompensationSettings {
-  approval: { revisions: boolean; payouts: boolean; allowSelfApproval: boolean };
+  approval: { revisions: boolean; payouts: boolean; deductions: boolean; allowSelfApproval: boolean };
   arrears: { enabled: boolean; midMonth: 'prorate' | 'next_month' };
   gratuity: {
     eligibilityYears: number;
@@ -194,6 +208,8 @@ export interface RevisionPreviewDto {
   change_percent: number | null;
   previous_breakdown: BreakdownItem[];
   new_breakdown: BreakdownItem[];
+  previous_allocations?: AllocationSnapshot[] | null;
+  new_allocations?: AllocationSnapshot[] | null;
 }
 
 export interface HistoryDto {

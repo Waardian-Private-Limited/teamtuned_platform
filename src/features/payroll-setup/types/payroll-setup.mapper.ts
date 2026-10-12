@@ -146,5 +146,6 @@ export function toChallan(dto: TdsChallanDto): TdsChallan {
     challanSerialNo: dto.challan_serial_no ?? '',
     depositDate: dto.deposit_date ?? '',
     amount: Number(dto.amount || 0),
+    subOrganizationId: dto.sub_organization_id ?? null,
   };
 }

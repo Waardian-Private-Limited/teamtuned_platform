@@ -1,7 +1,7 @@
 'use client';
 
-import { MyLeavePage } from '@/features/leave/components/MyLeavePage';
+import { MyLeavePage } from '@/features/my-leave/components/MyLeavePage';
 
-export default function EmployeeMyLeavePage() {
+export default function MyLeaveRoute() {
   return <MyLeavePage />;
 }
