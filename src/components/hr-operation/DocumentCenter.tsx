@@ -48,9 +48,9 @@ interface SignatureConfig {
     signatory_designation: string | null;
 }
 
-interface OfferModalState {
+interface DateModalState {
     emp: Employee;
-    isEmail: boolean;
+    type: DocType;
     interviewDate: string;
     joiningDate: string;
     issueDate: string;
@@ -68,6 +68,18 @@ function toInputDate(dateStr?: string | null): string {
     } catch {
         return "";
     }
+}
+
+// "2026-10-13" -> "13.10.2026" (backend formatDate with dots)
+function toDotDate(input: string): string {
+    return input ? input.split("-").reverse().join(".") : "...";
+}
+
+// "2026-10-13" -> "13 October 2026" (backend formatDate without dots)
+function toLongDate(input: string): string {
+    if (!input) return "...";
+    const [y, m, d] = input.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" });
 }
 
 function getTodayInput(): string {
@@ -111,6 +123,34 @@ const DOC_TYPES: DocConfig[] = [
     },
 ];
 
+// Which dates each letter prints, and how, so the date modal can preview them
+// exactly as the template renders them.
+const DATE_PROMPTS: Record<DocType, {
+    askInterview: boolean;
+    joiningLabel: string;
+    joiningPreview: (d: string) => string;
+    issuePreview: (d: string) => string;
+}> = {
+    offer: {
+        askInterview: true,
+        joiningLabel: "Expected Joining Date",
+        joiningPreview: d => `"You are required to join duties bef : ${toDotDate(d)}"`,
+        issuePreview: d => `Date: ${toDotDate(d)}`,
+    },
+    appointment: {
+        askInterview: false,
+        joiningLabel: "Joining Date",
+        joiningPreview: d => `"You will be required to join us on date: ${toDotDate(d)}"`,
+        issuePreview: d => `Date: ${toDotDate(d)}`,
+    },
+    joining: {
+        askInterview: false,
+        joiningLabel: "Date of Joining",
+        joiningPreview: d => `Date of Joining: ${toLongDate(d)}`,
+        issuePreview: d => `Date: ${toLongDate(d)}`,
+    },
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function DocumentCenter() {
@@ -140,20 +180,16 @@ export default function DocumentCenter() {
     const [generating, setGenerating] = useState<Record<string, boolean>>({});
     const [emailing, setEmailing] = useState<Record<string, boolean>>({});
 
-    // Modal for confirming email send
-    const [emailModal, setEmailModal] = useState<{ emp: Employee; type: DocType } | null>(null);
+    // Modal asking the letter's dates before download / email (all letter types)
+    const [dateModal, setDateModal] = useState<DateModalState | null>(null);
 
-    // Modal for Offer Letter dates (Final Interview Date & Joining Date)
-    const [offerModal, setOfferModal] = useState<OfferModalState | null>(null);
-
-    const openOfferModal = useCallback((emp: Employee, isEmail = false) => {
+    const openDateModal = useCallback((emp: Employee, type: DocType) => {
         const today = getTodayInput();
-        const currentJoining = toInputDate(emp.joining_date) || today;
-        setOfferModal({
+        setDateModal({
             emp,
-            isEmail,
+            type,
             interviewDate: today,
-            joiningDate: currentJoining,
+            joiningDate: toInputDate(emp.joining_date) || today,
             issueDate: today,
         });
     }, []);
@@ -319,8 +355,8 @@ export default function DocumentCenter() {
             issue_date?: string;
         }
     ) => {
-        if (type === "offer" && !extraData) {
-            openOfferModal(emp, sendEmail);
+        if (!extraData) {
+            openDateModal(emp, type);
             return;
         }
 
@@ -357,14 +393,13 @@ export default function DocumentCenter() {
                 ? `${type.charAt(0).toUpperCase() + type.slice(1)} letter downloaded & emailed to ${emp.email}`
                 : `${type.charAt(0).toUpperCase() + type.slice(1)} letter downloaded`
             );
-            if (sendEmail) setEmailModal(null);
-            setOfferModal(null);
+            setDateModal(null);
         } catch (err: any) {
             toast.error(err.message || "Failed to generate document");
         } finally {
             setFn(prev => ({ ...prev, [key]: false }));
         }
-    }, [API_BASE, getAuthHeaders, includeSignature, openOfferModal]);
+    }, [API_BASE, getAuthHeaders, includeSignature, openDateModal]);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 p-6">
@@ -571,13 +606,7 @@ export default function DocumentCenter() {
                                                         <td key={doc.type} className="px-6 py-4 text-center">
                                                             <div className="flex items-center justify-center gap-1.5">
                                                                 <button
-                                                                    onClick={() => {
-                                                                        if (doc.type === "offer") {
-                                                                            openOfferModal(emp, false);
-                                                                        } else {
-                                                                            handleGenerate(emp, doc.type, false);
-                                                                        }
-                                                                    }}
+                                                                    onClick={() => openDateModal(emp, doc.type)}
                                                                     disabled={isGenning || isEmailing}
                                                                     title={`Download ${doc.label}${includeSignature && signatureConfig.signature_url ? ' (with digital signature)' : ''}`}
                                                                     className={`p-2 rounded-lg border transition-all ${doc.bg} ${doc.border} ${doc.color} hover:shadow-sm disabled:opacity-40`}
@@ -590,11 +619,7 @@ export default function DocumentCenter() {
                                                                             toast.error("No email address for this employee");
                                                                             return;
                                                                         }
-                                                                        if (doc.type === "offer") {
-                                                                            openOfferModal(emp, true);
-                                                                        } else {
-                                                                            setEmailModal({ emp, type: doc.type });
-                                                                        }
+                                                                        openDateModal(emp, doc.type);
                                                                     }}
                                                                     disabled={isGenning || isEmailing}
                                                                     title={`Email ${doc.label}`}
@@ -832,94 +857,36 @@ export default function DocumentCenter() {
                 </div>
             )}
 
-            {/* ── Email Confirmation Modal ── */}
-            {emailModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5 border border-gray-100">
-                        <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2.5 bg-amber-100 rounded-xl">
-                                    <Mail className="w-5 h-5 text-amber-700" />
-                                </div>
-                                <div>
-                                    <h3 className="text-base font-semibold text-gray-900">Send & Download</h3>
-                                    <p className="text-xs text-gray-500">
-                                        {DOC_TYPES.find(d => d.type === emailModal.type)?.label}
-                                    </p>
-                                </div>
-                            </div>
-                            <button onClick={() => setEmailModal(null)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-400">
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-
-                        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 space-y-2">
-                            <div className="flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold flex-shrink-0">
-                                    {emailModal.emp.first_name?.[0]}{emailModal.emp.last_name?.[0]}
-                                </div>
-                                <div>
-                                    <p className="text-sm font-semibold text-gray-900">
-                                        {emailModal.emp.gender?.toLowerCase() === 'female' ? 'Ms. ' : (emailModal.emp.gender?.toLowerCase() === 'male' ? 'Mr. ' : '')}
-                                        {emailModal.emp.first_name} {emailModal.emp.last_name}
-                                    </p>
-                                    <p className="text-xs text-blue-600">{emailModal.emp.email}</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="space-y-2 text-sm text-gray-600">
-                            <p>
-                                This will generate the <strong>{DOC_TYPES.find(d => d.type === emailModal.type)?.label}</strong> as a PDF,
-                                download it to your device, and also email it to the employee.
-                            </p>
-                            {signatureConfig.signature_url && (
-                                <p className="text-xs text-emerald-700 flex items-center gap-1.5 font-medium">
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                    Digital signature will be attached automatically.
-                                </p>
-                            )}
-                        </div>
-
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setEmailModal(null)}
-                                className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={() => handleGenerate(emailModal.emp, emailModal.type, true)}
-                                disabled={!!emailing[`${emailModal.emp.id}-${emailModal.type}`]}
-                                className="flex-1 px-4 py-2.5 bg-amber-600 text-white rounded-xl text-sm font-medium hover:bg-amber-700 transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
-                            >
-                                {emailing[`${emailModal.emp.id}-${emailModal.type}`]
-                                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending...</>
-                                    : <><Mail className="w-4 h-4" /> Send & Download</>
-                                }
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* ── Offer Letter Date Confirmation Modal ── */}
-            {offerModal && (
+            {/* ── Letter Date Confirmation Modal (offer / appointment / joining) ── */}
+            {dateModal && (() => {
+                const docCfg = DOC_TYPES.find(d => d.type === dateModal.type)!;
+                const prompt = DATE_PROMPTS[dateModal.type];
+                const DocIcon = docCfg.icon;
+                const busyKey = `${dateModal.emp.id}-${dateModal.type}`;
+                const busy = generating[busyKey] || emailing[busyKey];
+                const submit = (sendEmail: boolean) => handleGenerate(dateModal.emp, dateModal.type, sendEmail, {
+                    ...(prompt.askInterview ? { interview_date: dateModal.interviewDate } : {}),
+                    joining_date: dateModal.joiningDate,
+                    issue_date: dateModal.issueDate,
+                });
+                return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-150">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-5 border border-gray-100">
                         {/* Modal Header */}
                         <div className="flex items-start justify-between border-b border-gray-100 pb-4">
                             <div className="flex items-center gap-3">
-                                <div className="p-2.5 bg-emerald-50 rounded-xl">
-                                    <FilePlus className="w-5 h-5 text-emerald-600" />
+                                <div className={`p-2.5 rounded-xl ${docCfg.iconBg}`}>
+                                    <DocIcon className={`w-5 h-5 ${docCfg.color}`} />
                                 </div>
                                 <div>
-                                    <h3 className="text-lg font-bold text-gray-900">Download Offer Letter</h3>
-                                    <p className="text-xs text-gray-500">Confirm interview date &amp; joining date for this letter</p>
+                                    <h3 className="text-lg font-bold text-gray-900">Download {docCfg.label}</h3>
+                                    <p className="text-xs text-gray-500">
+                                        Confirm {prompt.askInterview ? "interview, joining & issue dates" : "joining & issue dates"} for this letter
+                                    </p>
                                 </div>
                             </div>
                             <button
-                                onClick={() => setOfferModal(null)}
+                                onClick={() => setDateModal(null)}
                                 className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-400 hover:text-gray-600"
                             >
                                 <X className="w-5 h-5" />
@@ -930,26 +897,27 @@ export default function DocumentCenter() {
                         <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-xs">
-                                    {offerModal.emp.first_name?.[0]}{offerModal.emp.last_name?.[0]}
+                                    {dateModal.emp.first_name?.[0]}{dateModal.emp.last_name?.[0]}
                                 </div>
                                 <div>
                                     <p className="text-sm font-bold text-gray-900">
-                                        {offerModal.emp.gender?.toLowerCase() === 'female' ? 'Ms. ' : (offerModal.emp.gender?.toLowerCase() === 'male' ? 'Mr. ' : '')}
-                                        {offerModal.emp.first_name} {offerModal.emp.last_name}
+                                        {dateModal.emp.gender?.toLowerCase() === 'female' ? 'Ms. ' : (dateModal.emp.gender?.toLowerCase() === 'male' ? 'Mr. ' : '')}
+                                        {dateModal.emp.first_name} {dateModal.emp.last_name}
                                     </p>
-                                    <p className="text-xs text-gray-500">{offerModal.emp.designation || 'Engineer'} • {offerModal.emp.department_name || 'Operations'}</p>
+                                    <p className="text-xs text-gray-500">{dateModal.emp.designation || 'Engineer'} • {dateModal.emp.department_name || 'Operations'}</p>
                                 </div>
                             </div>
-                            {offerModal.emp.joining_date && (
+                            {dateModal.emp.joining_date && (
                                 <span className="text-xs bg-white px-2.5 py-1 rounded-md border border-gray-200 text-gray-600 font-medium">
-                                    System: {new Date(offerModal.emp.joining_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                    System: {new Date(dateModal.emp.joining_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                                 </span>
                             )}
                         </div>
 
                         {/* Date Inputs Form */}
                         <div className="space-y-4">
-                            {/* 1. Final Interview Date */}
+                            {/* Final Interview Date (offer letter only) */}
+                            {prompt.askInterview && (
                             <div>
                                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1.5">
                                     Final Interview Date <span className="text-red-500">*</span>
@@ -958,26 +926,27 @@ export default function DocumentCenter() {
                                     <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                                     <input
                                         type="date"
-                                        value={offerModal.interviewDate}
-                                        onChange={e => setOfferModal(prev => prev ? { ...prev, interviewDate: e.target.value } : null)}
+                                        value={dateModal.interviewDate}
+                                        onChange={e => setDateModal(prev => prev ? { ...prev, interviewDate: e.target.value } : null)}
                                         className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                                     />
                                 </div>
                                 <p className="text-[11px] text-gray-500 mt-1">
-                                    Reflected in letter: <em>"As per your Final interview dated {offerModal.interviewDate ? offerModal.interviewDate.split('-').reverse().join('.') : '...'}"</em>
+                                    Reflected in letter: <em>"As per your Final interview dated {toDotDate(dateModal.interviewDate)}"</em>
                                 </p>
                             </div>
+                            )}
 
-                            {/* 2. Expected Joining Date */}
+                            {/* Joining Date */}
                             <div>
                                 <div className="flex items-center justify-between mb-1.5">
                                     <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide">
-                                        Expected Joining Date <span className="text-red-500">*</span>
+                                        {prompt.joiningLabel} <span className="text-red-500">*</span>
                                     </label>
-                                    {offerModal.emp.joining_date && (
+                                    {dateModal.emp.joining_date && (
                                         <button
                                             type="button"
-                                            onClick={() => setOfferModal(prev => prev ? { ...prev, joiningDate: toInputDate(prev.emp.joining_date) || prev.joiningDate } : null)}
+                                            onClick={() => setDateModal(prev => prev ? { ...prev, joiningDate: toInputDate(prev.emp.joining_date) || prev.joiningDate } : null)}
                                             className="text-[11px] text-emerald-600 hover:underline font-medium"
                                         >
                                             Reset to profile date
@@ -988,17 +957,17 @@ export default function DocumentCenter() {
                                     <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                                     <input
                                         type="date"
-                                        value={offerModal.joiningDate}
-                                        onChange={e => setOfferModal(prev => prev ? { ...prev, joiningDate: e.target.value } : null)}
+                                        value={dateModal.joiningDate}
+                                        onChange={e => setDateModal(prev => prev ? { ...prev, joiningDate: e.target.value } : null)}
                                         className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                                     />
                                 </div>
                                 <p className="text-[11px] text-gray-500 mt-1">
-                                    Reflected in letter: <em>"You are required to join duties bef : {offerModal.joiningDate ? offerModal.joiningDate.split('-').reverse().join('.') : '...'}"</em>
+                                    Reflected in letter: <em>{prompt.joiningPreview(dateModal.joiningDate)}</em>
                                 </p>
                             </div>
 
-                            {/* 3. Offer Issue Date */}
+                            {/* Letter Issue Date */}
                             <div>
                                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1.5">
                                     Letter Issue Date
@@ -1007,13 +976,13 @@ export default function DocumentCenter() {
                                     <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                                     <input
                                         type="date"
-                                        value={offerModal.issueDate}
-                                        onChange={e => setOfferModal(prev => prev ? { ...prev, issueDate: e.target.value } : null)}
+                                        value={dateModal.issueDate}
+                                        onChange={e => setDateModal(prev => prev ? { ...prev, issueDate: e.target.value } : null)}
                                         className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                                     />
                                 </div>
                                 <p className="text-[11px] text-gray-500 mt-1">
-                                    Appears at top-right of letterhead: <em>Date: {offerModal.issueDate ? offerModal.issueDate.split('-').reverse().join('.') : '...'}</em>
+                                    Appears at top-right of letterhead: <em>{prompt.issuePreview(dateModal.issueDate)}</em>
                                 </p>
                             </div>
                         </div>
@@ -1032,48 +1001,37 @@ export default function DocumentCenter() {
                         <div className="flex items-center justify-between gap-3 pt-2">
                             <button
                                 type="button"
-                                onClick={() => setOfferModal(null)}
+                                onClick={() => setDateModal(null)}
                                 className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all"
                             >
                                 Cancel
                             </button>
                             <div className="flex items-center gap-2">
-                                {offerModal.emp.email && (
+                                {dateModal.emp.email && (
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            handleGenerate(offerModal.emp, "offer", true, {
-                                                interview_date: offerModal.interviewDate,
-                                                joining_date: offerModal.joiningDate,
-                                                issue_date: offerModal.issueDate,
-                                            });
-                                        }}
-                                        disabled={generating[`${offerModal.emp.id}-offer`] || emailing[`${offerModal.emp.id}-offer`]}
+                                        onClick={() => submit(true)}
+                                        disabled={busy}
                                         className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50"
                                     >
-                                        {emailing[`${offerModal.emp.id}-offer`] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                                        {emailing[busyKey] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
                                         Email &amp; Download
                                     </button>
                                 )}
                                 <button
                                     type="button"
-                                    onClick={() => {
-                                        handleGenerate(offerModal.emp, "offer", false, {
-                                            interview_date: offerModal.interviewDate,
-                                            joining_date: offerModal.joiningDate,
-                                            issue_date: offerModal.issueDate,
-                                        });
-                                    }}
-                                    disabled={generating[`${offerModal.emp.id}-offer`] || emailing[`${offerModal.emp.id}-offer`]}
+                                    onClick={() => submit(false)}
+                                    disabled={busy}
                                     className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center gap-2 disabled:opacity-50"
                                 >
-                                    {generating[`${offerModal.emp.id}-offer`] ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : <><Download className="w-4 h-4" /> Download PDF</>}
+                                    {generating[busyKey] ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : <><Download className="w-4 h-4" /> Download PDF</>}
                                 </button>
                             </div>
                         </div>
                     </div>
                 </div>
-            )}
+                );
+            })()}
         </div>
     );
 }

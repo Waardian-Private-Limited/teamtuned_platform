@@ -1169,11 +1169,10 @@ export default function EmployeeAttendance({ defaultHQ = true, showHQToggle = tr
                           <div className="text-sm font-medium text-slate-900 truncate flex items-center gap-1.5">
                             <span>{employee.first_name} {employee.last_name}</span>
                             {employee.status && ['inactive', 'terminated'].includes(String(employee.status).toLowerCase()) && (
-                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
-                                String(employee.status).toLowerCase() === 'terminated'
+                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${String(employee.status).toLowerCase() === 'terminated'
                                   ? 'bg-rose-100 text-rose-700 border border-rose-200'
                                   : 'bg-amber-100 text-amber-700 border border-amber-200'
-                              }`}>
+                                }`}>
                                 {employee.status}
                               </span>
                             )}
@@ -1847,9 +1846,8 @@ function AttendanceExportModal({
                     <span key={id} className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 text-xs px-2 py-1 rounded-md border border-slate-200">
                       {emp.first_name} {emp.last_name}
                       {emp.status && emp.status !== 'Active' && (
-                        <span className={`text-[9px] px-1 rounded font-bold ${
-                          emp.status === 'Terminated' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
-                        }`}>
+                        <span className={`text-[9px] px-1 rounded font-bold ${emp.status === 'Terminated' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                          }`}>
                           {emp.status}
                         </span>
                       )}
@@ -1909,9 +1907,8 @@ function AttendanceExportModal({
                                 setSelectedEmployeeIds(prev => [...prev, emp.id]);
                               }
                             }}
-                            className={`p-2.5 flex items-center justify-between cursor-pointer hover:bg-blue-50 transition-colors ${
-                              isSelected ? 'bg-blue-50/50' : ''
-                            }`}
+                            className={`p-2.5 flex items-center justify-between cursor-pointer hover:bg-blue-50 transition-colors ${isSelected ? 'bg-blue-50/50' : ''
+                              }`}
                           >
                             <div className="flex flex-col min-w-0">
                               <span className="text-sm font-medium text-slate-800">
@@ -1923,21 +1920,20 @@ function AttendanceExportModal({
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
                               {emp.status && (
-                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
-                                  emp.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                  emp.status === 'Terminated' ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                                  emp.status === 'Inactive' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                                  'bg-slate-50 text-slate-600 border-slate-200'
-                                }`}>
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${emp.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                    emp.status === 'Terminated' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                      emp.status === 'Inactive' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                        'bg-slate-50 text-slate-600 border-slate-200'
+                                  }`}>
                                   {emp.status}
                                 </span>
                               )}
                               <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  readOnly
-                                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                />
+                                type="checkbox"
+                                checked={isSelected}
+                                readOnly
+                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                              />
                             </div>
                           </div>
                         );

@@ -676,36 +676,36 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
 
                             {/* Penalty Adjustments — shown when HR has removed marks or waived penalties */}
                             {(record.is_late_mark_removed === 1 || record.is_early_mark_removed === 1 ||
-                              record.is_late_penalty_removed === 1 || record.is_early_penalty_removed === 1) && (
-                                <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-200">
-                                    <div className="text-xs font-semibold text-emerald-700 uppercase mb-2 flex items-center gap-1.5">
-                                        <CheckCircle2 className="w-3.5 h-3.5" />
-                                        Penalty Adjustments by HR
+                                record.is_late_penalty_removed === 1 || record.is_early_penalty_removed === 1) && (
+                                    <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-200">
+                                        <div className="text-xs font-semibold text-emerald-700 uppercase mb-2 flex items-center gap-1.5">
+                                            <CheckCircle2 className="w-3.5 h-3.5" />
+                                            Penalty Adjustments by HR
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {record.is_late_mark_removed === 1 && (
+                                                <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-white border border-emerald-200 text-emerald-800">
+                                                    Late Mark Removed
+                                                </span>
+                                            )}
+                                            {record.is_late_penalty_removed === 1 && (
+                                                <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-white border border-emerald-200 text-emerald-800">
+                                                    Late Penalty Waived
+                                                </span>
+                                            )}
+                                            {record.is_early_mark_removed === 1 && (
+                                                <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-white border border-emerald-200 text-emerald-800">
+                                                    Early Exit Removed
+                                                </span>
+                                            )}
+                                            {record.is_early_penalty_removed === 1 && (
+                                                <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-white border border-emerald-200 text-emerald-800">
+                                                    Early Penalty Waived
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {record.is_late_mark_removed === 1 && (
-                                            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-white border border-emerald-200 text-emerald-800">
-                                                Late Mark Removed
-                                            </span>
-                                        )}
-                                        {record.is_late_penalty_removed === 1 && (
-                                            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-white border border-emerald-200 text-emerald-800">
-                                                Late Penalty Waived
-                                            </span>
-                                        )}
-                                        {record.is_early_mark_removed === 1 && (
-                                            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-white border border-emerald-200 text-emerald-800">
-                                                Early Exit Removed
-                                            </span>
-                                        )}
-                                        {record.is_early_penalty_removed === 1 && (
-                                            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-white border border-emerald-200 text-emerald-800">
-                                                Early Penalty Waived
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
+                                )}
 
                             {/* Time Info */}
                             <div className="grid grid-cols-2 gap-3">
@@ -753,21 +753,20 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                         {record.compoffs.map((co: any, idx: number) => (
                                             <div key={idx} className="flex items-center justify-between bg-white/50 p-2 rounded border border-indigo-100">
                                                 <div>
-                                                  <div className="text-sm font-bold text-indigo-900">
-                                                      {co.is_night_ot ? "Night OT Comp-Off" : "Regular Comp-Off"}
-                                                  </div>
-                                                  <div className="text-xs text-indigo-600 font-medium">
-                                                      Earned: {Math.floor(co.total_earned_minutes / 60)}h {co.total_earned_minutes % 60}m
-                                                  </div>
+                                                    <div className="text-sm font-bold text-indigo-900">
+                                                        {co.is_night_ot ? "Night OT Comp-Off" : "Regular Comp-Off"}
+                                                    </div>
+                                                    <div className="text-xs text-indigo-600 font-medium">
+                                                        Earned: {Math.floor(co.total_earned_minutes / 60)}h {co.total_earned_minutes % 60}m
+                                                    </div>
                                                 </div>
                                                 <div className="text-right">
-                                                  <div className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full inline-block ${
-                                                      co.status?.toLowerCase() === 'approved' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
-                                                      co.status?.toLowerCase() === 'rejected' ? 'bg-rose-100 text-rose-700 border border-rose-200' :
-                                                      'bg-amber-100 text-amber-700 border border-amber-200'
-                                                  }`}>
-                                                      {co.status || 'Pending'}
-                                                  </div>
+                                                    <div className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full inline-block ${co.status?.toLowerCase() === 'approved' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
+                                                            co.status?.toLowerCase() === 'rejected' ? 'bg-rose-100 text-rose-700 border border-rose-200' :
+                                                                'bg-amber-100 text-amber-700 border border-amber-200'
+                                                        }`}>
+                                                        {co.status || 'Pending'}
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))}
@@ -942,42 +941,42 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                     <div className="text-xs font-semibold text-slate-600 uppercase">Timeline</div>
                                     <div className="space-y-2">
                                         {record.sessions.map((session: any, idx: number) => {
-                                             const isBreak = session.session_type === 'break';
-                                             const isOutside = session.session_type === 'outside_work';
-                                             const isNightOT = session.session_type === 'night_ot';
-                                             const duration = session.duration_minutes || 0;
-                                             /* An auto-terminated night OT has an end time and a duration the
-                                                employee never worked — the 6 AM job stamped them to close a
-                                                session nobody closed. Showing those reads as hours put in, so
-                                                the row says what happened instead. */
-                                             const autoTerminated = isNightOT && Boolean(record?.night_ot_auto_terminated);
+                                            const isBreak = session.session_type === 'break';
+                                            const isOutside = session.session_type === 'outside_work';
+                                            const isNightOT = session.session_type === 'night_ot';
+                                            const duration = session.duration_minutes || 0;
+                                            /* An auto-terminated night OT has an end time and a duration the
+                                               employee never worked — the 6 AM job stamped them to close a
+                                               session nobody closed. Showing those reads as hours put in, so
+                                               the row says what happened instead. */
+                                            const autoTerminated = isNightOT && Boolean(record?.night_ot_auto_terminated);
 
-                                             return (
-                                                 <div key={idx} className={`relative pl-4 border-l-2 ${isBreak ? 'border-amber-200' : isNightOT ? 'border-indigo-200' : 'border-cyan-200'} pb-4 last:pb-0`}>
-                                                     <div className={`absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full ${isBreak ? 'bg-amber-400' : isNightOT ? 'bg-indigo-400' : 'bg-cyan-400'}`}></div>
-                                                     <div className="flex items-start justify-between">
-                                                         <div>
-                                                             <div className={`text-sm font-bold ${isBreak ? 'text-amber-900' : isNightOT ? 'text-indigo-900' : 'text-cyan-900'}`}>
-                                                                 {isBreak ? 'Break' : isNightOT ? 'Night OT Session' : 'Outside Work'}
-                                                             </div>
-                                                             <div className="text-xs text-slate-500 mt-0.5">
-                                                                 {autoTerminated
-                                                                     ? `${formatTime(session.start_time)} — not closed`
-                                                                     : `${formatTime(session.start_time)} - ${session.end_time ? formatTime(session.end_time) : 'Ongoing'}`}
-                                                             </div>
-                                                             {autoTerminated && (
-                                                                 <div className="text-[11px] font-semibold text-amber-700 mt-1">
-                                                                     Auto-closed at 6:00 AM — not counted
-                                                                 </div>
-                                                             )}
-                                                             {!!session.notes && (
-                                                                 <div className="text-xs text-slate-600 mt-1 italic">"{session.notes}"</div>
-                                                             )}
-                                                         </div>
-                                                         <div className={`text-xs font-semibold px-2 py-1 rounded ${autoTerminated ? 'text-amber-700 bg-amber-50' : 'text-slate-700 bg-slate-100'}`}>
-                                                             {autoTerminated ? '—' : `${Math.floor(duration / 60)}h ${duration % 60}m`}
-                                                         </div>
-                                                     </div>
+                                            return (
+                                                <div key={idx} className={`relative pl-4 border-l-2 ${isBreak ? 'border-amber-200' : isNightOT ? 'border-indigo-200' : 'border-cyan-200'} pb-4 last:pb-0`}>
+                                                    <div className={`absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full ${isBreak ? 'bg-amber-400' : isNightOT ? 'bg-indigo-400' : 'bg-cyan-400'}`}></div>
+                                                    <div className="flex items-start justify-between">
+                                                        <div>
+                                                            <div className={`text-sm font-bold ${isBreak ? 'text-amber-900' : isNightOT ? 'text-indigo-900' : 'text-cyan-900'}`}>
+                                                                {isBreak ? 'Break' : isNightOT ? 'Night OT Session' : 'Outside Work'}
+                                                            </div>
+                                                            <div className="text-xs text-slate-500 mt-0.5">
+                                                                {autoTerminated
+                                                                    ? `${formatTime(session.start_time)} — not closed`
+                                                                    : `${formatTime(session.start_time)} - ${session.end_time ? formatTime(session.end_time) : 'Ongoing'}`}
+                                                            </div>
+                                                            {autoTerminated && (
+                                                                <div className="text-[11px] font-semibold text-amber-700 mt-1">
+                                                                    Auto-closed at 6:00 AM — not counted
+                                                                </div>
+                                                            )}
+                                                            {!!session.notes && (
+                                                                <div className="text-xs text-slate-600 mt-1 italic">"{session.notes}"</div>
+                                                            )}
+                                                        </div>
+                                                        <div className={`text-xs font-semibold px-2 py-1 rounded ${autoTerminated ? 'text-amber-700 bg-amber-50' : 'text-slate-700 bg-slate-100'}`}>
+                                                            {autoTerminated ? '—' : `${Math.floor(duration / 60)}h ${duration % 60}m`}
+                                                        </div>
+                                                    </div>
 
                                                     {/* Outside Work Location Map */}
                                                     {isOutside && session.location_lat && session.location_lng && (
