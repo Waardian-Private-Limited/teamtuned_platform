@@ -93,6 +93,9 @@ export interface TaskView {
   id: number; status: string; assignee: { id: number; name: string } | null; permission: string | null;
   delegatedFrom: { id: number; name: string } | null; actedAt: string | null; note: string | null;
 }
+export interface RegularizationTime { recorded: string | null; asked: string | null; current: string | null; editable: boolean }
+export interface RegularizationTrailStep { by: 'employee' | 'approver'; name: string | null; step: string | null; at: string | null; in_time: string | null; out_time: string | null }
+
 export interface RequestDetail {
   id: number; requestType: string; typeLabel: string; subjectId: number; status: RequestStatus;
   requester: { id: number; name: string } | null;
@@ -101,8 +104,12 @@ export interface RequestDetail {
   events: { id: number; step: number | null; action: string; actor: string | null; note: string | null; meta: Record<string, unknown> | null; at: string }[];
   detail: {
     title: string;
-    lines: { label: string; value: string }[];
+    lines: { key?: string; label: string; value: string }[];
     impact: { label: string; items: string[] } | null;
+    /** Regularization: each punch time recorded, asked by the employee, and as it stands now. */
+    times?: { in: RegularizationTime; out: RegularizationTime };
+    /** Regularization: who set the times, oldest first (the employee's ask, then each approver's correction). */
+    trail?: RegularizationTrailStep[];
     /** A type-specific form the approver fills in; its values go back as `extra` when approving. */
     decision_form?: { kind: string; advance_id?: number; claim_id?: number; fund_request_id?: number; amount?: number; files?: Array<{ index: number; name?: string | null }> };
   } | null;

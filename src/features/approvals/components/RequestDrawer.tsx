@@ -19,6 +19,7 @@ import { ApprovalPlanSection } from '@/features/salary-advance/components/Approv
 import type { PlanRequestDto } from '@/features/salary-advance/types/salaryAdvance.dto';
 import { ExpenseClaimReviewSection, type ClaimReviewValue } from '@/features/reimbursement/components/ExpenseClaimReviewSection';
 import { WalletFundAmountSection } from '@/features/reimbursement/components/WalletFundAmountSection';
+import { RegularizationTimesSection, RegularizationTimesTable, RegularizationTrail, TIME_LINE_KEYS } from '@/features/attendance-approvals/components/RegularizationTimes';
 
 type Action = 'approve' | 'reject' | 'send_back' | 'reassign';
 
@@ -46,6 +47,7 @@ export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; o
   const [formExtra, setFormExtra] = React.useState<{ value: Record<string, unknown> | null; valid: boolean }>({ value: null, valid: true });
   const onClaimReview = React.useCallback((value: ClaimReviewValue | null, valid: boolean) => setFormExtra({ value: value ? { lines: value.lines } : null, valid }), []);
   const onFundAmount = React.useCallback((amount: number | null, valid: boolean) => setFormExtra({ value: amount !== null ? { approved_amount: amount } : null, valid }), []);
+  const onTimes = React.useCallback((value: { in_time?: string; out_time?: string } | null, valid: boolean) => setFormExtra({ value, valid }), []);
 
   const load = React.useCallback(async () => {
     if (!id) return;
@@ -78,6 +80,8 @@ export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; o
   const planAdvanceId = form?.kind === 'salary_advance_plan' && form.advance_id ? form.advance_id : null;
   const reviewClaimId = form?.kind === 'expense_claim_review' && form.claim_id ? form.claim_id : null;
   const fundAmount = form?.kind === 'wallet_fund_amount' && Number(form.amount) > 0 ? Number(form.amount) : null;
+  const times = request?.detail?.times ?? null;
+  const correctTimes = form?.kind === 'regularization_times' && times ? times : null;
   const wideForm = Boolean(planAdvanceId || reviewClaimId);
   const formValid = plan.valid && formExtra.valid;
   const titles: Record<Action, string> = { approve: 'Approve request', reject: 'Reject request', send_back: 'Send back for changes', reassign: 'Reassign to another approver' };
@@ -99,11 +103,13 @@ export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; o
               <Fact label="Type" value={request.typeLabel} />
               <Fact label="Requested by" value={request.requester?.name || '—'} />
               <Fact label="Status" value={STATUS_LABEL[request.status]} />
-              {request.detail?.lines.map((l, i) => (
+              {request.detail?.lines.filter((l) => !(times && l.key && TIME_LINE_KEYS.has(l.key))).map((l, i) => (
                 <Fact key={`${i}-${l.label}`} label={l.label} wide={l.value.length > 48}
                   value={/^https?:\/\//.test(l.value) ? <a href={l.value} target="_blank" rel="noopener noreferrer" className="text-[var(--tt-primary)] underline-offset-2 hover:underline">View file</a> : l.value} />
               ))}
             </dl>
+            {times && <RegularizationTimesTable times={times} />}
+            {request.detail?.trail && <RegularizationTrail steps={request.detail.trail} />}
             {request.detail?.impact && (
               <div className="rounded-lg border border-line bg-bg-subtle p-3">
                 <p className="text-xs font-semibold text-fg">{request.detail.impact.label}</p>
@@ -143,6 +149,11 @@ export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; o
         {action === 'approve' && reviewClaimId && (
           <div className="mb-4 border-b border-line pb-4">
             <ExpenseClaimReviewSection claimId={reviewClaimId} onChange={onClaimReview} />
+          </div>
+        )}
+        {action === 'approve' && correctTimes && (
+          <div className="mb-4 border-b border-line pb-4">
+            <RegularizationTimesSection times={correctTimes} onChange={onTimes} />
           </div>
         )}
         {action === 'approve' && fundAmount !== null && (

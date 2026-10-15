@@ -29,10 +29,9 @@ export interface AttendanceSummary {
     remaining_minutes: number;
     extra_work_minutes: number;
 
-    // Late/Redeem
+    // Late
     late_by_minutes: number;
     adjusted_late_by: number;
-    redeem_applied_minutes: number;
 
     // Status flags
     checked_in: boolean;
