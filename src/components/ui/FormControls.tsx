@@ -6,13 +6,16 @@ import { cx } from '@/theme/tokens';
 export const labelClass = 'mb-1.5 block text-xs font-semibold text-fg sm:text-[13px]';
 const inputClass = 'w-full min-w-0 border-none bg-transparent text-sm text-fg placeholder:text-fg-subtle outline-none focus:ring-0 disabled:cursor-not-allowed';
 
-export function shellClass(hasError: boolean, disabled?: boolean) {
+/** `attention`: the field still needs the user's input (e.g. something a scan could not fill) — not an error. */
+export function shellClass(hasError: boolean, disabled?: boolean, attention?: boolean) {
   return cx(
     'relative flex h-10 w-full items-center gap-2 rounded-lg border bg-surface px-3 transition-colors focus-within:ring-1',
     disabled && 'bg-bg-subtle opacity-60',
     hasError
       ? 'border-[var(--tt-danger)] focus-within:border-[var(--tt-danger)] focus-within:ring-[var(--tt-danger)]'
-      : 'border-line focus-within:border-[var(--tt-primary)] focus-within:ring-[var(--tt-primary)]'
+      : attention
+        ? 'border-dashed border-fg/60 bg-bg-subtle/40 focus-within:border-solid focus-within:border-[var(--tt-primary)] focus-within:ring-[var(--tt-primary)]'
+        : 'border-line focus-within:border-[var(--tt-primary)] focus-within:ring-[var(--tt-primary)]'
   );
 }
 
@@ -42,13 +45,15 @@ interface TextFieldProps extends Omit<React.InputHTMLAttributes<HTMLInputElement
   prefix?: React.ReactNode;
   suffix?: React.ReactNode;
   aside?: React.ReactNode;
+  /** Highlights a field that still needs input without marking it as an error. */
+  attention?: boolean;
 }
 
-export function TextField({ label, value, onChange, error, hint, required, prefix, suffix, aside, disabled, ...rest }: TextFieldProps) {
+export function TextField({ label, value, onChange, error, hint, required, prefix, suffix, aside, disabled, attention, ...rest }: TextFieldProps) {
   return (
     <div>
       <FieldLabel label={label} required={required} aside={aside} />
-      <div className={shellClass(Boolean(error), disabled)}>
+      <div className={shellClass(Boolean(error), disabled, attention)}>
         {prefix && <span className="shrink-0 text-xs font-semibold text-fg-muted">{prefix}</span>}
         <input
           {...rest}

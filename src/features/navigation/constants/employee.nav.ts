@@ -4,7 +4,7 @@ import {
   AlertCircle, FileText, MinusCircle, Users, Phone, LayoutDashboard,
   ListChecks, LayoutGrid, Heart, UserCheck, Wallet, Receipt, ArrowUpCircle,
   Package, Coins, Briefcase, HardHat, Layers, QrCode, Award, UserPlus, List,
-  CalendarRange, Repeat, Inbox, Wrench, CalendarDays, CalendarCheck, User, TreePalm,
+  CalendarRange, Repeat, Inbox, Wrench, CalendarDays, CalendarCheck, User, TreePalm, UserRound, Tags,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
 
@@ -30,6 +30,7 @@ export const employeeNav: NavNode[] = [
     kind: 'group', id: 'self', label: 'Self', icon: User,
     children: [
       { kind: 'link', label: 'Dashboard', href: '/employee', icon: Home },
+      { kind: 'link', label: 'My profile', href: '/employee/my-profile', icon: UserRound },
       { kind: 'link', label: 'My Attendance', href: '/employee/my-attendance', icon: CalendarCheck },
       { kind: 'link', label: 'My Leave', href: '/employee/leave', icon: TreePalm, match: 'prefix' },
       { kind: 'link', label: 'My payslips', href: '/employee/my-payslips', icon: Receipt, gate: { feature: 'PAYROLL_FEATURE' } },
@@ -248,12 +249,16 @@ export const employeeNav: NavNode[] = [
   },
 
   {
-    kind: 'group', id: 'reimbursements', label: 'Reimbursements',
+    kind: 'group', id: 'expenses', label: 'Expenses', gate: { anyFeature: ['REIMBURSEMENT_FEATURE', 'EXPENSE_WALLET_FEATURE'] },
     children: [
-      { kind: 'link', label: 'Reimbursements', href: '/employee/reimbursements', icon: Wallet, gate: { perm: 'REIMBUSMENT_VIEW' } },
-      { kind: 'link', label: 'Advances', href: '/employee/advances', icon: Wallet, gate: { perm: 'REIMBUSMENT_VIEW' } },
-      { kind: 'link', label: 'Employee Wallets', href: '/employee/reimbursements/wallets', icon: Wallet, gate: { perm: 'REIMBUSMENT_WALLET_VIEW' } },
-      { kind: 'link', label: 'Reimbursement Config', href: '/employee/reimbursements/categories', icon: Cog, gate: { perm: 'REIMBUSMENT_CONFIG' } },
+      { kind: 'link', label: 'My expenses', href: '/employee/my-expenses', icon: Receipt, match: 'prefix' },
+      { kind: 'link', label: 'Overview', href: '/employee/expenses', icon: LayoutDashboard, gate: { anyPerm: ['REIMB_VIEW', 'EMP_WALLET_VIEW'] } },
+      { kind: 'link', label: 'Claims', href: '/employee/expenses/claims', icon: ClipboardList, match: 'prefix', gate: { anyPerm: ['REIMB_VIEW', 'REIMB_APPROVE', 'REIMB_DISBURSE', 'REIMB_PHYSICAL_COLLECT'] } },
+      {
+        kind: 'link', label: 'Wallets', href: '/employee/expenses/wallets', icon: Wallet, match: 'prefix',
+        gate: { feature: 'EXPENSE_WALLET_FEATURE', anyPerm: ['EMP_WALLET_VIEW', 'EMP_WALLET_CREATE', 'EMP_WALLET_TOPUP', 'EMP_WALLET_LOCK'] },
+      },
+      { kind: 'link', label: 'Categories', href: '/employee/expenses/categories', icon: Tags, match: 'prefix', gate: { perm: 'REIMB_ADMIN' } },
     ],
   },
 

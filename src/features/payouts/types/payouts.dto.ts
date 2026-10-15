@@ -1,4 +1,4 @@
-export type PayoutSourceDto = 'salary' | 'advance';
+export type PayoutSourceDto = 'salary' | 'advance' | 'reimbursement' | 'wallet_fund';
 export type PayoutStatusDto = 'unpaid' | 'paid' | 'failed';
 export type PayoutTabDto = 'to_pay' | 'failed' | 'paid' | 'all';
 
@@ -36,7 +36,7 @@ export interface PayoutFigureDto {
 
 export interface PayoutOverviewDto {
   month: string;
-  to_pay: { salary: PayoutFigureDto; advance: PayoutFigureDto; total: PayoutFigureDto };
+  to_pay: { salary: PayoutFigureDto; advance: PayoutFigureDto; reimbursement?: PayoutFigureDto; wallet_fund?: PayoutFigureDto; total: PayoutFigureDto };
   failed: PayoutFigureDto;
   paid_this_month: PayoutFigureDto;
 }

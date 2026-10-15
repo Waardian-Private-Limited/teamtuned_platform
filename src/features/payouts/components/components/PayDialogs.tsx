@@ -66,13 +66,14 @@ export function MarkPaidDialog({ open, rows, onClose, onDone }: DialogProps) {
 
   const total = rows.reduce((s, r) => s + r.amount, 0);
   const hasAdvance = rows.some((r) => r.source === 'advance');
+  const needsReference = rows.some((r) => r.source !== 'salary');
   const salaries = rows.filter((r) => r.source === 'salary').length;
 
   const submit = async () => {
     const next: Record<string, string> = {};
     if (!paidOn) next.paid_on = 'Pick the date it was paid';
     else if (paidOn > orgToday()) next.paid_on = 'The date cannot be in the future';
-    if (hasAdvance && !reference.trim()) next.reference = 'Enter the payment reference for the advances';
+    if (needsReference && !reference.trim()) next.reference = 'Enter the payment reference';
     setErrors(next);
     if (Object.keys(next).length) return;
     setBusy(true);
@@ -108,14 +109,14 @@ export function MarkPaidDialog({ open, rows, onClose, onDone }: DialogProps) {
       <div className="space-y-4">
         <p className="text-sm text-fg-muted">
           <span className="font-semibold text-fg">{money(total)}</span> to {rows.length} {rows.length === 1 ? 'person' : 'people'}
-          {salaries > 0 && hasAdvance ? ` (${salaries} salaries, ${rows.length - salaries} advances)` : ''}.
+          {salaries > 0 && needsReference ? ` (${salaries} salaries, ${rows.length - salaries} other payments)` : ''}.
           {hasAdvance ? ' Each advance starts its repayment plan from this date.' : ''}
         </p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <TextField label="Paid on" required type="date" value={paidOn} max={orgToday()} onChange={(v) => { setPaidOn(v); setErrors((e) => ({ ...e, paid_on: '' })); }} error={errors.paid_on || undefined} />
           <TextField
             label="Payment reference"
-            required={hasAdvance}
+            required={needsReference}
             value={reference}
             onChange={(v) => { setReference(v); setErrors((e) => ({ ...e, reference: '' })); }}
             placeholder="UTR or batch number"

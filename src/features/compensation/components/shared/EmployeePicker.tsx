@@ -8,8 +8,10 @@ import * as api from '../../api/compensation.api';
 import type { CompEmployeeDto } from '../../types/compensation.dto';
 import { inr } from '../../utils/format';
 
-export function EmployeePicker({ multiple = false, value, onChange, error, label = 'Employee' }: {
+export function EmployeePicker({ multiple = false, value, onChange, error, label = 'Employee', required = true }: {
   multiple?: boolean;
+  /** Marks the label as required (default); filters pass false. */
+  required?: boolean;
   value: CompEmployeeDto[];
   onChange: (v: CompEmployeeDto[]) => void;
   error?: string;
@@ -55,7 +57,7 @@ export function EmployeePicker({ multiple = false, value, onChange, error, label
 
   return (
     <div ref={root} className="relative">
-      <FieldLabel label={label} required aside={multiple && value.length ? <span className="mb-1.5 text-[11px] text-fg-muted">{value.length} selected</span> : undefined} />
+      <FieldLabel label={label} required={required} aside={multiple && value.length ? <span className="mb-1.5 text-[11px] text-fg-muted">{value.length} selected</span> : undefined} />
       <div
         className={cx(
           'flex min-h-10 w-full flex-wrap items-center gap-1.5 rounded-lg border bg-surface px-2.5 py-1.5 transition-colors',

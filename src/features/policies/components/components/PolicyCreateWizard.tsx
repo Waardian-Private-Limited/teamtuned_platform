@@ -11,6 +11,7 @@ import {
   Wallet,
   FileText,
   HandCoins,
+  Receipt,
   ShieldCheck,
 } from 'lucide-react';
 import { cx } from '@/theme/tokens';
@@ -19,6 +20,9 @@ import { SubOrgPicker } from '@/features/sub-organizations/components/SubOrgPick
 import { usePermission } from '@/lib/hooks/usePermission';
 import { hasSection, usePolicySchema } from '../../hooks/usePolicySchema';
 import { useAdvanceTypeOptions } from '@/features/salary-advance/hooks/useAdvanceTypeOptions';
+import { useExpenseCategoryOptions } from '@/features/reimbursement/hooks/useExpenseCategoryOptions';
+import { EXPENSE_WALLET_FEATURE, REIMBURSEMENT_FEATURE } from '@/features/reimbursement/constants/reimbursement.constants';
+import { useFeatures } from '@/lib/hooks/useFeatures';
 import type { SectionNode } from '../editor/form/schemaTypes';
 import { useLeaveTypeList } from '../../hooks/useLeaveTypeList';
 import { useSalaryComponentList } from '../../hooks/useSalaryComponentList';
@@ -53,6 +57,7 @@ const STEPS: StepItem[] = [
   { key: 'leave', label: 'Leave Policy', icon: Calendar, description: 'Quotas & carry-forward' },
   { key: 'payrollCycle', label: 'Payroll Cycle', icon: Wallet, description: 'Pay days & cutoffs' },
   { key: 'salaryAdvance', label: 'Salary Advance', icon: HandCoins, description: 'Limits & repayment' },
+  { key: 'reimbursement', label: 'Expenses', icon: Receipt, description: 'Claims, wallet & limits' },
   { key: 'review', label: 'Review & Confirm', icon: ShieldCheck, description: 'Summary & draft' },
 ];
 
@@ -72,6 +77,12 @@ export function PolicyCreateWizard({ open, isSaving, fieldError, onClose, onSubm
   const { salaryComponents } = useSalaryComponentList();
   const { types: advanceTypes } = useAdvanceTypeOptions(true);
   const advanceTypeOptions = React.useMemo(() => advanceTypes.map((t) => ({ id: t.id, name: t.name, code: t.code, active: t.status === 'active' })), [advanceTypes]);
+  const { hasFeature } = useFeatures();
+  const claimsOn = hasFeature(REIMBURSEMENT_FEATURE);
+  const walletOn = hasFeature(EXPENSE_WALLET_FEATURE);
+  const expenseFeatures = React.useMemo(() => ({ claims: claimsOn, wallet: walletOn }), [claimsOn, walletOn]);
+  const hasExpenses = expenseFeatures.claims || expenseFeatures.wallet;
+  const { options: expenseCategoryOptions } = useExpenseCategoryOptions(hasExpenses);
 
   const [stepIndex, setStepIndex] = React.useState(0);
   const [name, setName] = React.useState('');
@@ -109,8 +120,8 @@ export function PolicyCreateWizard({ open, isSaving, fieldError, onClose, onSubm
   }, [open, defaults]);
 
   const steps = React.useMemo(
-    () => STEPS.filter((s) => s.key === 'details' || s.key === 'review' || hasSection(schema, s.key)),
-    [schema]
+    () => STEPS.filter((s) => s.key === 'details' || s.key === 'review' || (hasSection(schema, s.key) && (s.key !== 'reimbursement' || hasExpenses))),
+    [schema, hasExpenses]
   );
   const step = steps[Math.min(stepIndex, steps.length - 1)];
   const nameMissing = !name.trim();
@@ -389,6 +400,8 @@ export function PolicyCreateWizard({ open, isSaving, fieldError, onClose, onSubm
               leaveTypeOptions={leaveTypeOptions}
               salaryComponentOptions={salaryComponents}
               advanceTypeOptions={advanceTypeOptions}
+              expenseCategoryOptions={expenseCategoryOptions}
+              expenseFeatures={expenseFeatures}
             />
           )
         )}

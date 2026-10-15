@@ -2,6 +2,7 @@ import type { PayoutOverviewDto, PayoutRowDto } from './payouts.dto';
 import type { Payout, PayoutOverview } from './payouts.model';
 
 const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+const figure = (f: { count?: unknown; amount?: unknown } | undefined) => ({ count: num(f?.count), amount: num(f?.amount) });
 
 export function toPayout(dto: PayoutRowDto): Payout {
   const bank = dto.bank && (dto.bank.name || dto.bank.account) ? [dto.bank.name, dto.bank.account].filter(Boolean).join(' · ') : null;
@@ -30,7 +31,13 @@ export function toPayout(dto: PayoutRowDto): Payout {
 export function toOverview(dto: PayoutOverviewDto): PayoutOverview {
   return {
     month: dto.month,
-    toPay: dto.to_pay,
+    toPay: {
+      salary: figure(dto.to_pay?.salary),
+      advance: figure(dto.to_pay?.advance),
+      reimbursement: figure(dto.to_pay?.reimbursement),
+      walletFund: figure(dto.to_pay?.wallet_fund),
+      total: figure(dto.to_pay?.total),
+    },
     failed: dto.failed,
     paidThisMonth: dto.paid_this_month,
   };

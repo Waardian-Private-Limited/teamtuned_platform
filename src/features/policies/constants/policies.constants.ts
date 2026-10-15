@@ -44,6 +44,7 @@ export const POLICY_SECTIONS = [
   { value: 'leave', label: 'Leave' },
   { value: 'payrollCycle', label: 'Payroll Cycle' },
   { value: 'salaryAdvance', label: 'Salary Advance' },
+  { value: 'reimbursement', label: 'Expenses' },
 ] as const;
 
 export type PolicySectionKey = (typeof POLICY_SECTIONS)[number]['value'];

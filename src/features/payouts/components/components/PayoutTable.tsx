@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ArrowDown, ArrowUp, ArrowUpDown, Check, Minus } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { dateText, money } from '@/features/salary-advance/utils/format';
-import { STATUS_LABEL } from '../../constants/payouts.constants';
+import { SOURCE_LABEL, STATUS_LABEL } from '../../constants/payouts.constants';
 import type { Payout, PayoutFilters, PayoutSortKey, PayoutStatus } from '../../types/payouts.model';
 
 const th = 'border-b border-line bg-bg-subtle px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-fg-muted select-none sm:px-4 sm:py-3';
@@ -49,7 +49,11 @@ function SortHead({ label, k, sort, onSort, className }: { label: string; k: Pay
 }
 
 export function sourceHref(row: Payout, area: string) {
-  return row.source === 'salary' && row.runId ? `${area}/payroll/${row.runId}/${row.employeeId}` : `${area}/salary-advance/advances/${row.id}`;
+  if (row.source === 'salary' && row.runId) return `${area}/payroll/${row.runId}/${row.employeeId}`;
+  if (row.source === 'reimbursement') return `${area}/expenses/claims/${row.id}`;
+  // Fund-request rows carry no wallet id, so they open the wallets' fund-request queue.
+  if (row.source === 'wallet_fund') return `${area}/expenses/wallets?tab=requests`;
+  return `${area}/salary-advance/advances/${row.id}`;
 }
 
 interface Props {
@@ -99,7 +103,7 @@ export function PayoutTable({ rows, sort, onSort, selectable, selected, onToggle
                 </td>
                 <td className={td}>
                   <Link href={sourceHref(r, area)} className="font-medium text-fg underline-offset-2 hover:underline">{r.label}</Link>
-                  <div className="text-[11px] text-fg-muted">{r.source === 'salary' ? 'Salary' : 'Advance'}</div>
+                  <div className="text-[11px] text-fg-muted">{SOURCE_LABEL[r.source] ?? r.source}</div>
                 </td>
                 <td className={cx(td, 'text-fg-muted')}>{r.companyName}</td>
                 <td className={td}>

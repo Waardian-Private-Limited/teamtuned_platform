@@ -4,6 +4,8 @@ import React from 'react';
 import { Dialog } from '@/components/ui/Dialog';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { hasSection, usePolicySchema } from '../../hooks/usePolicySchema';
+import { EXPENSE_WALLET_FEATURE, REIMBURSEMENT_FEATURE } from '@/features/reimbursement/constants/reimbursement.constants';
+import { useFeatures } from '@/lib/hooks/useFeatures';
 import { POLICY_SECTIONS, type PolicySectionKey } from '../../constants/policies.constants';
 import type { PolicyVersion } from '../../types/policies.model';
 import { ConfigSummary, formatValue } from './form/ConfigSummary';
@@ -27,9 +29,11 @@ interface PolicyVersionDialogProps {
 export function PolicyVersionDialog({ open, version, compareTo, onClose }: PolicyVersionDialogProps) {
   const { schema } = usePolicySchema();
   const [tab, setTab] = React.useState<PolicySectionKey>('workRules');
+  const { hasFeature } = useFeatures();
+  const hasExpenses = hasFeature(REIMBURSEMENT_FEATURE) || hasFeature(EXPENSE_WALLET_FEATURE);
   const sectionTabs = React.useMemo(
-    () => POLICY_SECTIONS.filter((s) => hasSection(schema, s.value)).map((s) => ({ value: s.value, label: s.label })),
-    [schema]
+    () => POLICY_SECTIONS.filter((s) => hasSection(schema, s.value) && (s.value !== 'reimbursement' || hasExpenses)).map((s) => ({ value: s.value, label: s.label })),
+    [schema, hasExpenses]
   );
 
   React.useEffect(() => {

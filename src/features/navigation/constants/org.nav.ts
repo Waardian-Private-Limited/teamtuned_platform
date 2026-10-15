@@ -5,7 +5,7 @@ import {
   Receipt, CheckSquare, ListTodo, UserPlus, PlusCircle, Package, LayoutGrid,
   Layers, Briefcase, HardHat, Thermometer, Camera, QrCode, Award, Cog,
   ArrowUpCircle, BarChart3, List, Heart, CalendarRange, Repeat, Inbox, Wrench, Navigation, Route,
-  User, CalendarCheck, TreePalm,
+  User, CalendarCheck, TreePalm, Tags,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
 
@@ -15,12 +15,12 @@ import type { NavNode } from '../types/nav.model';
  *
  * Two behavior changes from the legacy version, both deliberate:
  *
- * 1. Wallet and Inventory used `hasFeature("WALLET")` / `hasFeature("INVENTORY")`
- *    — every other feature check in the app uses the `_FEATURE`-suffixed code,
- *    and `hasFeature` does an exact match, so these two sections were almost
- *    certainly hidden for every organization. Fixed to `WALLET_FEATURE` /
- *    `INVENTORY_FEATURE` here, which makes them appear for orgs that actually
- *    have the feature — the working version of what the legacy code intended.
+ * 1. Inventory used `hasFeature("INVENTORY")` — every other feature check in
+ *    the app uses the `_FEATURE`-suffixed code, and `hasFeature` does an exact
+ *    match, so the section was almost certainly hidden for every organization.
+ *    Fixed to `INVENTORY_FEATURE` here. (The legacy "Wallet" section that had
+ *    the same bug was removed; employee expenses and wallets now live in the
+ *    "Expenses" group, gated by REIMBURSEMENT_FEATURE / EXPENSE_WALLET_FEATURE.)
  * 2. "Settings" was a `CategoryButton` wired to `isOpen={false}` and
  *    `onClick={() => {}}` — permanently inert decoration — while its one item
  *    rendered unconditionally underneath regardless. It's a real, working
@@ -107,14 +107,6 @@ export const orgNav: NavNode[] = [
       { kind: 'link', label: 'Employee Sites', href: '/org-admin/employee-sites', icon: MapPin },
       { kind: 'link', label: 'Budget Requests', href: '/org-admin/site-budget-requests', icon: DollarSign },
       { kind: 'link', label: 'Employee Devices', href: '/org-admin/device-management', icon: Users },
-    ],
-  },
-  {
-    kind: 'group', id: 'wallet', label: 'Wallet', gate: { feature: 'WALLET_FEATURE' },
-    children: [
-      { kind: 'link', label: 'Wallet Requests', href: '/org-admin/wallet/requests', icon: Wallet },
-      { kind: 'link', label: 'Expense Requests', href: '/org-admin/wallet/expenses', icon: Receipt },
-      { kind: 'link', label: 'Transactions', href: '/org-admin/wallet/transactions', icon: DollarSign },
     ],
   },
   {
@@ -216,12 +208,12 @@ export const orgNav: NavNode[] = [
     ],
   },
   {
-    kind: 'group', id: 'reimbursements', label: 'Reimbursements',
+    kind: 'group', id: 'expenses', label: 'Expenses', gate: { anyFeature: ['REIMBURSEMENT_FEATURE', 'EXPENSE_WALLET_FEATURE'] },
     children: [
-      { kind: 'link', label: 'Reimbursements', href: '/org-admin/reimbursements', icon: Wallet },
-      { kind: 'link', label: 'Advances', href: '/org-admin/advances', icon: Wallet },
-      { kind: 'link', label: 'Employee Wallets', href: '/org-admin/reimbursements/wallets', icon: Wallet },
-      { kind: 'link', label: 'Reimbursement Config', href: '/org-admin/reimbursements/categories', icon: Cog },
+      { kind: 'link', label: 'Overview', href: '/org-admin/expenses', icon: LayoutDashboard },
+      { kind: 'link', label: 'Claims', href: '/org-admin/expenses/claims', icon: ClipboardList, match: 'prefix' },
+      { kind: 'link', label: 'Wallets', href: '/org-admin/expenses/wallets', icon: Wallet, match: 'prefix', gate: { feature: 'EXPENSE_WALLET_FEATURE' } },
+      { kind: 'link', label: 'Categories', href: '/org-admin/expenses/categories', icon: Tags, match: 'prefix' },
     ],
   },
   {

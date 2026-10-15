@@ -10,6 +10,7 @@ export interface PolicyConfigSchemaDescribe {
   leave: SectionNode;
   payrollCycle: SectionNode;
   salaryAdvance?: SectionNode;
+  reimbursement?: SectionNode;
 }
 
 export function hasSection(schema: PolicyConfigSchemaDescribe | null, key: string): boolean {

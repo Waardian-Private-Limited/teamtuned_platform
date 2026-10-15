@@ -1,10 +1,11 @@
 'use client';
 
-import { AlertTriangle, Banknote, CheckCircle2, HandCoins, Wallet } from 'lucide-react';
+import { AlertTriangle, Banknote, CheckCircle2, HandCoins, Receipt, Wallet, WalletCards } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cx } from '@/theme/tokens';
+import { useFeatures } from '@/lib/hooks/useFeatures';
 import { money, monthLabel } from '@/features/salary-advance/utils/format';
-import type { PayoutOverview, PayoutTab } from '../../types/payouts.model';
+import type { PayoutOverview, PayoutSource, PayoutTab } from '../../types/payouts.model';
 
 function Tile({ icon: Icon, label, value, note, onClick, tone }: { icon: LucideIcon; label: string; value: string; note: string; onClick?: () => void; tone?: 'danger' }) {
   return (
@@ -29,21 +30,31 @@ function Tile({ icon: Icon, label, value, note, onClick, tone }: { icon: LucideI
   );
 }
 
-export function PayoutTiles({ overview, loading, onOpen }: { overview: PayoutOverview | null; loading: boolean; onOpen: (tab: PayoutTab, source?: 'salary' | 'advance') => void }) {
+export function PayoutTiles({ overview, loading, onOpen }: { overview: PayoutOverview | null; loading: boolean; onOpen: (tab: PayoutTab, source?: PayoutSource) => void }) {
+  const { hasFeature } = useFeatures();
+  const claimsOn = hasFeature('REIMBURSEMENT_FEATURE');
+  const walletOn = hasFeature('EXPENSE_WALLET_FEATURE');
   if (loading || !overview) {
     return (
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-[112px] animate-pulse rounded-xl bg-bg-subtle" />)}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
+        {Array.from({ length: 7 }).map((_, i) => <div key={i} className="h-[112px] animate-pulse rounded-xl bg-bg-subtle" />)}
       </div>
     );
   }
   const o = overview;
   const people = (n: number) => `${n} ${n === 1 ? 'payment' : 'payments'}`;
+  const hasExpenses = claimsOn || walletOn || o.toPay.reimbursement.count > 0 || o.toPay.walletFund.count > 0;
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+    <div className={cx('grid grid-cols-2 gap-3', hasExpenses ? 'md:grid-cols-4 xl:grid-cols-7' : 'lg:grid-cols-5')}>
       <Tile icon={Wallet} label="To pay" value={money(o.toPay.total.amount)} note={people(o.toPay.total.count)} onClick={() => onOpen('to_pay')} />
       <Tile icon={Banknote} label="Salaries" value={money(o.toPay.salary.amount)} note={people(o.toPay.salary.count)} onClick={() => onOpen('to_pay', 'salary')} />
       <Tile icon={HandCoins} label="Advances" value={money(o.toPay.advance.amount)} note={people(o.toPay.advance.count)} onClick={() => onOpen('to_pay', 'advance')} />
+      {hasExpenses && (
+        <>
+          {(claimsOn || o.toPay.reimbursement.count > 0) && <Tile icon={Receipt} label="Expense claims" value={money(o.toPay.reimbursement.amount)} note={people(o.toPay.reimbursement.count)} onClick={() => onOpen('to_pay', 'reimbursement')} />}
+          {(walletOn || o.toPay.walletFund.count > 0) && <Tile icon={WalletCards} label="Wallet funds" value={money(o.toPay.walletFund.amount)} note={people(o.toPay.walletFund.count)} onClick={() => onOpen('to_pay', 'wallet_fund')} />}
+        </>
+      )}
       <Tile icon={AlertTriangle} label="Failed" value={money(o.failed.amount)} note={people(o.failed.count)} onClick={() => onOpen('failed')} tone={o.failed.count ? 'danger' : undefined} />
       <Tile icon={CheckCircle2} label={`Paid in ${monthLabel(o.month, 'short')}`} value={money(o.paidThisMonth.amount)} note={people(o.paidThisMonth.count)} onClick={() => onOpen('paid')} />
     </div>

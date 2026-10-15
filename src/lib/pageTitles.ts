@@ -43,6 +43,7 @@ const PAGE_TITLES: Record<string, { title: string; category: string }> = {
     '/employee/insurance/beneficiaries': { title: 'Beneficiaries', category: 'Insurance' },
 
     // Salary Advance
+    '/employee/my-profile': { title: 'My profile', category: 'Self' },
     '/employee/my-advances': { title: 'My advances', category: 'Self' },
     '/employee/payouts': { title: 'Payouts', category: 'Payroll' },
     '/org-admin/payouts': { title: 'Payouts', category: 'Payroll' },
@@ -52,6 +53,18 @@ const PAGE_TITLES: Record<string, { title: string; category: string }> = {
     '/org-admin/salary-advance/advances': { title: 'Advances', category: 'Salary Advance' },
     '/employee/salary-advance/types': { title: 'Advance types', category: 'Salary Advance' },
     '/org-admin/salary-advance/types': { title: 'Advance types', category: 'Salary Advance' },
+
+    // Expenses
+    '/employee/my-expenses': { title: 'My expenses', category: 'Self' },
+    '/employee/my-expenses/wallet': { title: 'Wallet statement', category: 'Self' },
+    '/employee/expenses': { title: 'Overview', category: 'Expenses' },
+    '/org-admin/expenses': { title: 'Overview', category: 'Expenses' },
+    '/employee/expenses/claims': { title: 'Claims', category: 'Expenses' },
+    '/org-admin/expenses/claims': { title: 'Claims', category: 'Expenses' },
+    '/employee/expenses/wallets': { title: 'Wallets', category: 'Expenses' },
+    '/org-admin/expenses/wallets': { title: 'Wallets', category: 'Expenses' },
+    '/employee/expenses/categories': { title: 'Categories', category: 'Expenses' },
+    '/org-admin/expenses/categories': { title: 'Categories', category: 'Expenses' },
 
     // Task
     '/employee/tasks': { title: 'Templates', category: 'Task' },

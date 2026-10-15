@@ -22,6 +22,7 @@ import {
 } from './schemaTypes';
 import { LeaveRulesConfigurator } from './LeaveRulesConfigurator';
 import { SalaryAdvanceRulesConfigurator } from './SalaryAdvanceRulesConfigurator';
+import { ReimbursementRulesConfigurator } from './ReimbursementRulesConfigurator';
 import { WeeklyOffScheduleEditor, type DayKey, type DayScheduleConfig } from './WeeklyOffScheduleEditor';
 
 export interface LeaveTypeOption {
@@ -45,6 +46,17 @@ export interface AdvanceTypeOption {
 }
 
 const AdvanceTypeOptionsContext = React.createContext<AdvanceTypeOption[]>([]);
+
+export interface ExpenseCategoryOption {
+  id: number;
+  name: string;
+  code?: string;
+  kind?: 'amount' | 'distance';
+  icon?: string | null;
+  active?: boolean;
+}
+
+const ExpenseCategoryOptionsContext = React.createContext<ExpenseCategoryOption[]>([]);
 
 const GROSS_SALARY_COMPONENT: SalaryComponentOption = { id: 0, name: 'Gross (all active components)' };
 
@@ -228,7 +240,23 @@ interface ScalarControlProps {
 
 export function ScalarControl({ label, node, value, onChange, leaveTypeOptions, salaryComponentOptions, fieldKey, error }: ScalarControlProps) {
   const advanceTypeOptions = React.useContext(AdvanceTypeOptionsContext);
+  const expenseCategoryOptions = React.useContext(ExpenseCategoryOptionsContext);
   const ref = node.ref || (fieldKey === 'leaveTypeId' ? 'leaveType' : fieldKey === 'salaryComponentId' ? 'salaryComponent' : fieldKey === 'advanceTypeId' ? 'advanceType' : undefined);
+
+  if (ref === 'expenseCategory') {
+    return (
+      <FieldShell label={label} help={node.help} error={error}>
+        <select value={String(value ?? 0)} onChange={(e) => onChange(Number(e.target.value))} className={controlClass(error)}>
+          <option value="0">Select expense category…</option>
+          {expenseCategoryOptions.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </FieldShell>
+    );
+  }
 
   if (ref === 'advanceType') {
     return (
@@ -673,6 +701,8 @@ export function SchemaForm({
   leaveTypeOptions,
   salaryComponentOptions,
   advanceTypeOptions = [],
+  expenseCategoryOptions = [],
+  expenseFeatures,
   section,
   fieldErrors = {},
 }: {
@@ -682,6 +712,9 @@ export function SchemaForm({
   leaveTypeOptions?: LeaveTypeOption[];
   salaryComponentOptions?: SalaryComponentOption[];
   advanceTypeOptions?: AdvanceTypeOption[];
+  expenseCategoryOptions?: ExpenseCategoryOption[];
+  /** Org features behind the reimbursement section: claims and/or the expense wallet. */
+  expenseFeatures?: { claims: boolean; wallet: boolean };
   section: string;
   /** Backend violations keyed by full config path. */
   fieldErrors?: Record<string, string>;
@@ -694,6 +727,16 @@ export function SchemaForm({
         <AdvanceTypeOptionsContext.Provider value={advanceTypeOptions}>
           <SalaryAdvanceRulesConfigurator node={node} value={value} onChange={handleChange} advanceTypeOptions={advanceTypeOptions} />
         </AdvanceTypeOptionsContext.Provider>
+      </FieldErrorsProvider>
+    );
+  }
+
+  if (section === 'reimbursement') {
+    return (
+      <FieldErrorsProvider section={section} errors={fieldErrors}>
+        <ExpenseCategoryOptionsContext.Provider value={expenseCategoryOptions}>
+          <ReimbursementRulesConfigurator node={node} value={value} onChange={handleChange} categoryOptions={expenseCategoryOptions} features={expenseFeatures} />
+        </ExpenseCategoryOptionsContext.Provider>
       </FieldErrorsProvider>
     );
   }

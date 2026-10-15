@@ -26,6 +26,7 @@ function hasFeature(ctx: NavContext, code: string): boolean {
 export function passesGate(ctx: NavContext, gate: NavGate | undefined): boolean {
   if (!gate) return true;
   if (gate.feature && !hasFeature(ctx, gate.feature)) return false;
+  if (gate.anyFeature && !gate.anyFeature.some((code) => hasFeature(ctx, code))) return false;
 
   const bypass = gate.orgAdminBypass !== false && ctx.isOrgAdmin;
   if (bypass) return true;

@@ -104,7 +104,7 @@ export interface RequestDetail {
     lines: { label: string; value: string }[];
     impact: { label: string; items: string[] } | null;
     /** A type-specific form the approver fills in; its values go back as `extra` when approving. */
-    decision_form?: { kind: string; advance_id?: number };
+    decision_form?: { kind: string; advance_id?: number; claim_id?: number; fund_request_id?: number; amount?: number; files?: Array<{ index: number; name?: string | null }> };
   } | null;
   createdAt: string; decidedAt: string | null;
   actions: { decide: boolean; sendBack: boolean; withdraw: boolean; resubmit: boolean; override: boolean; reassign: boolean };

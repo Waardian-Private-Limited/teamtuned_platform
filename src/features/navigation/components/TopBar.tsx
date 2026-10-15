@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu, User, Bell, Settings, LogOut } from 'lucide-react';
 import { getPageTitle } from '@/lib/pageTitles';
@@ -98,12 +99,15 @@ export function TopBar({
                   <p className="truncate text-sm font-semibold text-fg">{fullName}</p>
                   <p className="truncate text-xs text-fg-muted">{userRole || role}</p>
                 </div>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 rounded-[var(--tt-radius-sm)] px-3 py-2 text-sm text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg"
-                >
-                  <User size={16} /> Profile
-                </button>
+                {role === 'employee' && (
+                  <Link
+                    href="/employee/my-profile"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex w-full items-center gap-2 rounded-[var(--tt-radius-sm)] px-3 py-2 text-sm text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg"
+                  >
+                    <User size={16} /> View profile
+                  </Link>
+                )}
                 <button
                   type="button"
                   className="flex w-full items-center gap-2 rounded-[var(--tt-radius-sm)] px-3 py-2 text-sm text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg"

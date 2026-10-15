@@ -3,6 +3,8 @@ import type { LucideIcon } from 'lucide-react';
 /**
  * Visibility rule for a nav node. `feature` gates on an organization feature
  * code (exact match against `features`, mirroring the legacy `hasFeature`).
+ * `anyFeature` passes when the org has at least one of the listed codes (e.g.
+ * Expenses: claims, wallet, or both); it combines with `feature` as AND.
  * `perm`/`anyPerm` gate on the permission list (case-insensitive, mirroring
  * `hasPerm`/`hasAnyPerm`). `permPrefix` matches any permission that starts
  * with the given string — the one place the legacy sidebar used a wildcard
@@ -14,6 +16,7 @@ import type { LucideIcon } from 'lucide-react';
  */
 export interface NavGate {
   feature?: string;
+  anyFeature?: string[];
   perm?: string;
   anyPerm?: string[];
   permPrefix?: string;

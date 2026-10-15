@@ -1,13 +1,17 @@
 'use client';
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Check, ChevronDown, Search, X } from 'lucide-react';
-import { cx, field, text } from '@/theme/tokens';
+import { cx } from '@/theme/tokens';
 
 export interface ComboboxOption {
   value: string | number;
   label: string;
   description?: string;
+  /** Leading glyph, shown in the list and on the closed field. */
+  icon?: ReactNode;
+  /** Short trailing hint, e.g. "per km". */
+  meta?: string;
 }
 
 interface ComboboxProps {
@@ -22,6 +26,13 @@ interface ComboboxProps {
   loading?: boolean;
   /** When provided, filtering is assumed to happen server-side and this fires on every keystroke instead of filtering `options` locally. */
   onSearch?: (term: string) => void;
+  /** Red border (the field has an error). */
+  invalid?: boolean;
+  /** Dashed border: still needs a choice, not an error. */
+  attention?: boolean;
+  /** Accessible name when there is no visible <label for>. */
+  ariaLabel?: string;
+  id?: string;
 }
 
 // Searchable single-select with keyboard navigation. react-select is already
@@ -38,12 +49,18 @@ export function Combobox({
   disabled,
   loading,
   onSearch,
+  invalid,
+  attention,
+  ariaLabel,
+  id,
 }: ComboboxProps) {
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState('');
   const [highlighted, setHighlighted] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   const listId = useId();
 
   const selected = options.find((o) => o.value === value) || null;
@@ -52,7 +69,7 @@ export function Combobox({
     if (onSearch) return options; // server already filtered
     const t = term.trim().toLowerCase();
     if (!t) return options;
-    return options.filter((o) => o.label.toLowerCase().includes(t));
+    return options.filter((o) => o.label.toLowerCase().includes(t) || (o.description || '').toLowerCase().includes(t));
   }, [options, term, onSearch]);
 
   useEffect(() => {
@@ -66,21 +83,38 @@ export function Combobox({
 
   useEffect(() => {
     if (open) {
-      setHighlighted(0);
+      setHighlighted(Math.max(0, options.findIndex((o) => o.value === value)));
       const raf = requestAnimationFrame(() => inputRef.current?.focus());
       return () => cancelAnimationFrame(raf);
     }
     setTerm('');
+    // Only when it opens or closes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  useEffect(() => {
+    setHighlighted((h) => Math.min(h, Math.max(filtered.length - 1, 0)));
+  }, [filtered.length]);
+
+  useEffect(() => {
+    if (!open) return;
+    const el = listRef.current?.querySelector<HTMLElement>(`[data-index="${highlighted}"]`);
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [highlighted, open]);
 
   useEffect(() => {
     onSearch?.(term);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [term]);
 
+  function close(refocus: boolean) {
+    setOpen(false);
+    if (refocus) requestAnimationFrame(() => triggerRef.current?.focus());
+  }
+
   function commit(option: ComboboxOption | null) {
     onChange(option ? option.value : null);
-    setOpen(false);
+    close(true);
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
@@ -95,29 +129,52 @@ export function Combobox({
       const opt = filtered[highlighted];
       if (opt) commit(opt);
     } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      close(true);
+    } else if (e.key === 'Tab') {
       setOpen(false);
+    }
+  }
+
+  function onTriggerKeyDown(e: React.KeyboardEvent) {
+    if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault();
+      setOpen(true);
     }
   }
 
   return (
     <div ref={rootRef} className="relative">
       <button
+        ref={triggerRef}
+        id={id}
         type="button"
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
+        onKeyDown={onTriggerKeyDown}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        aria-label={ariaLabel ? `${ariaLabel}${selected ? `: ${selected.label}` : ''}` : undefined}
+        aria-invalid={invalid || undefined}
         className={cx(
           'flex h-10 w-full items-center justify-between rounded-lg border bg-surface px-3 text-xs sm:text-sm transition-all',
           disabled
             ? 'cursor-not-allowed border-line bg-bg-subtle opacity-50'
             : open
               ? 'border-[var(--tt-primary)] ring-1 ring-[var(--tt-primary)] shadow-xs'
-              : 'border-line hover:border-line-strong'
+              : invalid
+                ? 'border-[var(--tt-danger)]'
+                : attention
+                  ? 'border-dashed border-fg/60 bg-bg-subtle/40 hover:border-fg'
+                  : 'border-line hover:border-line-strong'
         )}
       >
-        <span className={cx('truncate', selected ? 'font-medium text-fg' : 'text-fg-subtle')}>
-          {selected ? selected.label : placeholder}
+        <span className={cx('flex min-w-0 items-center gap-2', selected ? 'font-medium text-fg' : 'text-fg-subtle')}>
+          {selected?.icon && <span className="flex shrink-0 items-center text-fg">{selected.icon}</span>}
+          <span className="truncate">{selected ? selected.label : placeholder}</span>
+          {selected?.meta && <span className="shrink-0 text-[11px] font-normal text-fg-muted">{selected.meta}</span>}
         </span>
         <span className="flex shrink-0 items-center gap-1.5 ml-2">
           {clearable && selected && !disabled && (
@@ -144,18 +201,25 @@ export function Combobox({
               value={term}
               onChange={(e) => setTerm(e.target.value)}
               onKeyDown={onKeyDown}
+              role="combobox"
+              aria-expanded
+              aria-controls={listId}
+              aria-autocomplete="list"
+              aria-activedescendant={filtered[highlighted] ? `${listId}-${highlighted}` : undefined}
+              aria-label={ariaLabel ? `Search ${ariaLabel.toLowerCase()}` : searchPlaceholder}
               placeholder={searchPlaceholder}
               className="w-full bg-transparent text-xs sm:text-sm text-fg outline-none placeholder:text-fg-subtle"
             />
           </div>
-          <ul role="listbox" id={listId} className="max-h-56 overflow-y-auto tt-scroll-hidden p-1">
+          <ul ref={listRef} role="listbox" id={listId} aria-label={ariaLabel} className="max-h-56 overflow-y-auto tt-scroll-hidden p-1">
             {loading && <li className={cx('px-3 py-2.5 text-xs sm:text-sm text-fg-muted')}>Loading…</li>}
             {!loading && filtered.length === 0 && <li className={cx('px-3 py-2.5 text-xs sm:text-sm text-fg-muted')}>{emptyLabel}</li>}
             {!loading &&
               filtered.map((opt, i) => (
-                <li key={opt.value} role="option" aria-selected={opt.value === value}>
+                <li key={opt.value} id={`${listId}-${i}`} data-index={i} role="option" aria-selected={opt.value === value}>
                   <button
                     type="button"
+                    tabIndex={-1}
                     onMouseEnter={() => setHighlighted(i)}
                     onClick={() => commit(opt)}
                     className={cx(
@@ -164,13 +228,19 @@ export function Combobox({
                       opt.value === value ? 'font-semibold text-fg' : 'text-fg'
                     )}
                   >
-                    <span className="min-w-0">
-                      <span className="block truncate">{opt.label}</span>
-                      {opt.description && (
-                        <span className="block truncate text-[11px] text-fg-muted">{opt.description}</span>
-                      )}
+                    <span className="flex min-w-0 items-center gap-2.5">
+                      {opt.icon && <span className="flex shrink-0 items-center">{opt.icon}</span>}
+                      <span className="min-w-0">
+                        <span className="block truncate">{opt.label}</span>
+                        {opt.description && (
+                          <span className="block truncate text-[11px] text-fg-muted">{opt.description}</span>
+                        )}
+                      </span>
                     </span>
-                    {opt.value === value && <Check className="h-4 w-4 shrink-0 text-[var(--tt-primary)]" />}
+                    <span className="flex shrink-0 items-center gap-2">
+                      {opt.meta && <span className="text-[11px] font-normal text-fg-muted">{opt.meta}</span>}
+                      {opt.value === value && <Check className="h-4 w-4 shrink-0 text-[var(--tt-primary)]" />}
+                    </span>
                   </button>
                 </li>
               ))}

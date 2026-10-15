@@ -17,7 +17,7 @@ export interface VisibleWhen {
 export type VisibleCondition = VisibleWhen | VisibleWhen[];
 
 /** What an id-valued field points at, so the form can offer a picker. */
-export type FieldRef = 'leaveType' | 'salaryComponent' | 'advanceType';
+export type FieldRef = 'leaveType' | 'salaryComponent' | 'advanceType' | 'expenseCategory';
 
 export interface ScalarFieldNode {
   type: 'number' | 'int' | 'bool' | 'string' | 'time' | 'enum' | 'enumList' | 'idList';

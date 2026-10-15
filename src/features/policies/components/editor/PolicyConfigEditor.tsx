@@ -6,6 +6,9 @@ import { cx } from '@/theme/tokens';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { hasSection, usePolicySchema } from '../../hooks/usePolicySchema';
 import { useAdvanceTypeOptions } from '@/features/salary-advance/hooks/useAdvanceTypeOptions';
+import { useExpenseCategoryOptions } from '@/features/reimbursement/hooks/useExpenseCategoryOptions';
+import { EXPENSE_WALLET_FEATURE, REIMBURSEMENT_FEATURE } from '@/features/reimbursement/constants/reimbursement.constants';
+import { useFeatures } from '@/lib/hooks/useFeatures';
 import { useLeaveTypeList } from '../../hooks/useLeaveTypeList';
 import { useSalaryComponentList } from '../../hooks/useSalaryComponentList';
 import { SchemaForm } from './form/SchemaForm';
@@ -41,6 +44,12 @@ export function PolicyConfigEditor({ config, isSaving, onSave }: PolicyConfigEdi
   const { leaveTypes } = useLeaveTypeList();
   const { salaryComponents } = useSalaryComponentList();
   const { types: advanceTypes } = useAdvanceTypeOptions(true);
+  const { hasFeature } = useFeatures();
+  const claimsOn = hasFeature(REIMBURSEMENT_FEATURE);
+  const walletOn = hasFeature(EXPENSE_WALLET_FEATURE);
+  const expenseFeatures = React.useMemo(() => ({ claims: claimsOn, wallet: walletOn }), [claimsOn, walletOn]);
+  const hasExpenses = expenseFeatures.claims || expenseFeatures.wallet;
+  const { options: expenseCategoryOptions } = useExpenseCategoryOptions(hasExpenses);
 
   const [mode, setMode] = React.useState<'form' | 'json'>('form');
   const [activeTab, setActiveTab] = React.useState<PolicySectionKey>('workRules');
@@ -57,8 +66,9 @@ export function PolicyConfigEditor({ config, isSaving, onSave }: PolicyConfigEdi
   }, [config]);
 
   const sectionTabs = React.useMemo(
-    () => POLICY_SECTIONS.filter((s) => hasSection(schema, s.value)).map((s) => ({ value: s.value, label: s.label })),
-    [schema]
+    () =>
+      POLICY_SECTIONS.filter((s) => hasSection(schema, s.value) && (s.value !== 'reimbursement' || hasExpenses)).map((s) => ({ value: s.value, label: s.label })),
+    [schema, hasExpenses]
   );
   const advanceTypeOptions = React.useMemo(() => advanceTypes.map((t) => ({ id: t.id, name: t.name, code: t.code, active: t.status === 'active' })), [advanceTypes]);
 
@@ -197,6 +207,8 @@ export function PolicyConfigEditor({ config, isSaving, onSave }: PolicyConfigEdi
               leaveTypeOptions={leaveTypeOptions}
               salaryComponentOptions={salaryComponents}
               advanceTypeOptions={advanceTypeOptions}
+              expenseCategoryOptions={expenseCategoryOptions}
+              expenseFeatures={expenseFeatures}
               fieldErrors={fieldErrors}
             />
           </div>

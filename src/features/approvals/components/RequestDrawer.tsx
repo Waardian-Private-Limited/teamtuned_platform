@@ -17,6 +17,8 @@ import { ApprovalTimeline } from './ApprovalTimeline';
 import { EmployeeSearch } from './EmployeeSearch';
 import { ApprovalPlanSection } from '@/features/salary-advance/components/ApprovalPlanSection';
 import type { PlanRequestDto } from '@/features/salary-advance/types/salaryAdvance.dto';
+import { ExpenseClaimReviewSection, type ClaimReviewValue } from '@/features/reimbursement/components/ExpenseClaimReviewSection';
+import { WalletFundAmountSection } from '@/features/reimbursement/components/WalletFundAmountSection';
 
 type Action = 'approve' | 'reject' | 'send_back' | 'reassign';
 
@@ -40,13 +42,17 @@ export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; o
   const [busy, setBusy] = React.useState(false);
   const [plan, setPlan] = React.useState<{ value: PlanRequestDto | null; valid: boolean }>({ value: null, valid: true });
   const onPlan = React.useCallback((value: PlanRequestDto | null, valid: boolean) => setPlan({ value, valid }), []);
+  // Type-specific approval input other than the salary-advance plan (expense line amounts, wallet fund amount).
+  const [formExtra, setFormExtra] = React.useState<{ value: Record<string, unknown> | null; valid: boolean }>({ value: null, valid: true });
+  const onClaimReview = React.useCallback((value: ClaimReviewValue | null, valid: boolean) => setFormExtra({ value: value ? { lines: value.lines } : null, valid }), []);
+  const onFundAmount = React.useCallback((amount: number | null, valid: boolean) => setFormExtra({ value: amount !== null ? { approved_amount: amount } : null, valid }), []);
 
   const load = React.useCallback(async () => {
     if (!id) return;
     try { setRequest(await api.getRequest(id)); setError(null); } catch (e) { setError(messageOf(e)); }
   }, [id]);
 
-  React.useEffect(() => { setRequest(null); setAction(null); setPlan({ value: null, valid: true }); load(); }, [load]);
+  React.useEffect(() => { setRequest(null); setAction(null); setPlan({ value: null, valid: true }); setFormExtra({ value: null, valid: true }); load(); }, [load]);
 
   const run = async (fn: () => Promise<unknown>, ok: string) => {
     setBusy(true);
@@ -61,14 +67,19 @@ export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; o
       return run(() => api.reassign(request.id, target[0].id), 'Reassigned');
     }
     if (action === 'send_back') return run(() => api.sendBack(request.id, note.trim()), 'Sent back');
-    if (action === 'approve' && !plan.valid) return;
-    const extra = action === 'approve' && plan.value ? { plan: plan.value } : undefined;
+    if (action === 'approve' && (!plan.valid || !formExtra.valid)) return;
+    const merged = action === 'approve' ? { ...(plan.value ? { plan: plan.value } : {}), ...(formExtra.value ?? {}) } : {};
+    const extra = Object.keys(merged).length ? merged : undefined;
     return run(() => api.decide(request.id, action, note.trim() || undefined, extra), action === 'approve' ? 'Approved' : 'Rejected');
   };
 
   const a = request?.actions;
   const form = request?.detail?.decision_form;
   const planAdvanceId = form?.kind === 'salary_advance_plan' && form.advance_id ? form.advance_id : null;
+  const reviewClaimId = form?.kind === 'expense_claim_review' && form.claim_id ? form.claim_id : null;
+  const fundAmount = form?.kind === 'wallet_fund_amount' && Number(form.amount) > 0 ? Number(form.amount) : null;
+  const wideForm = Boolean(planAdvanceId || reviewClaimId);
+  const formValid = plan.valid && formExtra.valid;
   const titles: Record<Action, string> = { approve: 'Approve request', reject: 'Reject request', send_back: 'Send back for changes', reassign: 'Reassign to another approver' };
 
   return (
@@ -103,6 +114,12 @@ export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; o
           <div className="min-w-0 xl:border-l xl:border-line xl:pl-5">
             <ApprovalTimeline request={request} />
           </div>
+          {reviewClaimId && (
+            // Each bill's receipt beside its items, so amounts can be compared before deciding.
+            <section aria-label="Bills and receipts" className="min-w-0 border-t border-line pt-4 xl:col-span-2">
+              <ExpenseClaimReviewSection claimId={reviewClaimId} readOnly />
+            </section>
+          )}
         </div>
       )}
       {a && (a.decide || a.sendBack || a.withdraw || a.resubmit || a.override || a.reassign) && (
@@ -116,11 +133,21 @@ export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; o
         </div>
       )}
 
-      <Dialog open={Boolean(action)} onClose={() => setAction(null)} title={action ? titles[action] : ''} maxWidthClassName={action === 'approve' && planAdvanceId ? 'max-w-xl' : undefined}
-        footer={<div className="flex justify-end gap-2"><Btn onClick={() => setAction(null)}>Cancel</Btn><Btn variant={action === 'reject' ? 'danger' : 'primary'} busy={busy} disabled={action === 'approve' && !plan.valid} onClick={confirm}>Confirm</Btn></div>}>
+      <Dialog open={Boolean(action)} onClose={() => setAction(null)} title={action ? titles[action] : ''} maxWidthClassName={action === 'approve' && reviewClaimId ? 'max-w-4xl' : action === 'approve' && wideForm ? 'max-w-xl' : undefined}
+        footer={<div className="flex justify-end gap-2"><Btn onClick={() => setAction(null)}>Cancel</Btn><Btn variant={action === 'reject' ? 'danger' : 'primary'} busy={busy} disabled={action === 'approve' && !formValid} onClick={confirm}>Confirm</Btn></div>}>
         {action === 'approve' && planAdvanceId && (
           <div className="mb-4 border-b border-line pb-4">
             <ApprovalPlanSection advanceId={planAdvanceId} onChange={onPlan} />
+          </div>
+        )}
+        {action === 'approve' && reviewClaimId && (
+          <div className="mb-4 border-b border-line pb-4">
+            <ExpenseClaimReviewSection claimId={reviewClaimId} onChange={onClaimReview} />
+          </div>
+        )}
+        {action === 'approve' && fundAmount !== null && (
+          <div className="mb-4 border-b border-line pb-4">
+            <WalletFundAmountSection requested={fundAmount} onChange={onFundAmount} fundRequestId={form?.fund_request_id ?? null} files={form?.files ?? []} />
           </div>
         )}
         {action === 'reassign' ? (
