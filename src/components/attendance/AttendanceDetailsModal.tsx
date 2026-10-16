@@ -43,17 +43,64 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
     const [initialOutTime, setInitialOutTime] = React.useState<string>("");
     const [violationDetails, setViolationDetails] = React.useState<any>(null);
 
+    /* Identify if this record was settled or overridden by Night OT */
+    const isNightOTOverride = React.useMemo(() => {
+        if (!record) return false;
+        const s = String(record.status || '').toLowerCase();
+        const tl = String(record.status_timeline || '').toLowerCase();
+        const sm = String(record.status_summary || '').toLowerCase();
+        const reason = String(record.override_reason || '').toLowerCase();
+        const notes = String(record.notes || '').toLowerCase();
+
+        if (s === 'ot override' || s === 'ot_override') return true;
+        if (tl.includes('ot override') || tl.includes('via night ot')) return true;
+        if (sm.includes('adjusted via night ot') || sm.includes('upgraded via night ot') || sm.includes('via night ot')) return true;
+        if (Boolean(record.was_post_night_ot && record.is_overridden)) return true;
+        if (Array.isArray(record.badges) && record.badges.some((b: any) => b.type === 'post_night_ot') && Boolean(record.is_overridden)) return true;
+        if (Boolean(record.ot_source_date)) return true;
+        if (reason.includes('night ot') || notes.includes('night ot')) return true;
+        return false;
+    }, [record]);
+
+    /* Check if the employee actually attended/punched (real punch photos, GPS, sessions, site, or worked time)
+       as opposed to synthetic shift start/end times stamped by night OT settlement */
+    const hasActualAttendance = React.useMemo(() => {
+        if (!record) return false;
+        if (Boolean(record.punch_in_image || record.punch_out_image)) return true;
+        if (record.punch_in_lat != null || record.punch_in_lng != null || record.punch_out_lat != null || record.punch_out_lng != null) return true;
+        const punchSessions = Array.isArray(record.punch_sessions) ? record.punch_sessions : [];
+        if (punchSessions.length > 0) {
+            const hasRealSession = punchSessions.some((p: any) =>
+                p.punch_in_image || p.punch_out_image || p.punch_in_lat != null || p.punch_in_site_id || p.punch_in_site_name || p.punch_in_other_location_name
+            );
+            if (hasRealSession) return true;
+        }
+        const sessions = Array.isArray(record.sessions) ? record.sessions : [];
+        if (sessions.length > 0 && sessions.some((s: any) => s.session_type !== 'night_ot')) return true;
+        if (record.punch_in_site_name || record.punch_in_other_location_name || record.punch_out_site_name || record.punch_out_other_location_name) return true;
+        if (record.punch_in_site_id || record.punch_out_site_id) return true;
+        if (Number(record.total_work_minutes || 0) > 0) return true;
+
+        return false;
+    }, [record]);
+
+    const hidePunchTimes = isNightOTOverride && !hasActualAttendance;
+    const displayPunchInTime = hidePunchTimes ? null : (record?.punch_in_time || record?.check_in);
+    const displayPunchOutTime = hidePunchTimes ? null : (record?.punch_out_time || record?.check_out);
+
     React.useEffect(() => {
         if (showOverride && record) {
-            const inT = record.punch_in_time || record.check_in ? new Date(record.punch_in_time || record.check_in).toTimeString().slice(0, 5) : "";
-            const outT = record.punch_out_time || record.check_out ? new Date(record.punch_out_time || record.check_out).toTimeString().slice(0, 5) : "";
+            const rawIn = hidePunchTimes ? null : (record.punch_in_time || record.check_in);
+            const rawOut = hidePunchTimes ? null : (record.punch_out_time || record.check_out);
+            const inT = rawIn ? new Date(rawIn).toTimeString().slice(0, 5) : "";
+            const outT = rawOut ? new Date(rawOut).toTimeString().slice(0, 5) : "";
             setOverrideInTime(inT);
             setOverrideOutTime(outT);
             setInitialInTime(inT);
             setInitialOutTime(outT);
             setViolationDetails(null);
         }
-    }, [showOverride, record]);
+    }, [showOverride, record, hidePunchTimes]);
 
     // NEW: Real-time violation checking for Override
     React.useEffect(() => {
@@ -714,15 +761,15 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                         <Clock className="w-3.5 h-3.5 text-blue-600" />
                                         <div className="text-xs font-semibold text-blue-700 uppercase">Punch In</div>
                                     </div>
-                                    <div className="font-semibold text-blue-900">{formatTime(record.punch_in_time || record.check_in)}</div>
-                                    {record.punch_in_other_location_name ? (
+                                    <div className="font-semibold text-blue-900">{formatTime(displayPunchInTime)}</div>
+                                    {!hidePunchTimes && (record.punch_in_other_location_name ? (
                                         <div className="text-xs text-blue-700 mt-1 truncate flex items-center gap-1">
                                             <span className="font-bold px-1 py-0.25 bg-amber-100 text-amber-800 rounded text-[9px] uppercase tracking-wider">Other</span>
                                             {record.punch_in_other_location_name}
                                         </div>
                                     ) : !!record.punch_in_site_name ? (
                                         <div className="text-xs text-blue-700 mt-1 truncate">{record.punch_in_site_name}</div>
-                                    ) : null}
+                                    ) : null)}
                                 </div>
 
                                 <div className="bg-purple-50/50 rounded-lg p-3 border border-purple-200/50">
@@ -730,15 +777,15 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                         <Clock className="w-3.5 h-3.5 text-purple-600" />
                                         <div className="text-xs font-semibold text-purple-700 uppercase">Punch Out</div>
                                     </div>
-                                    <div className="font-semibold text-purple-900">{formatTime(record.punch_out_time || record.check_out)}</div>
-                                    {record.punch_out_other_location_name ? (
+                                    <div className="font-semibold text-purple-900">{formatTime(displayPunchOutTime)}</div>
+                                    {!hidePunchTimes && (record.punch_out_other_location_name ? (
                                         <div className="text-xs text-purple-700 mt-1 truncate flex items-center gap-1">
                                             <span className="font-bold px-1 py-0.25 bg-amber-100 text-amber-800 rounded text-[9px] uppercase tracking-wider">Other</span>
                                             {record.punch_out_other_location_name}
                                         </div>
                                     ) : !!record.punch_out_site_name ? (
                                         <div className="text-xs text-purple-700 mt-1 truncate">{record.punch_out_site_name}</div>
-                                    ) : null}
+                                    ) : null)}
                                 </div>
                             </div>
 
@@ -1088,8 +1135,8 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                                     } catch { return ""; }
                                 };
 
-                                const inT = toTimeInput(record.punch_in_time || record.check_in);
-                                const outT = toTimeInput(record.punch_out_time || record.check_out);
+                                const inT = toTimeInput(displayPunchInTime);
+                                const outT = toTimeInput(displayPunchOutTime);
 
                                 setOverrideInTime(inT);
                                 setOverrideOutTime(outT);
@@ -1107,7 +1154,7 @@ export default function AttendanceDetailsModal({ record, onClose, onUpdate, isLo
                             Override Status
                         </button>
                     )}
-                    {(hasEditPerm || hasHrMode) && !locked && !(record.punch_out_time || record.check_out) && (record.punch_in_time || record.check_in) && !showManualPunchOut && (
+                    {(hasEditPerm || hasHrMode) && !locked && !hidePunchTimes && !(record.punch_out_time || record.check_out) && (record.punch_in_time || record.check_in) && !showManualPunchOut && (
                         <button
                             onClick={() => setShowManualPunchOut(true)}
                             className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm"
