@@ -7,6 +7,7 @@ import {
   ArrowUpCircle, BarChart3, List, CalendarRange, Repeat, Inbox, Wrench, Navigation, Route,
   User, CalendarCheck, TreePalm, Tags,
   Smartphone, CalendarClock, FileSignature, HeartPulse,
+  Gift,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
 
@@ -123,6 +124,7 @@ export const orgNav: NavNode[] = [
       { kind: 'link', label: 'Candidates', href: '/org-admin/recruitment/candidates', icon: Users, match: 'prefix' },
       { kind: 'link', label: 'Interviews', href: '/org-admin/recruitment/interviews', icon: CalendarClock, match: 'prefix' },
       { kind: 'link', label: 'Offers', href: '/org-admin/recruitment/offers', icon: FileSignature, match: 'prefix' },
+      { kind: 'link', label: 'Referral rewards', href: '/org-admin/recruitment/referral-rewards', icon: Gift, match: 'prefix' },
       { kind: 'link', label: 'Document Centre', href: '/org-admin/recruitment/documents', icon: FileText, match: 'prefix' },
       { kind: 'link', label: 'Settings', href: '/org-admin/recruitment/settings', icon: Settings, match: 'prefix' },
     ],

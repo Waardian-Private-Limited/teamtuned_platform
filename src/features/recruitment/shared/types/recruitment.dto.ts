@@ -100,6 +100,7 @@ export interface PositionDetailDto extends PositionListItemDto {
   salaryMin?: number | string | null;
   salaryMax?: number | string | null;
   salaryVisible?: boolean | number;
+  referralRewardAmount?: number | string | null;
   description?: string | null;
   skills?: string[] | null;
   interviewPlan?: InterviewRoundDto[] | null;

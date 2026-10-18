@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, Banknote, CheckCircle2, HandCoins, Receipt, Wallet, WalletCards } from 'lucide-react';
+import { AlertTriangle, Banknote, CheckCircle2, Gift, HandCoins, Receipt, Wallet, WalletCards } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { useFeatures } from '@/lib/hooks/useFeatures';
@@ -55,6 +55,7 @@ export function PayoutTiles({ overview, loading, onOpen }: { overview: PayoutOve
           {(walletOn || o.toPay.walletFund.count > 0) && <Tile icon={WalletCards} label="Wallet funds" value={money(o.toPay.walletFund.amount)} note={people(o.toPay.walletFund.count)} onClick={() => onOpen('to_pay', 'wallet_fund')} />}
         </>
       )}
+      {o.toPay.referral.count > 0 && <Tile icon={Gift} label="Referral rewards" value={money(o.toPay.referral.amount)} note={people(o.toPay.referral.count)} onClick={() => onOpen('to_pay', 'referral')} />}
       <Tile icon={AlertTriangle} label="Failed" value={money(o.failed.amount)} note={people(o.failed.count)} onClick={() => onOpen('failed')} tone={o.failed.count ? 'danger' : undefined} />
       <Tile icon={CheckCircle2} label={`Paid in ${monthLabel(o.month, 'short')}`} value={money(o.paidThisMonth.amount)} note={people(o.paidThisMonth.count)} onClick={() => onOpen('paid')} />
     </div>

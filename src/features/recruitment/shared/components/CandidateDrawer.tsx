@@ -212,6 +212,20 @@ export function CandidateDrawer({
                   <p className="text-sm font-medium text-fg">{detail.owner?.name || <span className="text-fg-subtle">Unassigned</span>}</p>
                 )}
               </div>
+              <div>
+                <p className="mb-1 text-[11px] font-medium text-fg-muted" title="The employee who referred this candidate earns the referral reward on hire">Referred by</p>
+                {manage ? (
+                  <EmployeePicker
+                    value={detail.referredBy}
+                    onChange={(v) => actions.setReferrer(detail.id, v)}
+                    placeholder="Not referred"
+                    ariaLabel="Referred by"
+                    disabled={actions.busy === 'referrer'}
+                  />
+                ) : (
+                  <p className="text-sm font-medium text-fg">{detail.referredBy?.name || <span className="text-fg-subtle">Not referred</span>}</p>
+                )}
+              </div>
             </div>
 
             {/* Tabs */}

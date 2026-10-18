@@ -184,6 +184,7 @@ export function toPositionDetail(dto: PositionDetailDto): PositionDetail {
     salaryMin: numOrNull(dto.salaryMin),
     salaryMax: numOrNull(dto.salaryMax),
     salaryVisible: bool(dto.salaryVisible),
+    referralRewardAmount: numOrNull(dto.referralRewardAmount),
     description: str(dto.description),
     skills: Array.isArray(dto.skills) ? dto.skills.map(String) : [],
     interviewPlan: (dto.interviewPlan || []).map(toRound),

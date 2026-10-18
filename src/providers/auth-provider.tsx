@@ -1,5 +1,6 @@
 'use client';
 
+import { resetNotifications } from '@/features/notifications/store/notificationStore';
 import { setOrgTimezone } from '@/lib/datetime';
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -132,6 +133,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      // The server has ended this session (and with it this browser's push); the next person starts with a clean inbox.
+      resetNotifications();
       clearClientSideAuth();
       clearAuthState();
       router.push('/login');

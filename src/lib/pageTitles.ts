@@ -4,6 +4,12 @@ const PAGE_TITLES: Record<string, { title: string; category: string }> = {
     '/org-admin': { title: 'Dashboard', category: 'Self' },
     '/employee/approvals': { title: 'Approvals', category: 'Self' },
     '/org-admin/approvals': { title: 'Approvals', category: 'Self' },
+    '/employee/notifications': { title: 'Notifications', category: 'Self' },
+    '/org-admin/notifications': { title: 'Notifications', category: 'Self' },
+    '/employee/birthdays': { title: 'Birthdays', category: 'Self' },
+    '/employee/recruitment/referral-rewards': { title: 'Referral rewards', category: 'Recruitment' },
+    '/org-admin/recruitment/referral-rewards': { title: 'Referral rewards', category: 'Recruitment' },
+    '/org-admin/birthdays': { title: 'Birthdays', category: 'Self' },
 
     // Core
     '/employee/orgProfile': { title: 'Organization Profile', category: 'Tools' },

@@ -29,6 +29,7 @@ export interface PositionDraft {
   salaryMin: string;
   salaryMax: string;
   salaryVisible: boolean;
+  referralRewardAmount: string;
   description: string;
   skills: string[];
   interviewPlan: InterviewRound[];
@@ -61,7 +62,7 @@ export function sectionOfField(field: string): SectionId {
     case 'title': case 'department_id': case 'role_id': case 'employment_type_id': case 'openings': return 'basics';
     case 'site_id': case 'location_text': case 'work_mode': case 'sub_organization_id':
     case 'hiring_manager_employee_id': case 'recruiter_employee_id': return 'location';
-    case 'experience_min': case 'experience_max': case 'salary_min': case 'salary_max': case 'salary_visible': return 'compensation';
+    case 'experience_min': case 'experience_max': case 'salary_min': case 'salary_max': case 'salary_visible': case 'referral_reward_amount': return 'compensation';
     case 'description': return 'description';
     case 'skills': return 'skills';
     case 'interview_plan': return 'interview';
@@ -86,7 +87,7 @@ export function draftFrom(p?: PositionDetail | null): PositionDraft {
     return {
       title: '', departmentId: null, roleId: null, employmentTypeId: null, siteId: null, locationText: '',
       workMode: 'onsite', subOrganizationId: null, openings: '1', hiringManager: null, recruiter: null,
-      experienceMin: '', experienceMax: '', salaryMin: '', salaryMax: '', salaryVisible: false,
+      experienceMin: '', experienceMax: '', salaryMin: '', salaryMax: '', salaryVisible: false, referralRewardAmount: '',
       description: '', skills: [], interviewPlan: DEFAULT_PLAN(), testId: null,
       form: { standard: { ...DEFAULT_STANDARD_FORM }, questions: [] },
       status: 'draft', published: false, closesOn: '',
@@ -109,6 +110,7 @@ export function draftFrom(p?: PositionDetail | null): PositionDraft {
     salaryMin: numStr(p.salaryMin),
     salaryMax: numStr(p.salaryMax),
     salaryVisible: p.salaryVisible,
+    referralRewardAmount: numStr(p.referralRewardAmount),
     description: p.description,
     skills: [...p.skills],
     interviewPlan: p.interviewPlan.map((r) => ({ ...r, interviewers: [...r.interviewers], criteria: [...(r.criteria || [])] })),
@@ -180,6 +182,7 @@ function toInput(d: PositionDraft): PositionInput {
     salaryMin: toNum(d.salaryMin),
     salaryMax: toNum(d.salaryMax),
     salaryVisible: d.salaryVisible,
+    referralRewardAmount: toNum(d.referralRewardAmount),
     description: d.description,
     skills: d.skills,
     interviewPlan: d.interviewPlan,

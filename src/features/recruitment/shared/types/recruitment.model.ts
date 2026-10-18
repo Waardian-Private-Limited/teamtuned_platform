@@ -109,6 +109,7 @@ export interface PositionDetail extends Position {
   salaryMin: number | null;
   salaryMax: number | null;
   salaryVisible: boolean;
+  referralRewardAmount: number | null;
   description: string;
   skills: string[];
   interviewPlan: InterviewRound[];
@@ -296,6 +297,7 @@ export interface PositionInput {
   salaryMin: number | null;
   salaryMax: number | null;
   salaryVisible: boolean;
+  referralRewardAmount: number | null;
   description: string;
   skills: string[];
   interviewPlan: InterviewRound[];
@@ -315,5 +317,7 @@ export interface ManualCandidateInput {
   currentTitle: string;
   currentCompany: string;
   totalExperience: string;
+  /** The employee who referred them, when HR adds a referral by hand. */
+  referredByEmployeeId?: number | null;
   resume: File | null;
 }

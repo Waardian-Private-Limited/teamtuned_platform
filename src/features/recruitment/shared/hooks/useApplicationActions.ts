@@ -7,7 +7,7 @@ import * as api from '../api/recruitment.api';
 import { STAGE_LABELS } from '../constants/recruitment.constants';
 import type { NamedRef, Stage } from '../types/recruitment.model';
 
-export type ApplicationAction = 'stage' | 'reject' | 'reopen' | 'rating' | 'owner' | 'note';
+export type ApplicationAction = 'stage' | 'reject' | 'reopen' | 'rating' | 'owner' | 'referrer' | 'note';
 
 /**
  * Pipeline mutations shared by the board, the candidates list and the drawer.
@@ -46,6 +46,7 @@ export function useApplicationActions(onDone?: (applicationId: number, action: A
     reopen: (id: number) => run(id, 'reopen', () => api.reopenApplication(id), 'Application reopened'),
     rate: (id: number, rating: number | null) => run(id, 'rating', () => api.updateApplication(id, { rating })),
     setOwner: (id: number, owner: NamedRef | null) => run(id, 'owner', () => api.updateApplication(id, { ownerEmployeeId: owner?.id ?? null }), 'Owner updated'),
+    setReferrer: (id: number, referrer: NamedRef | null) => run(id, 'referrer', () => api.updateApplication(id, { referredByEmployeeId: referrer?.id ?? null }), 'Referrer updated'),
     addNote: (id: number, text: string) => run(id, 'note', () => api.addNote(id, text)),
   };
 }

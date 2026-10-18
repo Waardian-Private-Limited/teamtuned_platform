@@ -83,3 +83,35 @@ export function updateScorecardCriterion(id: number, body: { name?: string; requ
 export function deleteScorecardCriterion(id: number) {
   return apiClient.delete<ScorecardSettingsDto>(`/recruitment/settings/scorecard/criteria/${id}`, auth);
 }
+
+// Referral program (RECRUIT_SETTINGS): the reward a referrer earns when the person they referred is hired.
+export interface ReferralProgramDto {
+  enabled: boolean;
+  reward_type: 'cash' | 'non_cash';
+  amount: number;
+  description: string;
+  payable_after_days: number;
+  payout_mode: 'payroll' | 'manual';
+  terms: string;
+  terms_file: { name: string } | null;
+}
+
+export type ReferralProgramInput = Omit<ReferralProgramDto, 'terms_file'>;
+
+export function getReferralProgram() {
+  return apiClient.get<ReferralProgramDto>('/recruitment/settings/referral-program', undefined, auth);
+}
+
+export function saveReferralProgram(body: ReferralProgramInput) {
+  return apiClient.put<ReferralProgramDto>('/recruitment/settings/referral-program', body, auth);
+}
+
+export function attachReferralTerms(file: File) {
+  const fd = new FormData();
+  fd.append('terms', file);
+  return apiClient.post<ReferralProgramDto>('/recruitment/settings/referral-program/terms', fd, auth);
+}
+
+export function removeReferralTerms() {
+  return apiClient.delete<ReferralProgramDto>('/recruitment/settings/referral-program/terms', auth);
+}

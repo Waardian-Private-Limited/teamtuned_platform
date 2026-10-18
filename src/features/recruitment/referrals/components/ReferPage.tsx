@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Briefcase, FileUp, MapPin, Search, X } from 'lucide-react';
+import { Briefcase, FileText, FileUp, Gift, MapPin, Search, X } from 'lucide-react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { FieldLabel, FieldMessage, TextField } from '@/components/ui/FormControls';
 import { Pagination } from '@/components/ui/Pagination';
@@ -27,6 +27,23 @@ const STATUS: Record<api.ReferralStatus, { label: string; cls: string }> = {
   not_selected: { label: 'Not selected', cls: 'border-line bg-bg-subtle text-fg-subtle line-through' },
 };
 
+const money = (n: number | null | undefined) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const monthLabel = (key: string | null) => (key ? `${MONTHS[Number(key.slice(5, 7)) - 1]} ${key.slice(0, 4)}` : '');
+
+/** The referrer's own reward, in a few words. */
+function rewardLine(w: api.ReferralRewardDto): string {
+  const what = w.rewardType === 'cash' ? money(w.amount) : w.description || 'Reward';
+  switch (w.status) {
+    case 'waiting': return w.eligibleOn ? `${what} due on ${formatDate(w.eligibleOn)}` : `${what} once they join`;
+    case 'scheduled': return `${what} with ${monthLabel(w.payoutMonth)} salary`;
+    case 'due': return `${what} due now`;
+    case 'paid': return `${what} ${w.rewardType === 'cash' ? 'paid' : 'given'}${w.paidOn ? ` on ${formatDate(w.paidOn)}` : ''}`;
+    case 'forfeited': return `${what} not payable`;
+    default: return `${what} cancelled`;
+  }
+}
+
 const nameOf = (r: { name?: string } | string | null | undefined) => (typeof r === 'string' ? r : r?.name) || '';
 
 const blank = { firstName: '', lastName: '', email: '', phone: '', note: '' };
@@ -42,11 +59,25 @@ export function ReferPage() {
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const [program, setProgram] = useState<api.ReferralProgramSummaryDto | null>(null);
   const [mine, setMine] = useState<api.ReferralDto[]>([]);
   const [mineLoading, setMineLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(0);
+
+  useEffect(() => {
+    api.getReferralProgram().then(setProgram).catch(() => setProgram(null));
+  }, []);
+
+  async function openTerms() {
+    try {
+      const { url } = await api.getReferralTermsUrl();
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      showError(messageOf(err));
+    }
+  }
 
   useEffect(() => {
     api.listReferralPositions()
@@ -121,6 +152,24 @@ export function ReferPage() {
         <p className="mt-0.5 text-xs text-fg-muted sm:text-sm">Know someone great for an open role? Send them our way — you can follow their progress below.</p>
       </div>
 
+      {program?.enabled && (
+        <div className="flex flex-wrap items-start gap-3 rounded-xl border border-line bg-surface p-3.5 sm:p-4">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-line bg-bg-subtle text-fg"><Gift className="h-5 w-5" /></span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-fg">
+              Earn {program.reward_type === 'cash' ? money(program.amount) : program.description} for every hire you refer
+            </p>
+            <p className="text-xs text-fg-muted">
+              Paid {program.payable_after_days} days after they join{program.reward_type === 'cash' ? (program.payout_mode === 'payroll' ? ', with your salary' : ', by Accounts') : ''}. Some positions pay more.
+            </p>
+            {program.terms && <p className="mt-2 whitespace-pre-wrap text-xs text-fg-muted">{program.terms}</p>}
+          </div>
+          {program.has_terms_file && (
+            <button type="button" onClick={openTerms} className={btn.secondary}><FileText className="h-3.5 w-3.5" /> Terms</button>
+          )}
+        </div>
+      )}
+
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
         <section className="flex min-h-0 flex-col rounded-xl border border-line bg-surface">
           <div className="border-b border-line p-3.5">
@@ -135,7 +184,9 @@ export function ReferPage() {
             {positionsLoading ? (
               <div className="space-y-2 p-1">{[0, 1, 2].map((i) => <div key={i} className="h-14 animate-pulse rounded-lg bg-bg-subtle" />)}</div>
             ) : shown.length === 0 ? (
-              <p className="py-8 text-center text-sm text-fg-muted">{positions.length ? 'No positions match.' : 'No open positions right now.'}</p>
+              positions.length
+                ? <EmptyState compact title="No positions match" description="Try another search." />
+                : <EmptyState illustration={{ src: '/vectors/review.svg', width: 220, height: 160, alt: '' }} title="No open positions right now" description="Open roles show here when HR posts them." />
             ) : (
               shown.map((p) => {
                 const active = p.id === positionId;
@@ -209,7 +260,7 @@ export function ReferPage() {
         {mineLoading && mine.length === 0 ? (
           <div className="space-y-2 p-4">{[0, 1].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-bg-subtle" />)}</div>
         ) : mine.length === 0 ? (
-          <EmptyState compact title="No referrals yet" description="People you refer appear here with where they are in the process." />
+          <EmptyState illustration={{ src: '/vectors/employees.svg', width: 220, height: 160, alt: '' }} title="No referrals yet" description="People you refer appear here with where they are in the process." />
         ) : (
           <>
             <ul className={cx('divide-y divide-line/60', mineLoading && 'opacity-70')}>
@@ -220,6 +271,11 @@ export function ReferPage() {
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-fg">{r.candidateName}</p>
                       <p className="truncate text-xs text-fg-muted">{r.positionTitle} · <span className="tabular-nums">{formatDate(orgDateOf(r.referredAt))}</span></p>
+                      {r.reward && (
+                        <p className={cx('mt-0.5 inline-flex items-center gap-1 text-xs font-semibold', ['forfeited', 'cancelled'].includes(r.reward.status) ? 'text-fg-subtle line-through' : 'text-fg')}>
+                          <Gift className="h-3 w-3" /> {rewardLine(r.reward)}
+                        </p>
+                      )}
                     </div>
                     <span className={cx('inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-xs font-semibold', s.cls)}>{s.label}</span>
                   </li>

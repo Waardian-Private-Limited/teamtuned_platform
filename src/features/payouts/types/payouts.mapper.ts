@@ -36,6 +36,7 @@ export function toOverview(dto: PayoutOverviewDto): PayoutOverview {
       advance: figure(dto.to_pay?.advance),
       reimbursement: figure(dto.to_pay?.reimbursement),
       walletFund: figure(dto.to_pay?.wallet_fund),
+      referral: figure(dto.to_pay?.referral),
       total: figure(dto.to_pay?.total),
     },
     failed: dto.failed,

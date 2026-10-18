@@ -9,8 +9,10 @@ import { messageOf } from '@/lib/api/errors';
 import { cx } from '@/theme/tokens';
 import * as api from '../../shared/api/recruitment.api';
 import { serverFieldOf } from '../../shared/utils/errors';
+import { EmployeePicker } from '../../shared/components/EmployeePicker';
+import type { NamedRef } from '../../shared/types/recruitment.model';
 
-type Field = 'first_name' | 'last_name' | 'email' | 'phone' | 'current_title' | 'current_company' | 'total_experience' | 'resume';
+type Field = 'first_name' | 'last_name' | 'email' | 'phone' | 'current_title' | 'current_company' | 'total_experience' | 'referred_by_employee_id' | 'resume';
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const ACCEPT = '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -27,11 +29,12 @@ export function AddCandidateDialog({ open, positionId, positionTitle, onClose, o
 }) {
   const [v, setV] = useState(empty);
   const [resume, setResume] = useState<File | null>(null);
+  const [referrer, setReferrer] = useState<NamedRef | null>(null);
   const [errors, setErrors] = useState<Partial<Record<Field | 'form', string>>>({});
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { if (open) { setV(empty); setResume(null); setErrors({}); } }, [open]);
+  useEffect(() => { if (open) { setV(empty); setResume(null); setReferrer(null); setErrors({}); } }, [open]);
 
   const set = (k: keyof typeof empty, field: Field) => (val: string) => {
     setV((p) => ({ ...p, [k]: val }));
@@ -57,13 +60,13 @@ export function AddCandidateDialog({ open, positionId, positionTitle, onClose, o
     if (Object.keys(e).length) return;
     setSaving(true);
     try {
-      const res = await api.addCandidate({ positionId, ...v, resume });
+      const res = await api.addCandidate({ positionId, ...v, referredByEmployeeId: referrer?.id ?? null, resume });
       showSuccess('Candidate added');
       onAdded(res && typeof res.id === 'number' ? res.id : null);
     } catch (err) {
       const raw = serverFieldOf(err);
       const field = raw ? (raw.replace(/^candidate[.[]/, '').replace(/]$/, '') as Field) : null;
-      const known: Field[] = ['first_name', 'last_name', 'email', 'phone', 'current_title', 'current_company', 'total_experience', 'resume'];
+      const known: Field[] = ['first_name', 'last_name', 'email', 'phone', 'current_title', 'current_company', 'total_experience', 'referred_by_employee_id', 'resume'];
       if (field && known.includes(field)) setErrors({ [field]: messageOf(err) });
       else setErrors({ form: messageOf(err) });
     } finally {
@@ -96,6 +99,17 @@ export function AddCandidateDialog({ open, positionId, positionTitle, onClose, o
         <TextField label="Current title" value={v.currentTitle} onChange={set('currentTitle', 'current_title')} error={errors.current_title} maxLength={160} />
         <TextField label="Current company" value={v.currentCompany} onChange={set('currentCompany', 'current_company')} error={errors.current_company} maxLength={160} />
         <TextField label="Experience (years)" type="number" inputMode="decimal" min={0} step="0.5" value={v.totalExperience} onChange={set('totalExperience', 'total_experience')} error={errors.total_experience} />
+        <div>
+          <FieldLabel label="Referred by" />
+          <EmployeePicker
+            value={referrer}
+            onChange={(r) => { setReferrer(r); setErrors((e) => ({ ...e, referred_by_employee_id: undefined })); }}
+            placeholder="Employee who referred them"
+            ariaLabel="Referred by"
+            invalid={Boolean(errors.referred_by_employee_id)}
+          />
+          <FieldMessage error={errors.referred_by_employee_id} hint="They earn the referral reward if this person is hired." />
+        </div>
         <div className="sm:col-span-2">
           <FieldLabel label="Resume" />
           <input ref={fileRef} type="file" accept={ACCEPT} className="hidden" onChange={(e) => { pickFile(e.target.files?.[0] || null); e.target.value = ''; }} />

@@ -157,6 +157,11 @@ export function CompensationSection({ ed }: { ed: Ed }) {
         </div>
         <Switch checked={draft.salaryVisible} onChange={(v) => { set('salaryVisible', v); clearError('salary_visible'); }} label="Show salary on careers" />
       </div>
+      <div className="mt-4 sm:max-w-xs">
+        <TextField label="Referral reward" type="number" inputMode="numeric" min={0} prefix="₹" value={draft.referralRewardAmount}
+          onChange={(v) => { set('referralRewardAmount', v); clearError('referral_reward_amount'); }} error={errors.referral_reward_amount}
+          hint="Leave empty to use the referral program's reward." />
+      </div>
     </EditorSection>
   );
 }

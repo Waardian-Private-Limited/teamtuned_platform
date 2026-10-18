@@ -8,9 +8,10 @@ import { CareersSettingsPanel } from './CareersSettingsPanel';
 import { ApiKeysPanel } from './ApiKeysPanel';
 import { IntegrationPanel } from './IntegrationPanel';
 import { ScorecardSettingsPanel } from './ScorecardSettingsPanel';
+import { ReferralProgramPanel } from './ReferralProgramPanel';
 
-type Tab = 'tests' | 'scorecards' | 'careers';
-const TABS = [{ value: 'tests', label: 'Tests' }, { value: 'scorecards', label: 'Scorecards' }, { value: 'careers', label: 'Careers & API' }] as const;
+type Tab = 'tests' | 'scorecards' | 'referrals' | 'careers';
+const TABS = [{ value: 'tests', label: 'Tests' }, { value: 'scorecards', label: 'Scorecards' }, { value: 'referrals', label: 'Referrals' }, { value: 'careers', label: 'Careers & API' }] as const;
 
 export function RecruitmentSettingsPage() {
   const [tab, setTab] = useState<Tab>('tests');
@@ -25,6 +26,8 @@ export function RecruitmentSettingsPage() {
           <TestBankPanel />
         ) : tab === 'scorecards' ? (
           <ScorecardSettingsPanel />
+        ) : tab === 'referrals' ? (
+          <ReferralProgramPanel />
         ) : (
           <>
             <CareersSettingsPanel />

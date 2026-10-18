@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, User, Bell, Settings, LogOut } from 'lucide-react';
+import { Menu, User, Settings, LogOut } from 'lucide-react';
+import { NotificationBell } from '@/features/notifications/components/NotificationBell';
 import { getPageTitle } from '@/lib/pageTitles';
 import { cx } from '@/theme/tokens';
 
@@ -59,16 +60,7 @@ export function TopBar({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        {hasUser && (
-          <button
-            type="button"
-            aria-label="Notifications"
-            className="relative rounded-full p-2 text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg"
-          >
-            <Bell size={18} />
-            <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full border border-surface bg-[var(--tt-danger)]" />
-          </button>
-        )}
+        {hasUser && <NotificationBell area={role} />}
 
         {hasUser && (
           <div className="relative">

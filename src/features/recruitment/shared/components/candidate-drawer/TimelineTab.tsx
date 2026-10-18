@@ -53,6 +53,8 @@ function describe(e: TimelineEvent): { icon: LucideIcon; title: string; body?: s
       const name = d.ownerName ?? d.toName ?? d.name;
       return { icon: UserRound, title: name ? `Owner set to ${s(name)}` : d.to ? 'Owner changed' : 'Owner cleared' };
     }
+    case 'referrer_changed':
+      return { icon: UserRound, title: d.toName ? `Referred by ${s(d.toName)}` : 'Referrer removed' };
     case 'email_sent':
     case 'email':
       return { icon: Mail, title: `Email sent${d.template || d.kind ? ` · ${EMAIL_LABELS[s(d.template ?? d.kind)] || s(d.template ?? d.kind).replace(/_/g, ' ')}` : ''}`, body: d.to ? s(d.to) : undefined };

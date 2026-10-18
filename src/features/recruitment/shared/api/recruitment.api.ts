@@ -80,6 +80,7 @@ export function positionBody(input: PositionInput) {
     salary_min: num(input.salaryMin),
     salary_max: num(input.salaryMax),
     salary_visible: input.salaryVisible,
+    referral_reward_amount: num(input.referralRewardAmount),
     description: input.description,
     skills: input.skills,
     closes_on: blank(input.closesOn) ?? null,
@@ -172,6 +173,7 @@ export function addCandidate(input: ManualCandidateInput) {
     fd.append(`candidate[${k}]`, v);
     fd.append(k, v);
   });
+  if (input.referredByEmployeeId) fd.append('referred_by_employee_id', String(input.referredByEmployeeId));
   if (input.resume) fd.append('resume', input.resume);
   return recruitmentApi.post<{ id: number }>('/applications', fd);
 }
@@ -192,10 +194,11 @@ export function reopenApplication(id: number) {
   return recruitmentApi.post<unknown>(`/applications/${id}/reopen`);
 }
 
-export function updateApplication(id: number, patch: { rating?: number | null; ownerEmployeeId?: number | null }) {
+export function updateApplication(id: number, patch: { rating?: number | null; ownerEmployeeId?: number | null; referredByEmployeeId?: number | null }) {
   const body: Record<string, unknown> = {};
   if (patch.rating !== undefined) body.rating = patch.rating;
   if (patch.ownerEmployeeId !== undefined) body.owner_employee_id = patch.ownerEmployeeId;
+  if (patch.referredByEmployeeId !== undefined) body.referred_by_employee_id = patch.referredByEmployeeId;
   return recruitmentApi.patch<unknown>(`/applications/${id}`, body);
 }
 

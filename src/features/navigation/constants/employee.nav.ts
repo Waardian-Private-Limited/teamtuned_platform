@@ -6,6 +6,7 @@ import {
   Package, Coins, Briefcase, HardHat, Layers, Award, UserPlus, List,
   CalendarRange, Repeat, Inbox, Wrench, CalendarDays, CalendarCheck, User, TreePalm, UserRound, Tags,
   Smartphone, CalendarClock, ClipboardCheck, FileSignature, Share2, HeartPulse,
+  Gift,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
 
@@ -136,6 +137,7 @@ export const employeeNav: NavNode[] = [
       { kind: 'link', label: 'Candidates', href: '/employee/recruitment/candidates', icon: Users, match: 'prefix' },
       { kind: 'link', label: 'Interviews', href: '/employee/recruitment/interviews', icon: CalendarClock, match: 'prefix' },
       { kind: 'link', label: 'Offers', href: '/employee/recruitment/offers', icon: FileSignature, match: 'prefix' },
+      { kind: 'link', label: 'Referral rewards', href: '/employee/recruitment/referral-rewards', icon: Gift, match: 'prefix', gate: { anyPerm: ['RECRUIT_MANAGE', 'RECRUIT_SETTINGS'] } },
       { kind: 'link', label: 'Document Centre', href: '/employee/recruitment/documents', icon: FileText, match: 'prefix', gate: { anyPerm: ['DOC_GENERATE', 'DOC_TEMPLATES_MANAGE', 'HR_MODE'] } },
       { kind: 'link', label: 'Settings', href: '/employee/recruitment/settings', icon: Settings, match: 'prefix', gate: { perm: 'RECRUIT_SETTINGS' } },
     ],
