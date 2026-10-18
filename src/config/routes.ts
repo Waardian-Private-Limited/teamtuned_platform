@@ -23,10 +23,9 @@ export function routeAfterLogin(role: string | undefined, nextStep: 'dashboard' 
 export const PUBLIC_ROUTES = [
   '/login',
   '/onboarding',
+  // Prefix match: covers /careers/[slug], /careers/[slug]/[jobSlug],
+  // /careers/test/[token] and /careers/offer/[token].
   '/careers',
   '/vendor',
-  '/public',
-  '/interview/apply',
   '/biometric',
-  '/hr-operation/onboarding/status',
 ];

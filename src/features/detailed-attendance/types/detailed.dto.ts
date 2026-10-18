@@ -1,3 +1,5 @@
+import type { RosterSlotDto } from '@/features/my-roster/types/roster.dto';
+
 /** Which part of the day a leave covers. */
 export type LeaveSession = 'full' | 'first_half' | 'second_half' | 'hours';
 
@@ -63,6 +65,8 @@ export interface MonthCellDto {
   locked: boolean;
   /** Where the newest regularization request for the date stands (self views only carry it). */
   regularization_status?: string | null;
+  /** Published roster slots; present only when the policy times days by roster. */
+  schedule?: RosterSlotDto[];
 }
 
 export interface MonthSummaryDto {
@@ -176,6 +180,8 @@ export interface MonthResponseDto {
   summary: MonthSummaryDto;
   balances: BalanceDto[];
   comp_off_grants?: CompOffGrantDto[];
+  /** Set when the policy times this employee's days by roster. */
+  roster?: { enabled: boolean } | null;
 }
 
 export interface DayRecordDto {

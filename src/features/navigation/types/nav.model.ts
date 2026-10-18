@@ -21,6 +21,13 @@ export interface NavGate {
   anyPerm?: string[];
   permPrefix?: string;
   orgAdminBypass?: boolean;
+  /**
+   * A part the person plays in hiring without a permission (on an interview panel, hiring manager
+   * of an open position), from GET /recruitment/me/roles. Not bypassed for org admins.
+   */
+  recruitmentRole?: 'interviewer' | 'hiring_manager' | 'reviewer';
+  /** Hidden when the person holds any of these (e.g. they already see the full Recruitment menu). */
+  noneOfPerms?: string[];
 }
 
 export interface NavLink {
@@ -65,4 +72,6 @@ export interface NavContext {
   isOrgAdmin: boolean;
   permissions: string[];
   features: string[] | undefined;
+  /** Hiring parts played without a permission; undefined until known. */
+  recruitmentRoles?: Array<'interviewer' | 'hiring_manager' | 'reviewer'>;
 }

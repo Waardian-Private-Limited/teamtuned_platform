@@ -128,18 +128,41 @@ export function deleteEmploymentType(id: number) {
   return apiClient.delete<{ id: number }>(`/employment-types/${id}`, auth);
 }
 
+export type BirthdayVisibility = 'primary_site' | 'my_sites' | 'sub_org' | 'organization';
+
+export interface BirthdaySettingsDto {
+  show: boolean;
+  visibility: BirthdayVisibility;
+  likes: boolean;
+  wishes: boolean;
+}
+
+export interface EmployeeSettingsDto {
+  code: CodeSettingsDto;
+  birthdays: BirthdaySettingsDto;
+}
+
+interface EmployeeSettingsResponse {
+  sub_organization_id: number | null;
+  inherited: boolean;
+  settings: EmployeeSettingsDto;
+  birthday_visibility_options: BirthdayVisibility[];
+  next_employee_code: string;
+}
+
 export function getEmployeeSettings(subOrgId: number | null) {
-  return apiClient.get<{ sub_organization_id: number | null; inherited: boolean; settings: { code: CodeSettingsDto }; next_employee_code: string }>(
+  return apiClient.get<EmployeeSettingsResponse>(
     '/employees/settings',
     { forSubOrgId: subOrgId ?? undefined },
     auth
   );
 }
 
-export function updateEmployeeSettings(subOrgId: number | null, code: CodeSettingsDto) {
-  return apiClient.put<{ settings: { code: CodeSettingsDto }; next_employee_code: string }>(
+/** Saves only the sections sent; the others keep their values. */
+export function updateEmployeeSettings(subOrgId: number | null, settings: Partial<EmployeeSettingsDto>) {
+  return apiClient.put<EmployeeSettingsResponse>(
     '/employees/settings',
-    { sub_organization_id: subOrgId, settings: { code } },
+    { sub_organization_id: subOrgId, settings },
     auth
   );
 }

@@ -20,7 +20,7 @@ const PAGE_TITLES: Record<string, { title: string; category: string }> = {
     '/employee/employee-management': { title: 'Employees', category: 'Management' },
     '/org-admin/onboarding-settings': { title: 'Onboarding Settings', category: 'Management' },
     '/org-admin/employee-onboarding': { title: 'Employee Onboarding', category: 'Management' },
-    '/employee/employee-sites': { title: 'Employee Sites', category: 'Management' },
+    '/employee/employee-sites': { title: 'Site Assignment', category: 'Management' },
     '/employee/leave-requests': { title: 'Leave Management', category: 'Management' },
     '/employee/regularize-requests': { title: 'Regularize Requests', category: 'Management' },
     '/employee/attendance-dashboard': { title: 'Attendance Dashboard', category: 'Management' },
@@ -32,15 +32,10 @@ const PAGE_TITLES: Record<string, { title: string; category: string }> = {
     '/employee/wallet-topups': { title: 'Wallet Topups', category: 'Management' },
     '/employee/verification-issues': { title: 'Verification Issues', category: 'Management' },
     '/employee/payroll': { title: 'Payroll', category: 'Management' },
-    '/employee/insurance': { title: 'Insurance', category: 'Management' },
-
     // Insurance
-    '/employee/insurance/dashboard': { title: 'Dashboard', category: 'Insurance' },
-    '/employee/insurance/providers': { title: 'Providers', category: 'Insurance' },
-    '/employee/insurance/policies': { title: 'Policies', category: 'Insurance' },
-    '/employee/insurance/enrollment': { title: 'Enrollment', category: 'Insurance' },
-    '/employee/insurance/dependents': { title: 'Dependents', category: 'Insurance' },
-    '/employee/insurance/beneficiaries': { title: 'Beneficiaries', category: 'Insurance' },
+    '/employee/insurance': { title: 'Insurance', category: 'Management' },
+    '/org-admin/insurance': { title: 'Insurance', category: 'Management' },
+    '/employee/my-insurance': { title: 'My insurance', category: 'Self' },
 
     // Salary Advance
     '/employee/my-profile': { title: 'My profile', category: 'Self' },
@@ -92,9 +87,29 @@ const PAGE_TITLES: Record<string, { title: string; category: string }> = {
     '/employee/rfq': { title: 'RFQ', category: 'Inventory' },
     '/employee/pr': { title: 'Purchase Request', category: 'Inventory' },
 
+    // Recruitment
+    '/employee/recruitment': { title: 'Overview', category: 'Recruitment' },
+    '/employee/recruitment/positions': { title: 'Positions', category: 'Recruitment' },
+    '/employee/recruitment/positions/new': { title: 'New position', category: 'Recruitment' },
+    '/employee/recruitment/candidates': { title: 'Candidates', category: 'Recruitment' },
+    '/employee/recruitment/interviews': { title: 'Interviews', category: 'Recruitment' },
+    '/employee/recruitment/offers': { title: 'Offers', category: 'Recruitment' },
+    '/employee/recruitment/settings': { title: 'Settings', category: 'Recruitment' },
+    '/employee/recruitment/documents': { title: 'Document Centre', category: 'Recruitment' },
+    '/org-admin/recruitment': { title: 'Overview', category: 'Recruitment' },
+    '/org-admin/recruitment/positions': { title: 'Positions', category: 'Recruitment' },
+    '/org-admin/recruitment/positions/new': { title: 'New position', category: 'Recruitment' },
+    '/org-admin/recruitment/candidates': { title: 'Candidates', category: 'Recruitment' },
+    '/org-admin/recruitment/interviews': { title: 'Interviews', category: 'Recruitment' },
+    '/org-admin/recruitment/offers': { title: 'Offers', category: 'Recruitment' },
+    '/org-admin/recruitment/settings': { title: 'Settings', category: 'Recruitment' },
+    '/org-admin/recruitment/documents': { title: 'Document Centre', category: 'Recruitment' },
+    '/employee/my-interviews': { title: 'My interviews', category: 'Self' },
+    '/employee/my-reviews': { title: 'My reviews', category: 'Self' },
+    '/employee/refer': { title: 'Refer a candidate', category: 'Self' },
+
     // Public Portal
     '/careers': { title: 'Careers Portal', category: 'Public' },
-    '/interview/apply': { title: 'Job Application', category: 'Public Request' },
 };
 
 export function getPageTitle(pathname: string, role: 'employee' | 'org-admin') {
@@ -106,6 +121,18 @@ export function getPageTitle(pathname: string, role: 'employee' | 'org-admin') {
 
     // Fallback for dynamic routes or unknown paths
     const parts = pathname.split('/').filter(Boolean);
+
+    if (/^\/(employee|org-admin)\/recruitment\/positions\/\d+$/.test(pathname)) {
+        return { title: 'Position', description: 'Recruitment' };
+    }
+
+    if (/^\/employee\/my-interviews\/\d+$/.test(pathname)) {
+        return { title: 'Interview', description: 'Self' };
+    }
+
+    if (/^\/employee\/my-reviews\/\d+$/.test(pathname)) {
+        return { title: 'Candidate review', description: 'Self' };
+    }
 
     if (pathname.startsWith('/careers')) {
         return { title: 'Careers Portal', description: 'Public' };

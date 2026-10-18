@@ -4,6 +4,8 @@ import React from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Avatar } from '@/features/detailed-attendance/components/components/controls';
 import { MonthBody, MonthNav } from '@/features/detailed-attendance/components/components/MonthBody';
+import { CalendarRange } from 'lucide-react';
+import { MyRostersDrawer } from '@/features/my-roster/components/MyRostersDrawer';
 import { useMyMonth } from '../hooks/useMyMonth';
 import { FlexibleOffCard } from './FlexibleOffCard';
 import { MyDayDialog } from './MyDayDialog';
@@ -22,6 +24,7 @@ export function MyAttendancePage() {
   const asked = search.get('month') || '';
   const [version, setVersion] = React.useState(0);
   const [day, setDay] = React.useState<string | null>(null);
+  const [rosters, setRosters] = React.useState(false);
   const m = useMyMonth(MONTH.test(asked) ? asked : '', version);
   const data = m.data;
 
@@ -40,14 +43,24 @@ export function MyAttendancePage() {
             <p className="truncate text-sm text-fg-muted">{data ? [data.employee.name, data.employee.code, data.employee.department].filter(Boolean).join(' · ') : ' '}</p>
           </div>
         </div>
-        <MonthNav data={data} onGo={go} />
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Only when the policy times this employee's days by roster. */}
+          {data?.rosterEnabled && (
+            <button type="button" onClick={() => setRosters(true)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-bold text-fg hover:bg-bg-subtle">
+              <CalendarRange className="h-4 w-4" /> My rosters
+            </button>
+          )}
+          <MonthNav data={data} onGo={go} />
+        </div>
       </header>
 
       <FlexibleOffCard month={m.month} onChanged={() => setVersion((v) => v + 1)} />
 
       <MonthBody data={data} error={m.error} loading={m.loading} refreshing={m.refreshing} onOpenDay={setDay} />
 
-      <MyDayDialog date={day} reloadKey={version} onClose={() => setDay(null)} onChanged={() => setVersion((v) => v + 1)} />
+      <MyRostersDrawer open={rosters} onClose={() => setRosters(false)} />
+
+      <MyDayDialog date={day} roster={data?.cells.find((c) => c.date === day)?.schedule} reloadKey={version} onClose={() => setDay(null)} onChanged={() => setVersion((v) => v + 1)} />
     </div>
   );
 }

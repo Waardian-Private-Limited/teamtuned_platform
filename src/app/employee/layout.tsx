@@ -9,6 +9,7 @@ import { InventoryStoreProvider } from "@/components/inventory/InventoryStoreCon
 import { useAuth } from "@/context/AuthContext";
 import { useUserStore } from "@/lib/store/userStore";
 import { EMPLOYEE_ONBOARDING_ROUTE } from "@/config/routes";
+import { useMyRecruitmentRoles } from "@/features/recruitment/shared/hooks/useMyRecruitmentRoles";
 
 export default function EmployeeLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -16,6 +17,8 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
 
   // Use centralized auth context
   const { user, role, permissions, employee, employee_id, organization, nextStep, isAuthenticated, loading, logout } = useAuth();
+  // "My interviews" / "My hiring" only for employees on a panel or managing a hire.
+  const recruitmentRoles = useMyRecruitmentRoles(Boolean(isAuthenticated));
 
   // Extract organization features
   const features = React.useMemo(() => {
@@ -92,6 +95,7 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
             isOrgAdmin,
             permissions: permissions || [],
             features,
+            recruitmentRoles,
           }}
           orgName={organization?.name}
           orgLogoUrl={organization?.logo_url}

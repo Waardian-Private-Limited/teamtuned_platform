@@ -27,6 +27,8 @@ export function passesGate(ctx: NavContext, gate: NavGate | undefined): boolean 
   if (!gate) return true;
   if (gate.feature && !hasFeature(ctx, gate.feature)) return false;
   if (gate.anyFeature && !gate.anyFeature.some((code) => hasFeature(ctx, code))) return false;
+  if (gate.recruitmentRole && !(ctx.recruitmentRoles || []).includes(gate.recruitmentRole)) return false;
+  if (gate.noneOfPerms && (ctx.isOrgAdmin || hasAnyPerm(ctx, gate.noneOfPerms))) return false;
 
   const bypass = gate.orgAdminBypass !== false && ctx.isOrgAdmin;
   if (bypass) return true;

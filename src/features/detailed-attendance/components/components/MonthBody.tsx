@@ -6,6 +6,7 @@ import { monthText, shiftMonth } from '../../utils/format';
 import { BalancesPanel } from './BalancesPanel';
 import { CompOffGrantsList } from './CompOffGrantsList';
 import { IconButton, Skeleton } from './controls';
+import { RosterDayDialog } from '@/features/my-roster/components/RosterDayDialog';
 import { MonthCalendar } from './MonthCalendar';
 import { MonthSummaryTiles } from './MonthSummaryTiles';
 
@@ -24,14 +25,18 @@ function PageSkeleton() {
   );
 }
 
-/** Previous and next month with the month's name, and a way back to this month. */
+// How far ahead a rostered employee may look (the server allows the same).
+const ROSTER_AHEAD_MONTHS = 2;
+
+/** Previous and next month with the month's name, and a way back to this month. A rostered employee can look ahead. */
 export function MonthNav({ data, onGo }: { data: Month | null; onGo: (month: string) => void }) {
   const thisMonth = data ? data.today.slice(0, 7) : null;
+  const lastMonth = thisMonth && data?.rosterEnabled ? shiftMonth(thisMonth, ROSTER_AHEAD_MONTHS) : thisMonth;
   return (
     <div className="flex items-center gap-1.5">
       <IconButton label="Previous month" onClick={() => onGo(shiftMonth(data ? data.month : '', -1))} disabled={!data}><ChevronLeft className="h-4 w-4" /></IconButton>
       <h2 className="min-w-[10.5rem] text-center text-base font-extrabold text-fg">{data ? monthText(data.month) : ' '}</h2>
-      <IconButton label="Next month" onClick={() => onGo(shiftMonth(data ? data.month : '', 1))} disabled={!data || !thisMonth || data.month >= thisMonth}><ChevronRight className="h-4 w-4" /></IconButton>
+      <IconButton label="Next month" onClick={() => onGo(shiftMonth(data ? data.month : '', 1))} disabled={!data || !lastMonth || data.month >= lastMonth}><ChevronRight className="h-4 w-4" /></IconButton>
       {thisMonth && data && data.month !== thisMonth && (
         <button type="button" onClick={() => onGo(thisMonth)} className="ml-1 h-8 rounded-lg border border-line px-3 text-xs font-bold text-fg hover:bg-bg-subtle">This month</button>
       )}
@@ -41,8 +46,13 @@ export function MonthNav({ data, onGo }: { data: Month | null; onGo: (month: str
 
 /** One employee's month under its header: totals, calendar, balances and comp-off. A tap on a day calls `onOpenDay`. */
 export function MonthBody({ data, error, loading, refreshing, onOpenDay }: { data: Month | null; error: string | null; loading: boolean; refreshing: boolean; onOpenDay: (date: string) => void }) {
+  // A day ahead has no attendance yet: it opens what the roster puts on it instead.
+  const [ahead, setAhead] = React.useState<string | null>(null);
+  const open = (date: string) => (data && date > data.today ? setAhead(date) : onOpenDay(date));
+  const aheadSlots = (ahead && data?.cells.find((c) => c.date === ahead)?.schedule) || [];
   return (
     <>
+      <RosterDayDialog date={ahead} slots={aheadSlots} onClose={() => setAhead(null)} />
       {error && <Alert message={error} />}
       {loading || !data ? (error ? null : <PageSkeleton />) : (
         <div className={refreshing ? 'space-y-5 opacity-60 transition-opacity' : 'space-y-5 transition-opacity'}>
@@ -56,7 +66,7 @@ export function MonthBody({ data, error, loading, refreshing, onOpenDay }: { dat
             <p className="rounded-lg border border-line bg-bg-subtle/60 px-3 py-2 text-xs text-fg-muted">{data.summary.consecutiveAbsence.days} absent days in a row, the policy flags this.</p>
           )}
           <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
-            <MonthCalendar cells={data.cells || []} today={data.today || ''} onOpen={onOpenDay} />
+            <MonthCalendar cells={data.cells || []} today={data.today || ''} onOpen={open} />
             <div className="space-y-4">
               <BalancesPanel balances={data.balances || []} />
 

@@ -1,4 +1,5 @@
 import type { CompOffGrantDto, DayDetailDto, DayRecordDto, EmployeeHeaderDto, ImpactDto, ListResponseDto, MonthResponseDto } from './detailed.dto';
+import { toSlot } from '@/features/my-roster/types/roster.mapper';
 import type { AttendanceList, CompOffGrant, DayDetail, DayRecord, EmployeeHeader, Impact, Month } from './detailed.model';
 
 const header = (e: EmployeeHeaderDto): EmployeeHeader => ({
@@ -105,7 +106,9 @@ export function toMonth(dto: MonthResponseDto): Month {
       overtimeMinutes: c.overtime_minutes,
       leave: c.leave ? { code: c.leave.code, name: c.leave.name, units: c.leave.units, isPaid: c.leave.is_paid, session: c.leave.session ?? null } : null,
       regularizationStatus: c.regularization_status ?? null,
+      schedule: (c.schedule || []).map(toSlot),
     })),
+    rosterEnabled: !!dto.roster?.enabled,
     summary: {
       calendarDays: s.calendar_days ?? s.total_days ?? 0,
       totalDays: s.total_days ?? s.calendar_days ?? 0,

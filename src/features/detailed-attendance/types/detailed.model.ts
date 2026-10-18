@@ -1,4 +1,5 @@
 import type { BadgeTone, OnlyKey, OverrideStatus } from './detailed.dto';
+import type { RosterSlot } from '@/features/my-roster/types/roster.model';
 
 export type { BadgeTone, OnlyKey, OverrideStatus };
 
@@ -69,6 +70,8 @@ export interface MonthCell {
   leave: Leave | null;
   /** pending, approved or rejected: where the newest regularization request for the date stands. */
   regularizationStatus: string | null;
+  /** The day's published roster slots (empty unless rostered). */
+  schedule: RosterSlot[];
 }
 
 export interface MonthSummary {
@@ -183,6 +186,8 @@ export interface Month {
   summary: MonthSummary;
   balances: Balance[];
   compOffGrants?: CompOffGrant[];
+  /** The policy times this employee's days by roster: show shifts, the roster list, and months ahead. */
+  rosterEnabled: boolean;
 }
 
 export interface DayRecord {

@@ -12,6 +12,8 @@ import { Avatar, Skeleton } from './controls';
 import { CompOffGrantsList } from './CompOffGrantsList';
 import { PunchCard } from './PunchCard';
 import { StatusBadge } from './StatusBadge';
+import { RosteredLine } from '@/features/my-roster/components/RosterCodeChip';
+import type { RosterSlot } from '@/features/my-roster/types/roster.model';
 
 interface Props {
   employeeId: number | null;
@@ -22,6 +24,8 @@ interface Props {
   onClose: () => void;
   onMonth?: (employeeId: number, month: string) => void;
   onOverride: (day: DayDetail) => void;
+  /** What the roster planned for the day, when the employee is rostered. */
+  roster?: RosterSlot[];
 }
 
 /** The day as loaded by whoever shows it, and what that screen offers to do with it. */
@@ -35,6 +39,8 @@ export interface DayViewProps {
   onClose: () => void;
   /** The actions at the foot of the day, if the screen has any. */
   actions?: (day: DayDetail) => React.ReactNode;
+  /** What the roster planned for the day, when the employee is rostered. */
+  roster?: RosterSlot[];
 }
 
 function Figure({
@@ -289,7 +295,7 @@ function Skeletons() {
 }
 
 /** A day's figures, what the policy decided, every check-in and who changed what; the data comes from the caller. */
-export function DayView({ date, data, loading, error, childOpen, onClose, actions }: DayViewProps) {
+export function DayView({ date, data, loading, error, childOpen, onClose, actions, roster }: DayViewProps) {
   if (!date) return null;
   return (
     <Dialog
@@ -303,6 +309,7 @@ export function DayView({ date, data, loading, error, childOpen, onClose, action
             <h2 className="truncate text-base font-bold text-fg">{data ? data.employee.name : 'Attendance'}</h2>
             <p className="truncate text-xs text-fg-muted">{data ? [data.employee.code, data.employee.department, data.employee.role].filter(Boolean).join(' · ') : ' '}</p>
             <p className="mt-0.5 flex items-center gap-2 text-xs text-fg-muted">{longDayText(date)}{data && <StatusBadge badge={data.badge} />}</p>
+            {roster && roster.length > 0 && <RosteredLine slots={roster} />}
           </div>
         </div>
       }
@@ -314,7 +321,7 @@ export function DayView({ date, data, loading, error, childOpen, onClose, action
 }
 
 /** One employee's day for someone who may look at any employee: with a link to the month and the override. */
-export function DayDialog({ employeeId, date, reloadKey, childOpen, onClose, onMonth, onOverride }: Props) {
+export function DayDialog({ employeeId, date, reloadKey, childOpen, onClose, onMonth, onOverride, roster }: Props) {
   const { data, loading, error } = useDay(employeeId, date, reloadKey);
   if (employeeId === null || !date) return null;
   const actions = (d: DayDetail) => (
@@ -325,5 +332,5 @@ export function DayDialog({ employeeId, date, reloadKey, childOpen, onClose, onM
       )}
     </>
   );
-  return <DayView date={date} data={data} loading={loading} error={error} childOpen={childOpen} onClose={onClose} actions={onMonth || data?.canOverride ? actions : undefined} />;
+  return <DayView date={date} data={data} loading={loading} error={error} childOpen={childOpen} onClose={onClose} actions={onMonth || data?.canOverride ? actions : undefined} roster={roster} />;
 }

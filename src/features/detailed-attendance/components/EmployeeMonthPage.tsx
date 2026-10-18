@@ -51,6 +51,7 @@ export function EmployeeMonthPage({ listPath }: { listPath: string }) {
       <MonthBody data={data} error={m.error} loading={m.loading} refreshing={m.refreshing} onOpenDay={setDay} />
 
       <DayPopup employeeId={day && data ? data.employee.id : null} date={day} reloadKey={version}
+        roster={data?.cells.find((c) => c.date === day)?.schedule}
         onClose={() => setDay(null)} onChanged={() => setVersion((v) => v + 1)} />
     </div>
   );

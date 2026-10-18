@@ -4,6 +4,7 @@ import React from 'react';
 import { Hourglass, ListChecks } from 'lucide-react';
 import { DayView } from '@/features/detailed-attendance/components/components/DayDialog';
 import type { DayDetail } from '@/features/detailed-attendance/types/detailed.model';
+import type { RosterSlot } from '@/features/my-roster/types/roster.model';
 import { useMyDay } from '../hooks/useMyDay';
 import { STATUS_TEXT } from '../constants/regularization.constants';
 import type { RegularizationStatus } from '../types/regularization.model';
@@ -16,13 +17,15 @@ interface Props {
   onClose: () => void;
   /** Called after a regularization was raised or withdrawn. */
   onChanged: () => void;
+  /** What the roster planned for the day, when the employee is rostered. */
+  roster?: RosterSlot[];
 }
 
 /**
  * The signed-in employee's own day, with Regularize where an admin would see Override. A request
  * that is waiting or decided shows its status in place of the call to action.
  */
-export function MyDayDialog({ date, reloadKey, onClose, onChanged }: Props) {
+export function MyDayDialog({ date, reloadKey, onClose, onChanged, roster }: Props) {
   const [regularize, setRegularize] = React.useState(false);
   const [saved, setSaved] = React.useState(0);
   const { data, loading, error } = useMyDay(date, reloadKey + saved);
@@ -40,7 +43,7 @@ export function MyDayDialog({ date, reloadKey, onClose, onChanged }: Props) {
 
   return (
     <>
-      <DayView date={date} data={data} loading={loading} error={error} childOpen={regularize} onClose={onClose} actions={data && !data.locked && data.date <= data.today ? actions : undefined} />
+      <DayView date={date} data={data} loading={loading} error={error} childOpen={regularize} onClose={onClose} actions={data && !data.locked && data.date <= data.today ? actions : undefined} roster={roster} />
       {regularize && date && (
         <RegularizeDialog date={date} onClose={() => setRegularize(false)} onDone={() => { setRegularize(false); setSaved((v) => v + 1); onChanged(); }} />
       )}

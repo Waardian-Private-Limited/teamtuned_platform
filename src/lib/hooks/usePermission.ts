@@ -5,8 +5,8 @@ import { useAuth } from '@/context/AuthContext';
 
 // Shared permission-gating hook: every feature (departments, roles, ...)
 // was re-declaring this same "isOrgAdmin || hasPerm(code)" check inline.
-// OrgAdmin/SuperAdmin bypass every permission code, matching the backend's
-// authorizeOrgAdminOrPermissions.
+// OrgAdmin/SuperAdmin and HR mode bypass every permission code, matching the
+// backend's authorizeOrgAdminOrPermissions.
 export function usePermission() {
   const { role, permissions } = useAuth();
 
@@ -17,10 +17,13 @@ export function usePermission() {
     [permissions]
   );
 
+  // HR mode passes every permission check on the server (authMiddleware), so it does here too.
+  const isHrMode = permSet.has('HR_MODE');
+
   const hasPerm = useCallback((code: string) => permSet.has(code.toUpperCase()), [permSet]);
   const hasAnyPerm = useCallback((codes: string[]) => codes.some((c) => permSet.has(c.toUpperCase())), [permSet]);
-  const can = useCallback((code: string) => isOrgAdmin || hasPerm(code), [isOrgAdmin, hasPerm]);
-  const canAny = useCallback((codes: string[]) => isOrgAdmin || hasAnyPerm(codes), [isOrgAdmin, hasAnyPerm]);
+  const can = useCallback((code: string) => isOrgAdmin || isHrMode || hasPerm(code), [isOrgAdmin, isHrMode, hasPerm]);
+  const canAny = useCallback((codes: string[]) => isOrgAdmin || isHrMode || hasAnyPerm(codes), [isOrgAdmin, isHrMode, hasAnyPerm]);
 
-  return { isOrgAdmin, hasPerm, hasAnyPerm, can, canAny };
+  return { isOrgAdmin, isHrMode, hasPerm, hasAnyPerm, can, canAny };
 }

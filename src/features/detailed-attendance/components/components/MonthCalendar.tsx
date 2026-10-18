@@ -4,9 +4,18 @@ import { Hourglass, PencilLine } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { TONE, WEEKDAYS } from '../../constants/detailed.constants';
 import type { MonthCell } from '../../types/detailed.model';
+import { RosterCodeChip } from '@/features/my-roster/components/RosterCodeChip';
+import { slotTimes } from '@/features/my-roster/utils/rosterText';
 import { dayText, timeText } from '../../utils/format';
 
-const OPENABLE = new Set(['upcoming']);
+// A day ahead opens only when the roster puts something on it.
+const closed = (c: MonthCell) => c.badge.key === 'upcoming' && !c.schedule.length;
+
+/** The roster's times for the day ("6:00 AM – 3:00 PM"), shown beside its chip. */
+function rosterTimes(c: MonthCell) {
+  const s = c.schedule.find((x) => x.kind === 'shift');
+  return s ? slotTimes(s) : '';
+}
 
 function times(c: MonthCell) {
   if (!c.inAt) return null;
@@ -15,9 +24,10 @@ function times(c: MonthCell) {
 
 function Cell({ c, today, onOpen }: { c: MonthCell; today: string; onOpen: (date: string) => void }) {
   const tone = TONE[c.badge.tone];
-  const disabled = OPENABLE.has(c.badge.key);
+  const disabled = closed(c);
   const t = times(c);
   const shown = c.badge.key !== 'upcoming';
+  const roster = c.schedule.length > 0;
   return (
     <button type="button" disabled={disabled} onClick={() => onOpen(c.date)} aria-label={`${dayText(c.date)}: ${c.badge.label}${c.badge.note ? `, ${c.badge.note}` : ''}`}
       className={cx('group relative flex h-full min-h-[92px] min-w-0 flex-col items-stretch overflow-hidden rounded-lg border bg-surface p-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-[var(--tt-primary)]',
@@ -33,6 +43,12 @@ function Cell({ c, today, onOpen }: { c: MonthCell; today: string; onOpen: (date
           <span className={cx('truncate text-xs font-bold', tone.text)}>{c.badge.label}</span>
           {t && <span className="truncate text-[11px] tabular-nums text-fg-muted">{t}</span>}
           {c.badge.note && <span className="truncate text-[11px] text-fg-muted">{c.badge.note}</span>}
+        </span>
+      )}
+      {roster && (
+        <span className={cx('flex min-w-0 items-center gap-1 pl-1', shown ? 'mt-auto' : 'mt-1')}>
+          <RosterCodeChip slots={c.schedule} />
+          <span className="truncate text-[11px] font-semibold tabular-nums text-fg-muted">{rosterTimes(c)}</span>
         </span>
       )}
     </button>
@@ -54,16 +70,25 @@ export function MonthCalendar({ cells, today, onOpen }: { cells: MonthCell[]; to
         </div>
       </div>
       <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line sm:hidden">
-        {cells.filter((c) => c.badge.key !== 'upcoming').map((c) => {
+        {cells.filter((c) => !closed(c)).map((c) => {
           const tone = TONE[c.badge.tone];
+          const ahead = c.badge.key === 'upcoming';
+
           return (
             <li key={c.date}>
               <button type="button" onClick={() => onOpen(c.date)} className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-bg-subtle">
                 <span aria-hidden className={cx('h-8 w-1 shrink-0 rounded-full', tone.bar)} />
                 <span className="w-14 shrink-0 text-sm font-bold text-fg">{dayText(c.date)}</span>
                 <span className="min-w-0 flex-1">
-                  <span className={cx('flex items-center gap-1 text-sm font-bold', tone.text)}>{c.badge.label}{c.badge.overridden && <PencilLine aria-label="Set by HR" className="h-3 w-3" />}{c.regularizationStatus === 'pending' && <Hourglass aria-label="Regularization request waiting for approval" className="h-3 w-3 text-[var(--tt-warning)]" />}</span>
-                  {(times(c) || c.badge.note) && <span className="block truncate text-xs text-fg-muted">{[times(c), c.badge.note].filter(Boolean).join(' · ')}</span>}
+                  {ahead
+                    ? <span className="flex items-center gap-1.5 text-sm font-bold text-fg"><RosterCodeChip slots={c.schedule} />{rosterTimes(c) || null}</span>
+                    : <span className={cx('flex items-center gap-1 text-sm font-bold', tone.text)}>{c.badge.label}{c.badge.overridden && <PencilLine aria-label="Set by HR" className="h-3 w-3" />}{c.regularizationStatus === 'pending' && <Hourglass aria-label="Regularization request waiting for approval" className="h-3 w-3 text-[var(--tt-warning)]" />}</span>}
+                  {!ahead && (times(c) || c.badge.note || c.schedule.length > 0) && (
+                    <span className="flex min-w-0 items-center gap-1.5 text-xs text-fg-muted">
+                      {c.schedule.length > 0 && <RosterCodeChip slots={c.schedule} />}
+                      <span className="truncate">{[times(c), c.badge.note].filter(Boolean).join(' · ')}</span>
+                    </span>
+                  )}
                 </span>
               </button>
             </li>

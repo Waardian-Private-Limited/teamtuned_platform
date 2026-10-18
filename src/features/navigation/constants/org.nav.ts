@@ -1,11 +1,12 @@
 import {
   Home, LayoutDashboard, UserCheck, Settings, Calendar, ListChecks, ClipboardList,
   Clock, AlertCircle, Activity, FileText, MinusCircle, Users, UserCog, Shield,
-  Phone, Building, MapPin, Building2, Link2, DollarSign, Coins, Wallet,
+  Building, MapPin, Building2, Link2, DollarSign, Coins, Wallet,
   Receipt, CheckSquare, ListTodo, UserPlus, PlusCircle, Package, LayoutGrid,
-  Layers, Briefcase, HardHat, Thermometer, Camera, QrCode, Award, Cog,
-  ArrowUpCircle, BarChart3, List, Heart, CalendarRange, Repeat, Inbox, Wrench, Navigation, Route,
+  Layers, Briefcase, HardHat, Thermometer, Camera, Award, Cog,
+  ArrowUpCircle, BarChart3, List, CalendarRange, Repeat, Inbox, Wrench, Navigation, Route,
   User, CalendarCheck, TreePalm, Tags,
+  Smartphone, CalendarClock, FileSignature, HeartPulse,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
 
@@ -56,6 +57,7 @@ export const orgNav: NavNode[] = [
       { kind: 'link', label: 'Payroll Setup', href: '/org-admin/payroll-setup', icon: Coins },
       { kind: 'link', label: 'Increments & Promotions', href: '/org-admin/salary-revisions', icon: ArrowUpCircle },
       { kind: 'link', label: 'Compensation', href: '/org-admin/compensation', icon: Award, match: 'prefix' },
+  { kind: 'link', label: 'Insurance', href: '/org-admin/insurance', icon: HeartPulse, match: 'prefix', gate: { feature: 'INSURANCE_FEATURE' } },
     ],
   },
   {
@@ -100,13 +102,9 @@ export const orgNav: NavNode[] = [
   {
     kind: 'group', id: 'tools', label: 'Tools',
     children: [
-      { kind: 'link', label: 'Team Mapper', href: '/org-admin/assignments', icon: UserCog },
-      { kind: 'link', label: 'Policy Mapper', href: '/org-admin/policy-mapper', icon: Shield },
-      { kind: 'link', label: 'Emergency Contacts', href: '/org-admin/emergency-contacts', icon: Phone },
       { kind: 'link', label: 'Site-Sub-Org Mapper', href: '/org-admin/site-sub-org-mapper', icon: Link2 },
-      { kind: 'link', label: 'Employee Sites', href: '/org-admin/employee-sites', icon: MapPin },
-      { kind: 'link', label: 'Budget Requests', href: '/org-admin/site-budget-requests', icon: DollarSign },
-      { kind: 'link', label: 'Employee Devices', href: '/org-admin/device-management', icon: Users },
+      { kind: 'link', label: 'Site Assignment', href: '/org-admin/employee-sites', icon: MapPin },
+      { kind: 'link', label: 'Employee Devices', href: '/org-admin/device-management', icon: Smartphone },
     ],
   },
   {
@@ -115,6 +113,27 @@ export const orgNav: NavNode[] = [
       { kind: 'link', label: 'Overview', href: '/org-admin/salary-advance', icon: LayoutDashboard },
       { kind: 'link', label: 'Advances', href: '/org-admin/salary-advance/advances', icon: ClipboardList, match: 'prefix' },
       { kind: 'link', label: 'Advance types', href: '/org-admin/salary-advance/types', icon: Layers, match: 'prefix' },
+    ],
+  },
+  {
+    kind: 'group', id: 'recruitment', label: 'Recruitment',
+    children: [
+      { kind: 'link', label: 'Overview', href: '/org-admin/recruitment', icon: LayoutDashboard },
+      { kind: 'link', label: 'Positions', href: '/org-admin/recruitment/positions', icon: Briefcase, match: 'prefix' },
+      { kind: 'link', label: 'Candidates', href: '/org-admin/recruitment/candidates', icon: Users, match: 'prefix' },
+      { kind: 'link', label: 'Interviews', href: '/org-admin/recruitment/interviews', icon: CalendarClock, match: 'prefix' },
+      { kind: 'link', label: 'Offers', href: '/org-admin/recruitment/offers', icon: FileSignature, match: 'prefix' },
+      { kind: 'link', label: 'Document Centre', href: '/org-admin/recruitment/documents', icon: FileText, match: 'prefix' },
+      { kind: 'link', label: 'Settings', href: '/org-admin/recruitment/settings', icon: Settings, match: 'prefix' },
+    ],
+  },
+  {
+    kind: 'group', id: 'expenses', label: 'Expenses', gate: { anyFeature: ['REIMBURSEMENT_FEATURE', 'EXPENSE_WALLET_FEATURE'] },
+    children: [
+      { kind: 'link', label: 'Overview', href: '/org-admin/expenses', icon: LayoutDashboard },
+      { kind: 'link', label: 'Claims', href: '/org-admin/expenses/claims', icon: ClipboardList, match: 'prefix' },
+      { kind: 'link', label: 'Wallets', href: '/org-admin/expenses/wallets', icon: Wallet, match: 'prefix', gate: { feature: 'EXPENSE_WALLET_FEATURE' } },
+      { kind: 'link', label: 'Categories', href: '/org-admin/expenses/categories', icon: Tags, match: 'prefix' },
     ],
   },
   {
@@ -143,19 +162,6 @@ export const orgNav: NavNode[] = [
       { kind: 'link', label: 'Daily Forms', href: '/org-admin/dps/assignments', icon: UserPlus },
       { kind: 'link', label: 'Planning Dashboard', href: '/org-admin/dps/planning-dashboard', icon: LayoutDashboard },
       { kind: 'link', label: 'CBD Dashboard', href: '/org-admin/dps/cbd-dashboard', icon: LayoutDashboard },
-    ],
-  },
-  {
-    kind: 'group', id: 'insurance', label: 'Insurance',
-    children: [
-      { kind: 'link', label: 'Dashboard', href: '/org-admin/insurance/dashboard', icon: LayoutGrid },
-      { kind: 'link', label: 'Providers', href: '/org-admin/insurance/providers', icon: Building2 },
-      { kind: 'link', label: 'Policies', href: '/org-admin/insurance/policies', icon: Shield },
-      { kind: 'link', label: 'Enrollment', href: '/org-admin/insurance/enrollment', icon: UserCheck },
-      { kind: 'link', label: 'Dependents', href: '/org-admin/insurance/dependents', icon: Users },
-      { kind: 'link', label: 'Beneficiaries', href: '/org-admin/insurance/beneficiaries', icon: Heart },
-      { kind: 'link', label: 'Claims', href: '/org-admin/insurance/claims', icon: ClipboardList },
-      { kind: 'link', label: 'Reports', href: '/org-admin/insurance/reports', icon: FileText },
     ],
   },
   {
@@ -189,31 +195,6 @@ export const orgNav: NavNode[] = [
       { kind: 'link', label: 'Device Health', href: '/org-admin/labor-attendance/temperature-dashboard', icon: Activity },
       { kind: 'link', label: 'Device Logs', href: '/org-admin/labor-attendance/device-logs', icon: Thermometer },
       { kind: 'link', label: 'Biometric Punch', href: '/org-admin/labor-attendance/biometric', icon: Camera },
-    ],
-  },
-  {
-    kind: 'group', id: 'hr-operation', label: 'HR Operation',
-    children: [
-      { kind: 'link', label: 'Applied Positions', href: '/org-admin/hr-operation/applied-positions', icon: Briefcase },
-      { kind: 'link', label: 'Interview Management', href: '/org-admin/hr-operation/interviews', icon: QrCode },
-      { kind: 'link', label: 'Technical Assessments', href: '/org-admin/hr-operation/technical-assessments', icon: Award },
-      { kind: 'link', label: 'Technical Questions', href: '/org-admin/hr-operation/technical-questions', icon: FileText },
-      {
-        kind: 'link', label: 'Operation / Final Round', href: '/org-admin/hr-operation/operation-round', icon: UserCheck,
-        altHrefs: ['/org-admin/hr-operation/final-round'],
-      },
-      { kind: 'link', label: 'Onboarding', href: '/org-admin/hr-operation/onboarding', icon: UserPlus },
-      { kind: 'link', label: 'Onboarding Status', href: '/org-admin/hr-operation/onboarding/status', icon: Briefcase },
-      { kind: 'link', label: 'Document Center', href: '/org-admin/hr-operation/document-center', icon: FileText },
-    ],
-  },
-  {
-    kind: 'group', id: 'expenses', label: 'Expenses', gate: { anyFeature: ['REIMBURSEMENT_FEATURE', 'EXPENSE_WALLET_FEATURE'] },
-    children: [
-      { kind: 'link', label: 'Overview', href: '/org-admin/expenses', icon: LayoutDashboard },
-      { kind: 'link', label: 'Claims', href: '/org-admin/expenses/claims', icon: ClipboardList, match: 'prefix' },
-      { kind: 'link', label: 'Wallets', href: '/org-admin/expenses/wallets', icon: Wallet, match: 'prefix', gate: { feature: 'EXPENSE_WALLET_FEATURE' } },
-      { kind: 'link', label: 'Categories', href: '/org-admin/expenses/categories', icon: Tags, match: 'prefix' },
     ],
   },
   {

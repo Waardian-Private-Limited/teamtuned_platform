@@ -1,5 +1,7 @@
-import SiteSubOrgMapper from "@/components/org/SiteSubOrgMapper";
+"use client";
 
-export default function SiteSubOrgMapperPage() {
-    return <SiteSubOrgMapper />;
+import { SiteSubOrgMapperPage } from "@/features/site-sub-org-mapper/components/SiteSubOrgMapperPage";
+
+export default function OrgAdminSiteSubOrgMapperPage() {
+  return <SiteSubOrgMapperPage />;
 }

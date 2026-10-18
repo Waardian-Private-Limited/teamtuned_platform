@@ -350,6 +350,19 @@ const WORK_RULES: Record<string, (c: Config) => CardSummary> = {
     };
   },
 
+  deviceRules(c) {
+    if (!b(c.singleDevice)) {
+      return { rule: ['Employees can sign in to the app from any phone. The latest phone used is shown to HR under Employee Devices.'] };
+    }
+    return {
+      rule: [
+        'The first phone an employee signs in on is registered to them.',
+        'Signing in from another phone is blocked until HR allows the new phone or resets the registered one under Employee Devices.',
+      ],
+      example: 'Example: Asha signs in on her Samsung, then tries a new iPhone — the iPhone waits for HR, the Samsung keeps working.',
+    };
+  },
+
   defaultSchedule(c) {
     if (!b(c.enabled)) return { rule: ['No default schedule pre-populated; shift is chosen per employee.'] };
     const timingMode = s(c.timingMode, 'fixed_time');

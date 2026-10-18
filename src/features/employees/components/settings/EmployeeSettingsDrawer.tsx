@@ -5,10 +5,12 @@ import { Drawer } from '@/components/ui/Drawer';
 import { cx } from '@/theme/tokens';
 import { EmploymentTypesPanel } from './EmploymentTypesPanel';
 import { CodeFormatPanel } from './CodeFormatPanel';
+import { BirthdaysPanel } from './BirthdaysPanel';
 
 const TABS = [
   { key: 'types', label: 'Employment types' },
   { key: 'code', label: 'Employee code' },
+  { key: 'birthdays', label: 'Birthdays' },
 ] as const;
 
 export function EmployeeSettingsDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -22,7 +24,7 @@ export function EmployeeSettingsDrawer({ open, onClose }: { open: boolean; onClo
           </button>
         ))}
       </div>
-      {tab === 'types' ? <EmploymentTypesPanel /> : <CodeFormatPanel />}
+      {tab === 'types' ? <EmploymentTypesPanel /> : tab === 'code' ? <CodeFormatPanel /> : <BirthdaysPanel />}
     </Drawer>
   );
 }

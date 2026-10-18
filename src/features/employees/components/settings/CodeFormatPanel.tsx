@@ -37,7 +37,7 @@ export function CodeFormatPanel() {
     setBusy(true);
     setError(null);
     try {
-      const d = await api.updateEmployeeSettings(subOrgId, code);
+      const d = await api.updateEmployeeSettings(subOrgId, { code });
       setCode(d.settings.code);
       setNext(d.next_employee_code);
       setInherited(false);

@@ -36,9 +36,9 @@ export const LEAVE_TYPE_UNIT_OPTIONS = [
 // create wizard, the editor's section tabs and the read-only config
 // summary, so a renamed section is renamed in all three at once.
 //
-// Attendance capture, geofence, device binding and shift timings are NOT
-// policy rules — they are per-employee settings configured when an
-// employee is added.
+// Geofence and shift timings are NOT policy rules — they are per-employee
+// settings configured when an employee is added. Whether an employee may
+// sign in from one phone only is a work rule (workRules.deviceRules).
 export const POLICY_SECTIONS = [
   { value: 'workRules', label: 'Work Rules' },
   { value: 'leave', label: 'Leave' },

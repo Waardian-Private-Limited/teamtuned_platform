@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import type { RosterSlot } from '@/features/my-roster/types/roster.model';
 import type { DayDetail } from '../types/detailed.model';
 import { DayDialog } from './components/DayDialog';
 import { OverrideDialog } from './components/OverrideDialog';
@@ -15,18 +16,20 @@ interface Props {
   onMonth?: (employeeId: number, month: string) => void;
   /** Called after an override was saved or removed. */
   onChanged?: () => void;
+  /** What the roster planned for the day, when the employee is rostered. */
+  roster?: RosterSlot[];
 }
 
 /**
  * One employee's day with its override form: everything about a single date, usable from any
  * screen that shows dates (the list, the month, the payroll calendar).
  */
-export function DayPopup({ employeeId, date, reloadKey = 0, onClose, onMonth, onChanged }: Props) {
+export function DayPopup({ employeeId, date, reloadKey = 0, onClose, onMonth, onChanged, roster }: Props) {
   const [override, setOverride] = React.useState<DayDetail | null>(null);
   const [saved, setSaved] = React.useState(0);
   return (
     <>
-      <DayDialog employeeId={employeeId} date={date} reloadKey={reloadKey + saved} childOpen={!!override} onClose={onClose} onMonth={onMonth} onOverride={setOverride} />
+      <DayDialog employeeId={employeeId} date={date} reloadKey={reloadKey + saved} childOpen={!!override} onClose={onClose} onMonth={onMonth} onOverride={setOverride} roster={roster} />
       {override && <OverrideDialog open day={override} onClose={() => setOverride(null)} onSaved={() => { setSaved((v) => v + 1); onChanged?.(); }} />}
     </>
   );
