@@ -3,11 +3,12 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { apiClient } from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
-import { ArrowRight, Calendar, Clock, MapPin, RefreshCw, Search, Users, User, Phone, Briefcase, FileText, Download, X, AlertCircle } from 'lucide-react';
+import { ArrowRight, Calendar, Clock, MapPin, RefreshCw, Search, Users, User, Phone, Briefcase, FileText, Download, X, AlertCircle, Trash2 } from 'lucide-react';
 import { format } from "date-fns";
 
 interface LaborerItem {
     id: number;
+    summary_id?: number | null;
     name: string;
     phone_number: string | number;
     site_name: string;
@@ -139,6 +140,7 @@ export default function LaborAttendanceList() {
     const [viewSessionsLaborer, setViewSessionsLaborer] = useState<any | null>(null);
     const [sessions, setSessions] = useState<any[]>([]);
     const [loadingSessions, setLoadingSessions] = useState(false);
+    const [deletingAttendance, setDeletingAttendance] = useState(false);
     const [showExportModal, setShowExportModal] = useState(false);
     const [showImageModal, setShowImageModal] = useState(false);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -316,6 +318,36 @@ export default function LaborAttendanceList() {
         } finally {
             setLoadingSessions(false);
         }
+    };
+
+    // Org Admin only (the backend enforces it too). The summary is rebuilt from
+    // the punches left, so deleting a wrong OUT puts the laborer back to working.
+    const deleteAttendance = async (what: string, request: () => Promise<unknown>) => {
+        if (!window.confirm(`Delete ${what} for ${viewSessionsLaborer?.name}? This cannot be undone.`)) return;
+        setDeletingAttendance(true);
+        try {
+            await request();
+            fetchList();
+            return true;
+        } catch (err: any) {
+            alert(err.message || "Failed to delete");
+            return false;
+        } finally {
+            setDeletingAttendance(false);
+        }
+    };
+
+    const deletePunches = async (logIds: number[], what: string) => {
+        const ok = await deleteAttendance(what, () => apiClient("/labor/attendance/logs/delete", {
+            method: "POST", withAuth: true, body: { log_ids: logIds }
+        }));
+        if (ok) openSessionsModal(viewSessionsLaborer);
+    };
+
+    const deleteDayRecord = async () => {
+        const ok = await deleteAttendance(`the whole attendance record of ${date}`, () =>
+            apiClient(`/labor/attendance/summaries/${viewSessionsLaborer.summary_id}`, { method: "DELETE", withAuth: true }));
+        if (ok) setViewSessionsLaborer(null);
     };
 
     const openMigrateModal = async (laborer: any) => {
@@ -1042,6 +1074,8 @@ export default function LaborAttendanceList() {
                                                 currentSession = {
                                                     start: log.punch_time,
                                                     startImage: log.image_url,
+                                                    startLogId: log.id,
+                                                    endLogId: null,
                                                     end: null,
                                                     endImage: null,
                                                     durationParams: null
@@ -1050,6 +1084,7 @@ export default function LaborAttendanceList() {
                                                 if (currentSession) {
                                                     currentSession.end = log.punch_time;
                                                     currentSession.endImage = log.image_url;
+                                                    currentSession.endLogId = log.id;
                                                     // Calculate
                                                     const diff = new Date(log.punch_time).getTime() - new Date(currentSession.start).getTime();
                                                     currentSession.durationParams = diff;
@@ -1089,8 +1124,23 @@ export default function LaborAttendanceList() {
                                                                 <span className="bg-green-100 text-green-700 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase">Working</span>
                                                             )}
                                                         </div>
-                                                        <div className="text-sm font-mono font-medium text-gray-600 bg-gray-50 px-2 py-1 rounded">
-                                                            {durationStr}
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="text-sm font-mono font-medium text-gray-600 bg-gray-50 px-2 py-1 rounded">
+                                                                {durationStr}
+                                                            </div>
+                                                            {isOrgAdmin && (
+                                                                <button
+                                                                    disabled={deletingAttendance}
+                                                                    onClick={() => deletePunches(
+                                                                        [session.startLogId, session.endLogId].filter(Boolean),
+                                                                        `session ${sessionGroups.length - idx}`
+                                                                    )}
+                                                                    className="p-1.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50"
+                                                                    title="Delete this session (IN and OUT)"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </div>
 
@@ -1099,6 +1149,15 @@ export default function LaborAttendanceList() {
                                                         <div>
                                                             <div className="text-xs text-gray-500 mb-1 flex items-center gap-1">
                                                                 <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div> IN
+                                                                {isOrgAdmin && (
+                                                                    <button
+                                                                        disabled={deletingAttendance}
+                                                                        onClick={() => deletePunches([session.startLogId], "this IN punch")}
+                                                                        className="ml-auto text-[10px] font-semibold text-red-500 hover:underline disabled:opacity-50"
+                                                                    >
+                                                                        Delete
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                             <div className="text-sm font-semibold mb-2">
                                                                 {new Date(session.start).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}
@@ -1118,6 +1177,15 @@ export default function LaborAttendanceList() {
                                                         <div>
                                                             <div className="text-xs text-gray-500 mb-1 flex items-center gap-1">
                                                                 <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div> OUT
+                                                                {isOrgAdmin && session.endLogId && (
+                                                                    <button
+                                                                        disabled={deletingAttendance}
+                                                                        onClick={() => deletePunches([session.endLogId], "this OUT punch")}
+                                                                        className="ml-auto text-[10px] font-semibold text-red-500 hover:underline disabled:opacity-50"
+                                                                    >
+                                                                        Delete
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                             <div className="text-sm font-semibold mb-2">
                                                                 {session.end ? new Date(session.end).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' }) : 'Active'}
@@ -1145,6 +1213,18 @@ export default function LaborAttendanceList() {
                                 </div>
                             )}
                         </div>
+                        {isOrgAdmin && viewSessionsLaborer.summary_id && (
+                            <div className="p-4 border-t border-gray-100 flex justify-end">
+                                <button
+                                    disabled={deletingAttendance}
+                                    onClick={deleteDayRecord}
+                                    className="flex items-center gap-1.5 text-sm font-semibold text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg disabled:opacity-50"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                    Delete whole day record
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
