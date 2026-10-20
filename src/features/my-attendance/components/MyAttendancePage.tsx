@@ -11,6 +11,7 @@ import { FlexibleOffCard } from './FlexibleOffCard';
 import { MyDayDialog } from './MyDayDialog';
 
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
+const DATE = /^\d{4}-(0[1-9]|1[0-2])-\d{2}$/;
 
 /**
  * The signed-in employee's own monthly attendance: the totals, the calendar and the balances, and a
@@ -23,7 +24,8 @@ export function MyAttendancePage() {
   const pathname = usePathname();
   const asked = search.get('month') || '';
   const [version, setVersion] = React.useState(0);
-  const [day, setDay] = React.useState<string | null>(null);
+  // ?date=yyyy-MM-dd opens that day straight away (links from the dashboard).
+  const [day, setDay] = React.useState<string | null>(() => (DATE.test(search.get('date') || '') ? search.get('date') : null));
   const [rosters, setRosters] = React.useState(false);
   const m = useMyMonth(MONTH.test(asked) ? asked : '', version);
   const data = m.data;

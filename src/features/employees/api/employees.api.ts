@@ -10,6 +10,8 @@ import type {
   JobEventDto,
   AuditEntryDto,
   HistoryPageDto,
+  ContractTermDto,
+  ContractRenewalDto,
 } from '../types/employees.dto';
 
 const auth = { withAuth: true };
@@ -20,6 +22,9 @@ export interface ListParams {
   page: number;
   pageSize: number;
   subOrgId?: number | null;
+  gradeId?: number | null;
+  costCentreId?: number | null;
+  contractEndingDays?: number | null;
 }
 
 export function listEmployees(params: ListParams) {
@@ -31,6 +36,9 @@ export function listEmployees(params: ListParams) {
       page: params.page,
       pageSize: params.pageSize,
       subOrgId: params.subOrgId ?? undefined,
+      gradeId: params.gradeId ?? undefined,
+      costCentreId: params.costCentreId ?? undefined,
+      contractEndingDays: params.contractEndingDays ?? undefined,
     },
     auth
   );
@@ -54,6 +62,7 @@ export function previewPolicy(params: {
   roleId: number | null;
   siteIds: number[];
   employmentTypeId: number | null;
+  gradeId: number | null;
 }) {
   return apiClient.get<PolicyPreviewDto>(
     '/employees/policy-preview',
@@ -63,6 +72,7 @@ export function previewPolicy(params: {
       roleId: params.roleId ?? undefined,
       siteIds: params.siteIds.length ? params.siteIds.join(',') : undefined,
       employmentTypeId: params.employmentTypeId ?? undefined,
+      gradeId: params.gradeId ?? undefined,
     },
     auth
   );
@@ -102,6 +112,8 @@ export interface EmploymentTypeDto {
   name: string;
   code: string;
   description: string | null;
+  is_fixed_term: boolean;
+  default_contract_months: number | null;
   default_probation_months: number | null;
   default_notice_days: number | null;
   display_order: number;
@@ -173,4 +185,13 @@ export function getJobHistory(id: number, page: number, pageSize = 20) {
 
 export function getAuditLog(id: number, page: number, pageSize = 20) {
   return apiClient.get<HistoryPageDto<AuditEntryDto>>(`/employees/${id}/audit-log`, { page, pageSize }, auth);
+}
+
+export function getContractHistory(id: number) {
+  return apiClient.get<{ terms: ContractTermDto[] }>(`/employees/${id}/contract`, undefined, auth);
+}
+
+/** Extends the current term: a new end date, or a number of months from the day after the current end. */
+export function renewContract(id: number, body: { end_date?: string; months?: number; reason?: string }) {
+  return apiClient.post<ContractRenewalDto>(`/employees/${id}/contract/renew`, body, auth);
 }

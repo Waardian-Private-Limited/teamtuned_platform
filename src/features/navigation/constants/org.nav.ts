@@ -57,6 +57,9 @@ import {
   UserSearch,
   ReceiptText,
   ClipboardCheck,
+  Landmark,
+  FileCheck,
+  ChartPie,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
 
@@ -106,6 +109,17 @@ export const orgNav: NavNode[] = [
       { kind: 'link', label: 'Payouts', href: '/org-admin/payouts', icon: Wallet },
       { kind: 'link', label: 'Other Deductions', href: '/org-admin/other-deductions', icon: MinusCircle, match: 'prefix' },
       { kind: 'link', label: 'Payroll Setup', href: '/org-admin/payroll-setup', icon: Coins },
+      {
+        kind: 'group', id: 'payroll-tds', label: 'Income Tax (TDS)', icon: Landmark, gate: { anyPerm: ['DEBIT_RULE_VIEW'] },
+        children: [
+          { kind: 'link', label: 'Overview', href: '/org-admin/tds', icon: LayoutDashboard },
+          { kind: 'link', label: 'Settings', href: '/org-admin/tds/settings', icon: Settings },
+          { kind: 'link', label: 'Employee declarations', href: '/org-admin/tds/declarations', icon: ClipboardList },
+          { kind: 'link', label: 'Proof review', href: '/org-admin/tds/proofs', icon: FileCheck },
+          { kind: 'link', label: 'Deposits & returns', href: '/org-admin/tds/returns', icon: Receipt },
+          { kind: 'link', label: 'Form 16', href: '/org-admin/tds/form16', icon: FileText },
+        ],
+      },
       { kind: 'link', label: 'Increments & Promotions', href: '/org-admin/salary-revisions', icon: ArrowUpCircle },
       { kind: 'link', label: 'Compensation', href: '/org-admin/compensation', icon: Award, match: 'prefix' },
   { kind: 'link', label: 'Insurance', href: '/org-admin/insurance', icon: HeartPulse, match: 'prefix', gate: { feature: 'INSURANCE_FEATURE' } },
@@ -147,6 +161,8 @@ export const orgNav: NavNode[] = [
       { kind: 'link', label: 'Onboarding Settings', href: '/org-admin/onboarding-settings', icon: Cog },
       { kind: 'link', label: 'Departments', href: '/org-admin/departments', icon: Building },
       { kind: 'link', label: 'Roles', href: '/org-admin/roles', icon: UserCog },
+      { kind: 'link', label: 'Grades / Bands', href: '/org-admin/grades', icon: Layers },
+      { kind: 'link', label: 'Cost Centres', href: '/org-admin/cost-centres', icon: ChartPie },
       { kind: 'link', label: 'Approval Flows', href: '/org-admin/approval-flows', icon: ListChecks, match: 'prefix' },
     ],
   },

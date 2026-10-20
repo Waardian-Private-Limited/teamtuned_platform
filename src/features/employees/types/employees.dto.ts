@@ -42,6 +42,7 @@ export interface EmployeeListItemDto {
   work_type: string | null;
   joining_date: string | null;
   sub_organization_id: number | null;
+  contract_end: string | null;
   status: EmployeeStatus;
 }
 
@@ -127,8 +128,16 @@ export interface EmploymentTypeOptionDto {
   id: number;
   name: string;
   code: string;
+  is_fixed_term: boolean;
+  default_contract_months: number | null;
   default_probation_months: number | null;
   default_notice_days: number | null;
+}
+
+export interface CatalogOptionDto {
+  id: number;
+  name: string;
+  code: string;
 }
 
 export interface FormOptionsDto {
@@ -136,6 +145,10 @@ export interface FormOptionsDto {
   next_employee_code: string | null;
   code_editable: boolean;
   employment_types: EmploymentTypeOptionDto[];
+  grades: CatalogOptionDto[];
+  cost_centres: CatalogOptionDto[];
+  /** Indian states and union territories, the spelling work state and PT/LWF rules use. */
+  states: string[];
   departments: { id: number; name: string }[];
   roles: { id: number; name: string; department_id: number | null }[];
   sites: { id: number; name: string; code: string | null; city: string | null; state: string | null; is_head_office: 0 | 1 }[];
@@ -160,6 +173,7 @@ export interface SalaryAllocationDto {
 export interface EmployeeDetailDto {
   id: number;
   employee_code: string | null;
+  name: string;
   first_name: string;
   middle_name: string | null;
   last_name: string;
@@ -177,8 +191,18 @@ export interface EmployeeDetailDto {
   employment_start_date: string | null;
   probation_months: number | null;
   notice_period_days: number | null;
+  confirmation_date: string | null;
+  exit_date: string | null;
+  contract_start: string | null;
+  contract_end: string | null;
+  work_state: string | null;
+  grade_id: number | null;
+  grade_name: string | null;
+  cost_centre_id: number | null;
+  cost_centre_name: string | null;
   site_ids: number[];
   primary_site_id: number | null;
+  sites: { id: number; name: string; is_primary: 0 | 1 }[];
   policy_id: number | null;
   policy_overridden: 0 | 1;
   shift_template_id: number | null;
@@ -261,4 +285,30 @@ export interface HistoryPageDto<T> {
   pageSize: number;
   total: number;
   pages: number;
+}
+
+export type ContractTermKind = 'initial' | 'renewal' | 'change';
+
+export interface ContractTermDto {
+  id: number;
+  start_date: string;
+  end_date: string;
+  kind: ContractTermKind;
+  reason: string | null;
+  created_by_name: string | null;
+  created_at: string;
+}
+
+export interface ContractRenewalDto {
+  contract_start: string;
+  contract_end: string;
+  renewal: { start: string; end: string };
+}
+
+/** The 409 a create/update returns when another employee already holds the PAN or UAN. */
+export interface IdentityDuplicateDto {
+  code: 'IDENTITY_DUPLICATE';
+  field: 'pan_number' | 'pf_uan';
+  matches: { id: number; employee_code: string | null; name: string; status: string }[];
+  confirm: 'confirm_duplicate_identity';
 }

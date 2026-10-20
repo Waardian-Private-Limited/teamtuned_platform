@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { usePermission } from '@/lib/hooks/usePermission';
 import { PAYROLL_TABS, COMPONENT_PERMISSIONS, DEBIT_PERMISSIONS, type PayrollTab } from '../constants/payroll-setup.constants';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
@@ -11,7 +11,6 @@ import { useDebitList } from '../hooks/useDebitList';
 import { useDebitMutations } from '../hooks/useDebitMutations';
 import { ComponentsTab } from './components/ComponentsTab';
 import { DebitRulesTab } from './components/DebitRulesTab';
-import { TdsTab } from './components/TdsTab';
 import type { SalaryComponent, DebitRule } from '../types/payroll-setup.model';
 
 export function PayrollSetupPage({ initialTab: initialTabProp }: { initialTab?: PayrollTab }) {
@@ -20,6 +19,13 @@ export function PayrollSetupPage({ initialTab: initialTabProp }: { initialTab?: 
   const [tab, setTab] = React.useState<PayrollTab>(
     PAYROLL_TABS.some((t) => t.value === (initialTabProp || queryTab)) ? (initialTabProp || queryTab)! : 'components'
   );
+
+  // TDS moved to its own pages; an old ?tab=tds link lands on their overview.
+  const router = useRouter();
+  const pathname = usePathname() || '';
+  React.useEffect(() => {
+    if (params.get('tab') === 'tds') router.replace(pathname.startsWith('/employee') ? '/employee/tds' : '/org-admin/tds');
+  }, [params, pathname, router]);
 
   const { can } = usePermission();
   const componentPerms = {
@@ -103,15 +109,6 @@ export function PayrollSetupPage({ initialTab: initialTabProp }: { initialTab?: 
             debitMutations.clearDeleteBlockedMessage();
           }}
           onCloseAssignments={() => setAssignmentsRule(null)}
-        />
-      )}
-
-      {tab === 'tds' && (
-        <TdsTab
-          canEdit={debitPerms.canEdit}
-          // The tab is controlled React state, so steps 3 and 4 move it directly —
-          // a link to ?tab=debits would not change it after mount.
-          onNavigateToRules={() => setTab('debits')}
         />
       )}
     </div>

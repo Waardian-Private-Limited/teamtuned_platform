@@ -1,5 +1,7 @@
 import type { DebitFormInput } from '../types/payroll-setup.model';
 import { ptSlabs } from './professionalTax';
+import { validateSlab } from './deductionSlabs';
+import { CHANGE_REASON_MAX } from '../constants/payroll-setup.constants';
 import { formatDate as formatDateOf, formatDateTime as formatDateTimeOf } from '@/lib/datetime';
 
 export function validateComponentName(name: string): string | null {
@@ -23,6 +25,9 @@ export function validateDebitForm(input: DebitFormInput): { field: string; messa
       if (!input.fixedAmount || Number(input.fixedAmount) <= 0) {
         return { field: 'fixed_amount', message: 'Enter a valid fixed amount' };
       }
+    } else if (input.debitType === 'slab') {
+      const problem = validateSlab(input.slab);
+      if (problem) return { field: 'config', message: problem.message };
     } else {
       if (!input.percentageValue || Number(input.percentageValue) <= 0) {
         return { field: 'percentage_value', message: 'Enter a valid percentage' };
@@ -51,6 +56,13 @@ export function validateDebitForm(input: DebitFormInput): { field: string; messa
     }
   }
 
+  if (input.effectiveFrom && !isIsoDate(input.effectiveFrom)) {
+    return { field: 'effective_from', message: 'Enter a valid date' };
+  }
+  if (input.changeReason.trim().length > CHANGE_REASON_MAX) {
+    return { field: 'change_reason', message: `Keep the reason under ${CHANGE_REASON_MAX} characters` };
+  }
+
   if (input.enableMaxCap && (!input.maxCapAmount || Number(input.maxCapAmount) < 0)) {
     return { field: 'max_cap_amount', message: 'Enter a valid cap amount' };
   }
@@ -60,6 +72,12 @@ export function validateDebitForm(input: DebitFormInput): { field: string; messa
     }
   }
   return null;
+}
+
+export function isIsoDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
 export function validatePan(pan: string): string | null {

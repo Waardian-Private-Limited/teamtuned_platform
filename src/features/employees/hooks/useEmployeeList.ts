@@ -5,6 +5,7 @@ import * as employeesApi from '../api/employees.api';
 import type { EmployeeListItemDto, EmployeeListResponseDto, EmployeeStatus } from '../types/employees.dto';
 import { messageOf } from '@/lib/api/errors';
 import { DEFAULT_PAGE_SIZE, SEARCH_DEBOUNCE_MS, type StatusFilter } from '../constants/employees.constants';
+import { CONTRACT_SOON_DAYS } from '../utils/contract';
 
 const EMPTY_COUNTS: EmployeeListResponseDto['counts'] = { all: 0, Active: 0, Invited: 0, Inactive: 0, Terminated: 0 };
 
@@ -19,6 +20,9 @@ export function useEmployeeList() {
   const [search, setSearch] = useState('');
   const [status, setStatusState] = useState<StatusFilter>('all');
   const [subOrgId, setSubOrgIdState] = useState<number | null>(null);
+  const [gradeId, setGradeIdState] = useState<number | null>(null);
+  const [costCentreId, setCostCentreIdState] = useState<number | null>(null);
+  const [contractsEnding, setContractsEndingState] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSizeState] = useState(DEFAULT_PAGE_SIZE);
   const [total, setTotal] = useState(0);
@@ -31,7 +35,10 @@ export function useEmployeeList() {
     setIsFetching(true);
     setError('');
     try {
-      const dto = await employeesApi.listEmployees({ search, status, page, pageSize, subOrgId });
+      const dto = await employeesApi.listEmployees({
+        search, status, page, pageSize, subOrgId, gradeId, costCentreId,
+        contractEndingDays: contractsEnding ? CONTRACT_SOON_DAYS : null,
+      });
       if (requestId !== requestRef.current) return;
       setEmployees(dto.employees);
       setCounts(dto.counts || EMPTY_COUNTS);
@@ -46,7 +53,7 @@ export function useEmployeeList() {
         setIsFetching(false);
       }
     }
-  }, [search, status, page, pageSize, subOrgId]);
+  }, [search, status, page, pageSize, subOrgId, gradeId, costCentreId, contractsEnding]);
 
   useEffect(() => {
     fetchEmployees();
@@ -72,6 +79,21 @@ export function useEmployeeList() {
     setPage(1);
   }, []);
 
+  const setGradeId = useCallback((next: number | null) => {
+    setGradeIdState(next);
+    setPage(1);
+  }, []);
+
+  const setCostCentreId = useCallback((next: number | null) => {
+    setCostCentreIdState(next);
+    setPage(1);
+  }, []);
+
+  const setContractsEnding = useCallback((next: boolean) => {
+    setContractsEndingState(next);
+    setPage(1);
+  }, []);
+
   const setPageSize = useCallback((next: number) => {
     setPageSizeState(next);
     setPage(1);
@@ -82,6 +104,9 @@ export function useEmployeeList() {
     setSearch('');
     setStatusState('all');
     setSubOrgIdState(null);
+    setGradeIdState(null);
+    setCostCentreIdState(null);
+    setContractsEndingState(false);
     setPage(1);
   }, []);
 
@@ -102,6 +127,12 @@ export function useEmployeeList() {
     setStatus,
     subOrgId,
     setSubOrgId,
+    gradeId,
+    setGradeId,
+    costCentreId,
+    setCostCentreId,
+    contractsEnding,
+    setContractsEnding,
     page,
     setPage,
     pageSize,
@@ -111,6 +142,6 @@ export function useEmployeeList() {
     refetch: fetchEmployees,
     clearFilters,
     patchLocally,
-    hasActiveFilters: Boolean(search) || status !== 'all' || subOrgId !== null,
+    hasActiveFilters: Boolean(search) || status !== 'all' || subOrgId !== null || gradeId !== null || costCentreId !== null || contractsEnding,
   };
 }

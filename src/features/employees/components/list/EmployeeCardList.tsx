@@ -8,6 +8,8 @@ import { EmployeeIdentity } from './EmployeeIdentity';
 import { EmployeeRowActions } from './EmployeeRowActions';
 import { SubOrgBadge } from '@/features/sub-organizations/components/SubOrgBadge';
 import { formatDate } from './EmployeeTable';
+import { orgToday } from '@/lib/datetime';
+import { contractNote } from '../../utils/contract';
 
 interface EmployeeCardListProps {
   employees: EmployeeListItemDto[];
@@ -20,6 +22,7 @@ interface EmployeeCardListProps {
 }
 
 export function EmployeeCardList({ employees, canEdit, canDelete, busyId, onEdit, onAction, onHistory }: EmployeeCardListProps) {
+  const today = orgToday();
   return (
     <>
       {employees.map((e) => (
@@ -45,6 +48,12 @@ export function EmployeeCardList({ employees, canEdit, canDelete, busyId, onEdit
               <dt className="text-fg-subtle">Joined</dt>
               <dd className="truncate font-medium text-fg">{formatDate(e.joining_date)}</dd>
             </div>
+            {contractNote(e.contract_end, today) && (
+              <div className="min-w-0 col-span-2">
+                <dt className="text-fg-subtle">Contract</dt>
+                <dd className="truncate font-medium text-fg">{contractNote(e.contract_end, today)}</dd>
+              </div>
+            )}
             {e.sub_organization_id ? (
               <div className="min-w-0 col-span-2">
                 <dt className="text-fg-subtle">Sub-organization</dt>

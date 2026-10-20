@@ -28,6 +28,12 @@ export function MyLeavePage() {
   const list = useLeaveRequests(version);
   const o = overview.data;
   const refresh = () => setVersion((v) => v + 1);
+
+  // ?request=<id> opens that request straight away (links from the dashboard).
+  React.useEffect(() => {
+    const id = Number(new URLSearchParams(window.location.search).get('request'));
+    if (id > 0) setOpenId(id);
+  }, []);
   const canApply = !!o && o.types.some((t) => !t.locked);
 
   return (

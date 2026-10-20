@@ -11,8 +11,8 @@ import { TableSkeleton } from '@/components/ui/TableSkeleton';
 import { Dialog } from '@/components/ui/Dialog';
 import type { useComponentList } from '../../hooks/useComponentList';
 import type { useComponentMutations } from '../../hooks/useComponentMutations';
-import type { SalaryComponent, ComponentFormInput } from '../../types/payroll-setup.model';
-import { STATUS_FILTER_OPTIONS, COMPONENT_TYPES } from '../../constants/payroll-setup.constants';
+import type { SalaryComponent, ComponentFormInput, TaxTreatment } from '../../types/payroll-setup.model';
+import { STATUS_FILTER_OPTIONS, COMPONENT_TYPES, TAX_TREATMENT_OPTIONS } from '../../constants/payroll-setup.constants';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { SubOrgFilter } from '@/features/sub-organizations/components/SubOrgFilter';
 import { SubOrgBadge } from '@/features/sub-organizations/components/SubOrgBadge';
@@ -34,6 +34,20 @@ interface ComponentsTabProps {
 
 const inputClass =
   'w-full min-w-0 rounded-lg border border-line bg-surface px-3 h-9 text-sm text-fg placeholder:text-fg-subtle outline-none transition-colors focus:border-[var(--tt-primary)] focus:ring-1 focus:ring-[var(--tt-primary)]';
+
+// Shown only for earnings that are not fully taxable.
+function TaxTreatmentTag({ component }: { component: SalaryComponent }) {
+  if (component.type !== 'credit' || component.taxTreatment === 'taxable') return null;
+  const option = TAX_TREATMENT_OPTIONS.find((o) => o.value === component.taxTreatment);
+  return (
+    <span
+      title={option?.label}
+      className="inline-flex items-center rounded-full border border-line bg-bg-subtle px-1.5 py-0.5 text-[10px] font-semibold text-fg-muted"
+    >
+      {option?.short ?? component.taxTreatment}
+    </span>
+  );
+}
 
 export function ComponentsTab({
   list,
@@ -170,6 +184,7 @@ export function ComponentsTab({
                         <div className="flex items-center gap-2">
                           <span className="text-xs sm:text-sm font-semibold text-fg">{component.name}</span>
                           <SubOrgBadge subOrgId={component.subOrganizationId} />
+                          <TaxTreatmentTag component={component} />
                         </div>
                         {component.description && <div className={cx(text.caption, 'mt-0.5 max-w-md truncate')}>{component.description}</div>}
                       </td>
@@ -253,6 +268,7 @@ export function ComponentsTab({
                         >
                           {component.type === 'credit' ? 'Earning' : 'Deduction'}
                         </span>
+                        <TaxTreatmentTag component={component} />
                       </div>
                       {component.description && <div className="text-[11px] text-fg-muted truncate">{component.description}</div>}
                     </div>
@@ -410,6 +426,7 @@ function ComponentFormDialog({
   const [percentageBasis, setPercentageBasis] = React.useState<'basic' | 'gross' | 'component'>('gross');
   const [basisComponentId, setBasisComponentId] = React.useState<number | null>(null);
   const [subOrganizationId, setSubOrganizationId] = React.useState<number | null>(null);
+  const [taxTreatment, setTaxTreatment] = React.useState<TaxTreatment>('taxable');
 
   const isEdit = mode === 'edit';
 
@@ -431,6 +448,7 @@ function ComponentFormDialog({
     setPercentageBasis(initial?.percentageBasis ?? 'gross');
     setBasisComponentId(initial?.basisComponentId ?? null);
     setSubOrganizationId(initial?.subOrganizationId ?? null);
+    setTaxTreatment(initial?.taxTreatment ?? 'taxable');
   }, [open, initial, nextSeqOrder]);
 
   const parsedOrder = parseInt(displayOrder, 10);
@@ -452,6 +470,7 @@ function ComponentFormDialog({
       percentageValue: calculationType === 'percentage' ? percentageValue : '',
       percentageBasis,
       basisComponentId: calculationType === 'percentage' && percentageBasis === 'component' ? basisComponentId : null,
+      taxTreatment: type === 'credit' ? taxTreatment : 'taxable',
       subOrganizationId,
     });
   };
@@ -658,6 +677,29 @@ function ComponentFormDialog({
           )}
         </div>
 
+        {type === 'credit' && (
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold text-fg sm:text-[13px]">Income tax</label>
+            <select
+              value={taxTreatment}
+              onChange={(e) => setTaxTreatment(e.target.value as TaxTreatment)}
+              className={cx(
+                inputClass,
+                fieldError?.field === 'tax_treatment' && 'border-[var(--tt-danger)] focus:border-[var(--tt-danger)] focus:ring-[var(--tt-danger)]'
+              )}
+            >
+              {TAX_TREATMENT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            {fieldError?.field === 'tax_treatment' ? (
+              <p className="mt-1 text-[11px] font-medium text-[var(--tt-danger)]">{fieldError.message}</p>
+            ) : (
+              <p className="mt-1 text-[11px] text-fg-muted">How TDS treats this earning. Most earnings are taxable.</p>
+            )}
+          </div>
+        )}
+
         <div>
           <div className="mb-1.5 flex items-center justify-between">
             <label className="text-xs font-semibold text-fg sm:text-[13px]">Description</label>
@@ -690,14 +732,14 @@ function ComponentFormDialog({
             placeholder={`e.g. ${nextSeqOrder}`}
             className={cx(
               inputClass,
-              conflictingComponent && 'border-amber-400 focus:border-amber-500 focus:ring-amber-400'
+              conflictingComponent && 'border-zinc-900 focus:border-zinc-900 focus:ring-zinc-900 dark:border-white dark:focus:border-white dark:focus:ring-white'
             )}
           />
 
           {conflictingComponent ? (
-            <div className="mt-2.5 rounded-lg border-2 border-amber-500 bg-amber-50 p-3 shadow-xs dark:bg-zinc-900 dark:border-amber-400 space-y-1.5">
+            <div className="mt-2.5 rounded-lg border-2 border-zinc-900 bg-zinc-50 p-3 shadow-xs dark:bg-zinc-900 dark:border-white space-y-1.5">
               <p className="text-[13px] font-bold text-zinc-900 dark:text-white leading-snug">
-                Order {parsedOrder} is already assigned to <span className="underline decoration-amber-500 decoration-2">{conflictingComponent.name}</span>
+                Order {parsedOrder} is already assigned to <span className="underline decoration-zinc-900 decoration-2 dark:decoration-white">{conflictingComponent.name}</span>
               </p>
               <p className="text-xs font-medium text-zinc-700 dark:text-zinc-200 leading-relaxed">
                 You can switch to the next sequence number or keep this to automatically shift existing components down.
@@ -706,7 +748,7 @@ function ComponentFormDialog({
                 <button
                   type="button"
                   onClick={() => setDisplayOrder(String(nextSeqOrder))}
-                  className="inline-flex items-center rounded-md bg-amber-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-amber-700 active:scale-95"
+                  className="inline-flex items-center rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-zinc-700 active:scale-95 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
                 >
                   Switch to next sequence ({nextSeqOrder})
                 </button>

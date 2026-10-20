@@ -31,6 +31,10 @@ const PAGES: Record<string, Record<Area, Page>> = {
   'recruitment.review': both('/employee/my-reviews', '/org-admin/recruitment'),
   'recruitment.referrals': both('/employee/refer', '/org-admin/recruitment/referral-rewards'),
   'meeting.point': both('/employee/mom', '/org-admin/mom'),
+  'employee.detail': both(
+    (p) => `/employee/employee-management${p.id ? `/${p.id}` : ''}`,
+    (p) => `/org-admin/employees${p.id ? `/${p.id}` : ''}`
+  ),
 };
 
 const HOME: Record<Area, string> = { employee: '/employee', 'org-admin': '/org-admin' };

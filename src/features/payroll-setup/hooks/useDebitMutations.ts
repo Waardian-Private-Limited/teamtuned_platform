@@ -8,6 +8,10 @@ import { validateDebitForm } from '../utils/validators';
 import type { DebitFieldName } from '../constants/payroll-setup.constants';
 import type { DebitFormInput, DebitRule } from '../types/payroll-setup.model';
 
+function statusMessage(rule: DebitRule) {
+  return rule.status === 'active' ? 'Deduction rule deactivated' : 'Deduction rule activated';
+}
+
 export interface DebitFieldError {
   field: DebitFieldName;
   message: string;
@@ -53,16 +57,18 @@ export function useDebitMutations(refetch: () => Promise<void>) {
     await refetch();
   }, 'Deduction rule updated'), [refetch, run]);
 
-  const toggleStatus = useCallback((rule: DebitRule) => run(async () => {
+  // Deactivation and reactivation apply from a date; earlier pay periods keep the old state.
+  const toggleStatus = useCallback((rule: DebitRule, effectiveFrom?: string) => run(async () => {
     const next = rule.status === 'active' ? 'inactive' : 'active';
     setTogglingId(rule.id);
     try {
-      await api.updateDebitRuleStatus(rule.id, next);
+      await api.updateDebitRuleStatus(rule.id, next, effectiveFrom)
+        .catch((err: unknown) => asDebitFieldError(err, 'effective_from'));
       await refetch();
     } finally {
       setTogglingId(null);
     }
-  }), [refetch, run]);
+  }, statusMessage(rule)), [refetch, run]);
 
   const deleteRule = useCallback(async (rule: DebitRule) => {
     if (inFlightRef.current) return false;

@@ -1,22 +1,22 @@
 'use client';
 
 import React from 'react';
-import { Plus, Search, Power, SquarePen, Trash2, Users } from 'lucide-react';
+import { History, Plus, Search, Power, SquarePen, Trash2, Users } from 'lucide-react';
 import { cx, text } from '@/theme/tokens';
 import { Alert } from '@/components/ui/Alert';
 import { Pagination } from '@/components/ui/Pagination';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Dialog } from '@/components/ui/Dialog';
 import { DebitFormDialog } from './DebitFormDialog';
-import { MONTH_NAMES, ptSlabs, ptSpecialMonth } from '../../utils/professionalTax';
 import { DebitAssignmentsDrawer } from './DebitAssignmentsDrawer';
+import { DebitHistoryDrawer, DebitStatusDialog } from './DebitVersionDialogs';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Tooltip } from '@/components/ui/Tooltip';
 import type { useDebitList } from '../../hooks/useDebitList';
 import type { useDebitMutations } from '../../hooks/useDebitMutations';
 import type { DebitRule } from '../../types/payroll-setup.model';
 import { DEBIT_CATEGORIES, STATUS_FILTER_OPTIONS } from '../../constants/payroll-setup.constants';
-import { formatCurrency } from '../../utils/validators';
+import { ruleValueText } from '../../utils/debitSummary';
 import { SubOrgFilter } from '@/features/sub-organizations/components/SubOrgFilter';
 import { SubOrgBadge } from '@/features/sub-organizations/components/SubOrgBadge';
 
@@ -24,7 +24,7 @@ interface DebitRulesTabProps {
   list: ReturnType<typeof useDebitList>;
   mutations: ReturnType<typeof useDebitMutations>;
   perms: { canAdd: boolean; canEdit: boolean; canDelete: boolean };
-  components: Array<{ id: number; name: string }>;
+  components: Array<{ id: number; name: string; type?: 'credit' | 'debit' }>;
   onOpenCreate: () => void;
   onOpenEdit: (rule: DebitRule) => void;
   onDelete: (rule: DebitRule) => void;
@@ -39,56 +39,6 @@ interface DebitRulesTabProps {
 
 function categoryLabel(value: string) {
   return DEBIT_CATEGORIES.find((c) => c.value === value)?.label || value;
-}
-
-function ruleValueText(rule: DebitRule): string {
-  if (rule.isStatutory) {
-    const config = rule.config || {};
-    switch (rule.category) {
-      case 'epf': {
-        const rate = Number(config.rate ?? 12);
-        const ceiling = Number(config.wageCeiling ?? 15000);
-        return `${rate}% of ${String(config.componentName || 'Basic')}${config.applyCeiling !== false ? ` (cap ${formatCurrency(ceiling)}/mo wage)` : ''}`;
-      }
-      case 'esi': {
-        const rate = Number(config.rate ?? 0.75);
-        const ceiling = Number(config.eligibilityCeiling ?? 21000);
-        return `${rate}% of gross (applies when gross ≤ ${formatCurrency(ceiling)})`;
-      }
-      case 'professional_tax': {
-        const slabs = ptSlabs(config);
-        const everyone = slabs.filter((s) => s.gender === 'all');
-        const top = (everyone.length ? everyone : slabs)[(everyone.length ? everyone : slabs).length - 1];
-        const month = ptSpecialMonth(config);
-        const state = String(config.state || 'All states');
-        if (!top) return `No slabs · ${state}`;
-        const special = month && top.specialAmount !== null ? `, ${formatCurrency(top.specialAmount)} in ${MONTH_NAMES[month - 1]}` : '';
-        const genders = [...new Set(slabs.filter((s) => s.gender !== 'all').map((s) => s.gender))];
-        const extra = genders.length ? ` · separate slabs for ${genders.join(', ')}` : '';
-        return `${slabs.length} slab${slabs.length === 1 ? '' : 's'} · up to ${formatCurrency(top.amount)}/month${special}${extra} · ${state}`;
-      }
-      case 'lwf': {
-        const amount = Number(config.amount ?? 0);
-        return `${formatCurrency(amount)} · ${String(config.frequency || 'monthly')}`;
-      }
-      case 'tds':
-        return 'Auto-computed from employee tax profile';
-      default:
-        return 'Statutory';
-    }
-  }
-  if (rule.debitType === 'percentage') {
-    const refLabel =
-      rule.referenceAmount === 'breakdown_item'
-        ? rule.breakdownItemName || 'component'
-        : rule.referenceAmount === 'before_deduction'
-          ? 'gross'
-          : rule.referenceAmount === 'after_deduction'
-            ? 'post-deduction'
-            : 'net';
-    return `${rule.percentageValue}% of ${refLabel}`;
-  }
-  return formatCurrency(rule.fixedAmount);
 }
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -120,6 +70,11 @@ export function DebitRulesTab({
   onCloseDelete,
   onCloseAssignments,
 }: DebitRulesTabProps) {
+  const [historyTarget, setHistoryTarget] = React.useState<DebitRule | null>(null);
+  const [statusTarget, setStatusTarget] = React.useState<DebitRule | null>(null);
+  const componentName = (id: number | null) => (id ? components.find((c) => c.id === id)?.name : undefined);
+  const valueText = (rule: DebitRule) => ruleValueText(rule, componentName);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2.5">
@@ -261,7 +216,7 @@ export function DebitRulesTab({
                         {rule.description && <div className={cx(text.caption, 'mt-0.5 max-w-xs truncate')}>{rule.description}</div>}
                       </td>
                       <td className="border-b border-line/60 px-3.5 py-2.5 sm:px-4 sm:py-3">
-                        <span className="text-xs sm:text-sm text-fg">{ruleValueText(rule)}</span>
+                        <span className="text-xs sm:text-sm text-fg">{valueText(rule)}</span>
                       </td>
                       <td className="border-b border-line/60 px-3.5 py-2.5 sm:px-4 sm:py-3">
                         <span className="inline-flex items-center rounded-md border border-line bg-bg-subtle px-2 py-0.5 text-[11px] font-medium text-fg">
@@ -292,6 +247,15 @@ export function DebitRulesTab({
                               <Users className="h-4 w-4" />
                             </button>
                           </Tooltip>
+                          <Tooltip content="History">
+                            <button
+                              type="button"
+                              onClick={() => setHistoryTarget(rule)}
+                              className="rounded-[var(--tt-radius-sm)] p-1.5 text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg"
+                            >
+                              <History className="h-4 w-4" />
+                            </button>
+                          </Tooltip>
                           {perms.canEdit && (
                             <>
                               <Tooltip content="Edit Rule">
@@ -307,7 +271,7 @@ export function DebitRulesTab({
                                 <button
                                   type="button"
                                   disabled={mutations.togglingId === rule.id}
-                                  onClick={() => mutations.toggleStatus(rule)}
+                                  onClick={() => setStatusTarget(rule)}
                                   className="rounded-[var(--tt-radius-sm)] p-1.5 text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg disabled:opacity-40"
                                 >
                                   {mutations.togglingId === rule.id ? (
@@ -358,7 +322,7 @@ export function DebitRulesTab({
                   <div className="grid grid-cols-2 gap-2 text-[11px] border-t border-b border-line/40 py-2">
                     <div>
                       <span className="text-fg-subtle block text-[10px] uppercase">Calculation</span>
-                      <span className="font-medium text-fg">{ruleValueText(rule)}</span>
+                      <span className="font-medium text-fg">{valueText(rule)}</span>
                     </div>
                     <div>
                       <span className="text-fg-subtle block text-[10px] uppercase">Schedule</span>
@@ -375,6 +339,14 @@ export function DebitRulesTab({
                       <span>{rule.assignedEmployeeCount} assigned</span>
                     </button>
                     <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setHistoryTarget(rule)}
+                        aria-label="History"
+                        className="rounded-md p-1.5 text-fg-muted hover:bg-bg-subtle"
+                      >
+                        <History className="h-3.5 w-3.5" />
+                      </button>
                       {perms.canEdit && (
                         <>
                           <button
@@ -387,7 +359,7 @@ export function DebitRulesTab({
                           <button
                             type="button"
                             disabled={mutations.togglingId === rule.id}
-                            onClick={() => mutations.toggleStatus(rule)}
+                            onClick={() => setStatusTarget(rule)}
                             className="rounded-md p-1.5 text-fg-muted hover:bg-bg-subtle"
                           >
                             <Power className="h-3.5 w-3.5" />
@@ -489,6 +461,30 @@ export function DebitRulesTab({
           </p>
         )}
       </Dialog>
+
+      <DebitStatusDialog
+        rule={statusTarget}
+        isSaving={mutations.isSaving}
+        error={mutations.fieldError?.field === 'effective_from' ? mutations.fieldError.message : null}
+        onClose={() => {
+          setStatusTarget(null);
+          mutations.clearFieldError();
+        }}
+        onConfirm={async (effectiveFrom) => {
+          if (!statusTarget) return;
+          const ok = await mutations.toggleStatus(statusTarget, effectiveFrom);
+          if (ok) setStatusTarget(null);
+        }}
+      />
+
+      <DebitHistoryDrawer
+        open={Boolean(historyTarget)}
+        rule={historyTarget}
+        components={components}
+        canEdit={perms.canEdit}
+        onChanged={list.refetch}
+        onClose={() => setHistoryTarget(null)}
+      />
 
       <DebitAssignmentsDrawer
         open={Boolean(assignmentsTarget)}

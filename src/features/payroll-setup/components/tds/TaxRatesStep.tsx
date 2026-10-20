@@ -18,6 +18,27 @@ const AGE_BAND_LABEL: Record<string, string> = {
   super_senior: 'Super senior (80+)',
 };
 
+// Known declaration limits. Any other key the server sends is still listed, by its name.
+const DECLARATION_LIMIT_LABEL: Record<string, string> = {
+  section80C: 'Section 80C',
+  section80D: 'Section 80D',
+  hra: 'HRA',
+  housingLoanInterest: 'Home-loan interest u/s 24(b)',
+  section80CCD2: 'Employer NPS 80CCD(2)',
+  other: 'Other deductions',
+  professionalTax: 'Professional tax u/s 16(iii)',
+};
+
+function limitLabel(key: string): string {
+  return DECLARATION_LIMIT_LABEL[key] ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
+}
+
+function limitValue(limit: TaxConfigDto['declaration_limits'][string]): string {
+  if (limit === null || limit === undefined) return 'No limit';
+  if (typeof limit === 'object') return `${limit.percentOfBasic}% of basic`;
+  return formatCurrency(limit);
+}
+
 function slabRange(slabs: Array<[number | null, number]>, index: number): string {
   const from = index === 0 ? 0 : (slabs[index - 1][0] ?? 0);
   const to = slabs[index][0];
@@ -130,6 +151,22 @@ export function TaxRatesStep({
                     </>
                   )}
                 </dl>
+
+                {Object.keys(config.declaration_limits || {}).length > 0 && (
+                  <div className="mt-2.5">
+                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-fg-subtle">
+                      Deduction limits
+                    </div>
+                    <dl className="grid grid-cols-2 gap-1.5 text-[11px]">
+                      {Object.entries(config.declaration_limits).map(([key, limit]) => (
+                        <React.Fragment key={key}>
+                          <dt className="text-fg-subtle">{limitLabel(key)}</dt>
+                          <dd className="tabular-nums text-fg">{limitValue(limit)}</dd>
+                        </React.Fragment>
+                      ))}
+                    </dl>
+                  </div>
+                )}
 
                 {Object.entries(config.slabs_by_age).map(([band, slabs]) => (
                   <div key={band} className="mt-2.5">

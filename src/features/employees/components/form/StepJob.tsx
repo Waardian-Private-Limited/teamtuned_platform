@@ -6,6 +6,8 @@ import { FieldLabel, FieldMessage, OptionCard, Section, SelectField, TextField }
 import { ManagerPicker } from './ManagerPicker';
 import { SitePicker } from './SitePicker';
 import type { EmployeeFormController } from './types';
+import { contractEndFor, contractMonthsFor } from '../../utils/contract';
+import { daysBetween } from '@/lib/datetime';
 
 function confirmationDate(joining: string, months: string) {
   const m = Number(months);
@@ -34,11 +36,26 @@ export function StepJob({ c, employeeId }: { c: EmployeeFormController; employee
     set('employmentTypeId', id);
     const type = options?.employment_types.find((t) => t.id === id);
     if (!type) return;
+    if (type.is_fixed_term && type.default_contract_months !== null && !form.contractMonths.trim() && !form.contractEnd) {
+      set('contractBy', 'months');
+      set('contractMonths', String(type.default_contract_months));
+    }
     if (!form.probationMonths.trim() && type.default_probation_months !== null) set('probationMonths', String(type.default_probation_months));
     if (!form.noticePeriodDays.trim() && type.default_notice_days !== null) set('noticePeriodDays', String(type.default_notice_days));
   };
 
   const confirmation = confirmationDate(form.joiningDate, form.probationMonths);
+
+  // Months and end date describe the same term: the one the user typed wins, the other is worked out.
+  const contractStart = form.contractStart || form.joiningDate;
+  const byMonths = form.contractBy === 'months';
+  const derivedEnd = byMonths ? contractEndFor(contractStart, Number(form.contractMonths)) : null;
+  const derivedMonths = !byMonths ? contractMonthsFor(contractStart, form.contractEnd) : null;
+  const termDays = !byMonths && contractStart && form.contractEnd > contractStart ? daysBetween(contractStart, form.contractEnd) + 1 : null;
+  const setContract = (by: 'months' | 'end', value: string) => {
+    set('contractBy', by);
+    set(by === 'months' ? 'contractMonths' : 'contractEnd', value);
+  };
 
   return (
     <div className="space-y-4">
@@ -114,6 +131,51 @@ export function StepJob({ c, employeeId }: { c: EmployeeFormController; employee
           />
           <TextField label="Notice period (days)" type="number" min={0} max={365} value={form.noticePeriodDays} onChange={(v) => set('noticePeriodDays', v)} error={errors.notice_period_days} />
         </div>
+        {c.fixedTerm && (
+          <div className="mt-4 grid grid-cols-1 gap-4 border-t border-line pt-4 sm:grid-cols-3">
+            <TextField label="Contract start" required type="date" value={contractStart} onChange={(v) => set('contractStart', v)} error={errors.contract_start} hint="Same as joining date unless changed" />
+            <TextField
+              label="Contract length (months)"
+              type="number"
+              min={1}
+              max={120}
+              value={byMonths ? form.contractMonths : derivedMonths !== null ? String(derivedMonths) : ''}
+              onChange={(v) => setContract('months', v)}
+              error={errors.contract_months}
+              hint={!byMonths && termDays !== null && derivedMonths === null ? `${termDays} days from the end date` : 'Or enter the end date'}
+            />
+            <TextField
+              label="Contract end"
+              type="date"
+              value={byMonths ? derivedEnd || '' : form.contractEnd}
+              onChange={(v) => setContract('end', v)}
+              error={errors.contract_end}
+              hint={byMonths && derivedEnd ? 'Worked out from the length' : 'Or enter the length'}
+            />
+          </div>
+        )}
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <SelectField<number>
+            label="Grade / band"
+            numeric
+            value={form.gradeId}
+            onChange={(v) => set('gradeId', v)}
+            options={(options?.grades || []).map((g) => ({ value: g.id, label: g.name }))}
+            placeholder="None"
+            error={errors.grade_id}
+            hint={(options?.grades || []).length ? undefined : 'Add grades in Grades / bands'}
+          />
+          <SelectField<number>
+            label="Cost centre"
+            numeric
+            value={form.costCentreId}
+            onChange={(v) => set('costCentreId', v)}
+            options={(options?.cost_centres || []).map((g) => ({ value: g.id, label: g.name }))}
+            placeholder="None"
+            error={errors.cost_centre_id}
+            hint={(options?.cost_centres || []).length ? undefined : 'Add cost centres in Cost centres'}
+          />
+        </div>
       </Section>
 
       <Section title="Work location">
@@ -127,6 +189,17 @@ export function StepJob({ c, employeeId }: { c: EmployeeFormController; employee
           }}
           error={errors.primary_site_id || errors.site_ids}
         />
+        <div className="mt-5 sm:max-w-sm">
+          <SelectField<string>
+            label="Work state"
+            value={form.workState || null}
+            onChange={(v) => set('workState', v || '')}
+            options={(options?.states || []).map((st) => ({ value: st, label: st }))}
+            placeholder={c.siteState ? `Primary site's state (${c.siteState})` : "Primary site's state"}
+            error={errors.work_state}
+            hint="Decides professional tax and labour welfare fund. Leave empty to use the primary site's state."
+          />
+        </div>
         <div className="mt-5">
           <FieldLabel label="Attendance location access" />
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">

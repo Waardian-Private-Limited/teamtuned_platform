@@ -6,6 +6,7 @@ import { listRoles } from '@/features/roles/api/roles.api';
 import { listSites } from '@/features/sites/api/sites.api';
 import { listActiveSubOrganizations } from '@/features/sub-organizations/api/subOrganizations.api';
 import { listEmploymentTypes } from '@/features/employees/api/employees.api';
+import { listCatalog } from '@/features/job-catalogs/api/jobCatalogs.api';
 import { messageOf } from '@/lib/api/errors';
 import type { ScopeType } from '../types/policies.model';
 
@@ -15,7 +16,7 @@ export interface ScopeTarget {
 }
 
 /**
- * The pickable targets for an assignment scope — departments, roles, sites
+ * The pickable targets for an assignment scope — departments, roles, grades, sites
  * sub-organizations and employment types come from their own feature APIs.
  * `employee` has no picker yet, so the dialog falls back to a plain id for
  * it (see SCOPE_TYPES_WITHOUT_PICKER).
@@ -45,6 +46,10 @@ export function useScopeTargets(scopeType: ScopeType) {
         case 'sub_organization': {
           const res = await listActiveSubOrganizations();
           return (res.sub_organizations || []).map((s) => ({ id: s.id, label: s.name }));
+        }
+        case 'grade': {
+          const res = await listCatalog('grades', 'active');
+          return (res.items || []).map((g) => ({ id: g.id, label: g.name }));
         }
         case 'employee_type': {
           const res = await listEmploymentTypes();

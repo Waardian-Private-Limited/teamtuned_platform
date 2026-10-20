@@ -10,6 +10,21 @@ import type { EmployeeFormController } from './types';
 
 const upper = (v: string) => v.replace(/\s+/g, '').toUpperCase();
 
+/** Offered under PAN / UAN when another employee already holds the number. */
+function SaveAnyway({ c, field }: { c: EmployeeFormController; field: 'pan_number' | 'pf_uan' }) {
+  if (c.duplicate?.field !== field) return null;
+  return (
+    <button
+      type="button"
+      onClick={c.saveAnyway}
+      disabled={c.saving}
+      className="mt-1.5 inline-flex h-7 items-center rounded-md border border-line px-2 text-[11px] font-semibold text-fg transition-colors hover:bg-bg-subtle disabled:opacity-40"
+    >
+      It&apos;s a different person or correct — save anyway
+    </button>
+  );
+}
+
 export function StepBank({ c }: { c: EmployeeFormController }) {
   const { form, set, errors } = c;
   const [ifscState, setIfscState] = React.useState<{ loading: boolean; error: string; resolved: string }>({ loading: false, error: '', resolved: '' });
@@ -82,17 +97,23 @@ export function StepBank({ c }: { c: EmployeeFormController }) {
 
       <Section title="Identity and statutory numbers" description="Used for TDS, PF and ESI filings">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <TextField label="PAN" autoComplete="off" value={form.panNumber} onChange={(v) => set('panNumber', upper(v).slice(0, 10))} error={errors.pan_number} placeholder="ABCDE1234F" />
+          <div>
+            <TextField label="PAN" autoComplete="off" value={form.panNumber} onChange={(v) => set('panNumber', upper(v).slice(0, 10))} error={errors.pan_number} placeholder="ABCDE1234F" />
+            <SaveAnyway c={c} field="pan_number" />
+          </div>
           <TextField label="Aadhaar" inputMode="numeric" autoComplete="off" value={form.aadhaarNumber} onChange={(v) => set('aadhaarNumber', v.replace(/\D/g, '').slice(0, 12))} error={errors.aadhaar_number} />
-          <TextField
-            label="PF UAN"
-            inputMode="numeric"
-            autoComplete="off"
-            value={form.pfUan}
-            onChange={(v) => set('pfUan', v.replace(/\D/g, '').slice(0, 12))}
-            error={errors.pf_uan}
-            hint={pfSelected ? 'Needed for PF filing. Leave empty for a first job.' : undefined}
-          />
+          <div>
+            <TextField
+              label="PF UAN"
+              inputMode="numeric"
+              autoComplete="off"
+              value={form.pfUan}
+              onChange={(v) => set('pfUan', v.replace(/\D/g, '').slice(0, 12))}
+              error={errors.pf_uan}
+              hint={pfSelected ? 'Needed for PF filing. Leave empty for a first job.' : undefined}
+            />
+            <SaveAnyway c={c} field="pf_uan" />
+          </div>
           {esiSelected && (
             <TextField
               label="ESIC IP number"

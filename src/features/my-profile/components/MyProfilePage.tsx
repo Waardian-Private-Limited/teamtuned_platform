@@ -2,6 +2,7 @@
 
 import { Briefcase, CalendarClock, Clock, Contact, Landmark, MapPin, Phone, UserRound, UsersRound, Info } from 'lucide-react';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { TaxSummaryCard } from '@/features/my-tax/components/TaxSummaryCard';
 import { useMyProfile } from '../hooks/useMyProfile';
 import type { MyProfile, RosterDay } from '../types/myProfile.model';
 import { ProfileAvatar } from './components/ProfileAvatar';
@@ -160,6 +161,8 @@ export function MyProfilePage() {
       ) : profile ? (
         <div className="flex flex-col gap-4 tt-fade-in">
           <ProfileHeader profile={profile} />
+          {/* Mounted only after the profile loads, so the tax lookup never delays it. */}
+          <TaxSummaryCard />
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <LeftColumn p={profile} />
             <RightColumn p={profile} />

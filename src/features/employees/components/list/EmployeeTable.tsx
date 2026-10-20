@@ -9,6 +9,8 @@ import { EmployeeIdentity } from './EmployeeIdentity';
 import { EmployeeRowActions } from './EmployeeRowActions';
 import { SubOrgBadge } from '@/features/sub-organizations/components/SubOrgBadge';
 import { useManageableSubOrgs } from '@/features/sub-organizations/hooks/useManageableSubOrgs';
+import { orgToday } from '@/lib/datetime';
+import { contractNote } from '../../utils/contract';
 
 interface EmployeeTableProps {
   employees: EmployeeListItemDto[];
@@ -33,6 +35,7 @@ export function formatDate(value: string | null) {
 export function EmployeeTable({ employees, canEdit, canDelete, busyId, onEdit, onAction, onHistory }: EmployeeTableProps) {
   const { subOrgs } = useManageableSubOrgs();
   const hasSubOrgs = subOrgs.length > 0;
+  const today = orgToday();
 
   return (
     <div className="h-full overflow-auto tt-scroll-hidden">
@@ -77,6 +80,7 @@ export function EmployeeTable({ employees, canEdit, canDelete, busyId, onEdit, o
               </td>
               <td className={td}>
                 <StatusPill label={e.status} tone={STATUS_TONE[e.status]} />
+                {contractNote(e.contract_end, today) && <div className={cx(sub, 'mt-1 font-semibold text-fg')}>{contractNote(e.contract_end, today)}</div>}
               </td>
               <td className={td}>
                 <EmployeeRowActions employee={e} canEdit={canEdit} canDelete={canDelete} busy={busyId === e.id} onEdit={onEdit} onAction={onAction} onHistory={onHistory} />

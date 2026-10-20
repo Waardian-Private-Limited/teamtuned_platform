@@ -182,12 +182,13 @@ function employerEsi(rule: DebitRuleOptionDto | null, on: boolean, gross: number
   return round((gross * num(rule.config?.employerRate, 0)) / 100);
 }
 
+/** `siteState` is the work state when one is picked, else the primary site's state. */
 function stateMatches(rule: DebitRuleOptionDto, siteState: string | null) {
   const ruleState = String(rule.config?.state || '').trim();
   if (!ruleState) return { ok: true, reason: 'Applies to all states' };
   if (!siteState) return { ok: true, reason: `For ${ruleState}` };
   const ok = ruleState.toLowerCase() === siteState.trim().toLowerCase();
-  return { ok, reason: ok ? `Primary site is in ${siteState}` : `Rule is for ${ruleState}, primary site is in ${siteState}` };
+  return { ok, reason: ok ? `Work state is ${siteState}` : `Rule is for ${ruleState}, work state is ${siteState}` };
 }
 
 interface AutoContext {
@@ -265,6 +266,15 @@ function employeeDeduction(rule: DebitRuleOptionDto, gross: number, basic: numbe
           ? lines.find((l) => l.componentId === rule.breakdown_item_id)?.amount ?? 0
           : gross;
         amount = (base * num(rule.percentage_value, 0)) / 100;
+      }
+      if (rule.debit_type === 'slab') {
+        // Same as payroll: the band is picked on the monthly basis, the last band at or below it applies.
+        const slab = (cfg as { slab?: { basis?: string; component_id?: number; bands?: { from: number; type: string; value: number }[] } }).slab;
+        const base = slab?.basis === 'basic' ? basic
+          : slab?.basis === 'component' ? lines.find((l) => l.componentId === slab.component_id)?.amount ?? 0
+            : gross;
+        const band = [...(slab?.bands ?? [])].sort((a, b) => a.from - b.from).filter((b) => base >= b.from).pop();
+        amount = band ? (band.type === 'percentage' ? (base * num(band.value, 0)) / 100 : num(band.value, 0)) : 0;
       }
       if (amount === null) return null;
       return round(rule.max_cap !== null && rule.max_cap !== undefined ? Math.min(amount, rule.max_cap) : amount);

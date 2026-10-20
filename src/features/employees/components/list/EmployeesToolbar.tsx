@@ -1,8 +1,10 @@
 'use client';
 
-import { Plus, Search, Settings2 } from 'lucide-react';
+import { ChevronDown, Plus, Search, Settings2 } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { SubOrgFilter } from '@/features/sub-organizations/components/SubOrgFilter';
+import { useCatalogOptions } from '@/features/job-catalogs/hooks/useCatalogOptions';
+import type { CatalogKind } from '@/features/job-catalogs/types/jobCatalogs.model';
 import { STATUS_FILTERS, type StatusFilter } from '../../constants/employees.constants';
 import type { EmployeeListResponseDto } from '../../types/employees.dto';
 
@@ -14,13 +16,40 @@ interface EmployeesToolbarProps {
   onStatusChange: (value: StatusFilter) => void;
   subOrgId: number | null;
   onSubOrgChange: (value: number | null) => void;
+  gradeId: number | null;
+  onGradeChange: (value: number | null) => void;
+  costCentreId: number | null;
+  onCostCentreChange: (value: number | null) => void;
+  contractsEnding: boolean;
+  onContractsEndingChange: (value: boolean) => void;
   canAdd: boolean;
   onAdd: () => void;
   onSettings?: () => void;
 }
 
+// Grade / cost centre filter; hidden until the catalog has something to pick.
+function CatalogFilter({ kind, value, onChange, allLabel }: { kind: CatalogKind; value: number | null; onChange: (value: number | null) => void; allLabel: string }) {
+  const items = useCatalogOptions(kind);
+  if (!items.length) return null;
+  return (
+    <div className="relative">
+      <select
+        value={value ?? ''}
+        onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
+        className="h-9 w-full cursor-pointer appearance-none rounded-lg border border-line bg-surface pl-3 pr-8 text-xs font-semibold text-fg outline-none transition-colors focus:border-[var(--tt-primary)] focus:ring-1 focus:ring-[var(--tt-primary)] sm:text-sm 2xl:h-10 2xl:pr-9 2xl:text-base"
+        aria-label={allLabel}
+      >
+        <option value="">{allLabel}</option>
+        {items.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-fg-muted 2xl:right-3 2xl:h-4 2xl:w-4" />
+    </div>
+  );
+}
+
 export function EmployeesToolbar({
-  counts, searchValue, onSearchChange, status, onStatusChange, subOrgId, onSubOrgChange, canAdd, onAdd, onSettings,
+  counts, searchValue, onSearchChange, status, onStatusChange, subOrgId, onSubOrgChange,
+  gradeId, onGradeChange, costCentreId, onCostCentreChange, contractsEnding, onContractsEndingChange, canAdd, onAdd, onSettings,
 }: EmployeesToolbarProps) {
   return (
     <div className="flex flex-col gap-2.5 rounded-xl border border-line bg-surface p-3 sm:p-3.5 2xl:p-4">
@@ -55,6 +84,8 @@ export function EmployeesToolbar({
             />
           </div>
           <SubOrgFilter value={subOrgId} onChange={onSubOrgChange} />
+          <CatalogFilter kind="grades" value={gradeId} onChange={onGradeChange} allLabel="All grades" />
+          <CatalogFilter kind="cost-centres" value={costCentreId} onChange={onCostCentreChange} allLabel="All cost centres" />
           {onSettings && (
             <button type="button" onClick={onSettings} aria-label="Employee settings" className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-fg transition-colors hover:bg-bg-subtle sm:text-sm 2xl:h-10">
               <Settings2 className="h-3.5 w-3.5" />
@@ -96,6 +127,18 @@ export function EmployeesToolbar({
             </button>
           );
         })}
+        <span aria-hidden className="mx-1 w-px shrink-0 self-stretch bg-line" />
+        <button
+          type="button"
+          aria-pressed={contractsEnding}
+          onClick={() => onContractsEndingChange(!contractsEnding)}
+          className={cx(
+            'inline-flex h-8 shrink-0 items-center rounded-lg border px-3 text-xs font-semibold transition-colors 2xl:h-9 2xl:text-sm',
+            contractsEnding ? 'border-[var(--tt-primary)] bg-[var(--tt-primary)] text-[var(--tt-on-primary)]' : 'border-line bg-surface text-fg-muted hover:bg-bg-subtle hover:text-fg'
+          )}
+        >
+          Contracts ending in 30 days
+        </button>
       </div>
     </div>
   );

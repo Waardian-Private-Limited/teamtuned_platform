@@ -1,14 +1,30 @@
 'use client';
 
 import React from 'react';
-import { Plus, Search, UserMinus, SlidersHorizontal } from 'lucide-react';
+import { Check, Plus, Search, UserMinus, SlidersHorizontal } from 'lucide-react';
 import { cx, text } from '@/theme/tokens';
 import { Alert } from '@/components/ui/Alert';
+import { Dialog } from '@/components/ui/Dialog';
 import { Drawer } from '@/components/ui/Drawer';
 import { useDebitAssignments } from '../../hooks/useDebitAssignments';
 import { currentFinancialYear } from '../../constants/payroll-setup.constants';
-import type { DebitRule } from '../../types/payroll-setup.model';
+import type { AssignedEmployee, DebitRule } from '../../types/payroll-setup.model';
+import { formatDate } from '../../utils/validators';
 import { TaxProfileDialog } from './TaxProfileDialog';
+
+const inputClass =
+  'w-full min-w-0 rounded-lg border border-line bg-surface px-3 h-10 text-sm text-fg placeholder:text-fg-subtle outline-none transition-colors focus:border-[var(--tt-primary)] focus:ring-1 focus:ring-[var(--tt-primary)]';
+const errorInputClass =
+  'w-full min-w-0 rounded-lg border border-[var(--tt-danger)] bg-surface px-3 h-10 text-sm text-fg placeholder:text-fg-subtle outline-none transition-colors focus:border-[var(--tt-danger)] focus:ring-1 focus:ring-[var(--tt-danger)]';
+const labelClass = 'mb-1.5 block text-xs font-semibold text-fg sm:text-[13px]';
+const hintClass = 'mt-1 text-[11px] text-fg-muted';
+const errorClass = 'mt-1 text-[11px] font-medium text-[var(--tt-danger)]';
+
+function periodText(employee: AssignedEmployee): string {
+  const from = employee.effectiveFrom ? formatDate(employee.effectiveFrom) : 'Since the start';
+  const to = employee.effectiveTo ? formatDate(employee.effectiveTo) : 'Ongoing';
+  return `${from} – ${to}`;
+}
 
 interface DebitAssignmentsDrawerProps {
   open: boolean;
@@ -24,10 +40,15 @@ export function DebitAssignmentsDrawer({ open, rule, perms, refetchList, onClose
   const [search, setSearch] = React.useState('');
   const [taxEmployee, setTaxEmployee] = React.useState<{ id: number; name: string } | null>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = React.useState<Set<number>>(new Set());
+  // Blank = starts after the employee's last finalized payroll.
+  const [startFrom, setStartFrom] = React.useState('');
+  const [removeTarget, setRemoveTarget] = React.useState<AssignedEmployee | null>(null);
+  const [endOn, setEndOn] = React.useState('');
 
   React.useEffect(() => {
     if (ruleId) {
       setSearch('');
+      setStartFrom('');
       setSelectedCandidateIds(new Set());
       assignments.searchCandidates('');
     }
@@ -75,6 +96,7 @@ export function DebitAssignmentsDrawer({ open, rule, perms, refetchList, onClose
                   <div className="min-w-0">
                     <div className="truncate text-xs font-semibold text-fg sm:text-sm">{employee.name}</div>
                     <div className={cx(text.caption, 'text-[11px]')}>{employee.designation || employee.email || '—'}</div>
+                    <div className="text-[11px] tabular-nums text-fg-muted">{periodText(employee)}</div>
                   </div>
                   <div className="flex items-center gap-1">
                     {isTdsRule && (
@@ -91,7 +113,12 @@ export function DebitAssignmentsDrawer({ open, rule, perms, refetchList, onClose
                       <button
                         type="button"
                         disabled={assignments.isAssigning}
-                        onClick={() => assignments.remove(employee.employeeId)}
+                        onClick={() => {
+                          assignments.clearDateErrors();
+                          setEndOn('');
+                          setRemoveTarget(employee);
+                        }}
+                        aria-label="End or remove"
                         className="rounded-md p-1.5 text-fg-muted transition-colors hover:bg-bg-subtle hover:text-[var(--tt-danger)] disabled:opacity-40"
                       >
                         <UserMinus className="h-4 w-4" />
@@ -124,6 +151,26 @@ export function DebitAssignmentsDrawer({ open, rule, perms, refetchList, onClose
                 </button>
               )}
             </div>
+            <div className="mt-2">
+              <label className={labelClass}>Start from</label>
+              <input
+                type="date"
+                value={startFrom}
+                onChange={(e) => {
+                  setStartFrom(e.target.value);
+                  assignments.clearDateErrors();
+                }}
+                className={assignments.dateErrors.effectiveFrom ? errorInputClass : inputClass}
+              />
+              {assignments.dateErrors.effectiveFrom ? (
+                <p className={errorClass}>{assignments.dateErrors.effectiveFrom}</p>
+              ) : (
+                <p className={hintClass}>
+                  Optional. Leave blank to start after the employee&apos;s last finalized payroll (or from the start if
+                  none).
+                </p>
+              )}
+            </div>
             <div className="relative mt-2 flex h-10 items-center rounded-lg border border-line bg-surface px-2.5 transition-colors focus-within:border-[var(--tt-primary)] focus-within:ring-1 focus-within:ring-[var(--tt-primary)]">
               <Search className="h-3.5 w-3.5 shrink-0 text-fg-subtle" />
               <input
@@ -143,7 +190,7 @@ export function DebitAssignmentsDrawer({ open, rule, perms, refetchList, onClose
                   type="button"
                   disabled={assignments.isAssigning}
                   onClick={async () => {
-                    const ok = await assignments.assignBulk(Array.from(selectedCandidateIds));
+                    const ok = await assignments.assignBulk(Array.from(selectedCandidateIds), startFrom || undefined);
                     if (ok) {
                       setSelectedCandidateIds(new Set());
                       assignments.searchCandidates(search);
@@ -202,7 +249,7 @@ export function DebitAssignmentsDrawer({ open, rule, perms, refetchList, onClose
                         type="button"
                         disabled={assignments.isAssigning}
                         onClick={async () => {
-                          const ok = await assignments.assign(candidate.id);
+                          const ok = await assignments.assign(candidate.id, startFrom || undefined);
                           if (ok) assignments.searchCandidates(search);
                         }}
                         className="rounded-md p-1.5 text-fg-muted hover:bg-bg-subtle hover:text-[var(--tt-primary)] disabled:opacity-50"
@@ -218,6 +265,67 @@ export function DebitAssignmentsDrawer({ open, rule, perms, refetchList, onClose
           </div>
         )}
       </div>
+
+      <Dialog
+        open={Boolean(removeTarget)}
+        onClose={() => setRemoveTarget(null)}
+        title="End deduction"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setRemoveTarget(null)}
+              className="inline-flex h-9 items-center justify-center rounded-lg border border-line bg-surface px-4 text-xs font-semibold text-fg transition-colors hover:bg-bg-subtle sm:text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={assignments.isAssigning}
+              onClick={async () => {
+                if (!removeTarget) return;
+                const ok = await assignments.remove(removeTarget.employeeId, endOn || undefined);
+                if (ok) setRemoveTarget(null);
+              }}
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[var(--tt-primary)] px-4 text-xs font-semibold text-[var(--tt-on-primary)] shadow-xs transition-all hover:bg-[var(--tt-primary-hover)] active:scale-[0.98] disabled:opacity-40 sm:text-sm"
+            >
+              {assignments.isAssigning ? (
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              ) : (
+                <Check className="h-3.5 w-3.5" />
+              )}
+              <span>{endOn ? 'Save end date' : 'End deduction'}</span>
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-3.5">
+          <p className={text.body}>
+            Stop deducting <span className="font-semibold text-fg">{rule?.name}</span> for{' '}
+            <span className="font-semibold text-fg">{removeTarget?.name}</span>.
+          </p>
+          <div>
+            <label className={labelClass}>Last day</label>
+            <input
+              type="date"
+              value={endOn}
+              onChange={(e) => {
+                setEndOn(e.target.value);
+                assignments.clearDateErrors();
+              }}
+              className={assignments.dateErrors.effectiveTo ? errorInputClass : inputClass}
+            />
+            {assignments.dateErrors.effectiveTo ? (
+              <p className={errorClass}>{assignments.dateErrors.effectiveTo}</p>
+            ) : (
+              <p className={hintClass}>
+                The last day the deduction applies. Leave blank to end it with the last finalized payroll, or cancel it
+                if nothing was paid yet.
+              </p>
+            )}
+          </div>
+        </div>
+      </Dialog>
 
       <TaxProfileDialog
         open={Boolean(taxEmployee)}

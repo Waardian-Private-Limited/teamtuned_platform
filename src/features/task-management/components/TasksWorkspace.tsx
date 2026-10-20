@@ -55,7 +55,8 @@ export function TasksWorkspace({ mode }: { mode: 'personal' | 'all' }) {
   const [status, setStatus] = useState<StatusTab>('open');
   const [filters, setFilters] = useState<Filters>({});
   const [debounced, setDebounced] = useState<Filters>({});
-  const [open, setOpen] = useState<number | null>(null);
+  // ?task=<id> opens that task straight away (links from the dashboard).
+  const [open, setOpen] = useState<number | null>(() => Number(params.get('task')) || null);
   const [creating, setCreating] = useState<{ due?: string } | null>(null);
   const [version, setVersion] = useState(0);
   const bump = () => setVersion((v) => v + 1);

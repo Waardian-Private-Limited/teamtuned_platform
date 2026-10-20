@@ -16,7 +16,7 @@ import { DebitList, DeductionSummary, MoneyInput, SalaryLines } from './SalaryPa
 const MAX_COMPANIES = 10;
 
 function SingleCompany({ c }: { c: EmployeeFormController }) {
-  const { form, set, errors, plan, options, siteState } = c;
+  const { form, set, errors, plan, options, workState } = c;
   const hasComponents = (options?.salary_components.length || 0) > 0;
 
   const setInput = (componentId: number, input: ComponentInput) => {
@@ -53,7 +53,7 @@ function SingleCompany({ c }: { c: EmployeeFormController }) {
 
       <Section
         title="Deductions"
-        description={siteState ? `Auto-selected by wage and primary site state (${siteState}). Change if needed.` : 'Auto-selected by wage. Change if needed.'}
+        description={workState ? `Auto-selected by wage and work state (${workState}). Change if needed.` : 'Auto-selected by wage. Change if needed.'}
       >
         {plan.debits.length === 0 ? (
           <p className="text-xs text-fg-muted sm:text-sm">No debit rules for this sub-organization.</p>

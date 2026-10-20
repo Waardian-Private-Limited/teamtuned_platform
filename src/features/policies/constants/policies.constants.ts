@@ -55,6 +55,7 @@ export type PolicySectionKey = (typeof POLICY_SECTIONS)[number]['value'];
 export const SCOPE_TYPE_OPTIONS = [
   { value: 'employee', label: 'Employee', needsTarget: true },
   { value: 'role', label: 'Role', needsTarget: true },
+  { value: 'grade', label: 'Grade', needsTarget: true },
   { value: 'department', label: 'Department', needsTarget: true },
   { value: 'site', label: 'Site', needsTarget: true },
   { value: 'sub_organization', label: 'Sub-organization', needsTarget: true },

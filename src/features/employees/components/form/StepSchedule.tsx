@@ -9,6 +9,7 @@ import type { EmployeeFormController } from './types';
 
 const SOURCE_LABEL: Record<string, string> = {
   role: 'role',
+  grade: 'grade',
   department: 'department',
   site: 'site',
   sub_organization: 'sub-organization',

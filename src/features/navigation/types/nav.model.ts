@@ -26,6 +26,8 @@ export interface NavGate {
    * of an open position), from GET /recruitment/me/roles. Not bypassed for org admins.
    */
   recruitmentRole?: 'interviewer' | 'hiring_manager' | 'reviewer';
+  /** Only for employees income tax is deducted for, from GET /payroll/tax/me/eligibility. Not bypassed for org admins. */
+  taxEligible?: boolean;
   /** Hidden when the person holds any of these (e.g. they already see the full Recruitment menu). */
   noneOfPerms?: string[];
 }
@@ -74,4 +76,6 @@ export interface NavContext {
   features: string[] | undefined;
   /** Hiring parts played without a permission; undefined until known. */
   recruitmentRoles?: Array<'interviewer' | 'hiring_manager' | 'reviewer'>;
+  /** TDS applies to this employee; undefined until known. */
+  taxEligible?: boolean;
 }

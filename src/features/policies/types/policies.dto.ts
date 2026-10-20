@@ -90,7 +90,7 @@ export interface PayCalendarResponseDto {
   periods: PayCalendarPeriodDto[];
 }
 
-export type ScopeType = 'organization' | 'sub_organization' | 'site' | 'department' | 'role' | 'employee_type' | 'employee';
+export type ScopeType = 'organization' | 'sub_organization' | 'site' | 'department' | 'role' | 'grade' | 'employee_type' | 'employee';
 
 export interface PolicyAssignmentDto {
   id: number;

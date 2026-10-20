@@ -63,6 +63,12 @@ export function EmployeesPage() {
         onStatusChange={list.setStatus}
         subOrgId={list.subOrgId}
         onSubOrgChange={list.setSubOrgId}
+        gradeId={list.gradeId}
+        onGradeChange={list.setGradeId}
+        costCentreId={list.costCentreId}
+        onCostCentreChange={list.setCostCentreId}
+        contractsEnding={list.contractsEnding}
+        onContractsEndingChange={list.setContractsEnding}
         canAdd={perms.canAdd}
         onAdd={openCreate}
         onSettings={perms.canEdit ? () => setSettingsOpen(true) : undefined}

@@ -2,11 +2,21 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import * as api from '../api/payrollSetup.api';
-import { toChallan, toTdsSettings } from '../types/payroll-setup.mapper';
+import { toChallan, toTdsSettings, toTdsSettingsPayload } from '../types/payroll-setup.mapper';
 import type { ChallanCompanyFilter, TdsChallan, TdsSettings } from '../types/payroll-setup.model';
-import { messageOf } from '../utils/asyncAction';
+import { messageOf, serverFieldOf } from '../utils/asyncAction';
 import { showError, showSuccess } from '@/lib/toast';
 import { currentFinancialYear } from '../constants/payroll-setup.constants';
+
+// Server field name → settings form key, so a rejected value is marked on its input.
+const SETTINGS_FIELDS: Record<string, keyof TdsSettings> = {
+  employer_tan: 'employerTan',
+  employer_pan: 'employerPan',
+  signatory_name: 'signatoryName',
+  signatory_designation: 'signatoryDesignation',
+  place: 'place',
+  proof_cutoff_month: 'proofCutoffMonth',
+};
 
 export function useTdsAdmin() {
   const [settings, setSettings] = useState<TdsSettings | null>(null);
@@ -18,6 +28,7 @@ export function useTdsAdmin() {
   const [challansLoading, setChallansLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
+  const [settingsFieldErrors, setSettingsFieldErrors] = useState<Record<string, string>>({});
 
   const loadSettings = useCallback(async () => {
     setIsLoading(true);
@@ -62,20 +73,16 @@ export function useTdsAdmin() {
   const saveSettings = useCallback(async (input: TdsSettings) => {
     if (isSaving) return false;
     setIsSaving(true);
+    setSettingsFieldErrors({});
     try {
-      const dto = await api.saveTdsSettings({
-        sub_organization_id: String(subOrganizationId),
-        employer_tan: input.employerTan,
-        employer_pan: input.employerPan,
-        signatory_name: input.signatoryName,
-        signatory_designation: input.signatoryDesignation,
-        place: input.place,
-      });
+      const dto = await api.saveTdsSettings(toTdsSettingsPayload(input, subOrganizationId));
       setSettings(toTdsSettings(dto.settings));
       showSuccess('TDS settings saved');
       return true;
     } catch (err) {
-      showError(messageOf(err));
+      const field = serverFieldOf(err, Object.keys(SETTINGS_FIELDS));
+      if (field) setSettingsFieldErrors({ [SETTINGS_FIELDS[field]]: messageOf(err) });
+      else showError(messageOf(err));
       return false;
     } finally {
       setIsSaving(false);
@@ -134,6 +141,7 @@ export function useTdsAdmin() {
     isLoading,
     isSaving,
     error,
+    settingsFieldErrors,
     saveSettings,
     saveChallan,
     deleteChallan,

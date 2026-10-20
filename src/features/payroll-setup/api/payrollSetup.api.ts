@@ -4,8 +4,22 @@ import type {
   AssignmentListResponseDto,
   DebitListResponseDto,
   DebitRuleDto,
+  DebitVersionsResponseDto,
   EmployeeSearchResultDto,
+  PreviousEmployerDto,
+  TaxPartyDto,
+  TaxProofsDto,
   Form16CompaniesDto,
+  Form16ReleasesResponseDto,
+  FileLinkDto,
+  PartAListDto,
+  PartAUploadResultDto,
+  PerquisiteDto,
+  PerquisiteListDto,
+  ProofQueueDto,
+  TaxProofDocumentDto,
+  TaxProofDocumentsDto,
+  TaxProofStatusDto,
   SalaryComponentDto,
   TdsChallanDto,
   TdsPreviewResponseDto,
@@ -18,6 +32,8 @@ import type {
   TaxProfileResponseDto,
 } from '../types/payroll-setup.dto';
 import type { DebitFormInput, ComponentFormInput } from '../types/payroll-setup.model';
+import { slabToConfig } from '../utils/deductionSlabs';
+import { DEBIT_CATEGORIES } from '../constants/payroll-setup.constants';
 
 export function listComponents(params: { type?: string; status?: string; subOrgId?: number | null } = {}) {
   return apiClient.get<{ components: SalaryComponentDto[] }>(
@@ -45,6 +61,7 @@ export function createComponent(input: ComponentFormInput) {
       percentage_value: input.calculationType === 'percentage' && input.percentageValue !== '' ? Number(input.percentageValue) : null,
       percentage_basis: input.calculationType === 'percentage' ? input.percentageBasis : 'basic',
       basis_component_id: input.calculationType === 'percentage' && input.percentageBasis === 'component' ? input.basisComponentId : null,
+      tax_treatment: input.type === 'credit' ? input.taxTreatment : 'taxable',
       sub_organization_id: input.subOrganizationId ?? null,
     },
     { withAuth: true }
@@ -65,6 +82,7 @@ export function updateComponent(id: number, input: ComponentFormInput) {
       percentage_value: input.calculationType === 'percentage' && input.percentageValue !== '' ? Number(input.percentageValue) : null,
       percentage_basis: input.calculationType === 'percentage' ? input.percentageBasis : 'basic',
       basis_component_id: input.calculationType === 'percentage' && input.percentageBasis === 'component' ? input.basisComponentId : null,
+      tax_treatment: input.type === 'credit' ? input.taxTreatment : 'taxable',
       sub_organization_id: input.subOrganizationId ?? null,
     },
     { withAuth: true }
@@ -107,6 +125,17 @@ export function listDebitRules(params: DebitListParams = {}) {
   );
 }
 
+// Statutory rules keep their category settings in `config`; every other rule sends only
+// the attendance flag and, for a slab rule, its bands.
+function ruleConfig(input: DebitFormInput) {
+  const statutory = DEBIT_CATEGORIES.find((c) => c.value === input.category)?.statutary;
+  if (statutory) return input.config && Object.keys(input.config).length ? input.config : null;
+  return {
+    prorateByAttendance: input.debitType !== 'percentage' && input.prorateByAttendance,
+    ...(input.debitType === 'slab' ? { slab: slabToConfig(input.slab) } : {}),
+  };
+}
+
 function toRulePayload(input: DebitFormInput) {
   return {
     debit_name: input.name.trim(),
@@ -127,7 +156,7 @@ function toRulePayload(input: DebitFormInput) {
     enable_additional_charges: input.enableAdditionalCharges,
     additional_charge_type: input.enableAdditionalCharges ? input.additionalChargeType : null,
     additional_charge_value: input.additionalChargeValue !== '' ? Number(input.additionalChargeValue) : null,
-    config: input.config && Object.keys(input.config).length ? input.config : null,
+    config: ruleConfig(input),
   };
 }
 
@@ -135,12 +164,33 @@ export function createDebitRule(input: DebitFormInput) {
   return apiClient.post<{ id: number; rule: DebitRuleDto }>('/payroll/debits', toRulePayload(input), { withAuth: true });
 }
 
+/** Amount settings become a new version from `effective_from`; name, description and company change in place. */
 export function updateDebitRule(id: number, input: DebitFormInput) {
-  return apiClient.put<{ rule: DebitRuleDto }>(`/payroll/debits/${id}`, toRulePayload(input), { withAuth: true });
+  return apiClient.put<{ rule: DebitRuleDto; effective_from: string }>(
+    `/payroll/debits/${id}`,
+    {
+      ...toRulePayload(input),
+      effective_from: input.effectiveFrom || undefined,
+      change_reason: input.changeReason.trim() || undefined,
+    },
+    { withAuth: true }
+  );
 }
 
-export function updateDebitRuleStatus(id: number, status: string) {
-  return apiClient.patch<{ rule: DebitRuleDto }>(`/payroll/debits/${id}/status`, { status }, { withAuth: true });
+export function updateDebitRuleStatus(id: number, status: 'active' | 'inactive', effectiveFrom?: string) {
+  return apiClient.patch<{ rule: DebitRuleDto; effective_from: string }>(
+    `/payroll/debits/${id}/status`,
+    { status, effective_from: effectiveFrom || undefined },
+    { withAuth: true }
+  );
+}
+
+export function listDebitVersions(id: number) {
+  return apiClient.get<DebitVersionsResponseDto>(`/payroll/debits/${id}/versions`, undefined, { withAuth: true });
+}
+
+export function deleteDebitVersion(id: number, versionId: number) {
+  return apiClient.delete<{ success: boolean }>(`/payroll/debits/${id}/versions/${versionId}`, { withAuth: true });
 }
 
 export function deleteDebitRule(id: number) {
@@ -159,16 +209,29 @@ export function searchEmployees(search: string) {
   return apiClient.get<EmployeeSearchResultDto>('/payroll/employees/search', { search: search || undefined }, { withAuth: true });
 }
 
-export function assignDebit(ruleId: number, employeeId: number) {
-  return apiClient.post<{ success: boolean }>(`/payroll/debits/${ruleId}/assignments`, { employee_id: employeeId }, { withAuth: true });
+// A blank start date means "after the employee's last finalized payroll".
+export function assignDebit(ruleId: number, employeeId: number, effectiveFrom?: string) {
+  return apiClient.post<{ success: boolean }>(
+    `/payroll/debits/${ruleId}/assignments`,
+    { employee_id: employeeId, effective_from: effectiveFrom || undefined },
+    { withAuth: true }
+  );
 }
 
-export function assignBulk(ruleId: number, employeeIds: number[]) {
-  return apiClient.post<{ success: boolean; count: number }>(`/payroll/debits/${ruleId}/assignments/bulk`, { employee_ids: employeeIds }, { withAuth: true });
+export function assignBulk(ruleId: number, employeeIds: number[], effectiveFrom?: string) {
+  return apiClient.post<{ success: boolean; count: number }>(
+    `/payroll/debits/${ruleId}/assignments/bulk`,
+    { employee_ids: employeeIds, effective_from: effectiveFrom || undefined },
+    { withAuth: true }
+  );
 }
 
-export function removeAssignment(ruleId: number, employeeId: number) {
-  return apiClient.delete<{ success: boolean }>(`/payroll/debits/${ruleId}/assignments/${employeeId}`, { withAuth: true });
+// A blank end date ends it with the last finalized payroll, or cancels it if nothing was paid.
+export function removeAssignment(ruleId: number, employeeId: number, effectiveTo?: string) {
+  return apiClient.delete<{ success: boolean }>(`/payroll/debits/${ruleId}/assignments/${employeeId}`, {
+    withAuth: true,
+    params: { effective_to: effectiveTo || undefined },
+  });
 }
 
 export function getTaxProfile(employeeId: number, fy: string) {
@@ -181,6 +244,17 @@ export function saveTaxProfile(employeeId: number, payload: {
   pan: string;
   declarations: Record<string, number>;
   estimated_annual_tax?: number | null;
+  rent_paid_annual?: number | null;
+  metro_city?: boolean;
+  previous_employer?: PreviousEmployerDto | null;
+  landlord?: TaxPartyDto | null;
+  home_loan_lender?: TaxPartyDto | null;
+  /** Payroll only; an employee sending it gets 403. */
+  proofs?: TaxProofsDto | null;
+  /** Payroll only: relief under section 89 (Form 10E). */
+  relief_89?: number | null;
+  /** Resend after a 409 REGIME_LOCKED to switch regime anyway. */
+  confirm_regime_change?: boolean;
 }) {
   return apiClient.put<TaxProfileResponseDto>(`/payroll/tax-profiles/${employeeId}`, payload, { withAuth: true });
 }
@@ -232,7 +306,7 @@ export function getTdsSettings(subOrganizationId = 0) {
   );
 }
 
-export function saveTdsSettings(payload: Record<string, string>) {
+export function saveTdsSettings(payload: Record<string, string | number | null>) {
   return apiClient.put<{ settings: TdsSettingsDto }>('/payroll/tds/settings', payload, { withAuth: true });
 }
 
@@ -277,4 +351,90 @@ export function exportForm16(employeeId: number, fy: string, company?: number | 
   const body: { employeeIds: number[]; financialYear: string; company?: number | 'org' } = { employeeIds: [employeeId], financialYear: fy };
   if (company !== undefined) body.company = company === null ? 'org' : company;
   return apiClient.post<ExportJobDto>('/exports/form16', body, { withAuth: true });
+}
+
+/** Which companies have released a year's Form 16 to their employees. */
+export function listForm16Releases(fy: string) {
+  return apiClient.get<Form16ReleasesResponseDto>('/payroll/tds/form16-releases', { fy }, { withAuth: true });
+}
+
+/** Release (or withdraw) a year's Form 16 for one company; returns that year's releases. */
+export function setForm16Release(fy: string, company: number | null, released: boolean) {
+  return apiClient.put<Form16ReleasesResponseDto>(
+    '/payroll/tds/form16-releases',
+    { financial_year: fy, company: companyParam(company), released },
+    { withAuth: true }
+  );
+}
+
+/** Form 24Q data for one quarter, queued in the Download Centre. */
+export function exportTdsQuarterlyReturn(fy: string, quarter: 'Q1' | 'Q2' | 'Q3' | 'Q4', company: number | null) {
+  return apiClient.post<ExportJobDto>(
+    '/exports/tds-quarterly-return',
+    { financialYear: fy, quarter, company: company === null ? 'org' : company },
+    { withAuth: true }
+  );
+}
+
+/** Employees with Form 12BB proofs this year, those waiting for review first. */
+export function listProofQueue(fy: string) {
+  return apiClient.get<ProofQueueDto>('/payroll/tax-proofs', { fy }, { withAuth: true });
+}
+
+export function listEmployeeProofs(employeeId: number, fy: string) {
+  return apiClient.get<TaxProofDocumentsDto>(`/payroll/tax-proofs/employee/${employeeId}`, { fy }, { withAuth: true });
+}
+
+export function getProofUrl(id: number) {
+  return apiClient.get<FileLinkDto>(`/payroll/tax-proofs/${id}/url`, undefined, { withAuth: true });
+}
+
+/** Remarks are required when rejecting; the employee sees them. */
+export function reviewProof(id: number, status: TaxProofStatusDto, remarks?: string) {
+  return apiClient.patch<TaxProofDocumentDto>(`/payroll/tax-proofs/${id}`, { status, remarks: remarks || undefined }, { withAuth: true });
+}
+
+/** Employees paid by one company in a year, with whether their TRACES Part A is on file. */
+export function listPartA(fy: string, company: number | null) {
+  return apiClient.get<PartAListDto>('/payroll/tds/form16-part-a', { fy, company: companyParam(company) }, { withAuth: true });
+}
+
+/** Files are matched to employees by the PAN in the file name, unless `employeeId` is given for a single file. */
+export function uploadPartA(fy: string, company: number | null, files: File[], employeeId?: number) {
+  const form = new FormData();
+  files.forEach((file) => form.append('files', file));
+  form.append('financial_year', fy);
+  form.append('company', companyParam(company));
+  if (employeeId) form.append('employee_id', String(employeeId));
+  return apiClient.post<PartAUploadResultDto>('/payroll/tds/form16-part-a', form, { withAuth: true });
+}
+
+export function removePartA(fy: string, company: number | null, employeeId: number) {
+  return apiClient.delete<{ success: boolean }>('/payroll/tds/form16-part-a', {
+    withAuth: true,
+    params: { fy, company: companyParam(company), employee_id: employeeId },
+  });
+}
+
+export interface PerquisiteInput {
+  employee_id: number;
+  financial_year: string;
+  perk_type: string;
+  value: number | null;
+  recovered: number | null;
+  description: string | null;
+}
+
+export function listPerquisites(employeeId: number, fy: string) {
+  return apiClient.get<PerquisiteListDto>('/payroll/perquisites', { employee_id: employeeId, fy }, { withAuth: true });
+}
+
+export function savePerquisite(input: PerquisiteInput, id?: number) {
+  return id
+    ? apiClient.put<PerquisiteDto>(`/payroll/perquisites/${id}`, input, { withAuth: true })
+    : apiClient.post<PerquisiteDto>('/payroll/perquisites', input, { withAuth: true });
+}
+
+export function deletePerquisite(id: number) {
+  return apiClient.delete<{ success: boolean }>(`/payroll/perquisites/${id}`, { withAuth: true });
 }

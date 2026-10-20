@@ -146,6 +146,11 @@ function PopoverSubItem({
   );
 }
 
+/** Every link under a group, deeper groups included, in order. */
+function flattenLinks(group: NavGroupNode): NavLink[] {
+  return group.children.flatMap((child) => (child.kind === 'link' ? [child] : flattenLinks(child)));
+}
+
 /**
  * Floating popover portalled to document.body so it renders above all page
  * content. Shows the sub-items connected with branching tree connectors.
@@ -190,7 +195,16 @@ function CollapsedPopover({
               isLast={idx === group.children.length - 1}
               onNavigate={onNavigate}
             />
-          ) : null
+          ) : (
+            // A nested group has no popover of its own here: its name as a small label,
+            // then its links, so nothing is out of reach while the sidebar is collapsed.
+            <div key={child.id} className="mt-1 border-t border-line pt-1 first:mt-0 first:border-t-0 first:pt-0">
+              <p className="px-2.5 pb-0.5 pt-1.5 text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">{child.label}</p>
+              {flattenLinks(child).map((link, i, all) => (
+                <PopoverSubItem key={link.href} link={link} isFirst={i === 0} isLast={i === all.length - 1} onNavigate={onNavigate} />
+              ))}
+            </div>
+          )
         )}
       </div>
     </div>,

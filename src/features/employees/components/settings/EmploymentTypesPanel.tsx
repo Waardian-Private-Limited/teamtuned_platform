@@ -4,6 +4,7 @@ import React from 'react';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { TextField } from '@/components/ui/FormControls';
+import { Switch } from '@/components/ui/Switch';
 import { ApiError, messageOf } from '@/lib/api/errors';
 import { showError, showSuccess } from '@/lib/toast';
 import { usePermission } from '@/lib/hooks/usePermission';
@@ -16,13 +17,28 @@ interface Draft {
   name: string;
   code: string;
   description: string;
+  fixedTerm: boolean;
+  contractMonths: string;
   probation: string;
   notice: string;
   status: 'active' | 'inactive';
   subOrgId: number | null;
 }
 
-const blank = (subOrgId: number | null): Draft => ({ id: null, name: '', code: '', description: '', probation: '', notice: '', status: 'active', subOrgId });
+const blank = (subOrgId: number | null): Draft => ({ id: null, name: '', code: '', description: '', fixedTerm: false, contractMonths: '', probation: '', notice: '', status: 'active', subOrgId });
+
+const draftOf = (t: api.EmploymentTypeDto): Draft => ({
+  id: t.id,
+  name: t.name,
+  code: t.code,
+  description: t.description || '',
+  fixedTerm: t.is_fixed_term,
+  contractMonths: t.default_contract_months === null ? '' : String(t.default_contract_months),
+  probation: t.default_probation_months === null ? '' : String(t.default_probation_months),
+  notice: t.default_notice_days === null ? '' : String(t.default_notice_days),
+  status: t.status,
+  subOrgId: t.sub_organization_id,
+});
 
 export function EmploymentTypesPanel() {
   const { isOrgAdmin } = usePermission();
@@ -39,6 +55,11 @@ export function EmploymentTypesPanel() {
 
   const save = async () => {
     if (!draft) return;
+    const months = Number(draft.contractMonths);
+    if (draft.fixedTerm && draft.contractMonths.trim() && (!Number.isInteger(months) || months < 1 || months > 120)) {
+      setErrors({ default_contract_months: '1 to 120 months' });
+      return;
+    }
     setBusy(true);
     setErrors({});
     try {
@@ -46,6 +67,8 @@ export function EmploymentTypesPanel() {
         name: draft.name,
         code: draft.code || undefined,
         description: draft.description,
+        is_fixed_term: draft.fixedTerm,
+        default_contract_months: draft.fixedTerm ? draft.contractMonths : null,
         default_probation_months: draft.probation,
         default_notice_days: draft.notice,
         status: draft.status,
@@ -84,6 +107,16 @@ export function EmploymentTypesPanel() {
             <TextField label="Default notice (days)" type="number" min={0} max={365} value={draft.notice} onChange={(v) => setDraft({ ...draft, notice: v })} error={errors.default_notice_days} />
           </div>
           <TextField label="Description" value={draft.description} onChange={(v) => setDraft({ ...draft, description: v })} maxLength={255} />
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-fg">Fixed-term / contract</p>
+              <p className="text-[11px] text-fg-muted">Employees of this type get a contract end date.</p>
+            </div>
+            <Switch label="Fixed-term / contract" checked={draft.fixedTerm} onChange={(v) => setDraft({ ...draft, fixedTerm: v })} />
+          </div>
+          {draft.fixedTerm && (
+            <TextField label="Default contract length (months)" type="number" min={1} max={120} value={draft.contractMonths} onChange={(v) => setDraft({ ...draft, contractMonths: v })} error={errors.default_contract_months} hint="Prefilled when adding an employee. 1 to 120." />
+          )}
           {!draft.id && subOrgs.length > 0 && (
             <select value={draft.subOrgId ?? ''} onChange={(e) => setDraft({ ...draft, subOrgId: e.target.value ? Number(e.target.value) : null })} className="h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm text-fg">
               {isOrgAdmin && <option value="">All sub-organizations</option>}
@@ -109,14 +142,18 @@ export function EmploymentTypesPanel() {
         {types?.map((t) => (
           <li key={t.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
             <div className="min-w-0">
-              <p className="flex items-center gap-2 text-sm font-semibold text-fg">{t.name}<SubOrgBadge subOrgId={t.sub_organization_id} /></p>
+              <p className="flex items-center gap-2 text-sm font-semibold text-fg">
+                {t.name}
+                {t.is_fixed_term && <span className="inline-flex items-center rounded-md border border-line bg-bg-subtle px-1.5 py-0.5 text-[10px] font-semibold text-fg-muted">Contract</span>}
+                <SubOrgBadge subOrgId={t.sub_organization_id} />
+              </p>
               <p className="text-[11px] text-fg-muted">
-                {[t.code, t.default_probation_months !== null ? `${t.default_probation_months}m probation` : null, t.default_notice_days !== null ? `${t.default_notice_days}d notice` : null, `${t.employee_count} employees`].filter(Boolean).join(' · ')}
+                {[t.code, t.is_fixed_term && t.default_contract_months !== null ? `${t.default_contract_months}m contract` : null, t.default_probation_months !== null ? `${t.default_probation_months}m probation` : null, t.default_notice_days !== null ? `${t.default_notice_days}d notice` : null, `${t.employee_count} employees`].filter(Boolean).join(' · ')}
               </p>
             </div>
             <div className="flex items-center gap-1">
               <StatusPill label={t.status} tone={t.status === 'active' ? 'active' : 'inactive'} />
-              <button type="button" aria-label={`Edit ${t.name}`} onClick={() => setDraft({ id: t.id, name: t.name, code: t.code, description: t.description || '', probation: t.default_probation_months === null ? '' : String(t.default_probation_months), notice: t.default_notice_days === null ? '' : String(t.default_notice_days), status: t.status, subOrgId: t.sub_organization_id })} className="rounded p-1.5 text-fg-muted hover:bg-bg-subtle hover:text-fg">
+              <button type="button" aria-label={`Edit ${t.name}`} onClick={() => setDraft(draftOf(t))} className="rounded p-1.5 text-fg-muted hover:bg-bg-subtle hover:text-fg">
                 <Pencil className="h-4 w-4" />
               </button>
               {t.employee_count === 0 && (

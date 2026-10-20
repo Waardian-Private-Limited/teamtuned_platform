@@ -17,6 +17,10 @@ const PAGE_TITLES: Record<string, { title: string; category: string }> = {
     '/employee/departments': { title: 'Departments', category: 'Management' },
     '/org-admin/departments': { title: 'Departments', category: 'Management' },
     '/employee/roles': { title: 'Roles', category: 'Management' },
+    '/employee/grades': { title: 'Grades / bands', category: 'Management' },
+    '/org-admin/grades': { title: 'Grades / bands', category: 'Management' },
+    '/employee/cost-centres': { title: 'Cost centres', category: 'Management' },
+    '/org-admin/cost-centres': { title: 'Cost centres', category: 'Management' },
     '/employee/holidays': { title: 'Holidays', category: 'Attendance' },
     '/employee/leave': { title: 'My Leave', category: 'Attendance' },
 
@@ -45,6 +49,7 @@ const PAGE_TITLES: Record<string, { title: string; category: string }> = {
 
     // Salary Advance
     '/employee/my-profile': { title: 'My profile', category: 'Self' },
+    '/employee/my-tax': { title: 'Tax declaration', category: 'Self' },
     '/employee/my-advances': { title: 'My advances', category: 'Self' },
     '/employee/payouts': { title: 'Payouts', category: 'Payroll' },
     '/org-admin/payouts': { title: 'Payouts', category: 'Payroll' },
@@ -132,6 +137,20 @@ const PAGE_TITLES: Record<string, { title: string; category: string }> = {
     '/employee/my-reviews': { title: 'My reviews', category: 'Self' },
     '/employee/refer': { title: 'Refer a candidate', category: 'Self' },
 
+    // Income Tax (TDS)
+    '/employee/tds': { title: 'Overview', category: 'Income Tax (TDS)' },
+    '/employee/tds/settings': { title: 'TDS settings', category: 'Income Tax (TDS)' },
+    '/employee/tds/declarations': { title: 'Employee declarations', category: 'Income Tax (TDS)' },
+    '/employee/tds/proofs': { title: 'Proof review', category: 'Income Tax (TDS)' },
+    '/employee/tds/returns': { title: 'Deposits & returns', category: 'Income Tax (TDS)' },
+    '/employee/tds/form16': { title: 'Form 16', category: 'Income Tax (TDS)' },
+    '/org-admin/tds': { title: 'Overview', category: 'Income Tax (TDS)' },
+    '/org-admin/tds/settings': { title: 'TDS settings', category: 'Income Tax (TDS)' },
+    '/org-admin/tds/declarations': { title: 'Employee declarations', category: 'Income Tax (TDS)' },
+    '/org-admin/tds/proofs': { title: 'Proof review', category: 'Income Tax (TDS)' },
+    '/org-admin/tds/returns': { title: 'Deposits & returns', category: 'Income Tax (TDS)' },
+    '/org-admin/tds/form16': { title: 'Form 16', category: 'Income Tax (TDS)' },
+
     // Public Portal
     '/careers': { title: 'Careers Portal', category: 'Public' },
 };
@@ -148,6 +167,10 @@ export function getPageTitle(pathname: string, role: 'employee' | 'org-admin') {
 
     if (/^\/(employee|org-admin)\/recruitment\/positions\/\d+$/.test(pathname)) {
         return { title: 'Position', description: 'Recruitment' };
+    }
+
+    if (/^\/(employee\/employee-management|org-admin\/employees)\/\d+$/.test(pathname)) {
+        return { title: 'Employee', description: 'Management' };
     }
 
     if (/^\/employee\/my-interviews\/\d+$/.test(pathname)) {

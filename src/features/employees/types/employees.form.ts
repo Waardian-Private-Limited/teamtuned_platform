@@ -2,6 +2,7 @@ import type { ComponentInput, SalaryDriver, SalaryPlan } from '../utils/salary';
 import { allocationFromDto, allocationPayload, type AllocationDraft } from '../utils/allocations';
 import type { EmployeeDetailDto, Gender, ManagerDto, PaymentMode, ShiftSource, WeekOffConfig } from './employees.dto';
 import { orgToday } from '@/lib/datetime';
+import { contractMonthsFor } from '../utils/contract';
 
 export interface EmployeeFormState {
   employeeCode: string;
@@ -22,8 +23,18 @@ export interface EmployeeFormState {
   joiningDate: string;
   probationMonths: string;
   noticePeriodDays: string;
+  /** Empty means "same as joining date". */
+  contractStart: string;
+  contractMonths: string;
+  contractEnd: string;
+  /** Which of months / end date the user typed; the other one is worked out from it. */
+  contractBy: 'months' | 'end';
+  gradeId: number | null;
+  costCentreId: number | null;
   siteIds: number[];
   primarySiteId: number | null;
+  /** Empty means the server uses the primary site's state. */
+  workState: string;
   policyId: number | null;
   locationAccess: string;
   shiftSource: ShiftSource;
@@ -72,8 +83,15 @@ export function emptyForm(): EmployeeFormState {
     joiningDate: orgToday(),
     probationMonths: '',
     noticePeriodDays: '',
+    contractStart: '',
+    contractMonths: '',
+    contractEnd: '',
+    contractBy: 'months',
+    gradeId: null,
+    costCentreId: null,
     siteIds: [],
     primarySiteId: null,
+    workState: '',
     policyId: null,
     locationAccess: 'assigned',
     shiftSource: 'policy',
@@ -124,8 +142,15 @@ export function formFromDetail(d: EmployeeDetailDto): EmployeeFormState {
     joiningDate: d.employment_start_date || '',
     probationMonths: d.probation_months !== null ? String(d.probation_months) : '',
     noticePeriodDays: d.notice_period_days !== null ? String(d.notice_period_days) : '',
+    contractStart: d.contract_start || '',
+    contractMonths: d.contract_start && d.contract_end ? String(contractMonthsFor(d.contract_start, d.contract_end) ?? '') : '',
+    contractEnd: d.contract_end || '',
+    contractBy: d.contract_end ? 'end' : 'months',
+    gradeId: d.grade_id,
+    costCentreId: d.cost_centre_id,
     siteIds: d.site_ids,
     primarySiteId: d.primary_site_id,
+    workState: d.work_state || '',
     policyId: d.policy_overridden ? d.policy_id : null,
     locationAccess: d.location_access || 'assigned',
     shiftSource: d.shift_source || 'policy',
@@ -163,7 +188,17 @@ export function salaryFields(f: EmployeeFormState, plan: SalaryPlan, allocationP
   };
 }
 
-export function toPayload(f: EmployeeFormState, timingMode: string | null, salary: Record<string, unknown> | null) {
+/** Contract fields for a fixed-term type: whichever of months / end date the user typed is sent. */
+function contractFields(f: EmployeeFormState, fixedTerm: boolean) {
+  if (!fixedTerm) return { contract_start: null, contract_end: null, contract_months: null };
+  return {
+    contract_start: f.contractStart || f.joiningDate || null,
+    contract_end: f.contractBy === 'end' ? f.contractEnd || null : null,
+    contract_months: f.contractBy === 'months' ? intOrNull(f.contractMonths) : null,
+  };
+}
+
+export function toPayload(f: EmployeeFormState, timingMode: string | null, salary: Record<string, unknown> | null, fixedTerm: boolean) {
   return {
     employee_code: blank(f.employeeCode),
     first_name: f.firstName.trim(),
@@ -182,8 +217,12 @@ export function toPayload(f: EmployeeFormState, timingMode: string | null, salar
     employment_start_date: f.joiningDate || null,
     probation_months: intOrNull(f.probationMonths),
     notice_period_days: intOrNull(f.noticePeriodDays),
+    ...contractFields(f, fixedTerm),
+    grade_id: f.gradeId,
+    cost_centre_id: f.costCentreId,
     site_ids: f.siteIds,
     primary_site_id: f.primarySiteId,
+    work_state: f.workState || null,
     policy_id: f.policyId,
     location_access: f.locationAccess,
     shift_source: timingMode === 'fixed_time' ? f.shiftSource : 'policy',

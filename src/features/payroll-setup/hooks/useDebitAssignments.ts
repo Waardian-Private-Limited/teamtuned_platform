@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import * as api from '../api/payrollSetup.api';
 import { toAssignments } from '../types/payroll-setup.mapper';
 import type { AssignedEmployee } from '../types/payroll-setup.model';
-import { messageOf } from '../utils/asyncAction';
+import { messageOf, serverFieldOf } from '../utils/asyncAction';
 import { showError, showSuccess } from '@/lib/toast';
 
 export function useDebitAssignments(ruleId: number | null, refetchList: () => Promise<void>) {
@@ -15,7 +15,17 @@ export function useDebitAssignments(ruleId: number | null, refetchList: () => Pr
   const [isAssigning, setIsAssigning] = useState(false);
   const [candidates, setCandidates] = useState<Array<{ id: number; name: string; designation: string | null; email: string | null }>>([]);
   const [isSearching, setIsSearching] = useState(false);
+  // Date problems belong under the date input, not in a toast.
+  const [dateErrors, setDateErrors] = useState<{ effectiveFrom?: string; effectiveTo?: string }>({});
   const searchSeqRef = useRef(0);
+
+  const failed = useCallback((err: unknown) => {
+    const field = serverFieldOf(err, ['effective_from', 'effective_to'] as const);
+    if (field === 'effective_from') setDateErrors({ effectiveFrom: messageOf(err) });
+    else if (field === 'effective_to') setDateErrors({ effectiveTo: messageOf(err) });
+    else showError(messageOf(err));
+    return false;
+  }, []);
 
   const fetchAssignments = useCallback(async () => {
     if (!ruleId) return;
@@ -55,53 +65,55 @@ export function useDebitAssignments(ruleId: number | null, refetchList: () => Pr
     }
   }, []);
 
-  const assign = useCallback(async (employeeId: number) => {
+  // effectiveFrom blank = starts after the employee's last finalized payroll.
+  const assign = useCallback(async (employeeId: number, effectiveFrom?: string) => {
     if (!ruleId || isAssigning) return false;
     setIsAssigning(true);
+    setDateErrors({});
     try {
-      await api.assignDebit(ruleId, employeeId);
+      await api.assignDebit(ruleId, employeeId, effectiveFrom);
       await Promise.all([fetchAssignments(), refetchList()]);
       showSuccess('Employee assigned');
       return true;
     } catch (err) {
-      showError(messageOf(err));
-      return false;
+      return failed(err);
     } finally {
       setIsAssigning(false);
     }
-  }, [ruleId, isAssigning, fetchAssignments, refetchList]);
+  }, [ruleId, isAssigning, fetchAssignments, refetchList, failed]);
 
-  const remove = useCallback(async (employeeId: number) => {
+  // effectiveTo is the last day the deduction applies; blank = ends with the last finalized payroll.
+  const remove = useCallback(async (employeeId: number, effectiveTo?: string) => {
     if (!ruleId || isAssigning) return false;
     setIsAssigning(true);
+    setDateErrors({});
     try {
-      await api.removeAssignment(ruleId, employeeId);
+      await api.removeAssignment(ruleId, employeeId, effectiveTo);
       await Promise.all([fetchAssignments(), refetchList()]);
-      showSuccess('Employee removed');
+      showSuccess(effectiveTo ? 'Deduction end date saved' : 'Employee removed');
       return true;
     } catch (err) {
-      showError(messageOf(err));
-      return false;
+      return failed(err);
     } finally {
       setIsAssigning(false);
     }
-  }, [ruleId, isAssigning, fetchAssignments, refetchList]);
+  }, [ruleId, isAssigning, fetchAssignments, refetchList, failed]);
 
-  const assignBulk = useCallback(async (employeeIds: number[]) => {
+  const assignBulk = useCallback(async (employeeIds: number[], effectiveFrom?: string) => {
     if (!ruleId || isAssigning || !employeeIds.length) return false;
     setIsAssigning(true);
+    setDateErrors({});
     try {
-      const res = await api.assignBulk(ruleId, employeeIds);
+      const res = await api.assignBulk(ruleId, employeeIds, effectiveFrom);
       await Promise.all([fetchAssignments(), refetchList()]);
       showSuccess(`${res.count || employeeIds.length} employees assigned`);
       return true;
     } catch (err) {
-      showError(messageOf(err));
-      return false;
+      return failed(err);
     } finally {
       setIsAssigning(false);
     }
-  }, [ruleId, isAssigning, fetchAssignments, refetchList]);
+  }, [ruleId, isAssigning, fetchAssignments, refetchList, failed]);
 
   return {
     employees,
@@ -111,6 +123,8 @@ export function useDebitAssignments(ruleId: number | null, refetchList: () => Pr
     isAssigning,
     candidates,
     isSearching,
+    dateErrors,
+    clearDateErrors: () => setDateErrors({}),
     searchCandidates,
     assign,
     assignBulk,

@@ -1,6 +1,7 @@
 import type { FormStepKey } from '../constants/employees.constants';
 import type { EmployeeFormState, FormErrors } from '../types/employees.form';
 import { statutoryClash, type SalaryPlan } from './salary';
+import { contractEndFor } from './contract';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PHONE = /^[6-9][0-9]{9}$/;
@@ -35,7 +36,21 @@ function basic(f: EmployeeFormState): FormErrors {
   return e;
 }
 
-function job(f: EmployeeFormState, needsSubOrg: boolean): FormErrors {
+function contract(f: EmployeeFormState): FormErrors {
+  const e: FormErrors = {};
+  const start = f.contractStart || f.joiningDate;
+  if (f.contractStart && f.joiningDate && f.contractStart < f.joiningDate) e.contract_start = 'Cannot start before the joining date';
+  if (f.contractBy === 'months') {
+    const months = Number(f.contractMonths);
+    if (!f.contractMonths.trim()) e.contract_months = 'Enter the length or the end date';
+    else if (!Number.isInteger(months) || months < 1 || months > 120) e.contract_months = '1 to 120 months';
+    else if (!contractEndFor(start, months)) e.contract_start = 'Enter a valid start date';
+  } else if (!f.contractEnd) e.contract_end = 'Enter the end date or the length';
+  else if (start && f.contractEnd <= start) e.contract_end = 'Must be after the contract start';
+  return e;
+}
+
+function job(f: EmployeeFormState, needsSubOrg: boolean, fixedTerm: boolean): FormErrors {
   const e: FormErrors = {};
   if (needsSubOrg && !f.subOrganizationId) e.sub_organization_id = 'Select a sub-organization';
   if (!f.departmentId) e.department_id = 'Select a department';
@@ -47,7 +62,7 @@ function job(f: EmployeeFormState, needsSubOrg: boolean): FormErrors {
   if (f.probationMonths.trim() && (!Number.isInteger(probation) || probation < 0 || probation > 24)) e.probation_months = '0 to 24 months';
   const notice = Number(f.noticePeriodDays);
   if (f.noticePeriodDays.trim() && (!Number.isInteger(notice) || notice < 0 || notice > 365)) e.notice_period_days = '0 to 365 days';
-  return e;
+  return fixedTerm ? { ...e, ...contract(f) } : e;
 }
 
 function schedule(f: EmployeeFormState, effectivePolicyId: number | null, timingMode: string | null): FormErrors {
@@ -118,11 +133,11 @@ function bank(f: EmployeeFormState): FormErrors {
 export function validateStep(
   step: FormStepKey,
   f: EmployeeFormState,
-  ctx: Omit<SalaryContext, 'needsSubOrg'> & { effectivePolicyId: number | null; needsSubOrg: boolean; timingMode: string | null }
+  ctx: Omit<SalaryContext, 'needsSubOrg'> & { effectivePolicyId: number | null; needsSubOrg: boolean; timingMode: string | null; fixedTerm: boolean }
 ): FormErrors {
   switch (step) {
     case 'basic': return basic(f);
-    case 'job': return job(f, ctx.needsSubOrg);
+    case 'job': return job(f, ctx.needsSubOrg, ctx.fixedTerm);
     case 'schedule': return schedule(f, ctx.effectivePolicyId, ctx.timingMode);
     case 'salary': return salary(f, ctx);
     case 'bank': return bank(f);

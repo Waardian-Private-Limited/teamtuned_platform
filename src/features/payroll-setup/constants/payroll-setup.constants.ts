@@ -1,10 +1,9 @@
-import type { DebitConfigValue } from '../types/payroll-setup.model';
+import type { DebitConfigValue, TaxProofSection, TaxTreatment } from '../types/payroll-setup.model';
 import { orgToday } from '@/lib/datetime';
 
 export const PAYROLL_TABS = [
   { value: 'components', label: 'Salary Components' },
   { value: 'debits', label: 'Deduction Rules' },
-  { value: 'tds', label: 'TDS & Form 16' },
 ] as const;
 
 export type PayrollTab = (typeof PAYROLL_TABS)[number]['value'];
@@ -96,7 +95,7 @@ export const DEBIT_CATEGORIES: DebitCategoryMeta[] = [
     label: 'Labour Welfare Fund (LWF)',
     description: 'Small periodic statutory contribution.',
     statutary: true,
-    fields: ['amount', 'frequency', 'months'],
+    fields: ['state', 'amount', 'frequency', 'months'],
     defaultName: 'Labour Welfare Fund',
     defaults: { amount: 12, frequency: 'monthly', months: [6, 12] },
   },
@@ -171,6 +170,19 @@ export const LWF_FREQUENCY_MONTHS: Record<string, number[]> = {
   annual: [12],
 };
 
+/**
+ * States and union territories for PT and LWF rules. Same list and spelling as the server
+ * (teamtuned_backend/src/shared/constants/IndianStates.js), which payroll matches against
+ * each employee's work state.
+ */
+export const INDIAN_STATES = [
+  'Andaman and Nicobar Islands', 'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chandigarh', 'Chhattisgarh',
+  'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jammu and Kashmir',
+  'Jharkhand', 'Karnataka', 'Kerala', 'Ladakh', 'Lakshadweep', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya',
+  'Mizoram', 'Nagaland', 'Odisha', 'Puducherry', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura',
+  'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+];
+
 export type DebitCategory = DebitCategoryMeta['value'];
 
 export const DEBIT_CATEGORY_OPTIONS = DEBIT_CATEGORIES.map(({ value, label }) => ({ value, label }));
@@ -181,19 +193,68 @@ export const LWF_FREQ_OPTIONS = [
   { value: 'annual', label: 'Annual' },
 ] as const;
 
-export type ComponentFieldName = 'component_name' | 'component_type' | 'display_order' | 'status';
+export const COMPONENT_FIELD_NAMES = [
+  'component_name',
+  'component_type',
+  'display_order',
+  'status',
+  'percentage_value',
+  'tax_treatment',
+] as const;
 
-export type DebitFieldName =
-  | 'debit_name'
-  | 'fixed_amount'
-  | 'percentage_value'
-  | 'reference_amount'
-  | 'breakdown_item_id'
-  | 'max_cap_amount'
-  | 'additional_charge_value'
-  | 'config';
+export type ComponentFieldName = (typeof COMPONENT_FIELD_NAMES)[number];
 
-export type TaxProfileFieldName = 'pan' | 'financial_year' | 'estimated_annual_tax' | 'declarations';
+export const DEBIT_FIELD_NAMES = [
+  'debit_name',
+  'category',
+  'fixed_amount',
+  'percentage_value',
+  'reference_amount',
+  'breakdown_item_id',
+  'max_cap_amount',
+  'additional_charge_value',
+  'applicable_months',
+  'one_time_month',
+  'config',
+  'effective_from',
+  'change_reason',
+] as const;
+
+export type DebitFieldName = (typeof DEBIT_FIELD_NAMES)[number];
+
+/** How an earning is taxed. Only earnings carry this; deductions are always 'taxable'. */
+export const TAX_TREATMENT_OPTIONS: { value: TaxTreatment; label: string; short: string }[] = [
+  { value: 'taxable', label: 'Taxable', short: 'Taxable' },
+  { value: 'hra', label: 'House rent allowance — exempt by rent in old regime', short: 'HRA' },
+  { value: 'exempt_old', label: 'Exempt in old regime only', short: 'Exempt (old)' },
+  { value: 'exempt_both', label: 'Exempt in both regimes', short: 'Exempt' },
+  { value: 'employer_nps', label: 'Employer NPS — taxable, deducted under 80CCD(2) in both regimes', short: 'Employer NPS' },
+];
+
+/** What a percentage deduction is taken of. 'after_deduction' is a legacy alias of 'net'. */
+export const REFERENCE_AMOUNT_OPTIONS = [
+  { value: 'before_deduction', label: 'Gross earnings' },
+  { value: 'net', label: 'Net pay (after statutory deductions)' },
+  { value: 'breakdown_item', label: 'A salary component' },
+] as const;
+
+export const CHANGE_REASON_MAX = 300;
+
+/** Financial-year order, April first, for month pickers. */
+export const FY_MONTHS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3] as const;
+
+export type TaxProfileFieldName =
+  | 'pan'
+  | 'regime'
+  | 'financial_year'
+  | 'estimated_annual_tax'
+  | 'declarations'
+  | 'rent_paid_annual'
+  | 'previous_employer'
+  | 'landlord'
+  | 'home_loan_lender'
+  | 'relief_89'
+  | 'proofs';
 export type ChallanFieldName = 'amount' | 'quarter' | 'financial_year' | 'deposit_date';
 
 export function currentFinancialYear(): string {
@@ -204,3 +265,18 @@ export function currentFinancialYear(): string {
 }
 
 export const FORM16_PREVIEW_LIMIT = 25;
+
+/** What a Form 12BB proof file is for, in the words employees and HR both see. */
+export const PROOF_SECTION_LABELS: Record<TaxProofSection, string> = {
+  rent: 'House rent',
+  section80C: 'Section 80C',
+  section80CCD1B: 'Own NPS — 80CCD(1B)',
+  section80D: 'Health insurance — 80D',
+  housingLoanInterest: 'Home loan interest',
+  other: 'Other deductions',
+  previousEmployer: 'Previous employer',
+};
+
+export const PROOF_SECTION_ORDER: TaxProofSection[] = [
+  'rent', 'section80C', 'section80CCD1B', 'section80D', 'housingLoanInterest', 'other', 'previousEmployer',
+];

@@ -1,13 +1,40 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import * as api from '../api/payrollSetup.api';
-import { toTaxProfile } from '../types/payroll-setup.mapper';
+import { toTaxProfile, toTdsEstimate } from '../types/payroll-setup.mapper';
 import type { RegimeComparison, TaxProfile, TdsEstimate } from '../types/payroll-setup.model';
-import { messageOf } from '../utils/asyncAction';
+import { messageOf, serverFieldOf } from '../utils/asyncAction';
 import { showError, showSuccess } from '@/lib/toast';
+import { statusOf } from '@/lib/api/errors';
 import { validatePan } from '../utils/validators';
-import type { TdsEstimateDto } from '../types/payroll-setup.dto';
+import type { PreviousEmployerDto, TaxPartyDto, TaxProofsDto } from '../types/payroll-setup.dto';
+import type { TaxProfileFieldName } from '../constants/payroll-setup.constants';
+
+const PROFILE_FIELDS: readonly TaxProfileFieldName[] = [
+  'pan', 'regime', 'financial_year', 'estimated_annual_tax', 'declarations', 'rent_paid_annual', 'previous_employer',
+  'landlord', 'home_loan_lender', 'relief_89', 'proofs',
+];
+
+export interface TaxProfileInput {
+  regime: 'old' | 'new';
+  pan: string;
+  declarations: Record<string, number>;
+  estimated_annual_tax?: number | null;
+  rent_paid_annual?: number | null;
+  metro_city?: boolean;
+  previous_employer?: PreviousEmployerDto | null;
+  landlord?: TaxPartyDto | null;
+  home_loan_lender?: TaxPartyDto | null;
+  proofs?: TaxProofsDto | null;
+  relief_89?: number | null;
+}
+
+/** TDS was already deducted this year under the current regime; switching needs a confirm. */
+export interface RegimeLock {
+  deducted: number;
+  message: string;
+}
 
 export function useTaxProfile(employeeId: number | null, financialYear: string) {
   const [profile, setProfile] = useState<TaxProfile | null>(null);
@@ -20,6 +47,8 @@ export function useTaxProfile(employeeId: number | null, financialYear: string) 
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [regimeLock, setRegimeLock] = useState<RegimeLock | null>(null);
+  const pendingRef = useRef<TaxProfileInput | null>(null);
 
   const load = useCallback(async () => {
     if (!employeeId) return;
@@ -31,7 +60,7 @@ export function useTaxProfile(employeeId: number | null, financialYear: string) 
         api.listTaxYears().catch(() => null),
       ]);
       setProfile(dto.profile ? toTaxProfile(dto.profile) : null);
-      setEstimate(dto.estimate ? normalizeEstimate(dto.estimate) : null);
+      setEstimate(dto.estimate ? toTdsEstimate(dto.estimate) : null);
       setConfiguredYears(years?.financial_years ?? null);
     } catch (err) {
       setError(messageOf(err));
@@ -51,18 +80,13 @@ export function useTaxProfile(employeeId: number | null, financialYear: string) 
     if (!employeeId) return;
     try {
       const dto = await api.getTdsPreview(employeeId, financialYear);
-      setEstimate(normalizeEstimate(dto.estimate));
+      setEstimate(toTdsEstimate(dto.estimate));
     } catch {
       setEstimate(null);
     }
   }, [employeeId, financialYear]);
 
-  const save = useCallback(async (input: {
-    regime: 'old' | 'new';
-    pan: string;
-    declarations: Record<string, number>;
-    estimated_annual_tax?: number | null;
-  }) => {
+  const save = useCallback(async (input: TaxProfileInput, confirmRegimeChange = false) => {
     if (!employeeId) return false;
     const panError = validatePan(input.pan);
     if (panError) {
@@ -70,6 +94,7 @@ export function useTaxProfile(employeeId: number | null, financialYear: string) 
       return false;
     }
     setFieldErrors({});
+    setRegimeLock(null);
     setIsSaving(true);
     try {
       const dto = await api.saveTaxProfile(employeeId, {
@@ -78,18 +103,45 @@ export function useTaxProfile(employeeId: number | null, financialYear: string) 
         pan: input.pan,
         declarations: input.declarations,
         estimated_annual_tax: input.estimated_annual_tax ?? null,
+        rent_paid_annual: input.rent_paid_annual,
+        metro_city: input.metro_city,
+        previous_employer: input.previous_employer,
+        landlord: input.landlord,
+        home_loan_lender: input.home_loan_lender,
+        proofs: input.proofs,
+        relief_89: input.relief_89,
+        confirm_regime_change: confirmRegimeChange || undefined,
       });
       setProfile(dto.profile ? toTaxProfile(dto.profile) : null);
-      if (dto.estimate) setEstimate(normalizeEstimate(dto.estimate));
+      if (dto.estimate) setEstimate(toTdsEstimate(dto.estimate));
       showSuccess('Tax profile saved');
       return true;
     } catch (err) {
-      showError(messageOf(err));
+      // 409 REGIME_LOCKED: TDS already went out under the current regime. Hold the input
+      // so the dialog can resend it once the admin confirms.
+      if (statusOf(err) === 409 && (err as { code?: string })?.code === 'REGIME_LOCKED') {
+        pendingRef.current = input;
+        setRegimeLock({
+          deducted: Number((err as { data?: { deducted?: unknown } })?.data?.deducted) || 0,
+          message: messageOf(err),
+        });
+        return false;
+      }
+      const field = serverFieldOf(err, PROFILE_FIELDS);
+      if (field) setFieldErrors({ [field]: messageOf(err) });
+      else showError(messageOf(err));
       return false;
     } finally {
       setIsSaving(false);
     }
   }, [employeeId, financialYear]);
+
+  const confirmRegimeChange = useCallback(async () => {
+    const pending = pendingRef.current;
+    if (!pending) return false;
+    pendingRef.current = null;
+    return save(pending, true);
+  }, [save]);
 
   // Runs both regimes over the same declarations so the admin can see which costs less
   // before committing the employee to one.
@@ -100,8 +152,8 @@ export function useTaxProfile(employeeId: number | null, financialYear: string) 
       const dto = await api.compareTaxRegimes(employeeId, financialYear, declarations);
       setComparison({
         financialYear: dto.comparison.financialYear,
-        old: dto.comparison.old ? normalizeEstimate(dto.comparison.old) : null,
-        new: dto.comparison.new ? normalizeEstimate(dto.comparison.new) : null,
+        old: dto.comparison.old ? toTdsEstimate(dto.comparison.old) : null,
+        new: dto.comparison.new ? toTdsEstimate(dto.comparison.new) : null,
         cheaper: dto.comparison.cheaper,
         saving: Number(dto.comparison.saving || 0),
       });
@@ -120,33 +172,7 @@ export function useTaxProfile(employeeId: number | null, financialYear: string) 
   return {
     profile, estimate, comparison, isComparing, isLoading, isSaving, error, fieldErrors,
     configuredYears, isYearConfigured,
-    save, refreshEstimate, compareRegimes, reload: load,
-  };
-}
-
-function normalizeEstimate(dto: TdsEstimateDto): TdsEstimate {
-  return {
-    financialYear: dto.financialYear,
-    oneTimeIncome: Number(dto.oneTimeIncome || 0),
-    projectedAnnualGross: Number(dto.projectedAnnualGross || 0),
-    standardDeduction: Number(dto.standardDeduction || 0),
-    declarationTotal: Number(dto.declarationTotal || 0),
-    declarationsApplied: dto.declarationsApplied ?? {},
-    declarationsIgnored: dto.declarationsIgnored ?? [],
-    taxableIncome: Number(dto.taxableIncome || 0),
-    ageBand: dto.ageBand ?? 'default',
-    slabTax: Number(dto.slabTax || 0),
-    rebate: Number(dto.rebate || 0),
-    rebateRelief: Number(dto.rebateRelief || 0),
-    surchargeRate: Number(dto.surchargeRate || 0),
-    surcharge: Number(dto.surcharge || 0),
-    surchargeRelief: Number(dto.surchargeRelief || 0),
-    taxBeforeCess: Number(dto.taxBeforeCess || 0),
-    cess: Number(dto.cess || 0),
-    annualTax: Number(dto.annualTax || 0),
-    deductedBeforeCycle: Number(dto.deductedBeforeCycle || 0),
-    monthlyTds: Number(dto.monthlyTds || 0),
-    remainingMonths: Number(dto.remainingMonths || 12),
-    isProvisional: Boolean(dto.isProvisional),
+    regimeLock, dismissRegimeLock: () => { pendingRef.current = null; setRegimeLock(null); },
+    save, confirmRegimeChange, refreshEstimate, compareRegimes, reload: load,
   };
 }

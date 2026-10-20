@@ -4,9 +4,17 @@ import React from 'react';
 import { Check, ChevronLeft, Plus, Trash2 } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { Dialog } from '@/components/ui/Dialog';
-import { DEBIT_CATEGORIES, LWF_FREQUENCY_MONTHS } from '../../constants/payroll-setup.constants';
-import type { DebitRule, DebitFormInput, DebitConfigValue } from '../../types/payroll-setup.model';
+import {
+  CHANGE_REASON_MAX,
+  DEBIT_CATEGORIES,
+  INDIAN_STATES,
+  LWF_FREQUENCY_MONTHS,
+  REFERENCE_AMOUNT_OPTIONS,
+} from '../../constants/payroll-setup.constants';
+import type { DebitRule, DebitFormInput, DebitConfigValue, DebitSlab, DebitType } from '../../types/payroll-setup.model';
 import { MONTH_NAMES, PT_GENDERS, ptGender, ptSlabs, ptSpecialMonth, type PtSlab } from '../../utils/professionalTax';
+import { SLAB_BASES, describeSlab, emptySlab, slabBasisLabel, slabOf, validateSlab } from '../../utils/deductionSlabs';
+import { useDebitVersions } from '../../hooks/useDebitVersions';
 import { SubOrgPicker } from '@/features/sub-organizations/components/SubOrgPicker';
 import { usePermission } from '@/lib/hooks/usePermission';
 
@@ -16,12 +24,20 @@ const labelClass = 'mb-1.5 block text-xs font-semibold text-fg sm:text-[13px]';
 const sectionTitle = 'text-[11px] font-semibold uppercase tracking-wider text-fg-subtle';
 const hintClass = 'mt-1 text-[11px] text-fg-muted';
 const errorClass = 'mt-1 text-[11px] font-medium text-[var(--tt-danger)]';
+const errorInputClass =
+  'w-full min-w-0 rounded-lg border border-[var(--tt-danger)] bg-surface px-3 h-10 text-sm text-fg placeholder:text-fg-subtle outline-none transition-colors focus:border-[var(--tt-danger)] focus:ring-1 focus:ring-[var(--tt-danger)]';
+
+const CALCULATION_TYPES: Array<{ value: DebitType; title: string; hint: string }> = [
+  { value: 'fixed', title: 'Fixed amount', hint: 'Same amount every cycle' },
+  { value: 'percentage', title: 'Percentage', hint: 'Percent of a salary base' },
+  { value: 'slab', title: 'Slabs', hint: 'Amount depends on salary' },
+];
 
 interface DebitFormDialogProps {
   open: boolean;
   mode: 'create' | 'edit';
   initial?: DebitRule;
-  components: Array<{ id: number; name: string }>;
+  components: Array<{ id: number; name: string; type?: 'credit' | 'debit' }>;
   isSaving: boolean;
   fieldError: { field: string; message: string } | null;
   onClose: () => void;
@@ -36,7 +52,7 @@ interface FormState {
   frequency: 'monthly' | 'selected_months' | 'one_time';
   applicableMonths: number[];
   oneTimeMonth: string;
-  debitType: 'fixed' | 'percentage';
+  debitType: DebitType;
   fixedAmount: string;
   percentageValue: string;
   referenceAmount: 'net' | 'before_deduction' | 'breakdown_item';
@@ -47,7 +63,11 @@ interface FormState {
   additionalChargeType: 'fixed' | 'percentage';
   additionalChargeValue: string;
   config: Record<string, DebitConfigValue>;
+  prorateByAttendance: boolean;
+  slab: DebitSlab;
   status: 'active' | 'inactive';
+  effectiveFrom: string;
+  changeReason: string;
 }
 
 function withPtShape(category: string, config: FormState['config']): FormState['config'] {
@@ -80,9 +100,14 @@ function initialState(initial?: DebitRule): FormState {
       additionalChargeType: 'fixed',
       additionalChargeValue: '',
       config: {},
+      prorateByAttendance: false,
+      slab: emptySlab(),
       status: 'active',
+      effectiveFrom: '',
+      changeReason: '',
     };
   }
+  const config = (initial.config as FormState['config']) || {};
   return {
     name: initial.name,
     description: initial.description ?? '',
@@ -94,15 +119,20 @@ function initialState(initial?: DebitRule): FormState {
     debitType: initial.debitType,
     fixedAmount: initial.fixedAmount !== null ? String(initial.fixedAmount) : '',
     percentageValue: initial.percentageValue !== null ? String(initial.percentageValue) : '',
-    referenceAmount: (initial.referenceAmount as FormState['referenceAmount']) || 'net',
+    // 'after_deduction' always meant net pay; the server now stores it as 'net'.
+    referenceAmount: initial.referenceAmount === 'after_deduction' || !initial.referenceAmount ? 'net' : initial.referenceAmount,
     breakdownItemId: initial.breakdownItemId,
     enableMaxCap: initial.enableMaxCap,
     maxCapAmount: initial.maxCapAmount !== null ? String(initial.maxCapAmount) : '',
     enableAdditionalCharges: initial.enableAdditionalCharges,
     additionalChargeType: initial.additionalChargeType || 'fixed',
     additionalChargeValue: initial.additionalChargeValue !== null ? String(initial.additionalChargeValue) : '',
-    config: withPtShape(initial.category, (initial.config as FormState['config']) || {}),
+    config: withPtShape(initial.category, config),
+    prorateByAttendance: config.prorateByAttendance === true,
+    slab: slabOf(initial.config) ?? emptySlab(),
     status: initial.status,
+    effectiveFrom: '',
+    changeReason: '',
   };
 }
 
@@ -119,12 +149,23 @@ export function DebitFormDialog({
   const { isOrgAdmin } = usePermission();
   const [step, setStep] = React.useState<1 | 2>(1);
   const [form, setForm] = React.useState<FormState>(initialState());
+  const isEdit = mode === 'edit';
+  // Only an edit needs the default "Applies from" date (the first day no finalized payroll froze).
+  const versions = useDebitVersions(open && isEdit && initial ? initial.id : null);
 
   React.useEffect(() => {
     if (!open) return;
     setForm(initialState(initial));
     setStep(mode === 'create' ? 1 : 2);
   }, [open, initial, mode]);
+
+  React.useEffect(() => {
+    if (!open || !isEdit || !versions.defaultEffectiveFrom) return;
+    setForm((prev) => (prev.effectiveFrom ? prev : { ...prev, effectiveFrom: versions.defaultEffectiveFrom }));
+  }, [open, isEdit, versions.defaultEffectiveFrom]);
+
+  const errorOf = (field: string) => (fieldError?.field === field ? fieldError.message : null);
+  const inputFor = (field: string) => (errorOf(field) ? errorInputClass : inputClass);
 
   const categoryMeta = DEBIT_CATEGORIES.find((c) => c.value === form.category);
 
@@ -171,6 +212,7 @@ export function DebitFormDialog({
 
   const isCustomLike = !categoryMeta?.statutary;
   const isTds = form.category === 'tds';
+  const earningComponents = components.filter((c) => !c.type || c.type === 'credit');
 
   const titleNode = (
     <div>
@@ -274,8 +316,7 @@ export function DebitFormDialog({
                   Assigned to {initial?.assignedEmployeeCount} employee
                   {(initial?.assignedEmployeeCount ?? 0) === 1 ? '' : 's'}.
                 </span>{' '}
-                Changes apply from the next payroll cycle that has not been generated yet. Payslips already generated
-                keep the values they were calculated with.
+                Amount changes apply from the date below. Earlier pay periods keep the old amount.
                 {isTds && ' TDS self-corrects: the next cycle absorbs the difference against tax already deducted this year.'}
               </p>
             </div>
@@ -290,7 +331,7 @@ export function DebitFormDialog({
               value={form.name}
               onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
               placeholder="e.g., EPF, Professional Tax, Meal Deduction"
-              className={inputClass}
+              className={inputFor('debit_name')}
               autoFocus
             />
             {fieldError?.field === 'debit_name' ? (
@@ -299,6 +340,20 @@ export function DebitFormDialog({
               <p className={hintClass}>Must be unique within your organization.</p>
             )}
           </div>
+
+          {isEdit && (
+            <div>
+              <label className={labelClass}>Category</label>
+              <select value={form.category} disabled className={cx(inputFor('category'), 'cursor-not-allowed opacity-60')}>
+                <option value={form.category}>{categoryMeta?.label ?? form.category}</option>
+              </select>
+              {errorOf('category') ? (
+                <p className={errorClass}>{errorOf('category')}</p>
+              ) : (
+                <p className={hintClass}>The category cannot change. Create a new rule instead.</p>
+              )}
+            </div>
+          )}
 
           {!isCustomLike && !isTds && <StatutoryConfigFields form={form} setConfig={setConfig} components={components} fieldError={fieldError} />}
 
@@ -315,31 +370,36 @@ export function DebitFormDialog({
             <>
               <div>
                 <label className={labelClass}>Calculation</label>
-                <div className="grid grid-cols-2 gap-2.5">
-                  {(['fixed', 'percentage'] as const).map((t) => (
+                <div className="grid grid-cols-3 gap-2.5">
+                  {CALCULATION_TYPES.map((t) => (
                     <button
-                      key={t}
+                      key={t.value}
                       type="button"
-                      onClick={() => setForm((p) => ({ ...p, debitType: t }))}
+                      onClick={() => setForm((p) => ({ ...p, debitType: t.value }))}
                       className={cx(
                         'flex items-center gap-2.5 rounded-lg border p-2.5 text-left transition-all',
-                        form.debitType === t
+                        form.debitType === t.value
                           ? 'border-[var(--tt-primary)] bg-[var(--tt-primary)]/5 ring-1 ring-[var(--tt-primary)]'
                           : 'border-line bg-surface hover:bg-bg-subtle'
                       )}
                     >
                       <div>
-                        <div className="text-xs font-semibold text-fg">{t === 'fixed' ? 'Fixed amount' : 'Percentage'}</div>
-                        <div className="text-[11px] text-fg-muted">
-                          {t === 'fixed' ? 'Same amount every cycle' : 'Percent of a salary base'}
-                        </div>
+                        <div className="text-xs font-semibold text-fg">{t.title}</div>
+                        <div className="text-[11px] text-fg-muted">{t.hint}</div>
                       </div>
                     </button>
                   ))}
                 </div>
               </div>
 
-              {form.debitType === 'fixed' ? (
+              {form.debitType === 'slab' ? (
+                <SlabEditor
+                  slab={form.slab}
+                  components={earningComponents}
+                  error={errorOf('config')}
+                  onChange={(slab) => setForm((p) => ({ ...p, slab }))}
+                />
+              ) : form.debitType === 'fixed' ? (
                 <div>
                   <label className={labelClass}>
                     Amount (₹) <span className="text-[var(--tt-danger)]">*</span>
@@ -350,7 +410,7 @@ export function DebitFormDialog({
                     value={form.fixedAmount}
                     onChange={(e) => setForm((p) => ({ ...p, fixedAmount: e.target.value }))}
                     placeholder="e.g., 500"
-                    className={inputClass}
+                    className={inputFor('fixed_amount')}
                   />
                   {fieldError?.field === 'fixed_amount' && <p className={errorClass}>{fieldError.message}</p>}
                 </div>
@@ -367,7 +427,7 @@ export function DebitFormDialog({
                       value={form.percentageValue}
                       onChange={(e) => setForm((p) => ({ ...p, percentageValue: e.target.value }))}
                       placeholder="e.g., 12"
-                      className={inputClass}
+                      className={inputFor('percentage_value')}
                     />
                     {fieldError?.field === 'percentage_value' && <p className={errorClass}>{fieldError.message}</p>}
                   </div>
@@ -376,12 +436,13 @@ export function DebitFormDialog({
                     <select
                       value={form.referenceAmount}
                       onChange={(e) => setForm((p) => ({ ...p, referenceAmount: e.target.value as FormState['referenceAmount'], breakdownItemId: null }))}
-                      className={inputClass}
+                      className={inputFor('reference_amount')}
                     >
-                      <option value="net">Net salary</option>
-                      <option value="before_deduction">Gross (before deductions)</option>
-                      <option value="breakdown_item">Specific component</option>
+                      {REFERENCE_AMOUNT_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
                     </select>
+                    {errorOf('reference_amount') && <p className={errorClass}>{errorOf('reference_amount')}</p>}
                   </div>
                   {form.referenceAmount === 'breakdown_item' && (
                     <div className="sm:col-span-2">
@@ -389,7 +450,7 @@ export function DebitFormDialog({
                       <select
                         value={form.breakdownItemId ?? ''}
                         onChange={(e) => setForm((p) => ({ ...p, breakdownItemId: e.target.value ? Number(e.target.value) : null }))}
-                        className={inputClass}
+                        className={inputFor('breakdown_item_id')}
                       >
                         <option value="">Select a component…</option>
                         {components.map((c) => (
@@ -403,6 +464,14 @@ export function DebitFormDialog({
               )}
 
               <div className="space-y-2.5">
+                {form.debitType !== 'percentage' && (
+                  <ToggleRow
+                    checked={form.prorateByAttendance}
+                    onChange={(v) => setForm((p) => ({ ...p, prorateByAttendance: v }))}
+                    title="Reduce for unpaid days (charge only for payable days)"
+                    description="Leave it off to charge the full amount every cycle"
+                  />
+                )}
                 <ToggleRow
                   checked={form.enableMaxCap}
                   onChange={(v) => setForm((p) => ({ ...p, enableMaxCap: v }))}
@@ -418,7 +487,7 @@ export function DebitFormDialog({
                       value={form.maxCapAmount}
                       onChange={(e) => setForm((p) => ({ ...p, maxCapAmount: e.target.value }))}
                       placeholder="e.g., 2000"
-                      className={inputClass}
+                      className={inputFor('max_cap_amount')}
                     />
                     {fieldError?.field === 'max_cap_amount' && <p className={errorClass}>{fieldError.message}</p>}
                   </div>
@@ -447,7 +516,7 @@ export function DebitFormDialog({
                       value={form.additionalChargeValue}
                       onChange={(e) => setForm((p) => ({ ...p, additionalChargeValue: e.target.value }))}
                       placeholder={form.additionalChargeType === 'percentage' ? '%' : '₹'}
-                      className={inputClass}
+                      className={inputFor('additional_charge_value')}
                     />
                     {fieldError?.field === 'additional_charge_value' && (
                       <p className={errorClass}>{fieldError.message}</p>
@@ -555,6 +624,48 @@ export function DebitFormDialog({
             </>
           )}
 
+          {isEdit && (
+            <div className="space-y-3.5 rounded-lg border border-line bg-bg-subtle/50 p-3">
+              <div>
+                <label className={labelClass}>Applies from</label>
+                <input
+                  type="date"
+                  value={form.effectiveFrom}
+                  onChange={(e) => setForm((p) => ({ ...p, effectiveFrom: e.target.value }))}
+                  className={inputFor('effective_from')}
+                />
+                {errorOf('effective_from') ? (
+                  <p className={errorClass}>{errorOf('effective_from')}</p>
+                ) : (
+                  <p className={hintClass}>
+                    Earlier pay periods keep the old amount. A date inside a finalized month is settled as arrears in
+                    the next payroll. A date in the middle of a pay period splits that period.
+                  </p>
+                )}
+                {versions.error && <p className={errorClass}>Could not load the default date. {versions.error}</p>}
+              </div>
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label className="text-xs font-semibold text-fg sm:text-[13px]">Reason for change</label>
+                  <span className="text-[11px] text-fg-subtle">Optional</span>
+                </div>
+                <input
+                  type="text"
+                  value={form.changeReason}
+                  maxLength={CHANGE_REASON_MAX}
+                  onChange={(e) => setForm((p) => ({ ...p, changeReason: e.target.value }))}
+                  placeholder="e.g., Canteen rate revised"
+                  className={inputFor('change_reason')}
+                />
+                {errorOf('change_reason') ? (
+                  <p className={errorClass}>{errorOf('change_reason')}</p>
+                ) : (
+                  <p className={hintClass}>Shown in the rule&apos;s history. Name, description and company change right away.</p>
+                )}
+              </div>
+            </div>
+          )}
+
           <div>
             <div className="mb-1.5 flex items-center justify-between">
               <label className="text-xs font-semibold text-fg sm:text-[13px]">Description</label>
@@ -604,6 +715,149 @@ function ToggleRow({ checked, onChange, title, description }: { checked: boolean
         <div className="text-[11px] text-fg-muted">{description}</div>
       </div>
     </button>
+  );
+}
+
+function SlabEditor({
+  slab,
+  components,
+  error,
+  onChange,
+}: {
+  slab: DebitSlab;
+  components: Array<{ id: number; name: string }>;
+  error: string | null;
+  onChange: (slab: DebitSlab) => void;
+}) {
+  const update = (index: number, patch: Partial<DebitSlab['bands'][number]>) =>
+    onChange({ ...slab, bands: slab.bands.map((b, i) => (i === index ? { ...b, ...patch } : b)) });
+  const remove = (index: number) => {
+    const bands = slab.bands.filter((_, i) => i !== index);
+    // The first band always starts at 0, so the one that moves up takes its place.
+    if (index === 0 && bands.length) bands[0] = { ...bands[0], from: 0 };
+    onChange({ ...slab, bands });
+  };
+  const add = () => {
+    const last = slab.bands[slab.bands.length - 1];
+    const from = last ? (Number.isFinite(last.from) ? last.from : 0) + 10000 : 0;
+    onChange({ ...slab, bands: [...slab.bands, { from, type: last?.type ?? 'fixed', value: 0 }] });
+  };
+  const numberOf = (value: string) => (value === '' ? Number.NaN : Number(value));
+  const shown = (value: number) => (Number.isFinite(value) ? String(value) : '');
+
+  // Which row to mark: only once there is an error to show.
+  const problem = error ? validateSlab(slab) : null;
+  const basisMissing = Boolean(error) && slab.basis === 'component' && !slab.componentId;
+  const cell = 'w-full min-w-0 rounded-md border bg-surface px-2 h-9 text-sm text-fg outline-none';
+  const cellClass = (bad: boolean) =>
+    cx(cell, bad ? 'border-[var(--tt-danger)] focus:border-[var(--tt-danger)]' : 'border-line focus:border-[var(--tt-primary)]');
+  const componentName = components.find((c) => c.id === slab.componentId)?.name;
+  const validForPreview = slab.bands.every((b) => Number.isFinite(b.from) && Number.isFinite(b.value));
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+        <div>
+          <label className={labelClass}>Slabs based on</label>
+          <select
+            value={slab.basis}
+            onChange={(e) => onChange({ ...slab, basis: e.target.value as DebitSlab['basis'], componentId: null })}
+            className={inputClass}
+          >
+            {SLAB_BASES.map((b) => <option key={b.value} value={b.value}>{b.label}</option>)}
+          </select>
+        </div>
+        {slab.basis === 'component' && (
+          <div>
+            <label className={labelClass}>Salary component</label>
+            <select
+              value={slab.componentId ?? ''}
+              onChange={(e) => onChange({ ...slab, componentId: e.target.value ? Number(e.target.value) : null })}
+              className={basisMissing ? errorInputClass : inputClass}
+            >
+              <option value="">Select a component…</option>
+              {components.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className={labelClass}>Slabs</span>
+          <button type="button" onClick={add} className="inline-flex items-center gap-1 text-xs font-semibold text-fg hover:underline">
+            <Plus className="h-3.5 w-3.5" />
+            Add slab
+          </button>
+        </div>
+        <div className="grid grid-cols-[1fr_7.5rem_1fr_2rem] gap-2 text-[11px] font-semibold text-fg-muted">
+          <span>From (₹)</span>
+          <span>Type</span>
+          <span>Amount</span>
+          <span />
+        </div>
+        {slab.bands.map((band, i) => {
+          const bad = problem?.band === i;
+          return (
+            <div key={i} className="grid grid-cols-[1fr_7.5rem_1fr_2rem] items-center gap-2">
+              <input
+                type="number"
+                min={0}
+                value={i === 0 ? '0' : shown(band.from)}
+                disabled={i === 0}
+                onChange={(e) => update(i, { from: numberOf(e.target.value) })}
+                className={cx(cellClass(bad), i === 0 && 'opacity-60')}
+                aria-label={`Slab ${i + 1} from`}
+              />
+              <select
+                value={band.type}
+                onChange={(e) => update(i, { type: e.target.value === 'percentage' ? 'percentage' : 'fixed' })}
+                className={cellClass(false)}
+                aria-label={`Slab ${i + 1} type`}
+              >
+                <option value="fixed">Fixed (₹)</option>
+                <option value="percentage">Percent (%)</option>
+              </select>
+              <input
+                type="number"
+                min={0}
+                max={band.type === 'percentage' ? 100 : undefined}
+                step="0.01"
+                value={shown(band.value)}
+                onChange={(e) => update(i, { value: numberOf(e.target.value) })}
+                placeholder={band.type === 'percentage' ? '%' : '₹'}
+                className={cellClass(bad)}
+                aria-label={`Slab ${i + 1} amount`}
+              />
+              <button
+                type="button"
+                onClick={() => remove(i)}
+                disabled={slab.bands.length === 1}
+                aria-label={`Remove slab ${i + 1}`}
+                className="flex h-8 w-8 items-center justify-center rounded-md text-fg-muted hover:bg-bg-subtle hover:text-fg disabled:opacity-30"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {error ? (
+        <p className={errorClass}>{error}</p>
+      ) : (
+        validForPreview && (
+          <p className="text-xs text-fg">
+            <span className="text-fg-muted">On monthly {slabBasisLabel(slab, componentName)}: </span>
+            {describeSlab(slab)}
+          </p>
+        )
+      )}
+      <p className={hintClass}>
+        Each slab runs from its amount up to the next one; the last covers everything above. The slab is picked on the
+        employee&apos;s full monthly {slabBasisLabel(slab, componentName)}. A percentage applies to what was earned.
+      </p>
+    </div>
   );
 }
 
@@ -662,6 +916,22 @@ function PtSlabEditor({ slabs, specialMonth, onChange }: { slabs: PtSlab[]; spec
           <p className={hintClass}>Each slab applies from its gross up to the next slab of the same group. Gender slabs replace the Everyone slabs for that gender, e.g. Female nil up to ₹25,000 in Maharashtra. Leave the special amount empty to use the monthly amount.</p>
         </div>
       )}
+    </div>
+  );
+}
+
+/** State picker shared by PT and LWF; an older free-text value not in the list still shows. */
+function StateSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const known = !value || INDIAN_STATES.includes(value);
+  return (
+    <div>
+      <label className={labelClass}>State</label>
+      <select value={value} onChange={(e) => onChange(e.target.value)} className={inputClass}>
+        <option value="">All states</option>
+        {!known && <option value={value}>{value}</option>}
+        {INDIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+      </select>
+      <p className={hintClass}>Applies to employees whose work state is this state.</p>
     </div>
   );
 }
@@ -773,11 +1043,7 @@ function StatutoryConfigFields({
       <div className="space-y-3.5">
         <h3 className={sectionTitle}>Professional Tax settings</h3>
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-          <div>
-            <label className={labelClass}>State</label>
-            <input type="text" value={String(config.state ?? '')} onChange={(e) => setConfig('state', e.target.value)} placeholder="Leave empty for all states" className={inputClass} />
-            <p className={hintClass}>Auto-applies to employees whose primary site is in this state.</p>
-          </div>
+          <StateSelect value={String(config.state ?? '')} onChange={(v) => setConfig('state', v)} />
           <div>
             <label className={labelClass}>Special month</label>
             <select
@@ -806,6 +1072,7 @@ function StatutoryConfigFields({
       <div className="space-y-3.5">
         <h3 className={sectionTitle}>LWF settings</h3>
         <div className="grid grid-cols-2 gap-3.5">
+          <StateSelect value={String(config.state ?? '')} onChange={(v) => setConfig('state', v)} />
           <div>
             <label className={labelClass}>Amount (₹)</label>
             <input type="number" min={0} step="0.01" value={String(config.amount ?? 0)} onChange={(e) => setConfig('amount', e.target.value)} className={inputClass} />

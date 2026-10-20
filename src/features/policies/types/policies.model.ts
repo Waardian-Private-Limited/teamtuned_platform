@@ -61,7 +61,7 @@ export interface PayCalendarPeriod {
   payDate: string;
 }
 
-export type ScopeType = 'organization' | 'sub_organization' | 'site' | 'department' | 'role' | 'employee_type' | 'employee';
+export type ScopeType = 'organization' | 'sub_organization' | 'site' | 'department' | 'role' | 'grade' | 'employee_type' | 'employee';
 
 export interface PolicyAssignment {
   id: number;

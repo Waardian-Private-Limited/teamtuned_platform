@@ -9,6 +9,7 @@ export function useEmployeeRoutes() {
   return {
     list: base,
     create: `${base}/new`,
+    detail: (id: number) => `${base}/${id}`,
     edit: (id: number) => `${base}/${id}/edit`,
     revisions: orgAdmin ? '/org-admin/salary-revisions' : '/employee/salary-revisions',
   };
