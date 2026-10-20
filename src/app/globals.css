@@ -85,6 +85,24 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Browser defaults are blue: native checkboxes, radios, date/time pickers, focus rings and text selection.
+   Kept in the base layer so a component's own outline/ring utilities still win. */
+@layer base {
+  :root {
+    accent-color: var(--tt-primary);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--tt-primary);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--tt-fg);
+    color: var(--tt-bg);
+  }
+}
+
 /* Scrollable region with no visible scrollbar. The area still scrolls by wheel,
    trackpad, touch and keyboard — only the bar is hidden, so nothing becomes
    unreachable. Consumed via `scroll.hidden` in src/theme/tokens.ts. */

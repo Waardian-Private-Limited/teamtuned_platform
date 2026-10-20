@@ -67,11 +67,29 @@ const PAGE_TITLES: Record<string, { title: string; category: string }> = {
     '/employee/expenses/categories': { title: 'Categories', category: 'Expenses' },
     '/org-admin/expenses/categories': { title: 'Categories', category: 'Expenses' },
 
-    // Task
-    '/employee/tasks': { title: 'Templates', category: 'Task' },
-    '/employee/task-assignments': { title: 'Assignments', category: 'Task' },
-    '/employee/task-dashboard': { title: 'Dashboard', category: 'Task' },
-    '/employee/dashboard-builder': { title: 'Builder', category: 'Task' },
+    // Data Collection
+    '/employee/data-collection': { title: 'Overview', category: 'Data Collection' },
+    '/org-admin/data-collection': { title: 'Overview', category: 'Data Collection' },
+    '/employee/data-collection/my': { title: 'My forms', category: 'Data Collection' },
+    '/org-admin/data-collection/my': { title: 'My forms', category: 'Data Collection' },
+    '/employee/data-collection/forms': { title: 'Forms', category: 'Data Collection' },
+    '/org-admin/data-collection/forms': { title: 'Forms', category: 'Data Collection' },
+    '/employee/data-collection/assignments': { title: 'Assignments', category: 'Data Collection' },
+    '/org-admin/data-collection/assignments': { title: 'Assignments', category: 'Data Collection' },
+    '/employee/data-collection/submissions': { title: 'Submissions', category: 'Data Collection' },
+    '/org-admin/data-collection/submissions': { title: 'Submissions', category: 'Data Collection' },
+
+    // Tasks
+    '/employee/tasks': { title: 'My tasks', category: 'Tasks' },
+    '/employee/tasks/assigned': { title: 'Assigned by me', category: 'Tasks' },
+    '/employee/tasks/board': { title: 'Board', category: 'Tasks' },
+    '/employee/tasks/list': { title: 'All tasks', category: 'Tasks' },
+    '/employee/tasks/dashboard': { title: 'Dashboard', category: 'Tasks' },
+    '/org-admin/tasks': { title: 'My tasks', category: 'Tasks' },
+    '/org-admin/tasks/assigned': { title: 'Assigned by me', category: 'Tasks' },
+    '/org-admin/tasks/board': { title: 'Board', category: 'Tasks' },
+    '/org-admin/tasks/list': { title: 'All tasks', category: 'Tasks' },
+    '/org-admin/tasks/dashboard': { title: 'Dashboard', category: 'Tasks' },
 
     // Inventory - Master Data
     '/employee/inventory/onboarding': { title: 'Onboarding', category: 'Inventory' },

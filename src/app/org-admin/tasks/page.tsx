@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import React from "react";
-import TaskTemplates from "@/components/formbuilder/TaskTemplates";
+import { Suspense } from 'react';
+import { TasksWorkspace } from '@/features/task-management/components/TasksWorkspace';
 
-export default function TasksPage() {
-  return <TaskTemplates basePath="/org-admin" />;
+export default function Page_tasks() {
+  return <Suspense><TasksWorkspace mode="personal" /></Suspense>;
 }

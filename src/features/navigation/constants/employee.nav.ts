@@ -1,12 +1,57 @@
 import {
-  Home, Building2, MapPin, Link2, DollarSign, Building, UserCog, BarChart3,
-  ClipboardList, Cog, Shield, Calendar, Settings, Clock, CheckSquare,
-  AlertCircle, FileText, MinusCircle, Users, LayoutDashboard,
-  ListChecks, LayoutGrid, Wallet, Receipt, ArrowUpCircle,
-  Package, Coins, Briefcase, HardHat, Layers, Award, UserPlus, List,
-  CalendarRange, Repeat, Inbox, Wrench, CalendarDays, CalendarCheck, User, TreePalm, UserRound, Tags,
-  Smartphone, CalendarClock, ClipboardCheck, FileSignature, Share2, HeartPulse,
+  Home,
+  Building2,
+  MapPin,
+  Link2,
+  DollarSign,
+  Building,
+  UserCog,
+  BarChart3,
+  ClipboardList,
+  Cog,
+  Shield,
+  Calendar,
+  Settings,
+  Clock,
+  CheckSquare,
+  AlertCircle,
+  FileText,
+  MinusCircle,
+  Users,
+  LayoutDashboard,
+  ListChecks,
+  LayoutGrid,
+  Wallet,
+  Receipt,
+  ArrowUpCircle,
+  Package,
+  Coins,
+  Briefcase,
+  HardHat,
+  Layers,
+  Award,
+  UserPlus,
+  List,
+  CalendarRange,
+  Repeat,
+  Inbox,
+  Wrench,
+  CalendarDays,
+  CalendarCheck,
+  User,
+  TreePalm,
+  UserRound,
+  Tags,
+  Smartphone,
+  CalendarClock,
+  ClipboardCheck,
+  FileSignature,
+  Share2,
+  HeartPulse,
   Gift,
+  HandCoins,
+  UserSearch,
+  ReceiptText,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
 
@@ -39,6 +84,7 @@ export const employeeNav: NavNode[] = [
       { kind: 'link', label: 'My advances', href: '/employee/my-advances', icon: Wallet, gate: { feature: 'PAYROLL_FEATURE' } },
       { kind: 'link', label: 'My insurance', href: '/employee/my-insurance', icon: HeartPulse, gate: { feature: 'INSURANCE_FEATURE' } },
       { kind: 'link', label: 'Approvals', href: '/employee/approvals', icon: Inbox, match: 'prefix' },
+      { kind: 'link', label: 'My tasks', href: '/employee/tasks', icon: ListChecks, gate: { feature: 'TASK_MANAGEMENT_FEATURE' } },
       { kind: 'link', label: 'My interviews', href: '/employee/my-interviews', icon: CalendarClock, match: 'prefix', gate: { recruitmentRole: 'interviewer' } },
       { kind: 'link', label: 'My reviews', href: '/employee/my-reviews', icon: ClipboardCheck, match: 'prefix', gate: { recruitmentRole: 'reviewer' } },
       // Hiring managers without recruitment permissions: their own positions (the page defaults to "Mine").
@@ -117,7 +163,7 @@ export const employeeNav: NavNode[] = [
   },
 
   {
-    kind: 'group', id: 'salary-advance', label: 'Salary Advance', gate: {
+    kind: 'group', id: 'salary-advance', label: 'Salary Advance', icon: HandCoins, gate: {
       feature: 'PAYROLL_FEATURE',
       anyPerm: ['SALADV_VIEW', 'SALADV_PAY', 'SALADV_CREATE', 'SALADV_POLICY'],
     },
@@ -129,7 +175,7 @@ export const employeeNav: NavNode[] = [
   },
 
   {
-    kind: 'group', id: 'recruitment', label: 'Recruitment',
+    kind: 'group', id: 'recruitment', label: 'Recruitment', icon: UserSearch,
     gate: { anyPerm: ['RECRUIT_VIEW', 'RECRUIT_MANAGE', 'RECRUIT_OFFER', 'RECRUIT_HIRE', 'RECRUIT_SETTINGS'] },
     children: [
       { kind: 'link', label: 'Overview', href: '/employee/recruitment', icon: LayoutDashboard },
@@ -144,7 +190,7 @@ export const employeeNav: NavNode[] = [
   },
 
   {
-    kind: 'group', id: 'expenses', label: 'Expenses', gate: { anyFeature: ['REIMBURSEMENT_FEATURE', 'EXPENSE_WALLET_FEATURE'] },
+    kind: 'group', id: 'expenses', label: 'Expenses', icon: ReceiptText, gate: { anyFeature: ['REIMBURSEMENT_FEATURE', 'EXPENSE_WALLET_FEATURE'] },
     children: [
       { kind: 'link', label: 'My expenses', href: '/employee/my-expenses', icon: Receipt, match: 'prefix' },
       { kind: 'link', label: 'Overview', href: '/employee/expenses', icon: LayoutDashboard, gate: { anyPerm: ['REIMB_VIEW', 'EMP_WALLET_VIEW'] } },
@@ -203,11 +249,21 @@ export const employeeNav: NavNode[] = [
   },
 
   {
-    kind: 'group', id: 'task', label: 'Task', gate: { feature: 'TASK_FEATURE' },
+    kind: 'group', id: 'data-collection', label: 'Data Collection', icon: ClipboardCheck, gate: { feature: 'DATA_COLLECTION_FEATURE' },
     children: [
-      { kind: 'link', label: 'Templates', href: '/employee/tasks', icon: FileText, match: 'prefix', gate: { anyPerm: ['TASK_TEMPLATES', 'TASK_CREATE'] } },
-      { kind: 'link', label: 'Assignments', href: '/employee/task-assignments', icon: ListChecks, match: 'prefix', gate: { anyPerm: ['TASK_VIEW', 'TASK_ASSIGN'] } },
-      { kind: 'link', label: 'Dashboard', href: '/employee/task-dashboard', icon: LayoutGrid, match: 'prefix', gate: { anyPerm: ['TASK_VIEW'] } },
+      { kind: 'link', label: 'My forms', href: '/employee/data-collection/my', icon: ListChecks, match: 'prefix' },
+      { kind: 'link', label: 'Overview', href: '/employee/data-collection', icon: LayoutDashboard, gate: { anyPerm: ['DC_REPORTS'] } },
+      { kind: 'link', label: 'Forms', href: '/employee/data-collection/forms', icon: FileText, match: 'prefix', gate: { anyPerm: ['DC_FORMS_MANAGE', 'DC_ASSIGN', 'DC_REPORTS'] } },
+      { kind: 'link', label: 'Assignments', href: '/employee/data-collection/assignments', icon: UserPlus, match: 'prefix', gate: { anyPerm: ['DC_ASSIGN', 'DC_REPORTS'] } },
+      { kind: 'link', label: 'Submissions', href: '/employee/data-collection/submissions', icon: ClipboardList, match: 'prefix', gate: { anyPerm: ['DC_REPORTS'] } },
+    ],
+  },
+
+  {
+    kind: 'group', id: 'tasks', label: 'Tasks', icon: ListChecks, gate: { feature: 'TASK_MANAGEMENT_FEATURE', anyPerm: ['TM_VIEW_ALL', 'TM_MANAGE_ALL'] },
+    children: [
+      { kind: 'link', label: 'Dashboard', href: '/employee/tasks/dashboard', icon: LayoutDashboard },
+      { kind: 'link', label: 'All tasks', href: '/employee/tasks/list', icon: List },
     ],
   },
 
