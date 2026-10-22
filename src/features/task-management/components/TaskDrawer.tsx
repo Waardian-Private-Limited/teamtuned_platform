@@ -27,7 +27,7 @@ const stamp = (iso: string) => new Date(iso).toLocaleString([], { month: 'short'
 function activityText(a: ActivityRow): string {
   if (a.kind === 'created') return 'created the task';
   if (a.kind === 'edit') return 'edited the task';
-  if (a.kind === 'assign') return 'changed the assignee';
+  if (a.kind === 'assign') return a.meta?.from_name || a.meta?.to_name ? `reassigned it from ${a.meta?.from_name ?? 'someone'} to ${a.meta?.to_name ?? 'someone'}` : 'changed the assignee';
   if (a.kind === 'status') {
     const to = a.meta?.to ? STATUS_LABEL[a.meta.to as keyof typeof STATUS_LABEL] || a.meta.to : '';
     return `moved it to ${to || 'a new state'}`;

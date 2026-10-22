@@ -2,6 +2,8 @@ import { apiClient } from '@/lib/apiClient';
 import type {
   CompEmployeeDto,
   CycleDto,
+  BonusBase,
+  BonusPayoutsDto,
   LinkablePerformanceCycleDto,
   PerformanceImportDto,
   CycleSummaryDto,
@@ -56,6 +58,11 @@ export const importPerformanceRatings = (id: number, apply: boolean) =>
   apiClient.post<PerformanceImportDto>(`/compensation/cycles/${id}/import-performance-ratings`, { apply }, auth);
 export const submitCycle = (id: number) => apiClient.post<CycleDto>(`/compensation/cycles/${id}/submit`, {}, auth);
 export const approveCycle = (id: number) => apiClient.post<CycleDto>(`/compensation/cycles/${id}/approve`, {}, auth);
+/** Rating-based bonus payouts of a cycle; dry_run (default) only previews. */
+export const bonusPayouts = (id: number, body: { base: BonusBase; payout_month: string; payout_type?: string; title?: string; dry_run: boolean }) =>
+  apiClient.post<BonusPayoutsDto>(`/compensation/cycles/${id}/bonus-payouts`, body, auth);
+/** Bonus % per rating on an existing cycle (null removes it); increment % stays as it is. */
+export const setBonusGuide = (id: number, bonus: Record<string, number | null>) => apiClient.put<CycleDto>(`/compensation/cycles/${id}/bonus-guide`, { bonus }, auth);
 export const closeCycle = (id: number) => apiClient.post<CycleDto>(`/compensation/cycles/${id}/close`, {}, auth);
 
 export const listPayouts = (params: Params) =>

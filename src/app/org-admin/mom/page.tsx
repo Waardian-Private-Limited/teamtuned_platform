@@ -1,5 +1,7 @@
-import MomDashboardComponent from "@/components/mom/MomDashboard";
+'use client';
 
-export default function OrgAdminMomDashboard() {
-    return <MomDashboardComponent basePath="/org-admin/mom" />;
+import { MomDashboardPage } from '@/features/mom/components/MomDashboardPage';
+
+export default function Page() {
+  return <MomDashboardPage basePath="/org-admin/mom" mode="admin" />;
 }

@@ -1,6 +1,6 @@
 import { apiClient } from '@/lib/apiClient';
 import type { ExportJobDto } from '@/features/downloads/types/downloads.dto';
-import type { CycleReport, Pip, PipSuggestion, CalibrationSessionRow, CalibrationView, Dimensions, FeedbackForm, FeedbackToGive, FeedbackView, PersonOption as Person, ReleaseResult, ReviewDraft, ReviewView, ComputeResult, Cycle, GenerateResult, ImportResult, ScoreRow, Scorecard, Meta, Sheet, SheetOptions, SheetRow, MetricOption, Named, Paged, PersonOption, PresetMeta, PresetResult, RuleOptions, Settings, SettingsResult, Template, Kudos, KudosWall, OneOnOne, OneOnOneList, Objective, OkrTree, KrCheckin, GoalOption, NineBox, KeyPosition, Readiness } from '../types/perf.types';
+import type { PerformanceDashboard, CycleReport, Pip, PipSuggestion, CalibrationSessionRow, CalibrationView, Dimensions, FeedbackForm, FeedbackToGive, FeedbackView, PersonOption as Person, ReleaseResult, ReviewDraft, ReviewView, ComputeResult, Cycle, GenerateResult, ImportResult, ScoreRow, Scorecard, Meta, Sheet, SheetOptions, SheetRow, MetricOption, Named, Paged, PersonOption, PresetMeta, PresetResult, RuleOptions, Settings, SettingsResult, Template, Kudos, KudosWall, OneOnOne, OneOnOneList, Objective, OkrTree, KrCheckin, GoalOption, NineBox, KeyPosition, Readiness } from '../types/perf.types';
 
 const auth = { withAuth: true };
 const B = '/performance';
@@ -95,6 +95,8 @@ export const pipExtend = (id: number, body: { end_date: string; reason: string }
 export const pipClose = (id: number, body: { outcome: string; note: string }) => apiClient.post<Pip>(`${B}/pips/${id}/close`, body, auth);
 export const pipCandidates = (q: string) => apiClient.get<{ items: Person[] }>(`${B}/pips/candidates`, { q }, auth);
 
+/** HR overview of one cycle (default: the running one), the people practices around it and its pay outcome. */
+export const dashboard = (cycleId: number | null) => apiClient.get<PerformanceDashboard>(`${B}/dashboard`, cycleId ? { cycle_id: cycleId } : undefined, auth);
 export const cycleReport = (cycleId: number) => apiClient.get<CycleReport>(`${B}/cycles/${cycleId}/report`, undefined, auth);
 export const exportCycleReport = (cycleId: number) => apiClient.post<ExportJobDto>('/exports/performance-cycle-report', { cycle_id: cycleId }, auth);
 

@@ -298,3 +298,42 @@ export interface KeyPosition {
   id: number; title: string; department_id: number | null; department_name: string | null; role_id: number | null; incumbent_employee_id: number | null; incumbent_name: string | null;
   criticality: Potential; vacancy_risk: Potential; notes: string | null; status: 'active' | 'archived'; successors: Successor[]; bench: { ready_now: number; total: number };
 }
+
+// ---- dashboard ----
+
+export interface DashPerson { sheet_id: number; employee_id: number; employee_name: string; employee_code: string | null; department_name: string | null }
+export interface DashPayCycle {
+  id: number; name: string; status: string; effective_from: string | null; budget_percent: number | null; bonus_configured: boolean;
+  rating_scale: { rating: string; label: string; percent: number; bonus_percent: number | null }[];
+  summary: { proposals: number; approved: number; applied: number; pending: number; promotions: number; increase: number; increase_percent: number; budget_used_percent: number | null };
+  bonus: { payouts: number; employees: number; amount: number; by_status: { status: string; payouts: number; employees: number; amount: number }[] };
+}
+export interface PerformanceDashboard {
+  cycles: { id: number; name: string; status: CycleStatus; period_start: string; period_end: string }[];
+  cycle: CycleReport['cycle'] | null;
+  headcount?: number;
+  funnel?: { key: string; label: string; count: number; percent: number | null }[];
+  progress?: CycleReport['progress'];
+  performers?: { scored: number; average: number | null; top: (DashPerson & { score: number; band: string | null; released: boolean })[]; bottom: (DashPerson & { score: number; band: string | null; released: boolean })[] };
+  acknowledgements?: { released: number; acknowledged: number; pending: number; disputed: number; rate: number | null };
+  distribution?: CycleReport['distribution'];
+  calibration?: { guide: boolean; rated: number; within: boolean | null; off_guide: { code: string; flag: 'over' | 'under'; percent: number; target: number | null }[] };
+  heatmap?: CycleReport['heatmap'];
+  teams?: CycleReport['teams'];
+  breaks?: CycleReport['breaks'];
+  audit?: {
+    missing: (DashPerson & { reviewer_name: string | null; issue: 'goals' | 'review' | 'acknowledgement'; detail: string })[];
+    changes: { kind: 'manager_override' | 'calibration' | 'dispute_adjustment'; sheet_id: number; employee_id: number; employee_name: string; employee_code: string | null; from_band: string | null; to_band: string | null; reason: string | null; changed_by_name?: string | null; session_name?: string; changed_at: string | null }[];
+    disputes: (DashPerson & { band: string | null; ack_status: string })[];
+  };
+  pulse?: {
+    pips: { draft: number; pending_start: number; active: number; pending_outcome: number; passed: number; failed: number; cancelled: number };
+    feedback: { asked: number; submitted: number; declined: number; waiting: number; proposed: number; response_rate: number | null };
+  };
+  culture: {
+    one_on_ones: { done_30: number; done_90: number; cancelled_90: number; upcoming: number; overdue: number; managers_90: number };
+    kudos: { given_30: number; receivers_30: number; givers_30: number };
+    okrs: { objectives: number; key_results: number; average_progress: number | null; company_progress: number | null; confidence: { on_track: number; at_risk: number; off_track: number } };
+  };
+  pay?: DashPayCycle[];
+}

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ApiError, messageOf } from '@/lib/api/errors';
+import { fieldErrorsOf, messageOf } from '@/lib/api/errors';
 import { useAuth } from '@/providers/auth-provider';
 import { usePermission } from '@/lib/hooks/usePermission';
 import { Dialog } from '@/components/ui/Dialog';
@@ -15,13 +15,6 @@ import * as api from '../api/teams.api';
 import type { TeamForm } from '../api/teams.api';
 
 type Errors = Partial<Record<'name' | 'description' | 'lead_ids' | 'member_ids' | 'sub_organization_id', string>>;
-
-/** The server names the field it rejected; anything else is a message under the form. */
-function errorsOf(e: unknown): { fields: Errors; general: string } {
-  const data = e instanceof ApiError ? (e.data as { errors?: Errors; field?: string } | null) : null;
-  const fields = data?.errors || (data?.field ? { [data.field]: messageOf(e) } : null);
-  return fields && Object.keys(fields).length ? { fields, general: '' } : { fields: {}, general: messageOf(e) };
-}
 
 const toOption = (m: TeamForm['members'][number]): PersonOption => ({ id: m.employee_id, name: m.name, employee_code: m.employee_code });
 
@@ -64,7 +57,7 @@ export function TeamEditor({ id, canManage, onClose, onSaved }: { id: number | n
     try {
       onSaved(id === null ? await api.create(body) : await api.update(id, body));
     } catch (e) {
-      const r = errorsOf(e); setErrors(r.fields); setGeneral(r.general);
+      const r = fieldErrorsOf(e); setErrors(r.fields as Errors); setGeneral(r.general);
     } finally { setBusy(false); }
   };
 

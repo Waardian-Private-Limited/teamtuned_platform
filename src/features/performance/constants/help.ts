@@ -97,6 +97,24 @@ export const HELP: Record<string, PageHelp> = {
     steps: ['Look at the spread against the guide.', 'Change a rating only with a reason; every change is logged.', 'Close the session. If the guide is enforced and the spread is off, a cycle manager must give a reason.'],
     terms: [['System', 'Rating from the score.'], ['Manager', 'Rating chosen in the final review.'], ['Now', 'Rating after calibration.']],
   },
+  dashboard: {
+    title: 'Performance dashboard',
+    intro: 'One page to run and audit a review cycle: where every step stands, how ratings are spread, what was changed and why, and what the ratings turned into in pay.',
+    steps: [
+      'Pick a cycle (the running one opens first). The stepper shows its stage; the funnel shows how many people got through each step.',
+      'Ratings: the spread is compared with the calibration guide; bands over or under the guide are flagged. Departments and KPIs show as ink heat (darker = higher score).',
+      'Audit: "Missing work" lists goals, reviews and acknowledgements that are late for the stage; "Changes" lists every manager override, calibration move and dispute adjustment with its reason; "Disputes" lists open and settled disputes.',
+      'Attendance counts too: a KPI can read attendance (present rate, overtime, night OT, off-day work…). Its score feeds the rating like any other goal.',
+      'Pay outcome: link an appraisal cycle to this performance cycle (Compensation → appraisal cycle). Released ratings set the increment % and, when the rating has a bonus %, a one-time bonus paid with payroll.',
+    ],
+    terms: [
+      ['Funnel', 'People in the cycle → goals approved → review approved → released → acknowledged.'],
+      ['Override', 'The manager chose a different rating than the score gave, with a reason.'],
+      ['Calibration move', 'HR moved a rating in a calibration session, with a reason.'],
+      ['Pulse', '1:1s held, kudos given, feedback answered, PIPs and OKR progress — the habits around the rating.'],
+      ['Increment / bonus', 'From the appraisal cycle’s rating guide: increment % on CTC, bonus % on basic, gross or CTC.'],
+    ],
+  },
   report: {
     title: 'Cycle reports',
     intro: 'How far the cycle has got and how ratings and goals look across the company.',

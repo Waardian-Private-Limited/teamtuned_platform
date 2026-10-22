@@ -101,6 +101,33 @@ export interface RatingLevel {
   rating: string;
   label: string;
   percent: number;
+  /** One-time bonus this rating earns, as % of the base picked when bonus payouts are created. Absent = no bonus. */
+  bonus_percent?: number;
+}
+
+export type BonusBase = 'basic' | 'gross' | 'ctc';
+
+export interface CycleBonusSummaryDto {
+  payouts: number;
+  employees: number;
+  amount: number;
+  by_status: { status: string; payouts: number; employees: number; amount: number }[];
+}
+
+export type BonusPersonStatus = 'new' | 'already_created' | 'no_rating' | 'unknown_rating' | 'no_bonus' | 'zero_base';
+
+export interface BonusPayoutsDto {
+  dry_run: boolean;
+  base: BonusBase;
+  payout_type: string;
+  payout_month: string;
+  title: string;
+  total: number;
+  counts: Partial<Record<BonusPersonStatus, number>>;
+  groups: { rating: string; label: string | null; bonus_percent: number; amount: number; employees: number }[];
+  people: { employee_id: number; employee_name: string | null; employee_code: string | null; rating: string | null; rating_label: string | null; bonus_percent: number | null; base: number | null; amount: number; status: BonusPersonStatus }[];
+  batches?: { rating: string; batch_id: string; created: number; employees: number; status: string }[];
+  existing: CycleBonusSummaryDto;
 }
 
 export interface CycleSummaryDto {
@@ -141,6 +168,7 @@ export interface CycleDto {
   created_by: number | null;
   approved_at: string | null;
   summary?: CycleSummaryDto;
+  bonus?: CycleBonusSummaryDto;
 }
 
 export interface PayoutTypeConfig {

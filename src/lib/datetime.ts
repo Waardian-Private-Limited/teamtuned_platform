@@ -89,6 +89,33 @@ export function orgNowMinutes(tz?: string | null): number {
   return get('hour') * 60 + get('minute');
 }
 
+/** Milliseconds a zone is ahead of UTC at an instant. */
+function zoneOffsetMs(t: number, tz?: string | null): number {
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: zone(tz), year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(t));
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value || 0);
+  return Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second')) - Math.floor(t / 1000) * 1000;
+}
+
+/** A date and clock time read in the organization's zone ('yyyy-MM-dd', 'HH:mm') as an ISO instant, or null when either is invalid. */
+export function orgWallToIso(date: string, time: string, tz?: string | null): string | null {
+  const [y, mo, d] = date.split('-').map(Number);
+  const [h, mi] = time.split(':').map(Number);
+  if (![y, mo, d, h, mi].every(Number.isFinite)) return null;
+  const guess = Date.UTC(y, mo - 1, d, h, mi);
+  let result = guess - zoneOffsetMs(guess, tz);
+  const second = guess - zoneOffsetMs(result, tz);
+  if (second !== result) result = second;
+  return Number.isFinite(result) ? new Date(result).toISOString() : null;
+}
+
+/** An instant as the organization's date and clock time: { date: 'yyyy-MM-dd', time: 'HH:mm' }. */
+export function orgWallOf(iso: string | number | Date, tz?: string | null): { date: string; time: string } {
+  const t = ms(iso);
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: zone(tz), hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(t));
+  const get = (type: string) => parts.find((p) => p.type === type)?.value || '00';
+  return { date: orgDateOf(t, tz), time: `${get('hour')}:${get('minute')}` };
+}
+
 /* ------------------------------ plain dates ------------------------------ */
 
 const utcMidnight = (date: string) => new Date(`${date.slice(0, 10)}T00:00:00Z`);

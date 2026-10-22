@@ -28,3 +28,13 @@ export function isRejectedInput(err: unknown): boolean {
 export function messageOf(err: unknown): string {
   return err instanceof Error ? err.message : 'Something went wrong. Please try again.';
 }
+
+/**
+ * A rejected form: the server names the field it refused (`errors` for several, `field` for one) and the page shows
+ * the message under that field. Anything else is one plain message for the form.
+ */
+export function fieldErrorsOf(err: unknown): { fields: Record<string, string>; general: string } {
+  const data = err instanceof ApiError ? (err.data as { errors?: Record<string, string>; field?: string } | null) : null;
+  const fields = data?.errors || (data?.field ? { [data.field]: messageOf(err) } : null);
+  return fields && Object.keys(fields).length ? { fields, general: '' } : { fields: {}, general: messageOf(err) };
+}

@@ -1,5 +1,7 @@
-import MomDashboardComponent from "@/components/mom/MomDashboard";
+'use client';
 
-export default function EmployeeMomDashboard() {
-    return <MomDashboardComponent basePath="/employee/mom" />;
+import { MomDashboardPage } from '@/features/mom/components/MomDashboardPage';
+
+export default function Page() {
+  return <MomDashboardPage basePath="/employee/mom" mode="self" />;
 }

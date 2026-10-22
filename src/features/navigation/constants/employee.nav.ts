@@ -1,4 +1,5 @@
 import {
+  ShieldCheck,
   UsersRound,
   MessageSquare,
   Home,
@@ -63,6 +64,9 @@ import {
   Landmark,
   FileCheck,
   ChartPie,
+  Timer,
+  TrendingUp,
+  Gauge,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
 
@@ -115,6 +119,8 @@ export const employeeNav: NavNode[] = [
     children: [
       { kind: 'link', label: 'Approvals', href: '/employee/attendance/approvals', icon: CheckSquare },
       { kind: 'link', label: 'Dashboard', href: '/employee/attendance-dashboard', icon: BarChart3, match: 'prefix', gate: { anyPerm: ['ATTEND_VIEW', 'ATTEND_ADD', 'ATTEND_EDIT'] } },
+      { kind: 'link', label: 'Workforce Insights', href: '/employee/attendance-insights', icon: TrendingUp, match: 'prefix', gate: { anyPerm: ['ATTEND_VIEW', 'ATTEND_ADD', 'ATTEND_EDIT'] } },
+      { kind: 'link', label: 'Approval Audit', href: '/employee/attendance-approval-audit', icon: Timer, gate: { anyPerm: ['ATTEND_VIEW', 'ATTEND_ADD', 'ATTEND_EDIT'] } },
       {
         kind: 'link', label: 'Detailed Attendance', href: '/employee/attendance', icon: ClipboardList,
         activeTest: (p) => p === '/employee/attendance' || (p.startsWith('/employee/attendance/') && !p.startsWith('/employee/attendance-') && !p.startsWith('/employee/attendance/approvals')),
@@ -299,6 +305,7 @@ export const employeeNav: NavNode[] = [
   {
     kind: 'group', id: 'performance', label: 'Performance', icon: Target, gate: { feature: 'PERFORMANCE_FEATURE' },
     children: [
+      { kind: 'link', label: 'Dashboard', href: '/employee/performance/dashboard', icon: Gauge, gate: { anyPerm: ['PERF_VIEW_ALL', 'PERF_CYCLE_MANAGE', 'PERF_CONFIGURE', 'PERF_CALIBRATE'] } },
       { kind: 'link', label: 'My goals', href: '/employee/performance/my-goals', icon: Target, match: 'prefix' },
       { kind: 'link', label: 'OKRs', href: '/employee/performance/okrs', icon: Flag, match: 'prefix' },
       { kind: 'link', label: 'Team goals', href: '/employee/performance/team-goals', icon: Users, match: 'prefix' },
@@ -354,15 +361,11 @@ export const employeeNav: NavNode[] = [
   },
 
   {
-    kind: 'group', id: 'mom', label: 'Minutes of Meeting',
-    gate: {
-      anyPerm: ['MOM_VIEW', 'MOM_ADD', 'MOM_EDIT', 'MOM_DELETE', 'MOM_MEETING_VIEW', 'MOM_MEETING_CREATE', 'MOM_MEETING_EDIT', 'MOM_MEETING_DELETE', 'MOM_ADMIN', 'MOM_POINT_VIEW', 'HR_MODE'],
-      permPrefix: 'MOM_',
-    },
+    kind: 'group', id: 'mom', label: 'Minutes of Meeting', gate: { feature: 'MOM_FEATURE' },
     children: [
       { kind: 'link', label: 'Dashboard', href: '/employee/mom', icon: LayoutDashboard },
-      { kind: 'link', label: 'Overview', href: '/employee/mom/overview', icon: BarChart3, gate: { anyPerm: ['HR_MODE', 'MOM_ADMIN'] } },
-      { kind: 'link', label: 'Meeting List', href: '/employee/mom/list', icon: List },
+      { kind: 'link', label: 'Meetings', href: '/employee/mom/meetings', icon: List, match: 'prefix' },
+      { kind: 'link', label: 'Audit', href: '/employee/mom/audit', icon: ShieldCheck, match: 'prefix', gate: { perm: 'MOM_MANAGE' } },
     ],
   },
 ];

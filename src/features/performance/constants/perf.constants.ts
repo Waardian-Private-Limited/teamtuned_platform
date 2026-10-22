@@ -28,7 +28,7 @@ export const SOURCE_LABEL: Record<Source, string> = {
 };
 export const MEASURE_LABEL: Record<string, string> = {
   completed_count: 'Tasks completed', on_time_rate: 'On-time rate', avg_review_rating: 'Average review rating', avg_cycle_hours: 'Average hours to finish', time_spent_hours: 'Hours worked on tasks',
-  present_rate: 'Attendance rate', present_days: 'Days present', absent_days: 'Days absent', late_count: 'Late arrivals', late_minutes: 'Minutes late', worked_hours: 'Hours worked', overtime_hours: 'Overtime hours',
+  present_rate: 'Attendance rate', present_days: 'Days present', absent_days: 'Days absent', late_count: 'Late arrivals', late_minutes: 'Minutes late', worked_hours: 'Hours worked', overtime_hours: 'Overtime hours', night_ot_hours: 'Night OT hours', night_ot_days: 'Night OT days', off_day_worked_days: 'Days off worked', punctuality_rate: 'Punctuality', consistency_score: 'Consistency score',
   leave_days: 'Leave days', unplanned_leave_days: 'Unplanned leave days', leave_count: 'Leave applications', hires_owned: 'Hires closed', referrals_hired: 'Referrals hired',
   // Same measure name, different source: keyed source.measure.
   'tasks.late_count': 'Tasks finished late',

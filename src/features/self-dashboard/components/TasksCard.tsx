@@ -5,18 +5,18 @@ import { CheckCircle2, ListChecks } from 'lucide-react';
 import * as tm from '@/features/task-management/api/tm.api';
 import { TaskRowItem } from '@/features/task-management/components/TaskParts';
 import { useAsync } from '@/features/data-collection/hooks/useAsync';
+import type { MyWork } from '../api/selfDashboard.api';
 import { DashCard, EmptyLine, Stat } from './DashCard';
 
 const SHOWN = 5;
 
-/** My open tasks at a glance and the ones due today (organization date). */
-export function TasksCard({ today }: { today: string }) {
+/** My open tasks at a glance and the ones due today (organization date). The numbers come from the dashboard's one /me/work read. */
+export function TasksCard({ today, counts, loading, error, onRetry }: { today: string; counts: MyWork['tasks']; loading: boolean; error: string; onRetry: () => void }) {
   const router = useRouter();
-  const counts = useAsync(() => tm.counts('mine'), []);
   const due = useAsync(() => tm.listAll({ status: 'open' }, 1, 'due', 'mine', today), [today]);
-  const c = counts.data;
+  const c = counts;
   const items = due.data?.items || [];
-  const retry = () => { void counts.refetch(); void due.refetch(); };
+  const retry = () => { onRetry(); void due.refetch(); };
 
   return (
     <DashCard
@@ -24,8 +24,8 @@ export function TasksCard({ today }: { today: string }) {
       subtitle={c ? `${c.todo + c.doing} open` : null}
       icon={ListChecks}
       href="/employee/tasks"
-      loading={counts.loading && !c}
-      error={!c ? counts.error : ''}
+      loading={loading && !c}
+      error={!c ? error : ''}
       onRetry={retry}
     >
       {c && (

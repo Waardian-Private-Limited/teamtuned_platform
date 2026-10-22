@@ -16,7 +16,7 @@ export interface TaskRow {
 
 export interface ActivityRow {
   id: number; kind: 'created' | 'comment' | 'status' | 'assign' | 'edit' | 'attachment'; body: string | null;
-  meta: { action?: string; from?: string; to?: string; attachments?: Attachment[]; assignee?: number } | null; created_at: string; actor_name: string | null;
+  meta: { action?: string; from?: string; to?: string; attachments?: Attachment[]; assignee?: number; from_name?: string | null; to_name?: string | null } | null; created_at: string; actor_name: string | null;
 }
 
 /** A Performance goal the task counts toward. */

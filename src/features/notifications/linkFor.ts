@@ -32,7 +32,9 @@ const PAGES: Record<string, Record<Area, Page>> = {
   'recruitment.interview': both('/employee/my-interviews', '/org-admin/recruitment'),
   'recruitment.review': both('/employee/my-reviews', '/org-admin/recruitment'),
   'recruitment.referrals': both('/employee/refer', '/org-admin/recruitment/referral-rewards'),
-  'meeting.point': both('/employee/mom', '/org-admin/mom'),
+  'meeting.home': both('/employee/mom', '/org-admin/mom'),
+  'meeting.detail': both((p) => `/employee/mom/meetings/${p.id}`, (p) => `/org-admin/mom/meetings/${p.id}`),
+  'meeting.point': both((p) => `/employee/mom/meetings/${p.id}?point=${p.point_id}`, (p) => `/org-admin/mom/meetings/${p.id}?point=${p.point_id}`),
   // `tab` picks the page: my goals, team goals, 360 feedback, improvement plans.
   'learning': both((p) => `/employee/learning?tab=${p.tab === 'team' ? 'team' : 'mine'}`, (p) => `/org-admin/learning?tab=${p.tab === 'team' ? 'team' : 'mine'}`),
   'surveys': both('/employee/surveys', '/org-admin/surveys'),

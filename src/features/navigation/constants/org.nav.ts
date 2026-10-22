@@ -1,4 +1,5 @@
 import {
+  ShieldCheck,
   UsersRound,
   MessageSquare,
   LayoutDashboard,
@@ -65,6 +66,9 @@ import {
   Landmark,
   FileCheck,
   ChartPie,
+  Timer,
+  TrendingUp,
+  Gauge,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
 
@@ -91,6 +95,8 @@ export const orgNav: NavNode[] = [
     kind: 'group', id: 'attendance', label: 'Attendance',
     children: [
       { kind: 'link', label: 'Dashboard', href: '/org-admin/attendance/dashboard', icon: LayoutDashboard },
+      { kind: 'link', label: 'Workforce Insights', href: '/org-admin/attendance/insights', icon: TrendingUp, match: 'prefix' },
+      { kind: 'link', label: 'Approval Audit', href: '/org-admin/attendance/approval-audit', icon: Timer },
       { kind: 'link', label: 'Detailed Attendance', href: '/org-admin/attendance/employee', icon: UserCheck },
       { kind: 'link', label: 'Approvals', href: '/org-admin/attendance/approvals', icon: CheckSquare },
       { kind: 'link', label: 'Holidays', href: '/org-admin/holidays', icon: Calendar },
@@ -227,6 +233,7 @@ export const orgNav: NavNode[] = [
   {
     kind: 'group', id: 'performance', label: 'Performance', icon: Target, gate: { feature: 'PERFORMANCE_FEATURE' },
     children: [
+      { kind: 'link', label: 'Dashboard', href: '/org-admin/performance/dashboard', icon: Gauge },
       { kind: 'link', label: 'OKRs', href: '/org-admin/performance/okrs', icon: Flag, match: 'prefix' },
       { kind: 'link', label: 'Team goals', href: '/org-admin/performance/team-goals', icon: Users, match: 'prefix' },
       { kind: 'link', label: 'Feedback to give', href: '/org-admin/performance/feedback', icon: MessageSquare, match: 'prefix' },
@@ -286,11 +293,11 @@ export const orgNav: NavNode[] = [
     ],
   },
   {
-    kind: 'group', id: 'mom', label: 'Minutes of Meeting',
+    kind: 'group', id: 'mom', label: 'Minutes of Meeting', gate: { feature: 'MOM_FEATURE' },
     children: [
-      { kind: 'link', label: 'Dashboard', href: '/org-admin/mom', icon: LayoutDashboard },
-      { kind: 'link', label: 'Overview', href: '/org-admin/mom/overview', icon: BarChart3 },
-      { kind: 'link', label: 'Meeting List', href: '/org-admin/mom/list', icon: List },
+      { kind: 'link', label: 'Team actions', href: '/org-admin/mom', icon: LayoutDashboard },
+      { kind: 'link', label: 'Meetings', href: '/org-admin/mom/meetings', icon: List, match: 'prefix' },
+      { kind: 'link', label: 'Audit', href: '/org-admin/mom/audit', icon: ShieldCheck, match: 'prefix' },
     ],
   },
   {

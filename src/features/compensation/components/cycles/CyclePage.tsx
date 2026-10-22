@@ -21,6 +21,7 @@ import { Empty, Panel, Stat, Toolbar, td, th } from '../shared/Panel';
 import { SearchBox } from '../shared/SearchBox';
 import { StatusBadge } from '../shared/StatusBadge';
 import { SalaryHistoryDrawer } from '../SalaryHistoryDrawer';
+import { BonusPanel } from './BonusPanel';
 
 interface Draft {
   rating?: string;
@@ -180,11 +181,13 @@ export function CyclePage({ cycleId, basePath }: { cycleId: number; basePath: st
         </div>
       )}
 
+      {cycle && (perms.edit || perms.add) && <BonusPanel cycle={cycle} canEdit={perms.edit} canCreate={perms.add} onChanged={loadCycle} />}
+
       <Panel>
         <Toolbar>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <SearchBox value={q.searchInput} onChange={q.setSearchInput} placeholder="Search employee…" />
-            <p className="text-[11px] text-fg-muted">Guide: {scale.map((r) => `${r.rating}=${r.percent}%`).join(' · ')}</p>
+            <p className="text-[11px] text-fg-muted">Guide: {scale.map((r) => `${r.rating}=${r.percent}%${r.bonus_percent ? ` +${r.bonus_percent}% bonus` : ''}`).join(' · ')}</p>
           </div>
         </Toolbar>
         {q.loading ? (

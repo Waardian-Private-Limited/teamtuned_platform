@@ -1311,7 +1311,7 @@ export function DprMultiStepForm({ task, onClose, onSave, onSubmit, submitting, 
         setLoadingDiscussion(true);
         setShowDiscussionId(pointId);
         try {
-            const res = await apiClient.get<any>(`/organization/mom/point/discussion/${pointId}`, undefined, { withAuth: true });
+            const res = await apiClient.get<any>(`/dps-schedule/mom-points/${pointId}/discussion`, undefined, { withAuth: true });
             setDiscussionMessages(res?.messages || []);
         } catch (err) {
             console.error('Failed to fetch discussion', err);

@@ -12,6 +12,7 @@ import { TM_FEATURE } from '@/features/task-management/constants/tm.constants';
 import * as api from '../api/selfDashboard.api';
 import { CycleCard } from './CycleCard';
 import { FormsCard } from './FormsCard';
+import { MomCard } from './MomCard';
 import { PayslipCard } from './PayslipCard';
 import { RequestsCard } from './RequestsCard';
 import { TasksCard } from './TasksCard';
@@ -40,23 +41,30 @@ export function SelfDashboardPage() {
   const features = useMemo(() => new Set((organization?.organization_features || []).map((f) => f.code)), [organization]);
   const snapshot = useAsync(() => api.getSnapshot(), []);
   const cycle = useAsync(() => api.getCycle(), []);
+  // Tasks and meeting-action numbers in one read for both cards.
+  const work = useAsync(() => api.getWork(), []);
   const month = useMemo(() => (cycle.data ? toMonth(cycle.data) : null), [cycle.data]);
   const today = orgToday(tz);
 
   const { refetch: refetchSnapshot } = snapshot;
+  const { refetch: refetchWork } = work;
   useEffect(() => {
     let last = Date.now();
     const onVisible = () => {
       if (document.visibilityState !== 'visible' || Date.now() - last < STALE_MS) return;
       last = Date.now();
       void refetchSnapshot();
+      void refetchWork();
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [refetchSnapshot]);
+  }, [refetchSnapshot, refetchWork]);
 
-  const showTasks = features.has(TM_FEATURE);
+  // A card earns its place: the feature is on and the person has something there or may create or manage it.
+  const showTasks = features.has(TM_FEATURE) && work.data?.tasks?.show !== false;
   const showForms = features.has(DC_FEATURE);
+  const showMom = features.has('MOM_FEATURE') && work.data?.mom?.show !== false;
+  const workCards = [showTasks, showMom, showForms].filter(Boolean).length;
   const showPay = features.has(PAYROLL_FEATURE);
 
   return (
@@ -84,9 +92,10 @@ export function SelfDashboardPage() {
       <CycleCard month={month} period={cycle.data?.period || null} loading={cycle.loading} error={cycle.error} onRetry={() => void cycle.refetch()} />
 
       {/* Work waiting on me comes before the reference cards below it. */}
-      {(showTasks || showForms) && (
-        <div className={showTasks && showForms ? 'grid grid-cols-1 gap-4 sm:gap-5 xl:grid-cols-2' : 'grid grid-cols-1'}>
-          {showTasks && <TasksCard today={today} />}
+      {workCards > 0 && (
+        <div className={workCards === 1 ? 'grid grid-cols-1' : workCards === 2 ? 'grid grid-cols-1 gap-4 sm:gap-5 xl:grid-cols-2' : 'grid grid-cols-1 gap-4 sm:gap-5 xl:grid-cols-2 2xl:grid-cols-3'}>
+          {showTasks && <TasksCard today={today} counts={work.data?.tasks ?? null} loading={work.loading} error={work.error} onRetry={() => void work.refetch()} />}
+          {showMom && <MomCard counts={work.data?.mom ?? null} tz={tz} loading={work.loading} error={work.error} onRetry={() => void work.refetch()} />}
           {showForms && <FormsCard />}
         </div>
       )}

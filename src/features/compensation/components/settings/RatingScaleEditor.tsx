@@ -10,14 +10,22 @@ export function RatingScaleEditor({ value, onChange, error }: { value: RatingLev
   const set = (i: number, patch: Partial<RatingLevel>) => onChange(value.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
   return (
     <div>
-      <FieldLabel label="Rating → increment guide" aside={<span className="mb-1.5 text-[11px] text-fg-muted">Default % per rating</span>} />
+      <FieldLabel label="Rating → increment and bonus guide" aside={<span className="mb-1.5 text-[11px] text-fg-muted">Increment % · bonus % (optional)</span>} />
       <div className="space-y-2">
         {value.map((r, i) => (
-          <div key={i} className="grid grid-cols-[4rem_1fr_6rem_auto] items-center gap-2">
+          <div key={i} className="grid grid-cols-[4rem_1fr_5.5rem_5.5rem_auto] items-center gap-2">
             <input className={cell} value={r.rating} onChange={(e) => set(i, { rating: e.target.value.slice(0, 20) })} aria-label="Rating code" />
             <input className={cell} value={r.label} onChange={(e) => set(i, { label: e.target.value.slice(0, 60) })} aria-label="Rating label" />
             <div className="relative">
               <input className={cell} inputMode="decimal" value={String(r.percent)} onChange={(e) => set(i, { percent: Number(e.target.value.replace(/[^\d.-]/g, '')) || 0 })} aria-label="Increment percent" />
+              <span className="pointer-events-none absolute right-2.5 top-2 text-xs text-fg-muted">%</span>
+            </div>
+            <div className="relative">
+              <input className={cell} inputMode="decimal" placeholder="Bonus" value={r.bonus_percent === undefined ? '' : String(r.bonus_percent)} aria-label="Bonus percent"
+                onChange={(e) => {
+                  const v = e.target.value.replace(/[^\d.]/g, '');
+                  set(i, { bonus_percent: v === '' ? undefined : Number(v) || 0 });
+                }} />
               <span className="pointer-events-none absolute right-2.5 top-2 text-xs text-fg-muted">%</span>
             </div>
             <button type="button" aria-label="Remove level" onClick={() => onChange(value.filter((_, idx) => idx !== i))} disabled={value.length <= 1} className="rounded p-1.5 text-fg-muted hover:bg-bg-subtle disabled:opacity-30">

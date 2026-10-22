@@ -10,6 +10,14 @@ const PERMISSION_REACH_DAYS = 60;
 // Everything is the signed-in employee's own: the server reads who is asking from the token.
 export const getSnapshot = () => apiClient.get<SnapshotDto>('/attendance/me/snapshot', undefined, auth);
 export const getCycle = () => apiClient.get<CycleResponseDto>('/attendance-records/me/cycle', undefined, auth);
+/** My task and meeting-action numbers in one read; a section is null when its feature is off. */
+export interface MyWork {
+  today: string;
+  /** `show`: false when there is nothing there and the person may not create or manage it, so the card is left out. */
+  tasks: { todo: number; doing: number; review: number; overdue: number; show: boolean } | null;
+  mom: { open: number; overdue: number; week: number; signoff: number; next_meeting: { id: number; title: string; starts_at: string; status: string; place: string | null } | null; show: boolean } | null;
+}
+export const getWork = () => apiClient.get<MyWork>('/me/work', undefined, auth);
 export const getUpcoming = () => apiClient.get<UpcomingDto>('/attendance/me/upcoming', undefined, auth);
 
 export const pendingLeave = () => apiClient.get<RequestsPageDto>('/leave/me/requests', { status: 'pending', page: 1, pageSize: 10 }, auth);
