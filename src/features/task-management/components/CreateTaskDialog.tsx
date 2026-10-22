@@ -14,7 +14,7 @@ import { useAsync } from '@/features/data-collection/hooks/useAsync';
 import type { Attachment } from '@/features/data-collection/types/dc.types';
 import * as api from '../api/tm.api';
 import { PRIORITIES, PRIORITY_LABEL, TM_PERMISSIONS } from '../constants/tm.constants';
-import type { AssignKind, CreateInput, PersonOption, Priority } from '../types/tm.types';
+import type { AssignKind, CreateInput, GoalOption, PersonOption, Priority } from '../types/tm.types';
 import { PersonPicker } from './PersonPicker';
 
 const KINDS = [{ value: 'employees', label: 'People' }, { value: 'site', label: 'Site' }, { value: 'department', label: 'Department' }, { value: 'role', label: 'Role' }] as const;
@@ -56,6 +56,8 @@ export function CreateTaskDialog({ open, presetDue, onClose, onCreated }: { open
   const [review, setReview] = useState(false);
   const [reviewer, setReviewer] = useState<PersonOption[]>([]);
   const [formId, setFormId] = useState<number | null>(null);
+  const [goalId, setGoalId] = useState<number | null>(null);
+  const [goals, setGoals] = useState<GoalOption[]>([]);
   const [files, setFiles] = useState<Attachment[]>([]);
   const [kind, setKind] = useState<AssignKind>('employees');
   const [people, setPeople] = useState<PersonOption[]>([]);
@@ -79,6 +81,13 @@ export function CreateTaskDialog({ open, presetDue, onClose, onCreated }: { open
 
   const assignIds = !canAssign ? (meId ? [meId] : []) : kind === 'employees' ? people.map((p) => p.id) : ids;
   const count = !canAssign ? 1 : kind === 'employees' ? people.length : null;
+  // A task for one person can count toward one of their goals (Performance), when they have any.
+  const single = assignIds.length === 1 && (!canAssign || kind === 'employees') ? assignIds[0] : null;
+  useEffect(() => {
+    setGoalId(null);
+    if (!single) { setGoals([]); return; }
+    api.optionGoals(single).then((d) => setGoals(d.items)).catch(() => setGoals([]));
+  }, [single]);
 
   const submit = async () => {
     const local: Errs = {};
@@ -89,7 +98,7 @@ export function CreateTaskDialog({ open, presetDue, onClose, onCreated }: { open
     if (Object.keys(local).length) return;
     const body: CreateInput = {
       title: title.trim(), description: description.trim() || undefined, priority, labels, checklist, requires_review: review,
-      reviewer_employee_id: review ? reviewer[0]?.id ?? null : null, form_id: formId, attachments: files,
+      reviewer_employee_id: review ? reviewer[0]?.id ?? null : null, form_id: formId, attachments: files, goal_item_id: single ? goalId : null,
       due_at: dueDate ? new Date(`${dueDate}T${dueTime || '00:00'}`).toISOString() : null,
       assign: canAssign ? { kind, ids: assignIds, ...(kind === 'department' || kind === 'role' ? { site_ids: siteFilter } : {}) } : { kind: 'employees', ids: assignIds },
     };
@@ -158,6 +167,14 @@ export function CreateTaskDialog({ open, presetDue, onClose, onCreated }: { open
             {labels.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{labels.map((l) => <span key={l} className="inline-flex items-center gap-1 rounded-full border border-line bg-bg-subtle py-0.5 pl-2.5 pr-1 text-xs font-semibold">{l}<button type="button" aria-label={`Remove ${l}`} onClick={() => setLabels(labels.filter((x) => x !== l))} className="rounded-full p-0.5 hover:bg-line"><X className="h-3 w-3" /></button></span>)}</div>}
           </div>
         </div>
+
+        {goals.length > 0 && (
+          <Labeled label="Counts toward goal" hint="Pick one of their goals; a goal measured from linked tasks counts this task when it is done.">
+            <select className={inputCls()} value={goalId ?? ''} onChange={(e) => setGoalId(e.target.value ? Number(e.target.value) : null)}>
+              <option value="">No goal</option>{goals.map((g) => <option key={g.id} value={g.id}>{g.name}{g.kra_name ? ` (${g.kra_name})` : ''} · {g.cycle_name}{g.counts_tasks ? ' · counts tasks' : ''}</option>)}
+            </select>
+          </Labeled>
+        )}
 
         {canAssign && <>
         <Labeled label="Required data" hint="The assignee fills this form when finishing the task.">

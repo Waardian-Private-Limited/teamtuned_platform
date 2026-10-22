@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CalendarClock, Clock, Download, MapPin, Paperclip, Send, Star, User, UserCheck } from 'lucide-react';
+import { AlertTriangle, CalendarClock, Clock, Download, MapPin, Paperclip, Send, Star, Target, User, UserCheck } from 'lucide-react';
 import { Drawer } from '@/components/ui/Drawer';
 import { ConfirmDialog, type ConfirmState } from '@/components/ui/ConfirmDialog';
 import { messageOf, ApiError } from '@/lib/api/errors';
@@ -163,6 +163,12 @@ export function TaskDrawer({ id, onClose, onChanged }: { id: number | null; onCl
                     <input type="checkbox" disabled={!canCheck} checked={c.done} onChange={(e) => void toggle(c.id, e.target.checked)} className="mt-0.5 h-4 w-4 accent-black" />
                     <span className={c.done ? 'text-fg-muted line-through' : 'text-fg'}>{c.text}</span></label></li>
                 ))}</ul>
+              </Card>
+            )}
+
+            {data.goal && (
+              <Card title="Counts toward goal" subtitle={data.goal.cycle_name}>
+                <p className="flex items-center gap-1.5 text-sm font-semibold text-fg"><Target className="h-4 w-4 text-fg-muted" />{data.goal.name}</p>
               </Card>
             )}
 

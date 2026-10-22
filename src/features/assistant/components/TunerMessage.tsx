@@ -1,5 +1,21 @@
+import Link from 'next/link';
 import { cx } from '@/theme/tokens';
 import type { ChatMessage } from '../types/assistant.types';
+
+// App paths Tuner mentions ("/employee/leave") become links; everything else stays plain text.
+const APP_PATH = /(\/(?:employee|org-admin|org|superadmin)(?:\/[A-Za-z0-9\-_]+)*)/g;
+
+function withLinks(text: string) {
+  return text.split(APP_PATH).map((part, i) =>
+    i % 2 === 1 ? (
+      <Link key={i} href={part} className="font-medium underline underline-offset-2">
+        {part}
+      </Link>
+    ) : (
+      part
+    )
+  );
+}
 
 export function TunerMessage({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user';
@@ -14,7 +30,7 @@ export function TunerMessage({ message }: { message: ChatMessage }) {
             : 'bg-bg-subtle text-fg'
         )}
       >
-        {message.text}
+        {isUser ? message.text : withLinks(message.text)}
       </div>
     </div>
   );

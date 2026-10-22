@@ -2,6 +2,8 @@ import { apiClient } from '@/lib/apiClient';
 import type {
   CompEmployeeDto,
   CycleDto,
+  LinkablePerformanceCycleDto,
+  PerformanceImportDto,
   CycleSummaryDto,
   GratuityCalcDto,
   GratuityRowDto,
@@ -11,6 +13,9 @@ import type {
   SettingsResponseDto,
   BonusRowDto,
   CompensationSettings,
+  BenchmarkDto,
+  MarketImportDto,
+  MarketSurveyDto,
 } from '../types/compensation.dto';
 
 const auth = { withAuth: true };
@@ -44,6 +49,11 @@ export const listProposals = (id: number, params: Params) =>
 export const updateProposals = (id: number, items: Record<string, unknown>[]) =>
   apiClient.put<{ updated: number; summary: CycleSummaryDto }>(`/compensation/cycles/${id}/proposals`, { items }, auth);
 export const applyRatings = (id: number) => apiClient.post<{ updated: number; summary: CycleSummaryDto }>(`/compensation/cycles/${id}/apply-ratings`, {}, auth);
+export const performanceCycles = () => apiClient.get<{ cycles: LinkablePerformanceCycleDto[] }>('/compensation/performance-cycles', undefined, auth);
+export const linkPerformanceCycle = (id: number, performanceCycleId: number | null) =>
+  apiClient.put<CycleDto>(`/compensation/cycles/${id}/performance-link`, { performance_cycle_id: performanceCycleId }, auth);
+export const importPerformanceRatings = (id: number, apply: boolean) =>
+  apiClient.post<PerformanceImportDto>(`/compensation/cycles/${id}/import-performance-ratings`, { apply }, auth);
 export const submitCycle = (id: number) => apiClient.post<CycleDto>(`/compensation/cycles/${id}/submit`, {}, auth);
 export const approveCycle = (id: number) => apiClient.post<CycleDto>(`/compensation/cycles/${id}/approve`, {}, auth);
 export const closeCycle = (id: number) => apiClient.post<CycleDto>(`/compensation/cycles/${id}/close`, {}, auth);
@@ -68,3 +78,9 @@ export const createGratuityPayout = (body: Record<string, unknown>) =>
   apiClient.post<{ amount: number; payout_month: string }>('/compensation/gratuity/payout', body, auth);
 
 export const listRoles = () => apiClient.get<{ id: number; name: string }[]>('/organization/roles', undefined, auth);
+
+// salary benchmarking
+export const marketSurveys = () => apiClient.get<{ surveys: MarketSurveyDto[] }>('/compensation/market-surveys', undefined, auth);
+export const importMarketSurvey = (body: { name: string; source?: string; effective_date: string; currency?: string; rows: Record<string, string>[] }) => apiClient.post<MarketImportDto>('/compensation/market-surveys', body, auth);
+export const deleteMarketSurvey = (id: number) => apiClient.delete<{ ok: true }>(`/compensation/market-surveys/${id}`, auth);
+export const marketBenchmark = (q: { survey_id?: number | null; band?: string; search?: string }) => apiClient.get<BenchmarkDto>('/compensation/market-benchmark', q as Params, auth);

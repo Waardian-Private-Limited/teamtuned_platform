@@ -19,7 +19,11 @@ export interface ActivityRow {
   meta: { action?: string; from?: string; to?: string; attachments?: Attachment[]; assignee?: number } | null; created_at: string; actor_name: string | null;
 }
 
+/** A Performance goal the task counts toward. */
+export interface TaskGoal { id: number; name: string; cycle_name: string; sheet_id: number }
+export interface GoalOption { id: number; name: string; kra_name: string | null; cycle_name: string; counts_tasks: boolean }
 export interface TaskDetail extends TaskRow {
+  goal: TaskGoal | null;
   attachments: Attachment[];
   checklist: { id: number; text: string; done: boolean }[];
   activity: ActivityRow[];
@@ -41,6 +45,8 @@ export type AssignKind = 'employees' | 'site' | 'department' | 'role';
 export interface CreateInput {
   title: string; description?: string; priority: Priority; due_at?: string | null; labels: string[]; checklist: string[];
   requires_review: boolean; reviewer_employee_id?: number | null; form_id?: number | null; attachments: Attachment[];
+  /** One of the assignee's goals this task counts toward (single assignee only). */
+  goal_item_id?: number | null;
   assign: { kind: AssignKind; ids: number[]; site_ids?: number[] };
 }
 

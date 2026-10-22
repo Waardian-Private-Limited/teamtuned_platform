@@ -28,4 +28,6 @@ export const PUBLIC_ROUTES = [
   '/careers',
   '/vendor',
   '/biometric',
+  // 360 feedback from people outside the company: /feedback/[token]
+  '/feedback',
 ];

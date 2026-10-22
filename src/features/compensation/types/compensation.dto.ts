@@ -29,6 +29,8 @@ export interface EmployeeRef {
 
 export interface RevisionDto {
   id: number;
+  /** Market range from the newest salary survey, on appraisal proposals only. */
+  market?: { p25: number | null; p50: number; p75: number | null; compa_before: number | null; compa_after: number | null };
   employee: EmployeeRef;
   sub_organization_id: number | null;
   appraisal_cycle_id: number | null;
@@ -133,6 +135,7 @@ export interface CycleDto {
   };
   rating_scale: RatingLevel[];
   budget_percent: number | null;
+  performance_cycle_id: number | null;
   status: CycleStatus;
   proposals?: number;
   created_by: number | null;
@@ -259,3 +262,35 @@ export interface GratuityCalcDto {
   cap: number;
   monthly_provision: number;
 }
+
+export interface LinkablePerformanceCycleDto {
+  id: number;
+  name: string;
+  status: string;
+  released: number;
+}
+
+export interface PerformanceImportDto {
+  performance_cycle: { id: number; name: string; status: string };
+  imported: number;
+  applied: number;
+  without_rating: number;
+  unmatched_bands: { band: string; employees: number }[];
+  scale_codes: string[];
+  summary: CycleSummaryDto;
+}
+
+// ---- salary benchmarking ----
+
+export interface MarketSurveyDto { id: number; sub_organization_id: number | null; name: string; source: string | null; effective_date: string; currency: string; row_count: number }
+export type MarketBand = 'below_p25' | 'p25_p50' | 'p50_p75' | 'above_p75';
+export interface MarketRangeDto { job: string; level: string | null; location: string | null; p10: number | null; p25: number | null; p50: number; p75: number | null; p90: number | null }
+export interface BenchmarkRowDto {
+  employee_id: number; name: string; employee_code: string | null; designation: string | null; role_name: string | null; grade: string | null; location: string | null;
+  department_name: string | null; ctc: number | null; matched_on: string | null; market: MarketRangeDto | null; compa_ratio: number | null; band: MarketBand | null;
+}
+export interface BenchmarkDto {
+  survey: MarketSurveyDto | null; rows: BenchmarkRowDto[];
+  summary: { total: number; bands: Record<MarketBand | 'unmatched', number>; median_compa_ratio: number | null };
+}
+export interface MarketImportDto { survey: MarketSurveyDto; saved: number; error_count: number; errors: { row: number; message: string }[] }

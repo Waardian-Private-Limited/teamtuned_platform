@@ -1,10 +1,11 @@
 import {
-  Home,
+  MessageSquare,
   LayoutDashboard,
   UserCheck,
   Settings,
   Calendar,
   ListChecks,
+  Target,
   ClipboardList,
   Clock,
   AlertCircle,
@@ -44,9 +45,12 @@ import {
   Wrench,
   Navigation,
   Route,
-  User,
   CalendarCheck,
-  TreePalm,
+  MessagesSquare,
+  GraduationCap,
+  Grid3x3,
+  Flag,
+  Heart,
   Tags,
   Smartphone,
   CalendarClock,
@@ -81,16 +85,7 @@ import type { NavNode } from '../types/nav.model';
  *    group here.
  */
 export const orgNav: NavNode[] = [
-  {
-    kind: 'group', id: 'self', label: 'Self', icon: User,
-    children: [
-      { kind: 'link', label: 'Dashboard', href: '/org-admin', icon: Home },
-      { kind: 'link', label: 'My Attendance', href: '/org-admin/my-attendance', icon: CalendarCheck },
-      { kind: 'link', label: 'My Leave', href: '/org-admin/my-leave', icon: TreePalm },
-      { kind: 'link', label: 'Approvals', href: '/org-admin/approvals', icon: Inbox, match: 'prefix' },
-      { kind: 'link', label: 'My tasks', href: '/org-admin/tasks', icon: ListChecks, gate: { feature: 'TASK_MANAGEMENT_FEATURE' } },
-    ],
-  },
+  { kind: 'link', label: 'Approvals', href: '/org-admin/approvals', icon: Inbox, match: 'prefix' },
   {
     kind: 'group', id: 'attendance', label: 'Attendance',
     children: [
@@ -227,6 +222,22 @@ export const orgNav: NavNode[] = [
       { kind: 'link', label: 'All tasks', href: '/org-admin/tasks/list', icon: List },
     ],
   },
+  {
+    kind: 'group', id: 'performance', label: 'Performance', icon: Target, gate: { feature: 'PERFORMANCE_FEATURE' },
+    children: [
+      { kind: 'link', label: 'OKRs', href: '/org-admin/performance/okrs', icon: Flag, match: 'prefix' },
+      { kind: 'link', label: 'Team goals', href: '/org-admin/performance/team-goals', icon: Users, match: 'prefix' },
+      { kind: 'link', label: 'Feedback to give', href: '/org-admin/performance/feedback', icon: MessageSquare, match: 'prefix' },
+      { kind: 'link', label: 'One-on-ones', href: '/org-admin/performance/one-on-ones', icon: CalendarCheck, match: 'prefix' },
+      { kind: 'link', label: 'Kudos', href: '/org-admin/performance/kudos', icon: Heart, match: 'prefix' },
+      { kind: 'link', label: 'Improvement plans', href: '/org-admin/performance/improvement-plans', icon: ClipboardList, match: 'prefix' },
+      { kind: 'link', label: 'Talent', href: '/org-admin/performance/talent', icon: Grid3x3, match: 'prefix' },
+      { kind: 'link', label: 'Cycles', href: '/org-admin/performance/cycles', icon: CalendarRange, match: 'prefix' },
+      { kind: 'link', label: 'Setup', href: '/org-admin/performance', icon: Settings },
+    ],
+  },
+  { kind: 'link', label: 'Learning', href: '/org-admin/learning', icon: GraduationCap, match: 'prefix', gate: { feature: 'LEARNING_FEATURE' } },
+  { kind: 'link', label: 'Surveys', href: '/org-admin/surveys', icon: MessagesSquare, match: 'prefix', gate: { feature: 'ENGAGEMENT_FEATURE' } },
   {
     kind: 'group', id: 'dpr', label: 'DPR',
     children: [

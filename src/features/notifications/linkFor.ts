@@ -12,12 +12,14 @@ const both = (employee: string | Page, orgAdmin: string | Page): Record<Area, Pa
   'org-admin': typeof orgAdmin === 'function' ? orgAdmin : () => orgAdmin,
 });
 
+const PERF_PAGE: Record<string, string> = { goals: 'my-goals', team: 'team-goals', feedback: 'feedback', plans: 'improvement-plans', kudos: 'kudos', one_on_ones: 'one-on-ones', okrs: 'okrs', talent: 'talent' };
+
 const PAGES: Record<string, Record<Area, Page>> = {
   'notifications': both('/employee/notifications', '/org-admin/notifications'),
-  'leave.mine': both('/employee/leave', '/org-admin/my-leave'),
+  'leave.mine': both('/employee/leave', '/org-admin/leave'),
   'leave.review': both('/employee/leave-requests', '/org-admin/leave'),
-  'compoff.mine': both('/employee/leave', '/org-admin/my-leave'),
-  'regularize.mine': both('/employee/my-attendance', '/org-admin/my-attendance'),
+  'compoff.mine': both('/employee/leave', '/org-admin/leave'),
+  'regularize.mine': both('/employee/my-attendance', '/org-admin/attendance/approvals'),
   'regularize.review': both('/employee/approvals', '/org-admin/approvals'),
   'holiday.list': both('/employee/holidays', '/org-admin/holidays'),
   'advance.list': both('/employee/my-advances', '/org-admin/salary-advance'),
@@ -31,6 +33,10 @@ const PAGES: Record<string, Record<Area, Page>> = {
   'recruitment.review': both('/employee/my-reviews', '/org-admin/recruitment'),
   'recruitment.referrals': both('/employee/refer', '/org-admin/recruitment/referral-rewards'),
   'meeting.point': both('/employee/mom', '/org-admin/mom'),
+  // `tab` picks the page: my goals, team goals, 360 feedback, improvement plans.
+  'learning': both((p) => `/employee/learning?tab=${p.tab === 'team' ? 'team' : 'mine'}`, (p) => `/org-admin/learning?tab=${p.tab === 'team' ? 'team' : 'mine'}`),
+  'surveys': both('/employee/surveys', '/org-admin/surveys'),
+  'performance': both((p) => `/employee/performance/${PERF_PAGE[p.tab ?? ''] ?? 'my-goals'}`, (p) => `/org-admin/performance/${p.tab === 'goals' ? 'team-goals' : PERF_PAGE[p.tab ?? ''] ?? 'team-goals'}`),
   'employee.detail': both(
     (p) => `/employee/employee-management${p.id ? `/${p.id}` : ''}`,
     (p) => `/org-admin/employees${p.id ? `/${p.id}` : ''}`

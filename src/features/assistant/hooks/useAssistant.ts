@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
 import { getAssistantConfig, sendTurn, startNewSession } from '../api/assistant.api';
 import { messageOf } from '@/lib/api/errors';
@@ -14,6 +15,8 @@ function uid() {
 
 export function useAssistant() {
   const { isAuthenticated, loading: authLoading } = useAuth();
+  const pathname = usePathname();
+  const page = pathname && /^\/[A-Za-z0-9\-_/[\]]{0,200}$/.test(pathname) ? pathname : undefined;
 
   const [config, setConfig] = useState<ConfigResponse | null>(null);
   const [configLoaded, setConfigLoaded] = useState(false);
@@ -85,7 +88,7 @@ export function useAssistant() {
       setMessages((prev) => [...prev, { id: uid(), role: 'user', text: trimmed }]);
       try {
         const sid = await ensureSessionId();
-        const res = await sendTurn({ sessionId: sid, text: trimmed });
+        const res = await sendTurn({ sessionId: sid, text: trimmed, page });
         setMessages((prev) => [...prev, { id: uid(), role: 'assistant', text: res.reply, status: res.status }]);
         setPending(res.status === 'needs_confirmation' ? res : null);
       } catch (err) {
@@ -94,7 +97,7 @@ export function useAssistant() {
         setSending(false);
       }
     },
-    [sending, ensureSessionId]
+    [sending, ensureSessionId, page]
   );
 
   const confirm = useCallback(
@@ -102,7 +105,7 @@ export function useAssistant() {
       if (sending || !sessionId) return;
       setSending(true);
       try {
-        const res = await sendTurn({ sessionId, confirm: answer });
+        const res = await sendTurn({ sessionId, confirm: answer, page });
         setMessages((prev) => [...prev, { id: uid(), role: 'assistant', text: res.reply, status: res.status }]);
         setPending(res.status === 'needs_confirmation' ? res : null);
       } catch (err) {
@@ -111,7 +114,7 @@ export function useAssistant() {
         setSending(false);
       }
     },
-    [sending, sessionId]
+    [sending, sessionId, page]
   );
 
   const startNewChat = useCallback(async () => {

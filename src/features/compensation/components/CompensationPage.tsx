@@ -12,6 +12,7 @@ import { PayoutsTab } from './payouts/PayoutsTab';
 import { StatutoryBonusTab } from './benefits/StatutoryBonusTab';
 import { GratuityTab } from './benefits/GratuityTab';
 import { SettingsTab } from './settings/SettingsTab';
+import { MarketPayTab } from './market/MarketPayTab';
 import { SalaryHistoryDrawer } from './SalaryHistoryDrawer';
 
 export function CompensationPage() {
@@ -46,6 +47,7 @@ export function CompensationPage() {
       {tab === 'payouts' && <PayoutsTab perms={perms} payoutTypes={catalog?.payout_types || []} allTypes={catalog?.all_payout_types || []} onOpenHistory={setHistoryId} />}
       {tab === 'bonus' && <StatutoryBonusTab canAdd={perms.add} rules={settings.data?.settings.statutoryBonus || null} />}
       {tab === 'gratuity' && <GratuityTab canAdd={perms.add} rules={settings.data?.settings.gratuity || null} />}
+      {tab === 'market' && <MarketPayTab canEdit={perms.edit} canDelete={perms.remove} onOpenHistory={setHistoryId} />}
       {tab === 'settings' && settings.data && <SettingsTab data={settings.data} canEdit={perms.edit} onSaved={settings.reload} />}
       <SalaryHistoryDrawer employeeId={historyId} onClose={() => setHistoryId(null)} />
     </div>

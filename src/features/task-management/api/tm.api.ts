@@ -1,6 +1,6 @@
 import { apiClient } from '@/lib/apiClient';
 import type { Attachment, Values } from '@/features/data-collection/types/dc.types';
-import type { ScopeCounts, CalendarData, CreateInput, DashboardData, BoardColumn, Filters, MineResult, PersonOption, Scope, TaskAction, TaskDetail, TaskOptions, TaskRow } from '../types/tm.types';
+import type { ScopeCounts, CalendarData, CreateInput, DashboardData, BoardColumn, Filters, MineResult, PersonOption, Scope, TaskAction, TaskDetail, TaskOptions, TaskRow, GoalOption } from '../types/tm.types';
 
 const auth = { withAuth: true };
 const B = '/tasks';
@@ -25,6 +25,7 @@ export const reassign = (id: number, employeeId: number) => apiClient.post<TaskD
 export const removeTask = (id: number) => apiClient.delete<{ deleted: boolean }>(`${B}/${id}`, auth);
 export const getOptions = () => apiClient.get<TaskOptions>(`${B}/options`, undefined, auth);
 export const searchPeople = (q: string, ids?: number[]) => apiClient.get<{ items: PersonOption[] }>(`${B}/options/employees`, clean({ q, ids: ids?.join(',') }), auth);
+export const optionGoals = (employeeId: number) => apiClient.get<{ items: GoalOption[] }>(`${B}/options/goals`, { employee_id: employeeId }, auth);
 export const optionForms = () => apiClient.get<{ items: { id: number; name: string }[] }>(`${B}/options/forms`, undefined, auth);
 export const uploadAttachment = (file: File | Blob) => {
   const fd = new FormData();

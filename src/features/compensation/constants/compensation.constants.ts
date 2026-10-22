@@ -11,6 +11,7 @@ export const TABS = [
   { value: 'payouts', label: 'Bonus & payouts' },
   { value: 'bonus', label: 'Statutory bonus' },
   { value: 'gratuity', label: 'Gratuity' },
+  { value: 'market', label: 'Market pay' },
   { value: 'settings', label: 'Settings' },
 ] as const;
 

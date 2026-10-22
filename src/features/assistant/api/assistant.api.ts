@@ -5,7 +5,8 @@ export function getAssistantConfig() {
   return apiClient.get<ConfigResponse>('/assistant/config', undefined, { withAuth: true });
 }
 
-export function sendTurn(input: { sessionId: string; text?: string; confirm?: boolean }) {
+/** `page` is the path the user has open, so Tuner understands "this page". */
+export function sendTurn(input: { sessionId: string; text?: string; confirm?: boolean; page?: string }) {
   return apiClient.post<TurnResponse>('/assistant/turn', input, { withAuth: true });
 }
 

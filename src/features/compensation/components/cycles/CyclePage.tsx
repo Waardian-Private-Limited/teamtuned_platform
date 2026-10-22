@@ -13,7 +13,7 @@ import { cx } from '@/theme/tokens';
 import * as api from '../../api/compensation.api';
 import { COMP_PERMISSIONS } from '../../constants/compensation.constants';
 import { usePagedQuery } from '../../hooks/usePagedQuery';
-import type { CycleDto, RevisionDto } from '../../types/compensation.dto';
+import type { CycleDto, LinkablePerformanceCycleDto, PerformanceImportDto, RevisionDto } from '../../types/compensation.dto';
 import { date, inr, pct } from '../../utils/format';
 import { Btn } from '../shared/Buttons';
 import { ConfirmDialog, type ConfirmState } from '../shared/ConfirmDialog';
@@ -50,9 +50,13 @@ export function CyclePage({ cycleId, basePath }: { cycleId: number; basePath: st
   const [busy, setBusy] = React.useState<string | null>(null);
   const [confirm, setConfirm] = React.useState<ConfirmState | null>(null);
   const [historyId, setHistoryId] = React.useState<number | null>(null);
+  const [perfCycles, setPerfCycles] = React.useState<LinkablePerformanceCycleDto[]>([]);
+  const [imported, setImported] = React.useState<PerformanceImportDto | null>(null);
 
   const loadCycle = React.useCallback(() => api.getCycle(cycleId).then(setCycle).catch((e) => setError(messageOf(e))), [cycleId]);
   React.useEffect(() => { loadCycle(); }, [loadCycle]);
+
+  React.useEffect(() => { api.performanceCycles().then((r) => setPerfCycles(r.cycles)).catch(() => setPerfCycles([])); }, []);
 
   const q = usePagedQuery<RevisionDto>(async ({ page, pageSize, search }) => {
     const res = await api.listProposals(cycleId, { page, pageSize, search });
@@ -142,6 +146,40 @@ export function CyclePage({ cycleId, basePath }: { cycleId: number; basePath: st
         </div>
       )}
 
+      {(perfCycles.length > 0 || cycle?.performance_cycle_id) && (
+        <div className="rounded-xl border border-line bg-surface p-3 sm:p-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0 sm:max-w-md sm:flex-1">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-fg-muted">Performance ratings</p>
+              <select
+                disabled={!editable || busy !== null}
+                value={cycle?.performance_cycle_id ?? ''}
+                onChange={(e) => { setImported(null); run('link', () => api.linkPerformanceCycle(cycleId, e.target.value ? Number(e.target.value) : null), e.target.value ? 'Performance cycle linked' : 'Link removed'); }}
+                className="mt-1 h-9 w-full rounded-lg border border-line bg-surface px-3 text-sm text-fg disabled:bg-bg-subtle disabled:opacity-60"
+              >
+                <option value="">Not linked</option>
+                {perfCycles.map((p) => <option key={p.id} value={p.id}>{p.name} · {p.released} released</option>)}
+              </select>
+              <p className="mt-1 text-[11px] text-fg-muted">Only released ratings are used. Ratings must use the same codes as the guide below.</p>
+            </div>
+            {editable && cycle?.performance_cycle_id && (
+              <div className="flex flex-wrap gap-2">
+                <Btn busy={busy === 'import'} onClick={() => run('import', async () => setImported(await api.importPerformanceRatings(cycleId, false)), 'Ratings copied')}>Copy ratings only</Btn>
+                <Btn variant="primary" icon={<Sparkles className="h-3.5 w-3.5" />} busy={busy === 'import'} onClick={() => run('import', async () => setImported(await api.importPerformanceRatings(cycleId, true)), 'Ratings imported and guide % applied')}>Import and apply</Btn>
+              </div>
+            )}
+          </div>
+          {imported && (
+            <div className="mt-3 space-y-1.5 text-xs text-fg">
+              <p>{imported.imported} rated from “{imported.performance_cycle.name}”{imported.applied ? `, ${imported.applied} increments set` : ''}. {imported.without_rating} proposal{imported.without_rating === 1 ? ' has' : 's have'} no released rating.</p>
+              {imported.unmatched_bands.length > 0 && (
+                <Alert tone="error" message={`Not in this cycle's guide (${imported.scale_codes.join(', ')}): ${imported.unmatched_bands.map((b) => `${b.band} (${b.employees})`).join(', ')}. Change the guide or the rating, then import again.`} />
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <Panel>
         <Toolbar>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -184,7 +222,7 @@ export function CyclePage({ cycleId, basePath }: { cycleId: number; basePath: st
                           <span className="block text-[11px] text-fg-muted">{[r.employee.employee_code, r.previous_designation].filter(Boolean).join(' · ')}</span>
                         </button>
                       </td>
-                      <td className={td}>{inr(r.previous_ctc)}</td>
+                      <td className={td}>{inr(r.previous_ctc)}{r.market && <span className="block text-[11px] text-fg-muted" title={`Market median ${inr(r.market.p50)}`}>Compa {r.market.compa_before?.toFixed(2) ?? '—'}</span>}</td>
                       <td className={td}>
                         <select
                           className={cellInput}
@@ -205,6 +243,7 @@ export function CyclePage({ cycleId, basePath }: { cycleId: number; basePath: st
                       </td>
                       <td className={cx(td, 'font-semibold whitespace-nowrap')}>
                         {inr(liveCtc)} <span className="text-[11px] font-normal text-fg-muted">{pct(livePercent)}</span>
+                        {r.market && liveCtc ? <span className="block text-[11px] font-normal text-fg-muted">Compa {(liveCtc / r.market.p50).toFixed(2)}</span> : null}
                       </td>
                       <td className={td}>
                         <input className={cellInput} disabled={!rowEditable} value={d.designation ?? r.new_designation ?? ''} placeholder="Same designation" onChange={(e) => setDraft(r.id, { designation: e.target.value.slice(0, 255) })} />

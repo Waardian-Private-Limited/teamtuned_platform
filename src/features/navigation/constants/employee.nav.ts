@@ -1,4 +1,5 @@
 import {
+  MessageSquare,
   Home,
   Building2,
   MapPin,
@@ -20,6 +21,7 @@ import {
   Users,
   LayoutDashboard,
   ListChecks,
+  Target,
   LayoutGrid,
   Wallet,
   Receipt,
@@ -38,6 +40,11 @@ import {
   Wrench,
   CalendarDays,
   CalendarCheck,
+  MessagesSquare,
+  GraduationCap,
+  Grid3x3,
+  Flag,
+  Heart,
   User,
   TreePalm,
   UserRound,
@@ -95,6 +102,8 @@ export const employeeNav: NavNode[] = [
       { kind: 'link', label: 'Tax declaration', href: '/employee/my-tax', icon: Landmark, gate: { taxEligible: true } },
       { kind: 'link', label: 'My insurance', href: '/employee/my-insurance', icon: HeartPulse, gate: { feature: 'INSURANCE_FEATURE' } },
       { kind: 'link', label: 'Refer a candidate', href: '/employee/refer', icon: Share2, match: 'prefix' },
+      { kind: 'link', label: 'Learning', href: '/employee/learning', icon: GraduationCap, match: 'prefix', gate: { feature: 'LEARNING_FEATURE' } },
+      { kind: 'link', label: 'Surveys', href: '/employee/surveys', icon: MessagesSquare, match: 'prefix', gate: { feature: 'ENGAGEMENT_FEATURE' } },
       { kind: 'link', label: 'My profile', href: '/employee/my-profile', icon: UserRound },
     ],
   },
@@ -282,6 +291,22 @@ export const employeeNav: NavNode[] = [
     children: [
       { kind: 'link', label: 'Dashboard', href: '/employee/tasks/dashboard', icon: LayoutDashboard },
       { kind: 'link', label: 'All tasks', href: '/employee/tasks/list', icon: List },
+    ],
+  },
+
+  {
+    kind: 'group', id: 'performance', label: 'Performance', icon: Target, gate: { feature: 'PERFORMANCE_FEATURE' },
+    children: [
+      { kind: 'link', label: 'My goals', href: '/employee/performance/my-goals', icon: Target, match: 'prefix' },
+      { kind: 'link', label: 'OKRs', href: '/employee/performance/okrs', icon: Flag, match: 'prefix' },
+      { kind: 'link', label: 'Team goals', href: '/employee/performance/team-goals', icon: Users, match: 'prefix' },
+      { kind: 'link', label: 'Feedback to give', href: '/employee/performance/feedback', icon: MessageSquare, match: 'prefix' },
+      { kind: 'link', label: 'One-on-ones', href: '/employee/performance/one-on-ones', icon: CalendarCheck, match: 'prefix' },
+      { kind: 'link', label: 'Kudos', href: '/employee/performance/kudos', icon: Heart, match: 'prefix' },
+      { kind: 'link', label: 'Improvement plans', href: '/employee/performance/improvement-plans', icon: ClipboardList, match: 'prefix' },
+      { kind: 'link', label: 'Talent', href: '/employee/performance/talent', icon: Grid3x3, match: 'prefix', gate: { anyPerm: ['PERF_TALENT_MANAGE'] } },
+      { kind: 'link', label: 'Cycles', href: '/employee/performance/cycles', icon: CalendarRange, match: 'prefix', gate: { anyPerm: ['PERF_CYCLE_MANAGE', 'PERF_VIEW_ALL', 'PERF_CONFIGURE', 'PERF_CALIBRATE'] } },
+      { kind: 'link', label: 'Setup', href: '/employee/performance', icon: Settings, gate: { anyPerm: ['PERF_CONFIGURE', 'PERF_VIEW_ALL', 'PERF_CYCLE_MANAGE'] } },
     ],
   },
 
