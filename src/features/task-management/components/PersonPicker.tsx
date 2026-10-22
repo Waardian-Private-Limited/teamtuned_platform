@@ -6,8 +6,11 @@ import { inputCls } from '@/features/data-collection/components/shared/Ui';
 import * as api from '../api/tm.api';
 import type { PersonOption } from '../types/tm.types';
 
-/** Search-as-you-type employee picker. `multiple` keeps a list of chips; otherwise the choice replaces the previous one. */
-export function PersonPicker({ value, onChange, multiple = false, placeholder = 'Search by name or code', invalid }: { value: PersonOption[]; onChange: (v: PersonOption[]) => void; multiple?: boolean; placeholder?: string; invalid?: boolean }) {
+/**
+ * Search-as-you-type employee picker. `multiple` keeps a list of chips; otherwise the choice replaces the previous one.
+ * `search` decides who can be found (task people by default).
+ */
+export function PersonPicker({ value, onChange, multiple = false, placeholder = 'Search by name or code', invalid, search = api.searchPeople }: { value: PersonOption[]; onChange: (v: PersonOption[]) => void; multiple?: boolean; placeholder?: string; invalid?: boolean; search?: (q: string) => Promise<{ items: PersonOption[] }> }) {
   const [q, setQ] = useState('');
   const [items, setItems] = useState<PersonOption[]>([]);
   const [open, setOpen] = useState(false);
@@ -17,10 +20,10 @@ export function PersonPicker({ value, onChange, multiple = false, placeholder = 
     if (!open) return undefined;
     const t = setTimeout(() => {
       const mine = (seq.current += 1);
-      api.searchPeople(q).then((r) => { if (mine === seq.current) setItems(r.items); }).catch(() => { if (mine === seq.current) setItems([]); });
+      search(q).then((r) => { if (mine === seq.current) setItems(r.items); }).catch(() => { if (mine === seq.current) setItems([]); });
     }, 200);
     return () => clearTimeout(t);
-  }, [q, open]);
+  }, [q, open, search]);
 
   const pick = (p: PersonOption) => {
     onChange(multiple ? [...value.filter((v) => v.id !== p.id), p] : [p]);

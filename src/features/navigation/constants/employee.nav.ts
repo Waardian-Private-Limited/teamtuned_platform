@@ -1,4 +1,5 @@
 import {
+  UsersRound,
   MessageSquare,
   Home,
   Building2,
@@ -93,6 +94,7 @@ export const employeeNav: NavNode[] = [
       { kind: 'link', label: 'My forms', href: '/employee/data-collection/my', icon: ClipboardList, match: 'prefix', gate: { feature: 'DATA_COLLECTION_FEATURE' } },
       { kind: 'link', label: 'My Attendance', href: '/employee/my-attendance', icon: CalendarCheck },
       { kind: 'link', label: 'My Leave', href: '/employee/leave', icon: TreePalm, match: 'prefix' },
+      { kind: 'link', label: 'Teams', href: '/employee/teams', icon: UsersRound, match: 'prefix' },
       { kind: 'link', label: 'My interviews', href: '/employee/my-interviews', icon: CalendarClock, match: 'prefix', gate: { recruitmentRole: 'interviewer' } },
       { kind: 'link', label: 'My reviews', href: '/employee/my-reviews', icon: ClipboardCheck, match: 'prefix', gate: { recruitmentRole: 'reviewer' } },
       // Hiring managers without recruitment permissions: their own positions (the page defaults to "Mine").

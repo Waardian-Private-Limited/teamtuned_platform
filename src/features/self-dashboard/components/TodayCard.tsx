@@ -76,9 +76,10 @@ export function TodayCard({ data, loading, error, onRetry }: { data: SnapshotDto
       loading={loading && !data}
       error={!data ? error : ''}
       onRetry={onRetry}
+      className="h-full"
     >
       {s && (
-        <div className="flex flex-col gap-5 md:flex-row md:items-center">
+        <div className="flex flex-col gap-5">
           <div className="flex min-w-0 flex-1 items-center gap-4 sm:gap-6">
             <Ring worked={s.workedMinutes} expected={s.expectedMinutes} />
             <div className="min-w-0">
@@ -112,7 +113,7 @@ export function TodayCard({ data, loading, error, onRetry }: { data: SnapshotDto
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-2 md:w-[22rem] md:grid-cols-1 lg:w-[30rem] lg:grid-cols-3">
+          <div className="grid grid-cols-3 gap-2">
             <Fact icon={LogIn} label="In" value={s.inAt ? formatTime(s.inAt, tz) : '—'} tone={s.lateMinutes > 0 ? 'bad' : undefined} />
             <Fact icon={LogOut} label="Out" value={s.outAt ? formatTime(s.outAt, tz) : '—'} />
             <Fact icon={Timer} label="Ends" value={s.expectedEndAt ? formatTime(s.expectedEndAt, tz) : '—'} />

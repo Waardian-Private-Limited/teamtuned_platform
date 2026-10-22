@@ -1,4 +1,5 @@
 import {
+  UsersRound,
   MessageSquare,
   LayoutDashboard,
   UserCheck,
@@ -155,6 +156,7 @@ export const orgNav: NavNode[] = [
       { kind: 'link', label: 'Employee Onboarding', href: '/org-admin/employee-onboarding', icon: UserPlus },
       { kind: 'link', label: 'Onboarding Settings', href: '/org-admin/onboarding-settings', icon: Cog },
       { kind: 'link', label: 'Departments', href: '/org-admin/departments', icon: Building },
+      { kind: 'link', label: 'Teams', href: '/org-admin/teams', icon: UsersRound, match: 'prefix' },
       { kind: 'link', label: 'Roles', href: '/org-admin/roles', icon: UserCog },
       { kind: 'link', label: 'Grades / Bands', href: '/org-admin/grades', icon: Layers },
       { kind: 'link', label: 'Cost Centres', href: '/org-admin/cost-centres', icon: ChartPie },
