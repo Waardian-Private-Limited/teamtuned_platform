@@ -4,7 +4,7 @@ import { cx } from '@/theme/tokens';
 import * as api from '../../api/reimbursement.api';
 import type { FundRequest } from '../../types/reimbursement.model';
 import { dateText, money } from '../../utils/format';
-import { FileChip, useLinkOpener } from './FileLinks';
+import { FileChip, useLinkOpener } from '@/features/expense-bills/components/FileLinks';
 import { FundStatusPill } from './StatusBadges';
 
 interface FundRequestListProps {

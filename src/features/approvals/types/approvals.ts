@@ -21,6 +21,8 @@ export interface FlowStep {
   quorum: number | null;
   when: Condition[] | null;
   ifNobody: 'skip' | 'org_admins';
+  /** Petty cash: what this step's approvers must do before approving. */
+  receives?: { goods?: boolean; paper?: boolean };
 }
 
 export interface FlowSla { remindAfterHours: number; escalateAfterHours?: number }
@@ -57,6 +59,8 @@ export interface RequestTypeDef {
   permissionOptions: { code: string; label: string }[];
   approverTypes: { type: string; label: string }[];
   scopeDimensions: Dimension[];
+  /** Actions a step can be marked with (petty cash: `goods`, `paper`). */
+  stepActions?: string[];
   facts: FactDef[];
   global?: boolean;
 }
@@ -96,6 +100,13 @@ export interface TaskView {
 export interface RegularizationTime { recorded: string | null; asked: string | null; current: string | null; editable: boolean }
 export interface RegularizationTrailStep { by: 'employee' | 'approver'; name: string | null; step: string | null; at: string | null; in_time: string | null; out_time: string | null }
 
+/** One punch behind an attendance request: when, where, what failed, and whether it has a selfie and a map point. */
+export interface PunchEvidence {
+  id: number | null; kind: 'work' | 'night_ot'; direction: 'in' | 'out'; time: string; place: string | null;
+  lat: number | null; lng: number | null; accuracy_m: number | null; has_image: boolean; voided: boolean;
+  outside: boolean; distance_m: number | null; issues: string[]; reason: string | null; review_state: string;
+}
+
 export interface RequestDetail {
   id: number; requestType: string; typeLabel: string; subjectId: number; status: RequestStatus;
   requester: { id: number; name: string } | null;
@@ -110,8 +121,10 @@ export interface RequestDetail {
     times?: { in: RegularizationTime; out: RegularizationTime };
     /** Regularization: who set the times, oldest first (the employee's ask, then each approver's correction). */
     trail?: RegularizationTrailStep[];
+    /** Attendance requests: the day's punches with place, map point and selfie, as in the attendance popup. */
+    punches?: PunchEvidence[];
     /** A type-specific form the approver fills in; its values go back as `extra` when approving. */
-    decision_form?: { kind: string; advance_id?: number; claim_id?: number; fund_request_id?: number; amount?: number; files?: Array<{ index: number; name?: string | null }> };
+    decision_form?: { kind: string; advance_id?: number; claim_id?: number; fund_request_id?: number; expense_id?: number; amount?: number; physical?: { status: string; required: boolean; blocks_decision: boolean; step?: { name: string | null; current: boolean } | null }; inward?: { required: boolean; status: string; blocks_decision: boolean; step?: { name: string | null; current: boolean } | null; numbering?: 'auto' | 'typed'; numbers: string[]; lines?: Array<{ line: number; name: string; unit: string | null; ordered: number; received: number; pending: number; numbers?: Array<{ inward_no: string; qty: number }> }> }; files?: Array<{ index: number; name?: string | null }> };
   } | null;
   createdAt: string; decidedAt: string | null;
   actions: { decide: boolean; sendBack: boolean; withdraw: boolean; resubmit: boolean; override: boolean; reassign: boolean };

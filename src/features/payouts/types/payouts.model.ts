@@ -33,7 +33,7 @@ export interface PayoutFigure {
 
 export interface PayoutOverview {
   month: string;
-  toPay: { salary: PayoutFigure; advance: PayoutFigure; reimbursement: PayoutFigure; walletFund: PayoutFigure; referral: PayoutFigure; total: PayoutFigure };
+  toPay: { salary: PayoutFigure; advance: PayoutFigure; reimbursement: PayoutFigure; walletFund: PayoutFigure; pettyCashFund: PayoutFigure; referral: PayoutFigure; total: PayoutFigure };
   failed: PayoutFigure;
   paidThisMonth: PayoutFigure;
 }

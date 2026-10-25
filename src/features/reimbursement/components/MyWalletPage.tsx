@@ -19,7 +19,7 @@ import type { FundRequest } from '../types/reimbursement.model';
 import { money } from '../utils/format';
 import { AskFundsDialog } from './components/AskFundsDialog';
 import { ConfirmDialog } from './components/ClaimDialogs';
-import { DateRange } from './components/DateRange';
+import { DateRange } from '@/features/expense-bills/components/DateRange';
 import { ExportStatementDialog } from './components/ExportDialogs';
 import { FundRequestList } from './components/FundRequestList';
 import { LedgerList } from './components/LedgerList';

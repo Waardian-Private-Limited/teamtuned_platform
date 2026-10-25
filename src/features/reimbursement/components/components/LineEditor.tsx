@@ -9,14 +9,14 @@ import type { UploadScope } from '../../api/reimbursement.api';
 import { MAX_LINE_FILES, categoryIcon } from '../../constants/reimbursement.constants';
 import { amountMatchesBill } from '../../types/reimbursement.mapper';
 import type { Bill, Category, ClaimPreviewLine, LineInput } from '../../types/reimbursement.model';
-import { emptyItem, hasBillHeader, isEmptyItem, newManualBill, syncManualTotals, withServerCheck, withoutBillNotes } from '../../utils/bill';
+import { emptyItem, hasBillHeader, isEmptyItem, newManualBill, syncManualTotals, withServerCheck, withoutBillNotes } from '@/features/expense-bills/utils/bill';
 import { lineKey } from '../../utils/errors';
 import { dateText, money, parseDecimal } from '../../utils/format';
-import { AiMarker } from './BillPanel';
-import { BillItemsEditor } from './BillItems';
+import { AiMarker } from '@/features/expense-bills/components/BillPanel';
+import { BillItemsEditor } from '@/features/expense-bills/components/BillItems';
 import { FlagList } from './StatusBadges';
 import { ReceiptPicker } from './ReceiptPicker';
-import { ReceiptViewer, type ReceiptFile } from './ReceiptViewer';
+import { ReceiptViewer, type ReceiptFile } from '@/features/expense-bills/components/ReceiptViewer';
 
 const NOT_ON_RECEIPT = 'Not found on the bill. Fill it in.';
 

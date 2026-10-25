@@ -77,8 +77,8 @@ export function MeetingPage({ id, basePath }: { id: number; basePath: string }) 
   return (
     <div className="flex min-h-0 flex-col gap-3 overflow-y-auto pb-6">
       <PageHead
-        title={<>{back}{m.title}<StatusPill label={status.label} tone={status.tone} /></>}
-        subtitle={[when, m.place, m.organizer_name && `Organized by ${m.organizer_name}`].filter(Boolean).join(' · ')}
+        title={<>{back}{m.title}{m.source === 'dpr' ? <StatusPill label="Site month (DPR)" tone="neutral" /> : <StatusPill label={status.label} tone={status.tone} />}</>}
+        subtitle={m.source === 'dpr' ? 'Kept by the daily progress report: the actions this site’s reports raised this month. Work them here like any action.' : [when, m.place, m.organizer_name && `Organized by ${m.organizer_name}`].filter(Boolean).join(' · ')}
         actions={
           <>
             <Btn variant="secondary" icon={Download} onClick={download}>Minutes PDF</Btn>

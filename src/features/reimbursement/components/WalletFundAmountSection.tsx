@@ -4,7 +4,7 @@ import React from 'react';
 import { TextField } from '@/components/ui/FormControls';
 import { money } from '@/features/salary-slips/utils/format';
 import * as api from '../api/reimbursement.api';
-import { FileChip, useLinkOpener } from './components/FileLinks';
+import { FileChip, useLinkOpener } from '@/features/expense-bills/components/FileLinks';
 
 function cleanAmount(raw: string) {
   return raw.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1');

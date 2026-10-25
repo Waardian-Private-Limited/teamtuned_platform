@@ -63,6 +63,105 @@ export interface RevisionDto {
   decided_at: string | null;
   applied_at: string | null;
   created_at: string | null;
+  /** Appraisal proposals only: what Performance says about this row now. */
+  flags?: ProposalFlag[];
+  performance?: ProposalPerformanceDto | null;
+  /** The manager's assessment, on proposals of manager-rated cycles. */
+  manager_review?: ManagerAssessmentDto | null;
+}
+
+/** Who rates an appraisal cycle. */
+export type RatingSource = 'performance' | 'manager' | 'hr';
+export type ManagerReviewStatus = 'not_started' | 'open' | 'closed';
+
+export interface ManagerAssessmentDto {
+  evaluator: { id: number; name: string | null };
+  rating: string | null;
+  comment: string | null;
+  recommended_percent: number | null;
+  recommend_promotion: boolean;
+  proposed_designation: string | null;
+  status: 'pending' | 'draft' | 'submitted';
+  submitted_at: string | null;
+  rated_by_hr: boolean;
+}
+
+export interface ManagerProgressDto {
+  evaluator_employee_id: number;
+  name: string | null;
+  total: number;
+  rated: number;
+  submitted: number;
+  pending: number;
+  done: boolean;
+}
+
+export interface ManagerReviewSummaryDto {
+  managers: ManagerProgressDto[];
+  totals: { managers: number; managers_done: number; managers_pending: number; people: number; people_submitted: number; people_pending: number };
+  /** Proposals no manager rates (no active reporting manager when the review was sent). */
+  with_hr: number;
+}
+
+export interface RatingUploadDto {
+  saved: number;
+  error_count: number;
+  errors: { row: number; message: string }[];
+  summary: CycleSummaryDto;
+}
+
+/** A manager's view of one open appraisal: names and ratings only, never pay. */
+export interface TeamAppraisalPersonDto {
+  revision_id: number;
+  employee: { id: number; name: string; employee_code: string | null; designation: string | null; department: string | null };
+  rating: string | null;
+  comment: string | null;
+  recommended_percent: number | null;
+  recommend_promotion: boolean;
+  proposed_designation: string | null;
+  status: 'pending' | 'draft' | 'submitted';
+  submitted_at: string | null;
+}
+
+export interface TeamAppraisalDto {
+  id: number;
+  name: string;
+  period_start: string;
+  period_end: string;
+  due_date: string | null;
+  scale: { rating: string; label: string }[];
+  comment_required: string[];
+  total: number;
+  rated: number;
+  submitted: number;
+  done: boolean;
+  people: TeamAppraisalPersonDto[];
+}
+
+export type ProposalFlag = 'rating_changed' | 'differs' | 'disputed' | 'promotion_ready' | 'on_pip';
+
+export interface ProposalPerformanceDto {
+  /** Rating in Performance now (combined across linked cycles). */
+  band: string | null;
+  /** Rating the last import copied. */
+  imported: string | null;
+  cycles: number;
+  method: 'final' | 'average' | 'latest' | null;
+  box: number | null;
+  box_name: string | null;
+}
+
+export interface RatingCheckDto {
+  linked: number;
+  counts: Record<ProposalFlag, number>;
+  without_rating: number;
+  blocking: { rating_changed: number; disputed: number; any: boolean };
+}
+
+export interface RatingSyncDto {
+  changed: boolean;
+  added: string[];
+  removed: string[];
 }
 
 export interface PayoutDto {
@@ -163,6 +262,18 @@ export interface CycleDto {
   rating_scale: RatingLevel[];
   budget_percent: number | null;
   performance_cycle_id: number | null;
+  /** Performance cycles the ratings come from, oldest first. */
+  performance_cycle_ids: number[];
+  rating_source: RatingSource;
+  review: { status: ManagerReviewStatus; due_date: string | null; sent_at: string | null; closed_at: string | null };
+  manager_review?: ManagerReviewSummaryDto | null;
+  /** Only after send / close. */
+  review_sent?: { added: number; notified: number };
+  review_closed?: { copied: number; not_submitted: number };
+  performance_cycles?: { id: number; name: string; status: string; period_start: string; period_end: string }[];
+  rating_check?: RatingCheckDto;
+  /** Only on create / link / sync: how the guide changed to match Performance's ratings. */
+  rating_sync?: RatingSyncDto | null;
   status: CycleStatus;
   proposals?: number;
   created_by: number | null;
@@ -199,12 +310,6 @@ export interface CompensationSettings {
     wageComponents: string[];
   };
   payoutTypes: PayoutTypeConfig[];
-  letters: {
-    includeStructure: boolean;
-    signatory: string;
-    increment: { title: string; body: string };
-    promotion: { title: string; body: string };
-  };
   ratingScale: RatingLevel[];
 }
 
@@ -214,7 +319,6 @@ export interface SettingsResponseDto {
   settings: CompensationSettings;
   defaults: CompensationSettings;
   catalog: {
-    letter_placeholders: string[];
     revision_types: { value: string; label: string }[];
     payout_types: { value: string; label: string; taxable: boolean }[];
     all_payout_types: { value: string; label: string }[];
@@ -295,11 +399,16 @@ export interface LinkablePerformanceCycleDto {
   id: number;
   name: string;
   status: string;
+  period_start: string;
+  period_end: string;
   released: number;
 }
 
 export interface PerformanceImportDto {
   performance_cycle: { id: number; name: string; status: string };
+  performance_cycles: { id: number; name: string; status: string }[];
+  /** Rated in fewer of the linked cycles than were linked. */
+  partial: number;
   imported: number;
   applied: number;
   without_rating: number;

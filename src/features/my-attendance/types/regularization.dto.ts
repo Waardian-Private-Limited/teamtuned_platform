@@ -37,6 +37,8 @@ export interface RegularizationOptionsDto {
     leave: { units: number } | null;
     recorded_in_time: string | null;
     recorded_out_time: string | null;
+    recorded_night_in_time?: string | null;
+    recorded_night_out_time?: string | null;
     shift_start_time: string | null;
     shift_end_time: string | null;
     late_mark: boolean;

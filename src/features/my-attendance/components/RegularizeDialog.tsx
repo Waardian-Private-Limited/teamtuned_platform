@@ -46,7 +46,9 @@ export function RegularizeDialog({ date, onClose, onDone }: Props) {
   const timeKinds = o ? o.kinds.filter(isTimeKind) : [];
   const waivers = o ? o.kinds.filter((k) => !isTimeKind(k)) : [];
   const offDay = !!o && o.day.dayType !== 'working' && o.kinds.includes('missed_both');
-  const startsAt = r.needsIn ? r.inTime : o?.day.recordedIn ?? '';
+  const recordedStart = r.night ? o?.day.recordedNightIn : o?.day.recordedIn;
+  const recordedEnd = r.night ? o?.day.recordedNightOut : o?.day.recordedOut;
+  const startsAt = r.needsIn ? r.inTime : recordedStart ?? '';
   const overnight = r.needsOut && r.outTime !== '' && startsAt !== '' && r.outTime <= startsAt;
 
   const pick = (file: File | null) => {
@@ -106,11 +108,11 @@ export function RegularizeDialog({ date, onClose, onDone }: Props) {
                   </div>
                   {(r.needsIn || r.needsOut) && (
                     <div className="mt-3 grid grid-cols-2 gap-3">
-                      {r.needsIn && <TimeField label="Check-in time" value={r.inTime} recorded={o.day.recordedIn} onChange={r.setInTime} />}
-                      {r.needsOut && <TimeField label="Check-out time" value={r.outTime} recorded={o.day.recordedOut} onChange={r.setOutTime} />}
+                      {r.needsIn && <TimeField label={r.night ? 'Night OT start' : 'Check-in time'} value={r.inTime} recorded={recordedStart ?? null} onChange={r.setInTime} />}
+                      {r.needsOut && <TimeField label={r.night ? 'Night OT end' : 'Check-out time'} value={r.outTime} recorded={recordedEnd ?? null} onChange={r.setOutTime} />}
                     </div>
                   )}
-                  {overnight && <p className="mt-1.5 text-xs text-fg-muted">Check-out falls on the next day</p>}
+                  {overnight && <p className="mt-1.5 text-xs text-fg-muted">{r.night ? 'Night OT end' : 'Check-out'} falls on the next day</p>}
                 </section>
               )}
 

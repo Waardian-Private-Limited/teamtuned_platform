@@ -15,6 +15,7 @@ import { CYCLE_STATUS_LABEL } from '../../constants/perf.constants';
 import { fmt } from '../../lib';
 import type { DashPayCycle, PerformanceDashboard } from '../../types/perf.types';
 import { btnClass, Card, PageHead, StageStepper, Stat, Table, td } from '../ui';
+import { AppraisalLinkActions } from './AppraisalLinkActions';
 
 const inr = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 const pctText = (n: number | null | undefined) => (n === null || n === undefined ? '—' : `${fmt(n, 1)}%`);
@@ -109,6 +110,7 @@ function PayCycle({ c, base }: { c: DashPayCycle; base: string }) {
         <div><p className="text-[11px] text-fg-muted">Budget used</p><p className={cx('text-sm font-bold', (s.budget_used_percent ?? 0) > 100 ? 'text-[var(--tt-danger)]' : 'text-fg')}>{s.budget_used_percent === null ? 'No budget' : pctText(s.budget_used_percent)}</p></div>
         <div><p className="text-[11px] text-fg-muted">Bonus</p><p className="text-sm font-bold text-fg">{c.bonus.payouts ? inr(c.bonus.amount) : c.bonus_configured ? 'Not created' : 'No bonus guide'}</p><p className="text-[11px] text-fg-muted">{c.bonus.payouts ? `${c.bonus.employees} people · ${c.bonus.by_status.map((b) => `${b.payouts} ${b.status}`).join(', ')}` : ' '}</p></div>
       </div>
+      {c.performance_cycle_ids.length > 1 && <p className="mt-2 text-[11px] text-fg-muted">Averages ratings from {c.performance_cycle_ids.length} performance cycles.</p>}
       <p className="mt-2 truncate text-[11px] text-fg-muted">Guide: {c.rating_scale.map((r) => `${r.rating} → +${r.percent}%${r.bonus_percent ? `, ${r.bonus_percent}% bonus` : ''}`).join(' · ')}</p>
     </div>
   );
@@ -132,6 +134,7 @@ export function PerformanceDashboardPage() {
   const [error, setError] = React.useState('');
   const [loading, setLoading] = React.useState(true);
   const [tab, setTab] = React.useState<AuditTab>('missing');
+  const [reload, setReload] = React.useState(0);
 
   React.useEffect(() => {
     let live = true;
@@ -139,7 +142,7 @@ export function PerformanceDashboardPage() {
     setError('');
     api.dashboard(wanted).then((d) => { if (live) setData(d); }).catch((e) => { if (live) setError(messageOf(e)); }).finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
-  }, [wanted]);
+  }, [wanted, reload]);
 
   const pick = (id: number) => router.replace(`${pathname}?cycle=${id}`);
   const d = data;
@@ -365,12 +368,19 @@ export function PerformanceDashboardPage() {
         {pulseTiles}
       </div>
 
-      <Card title={<span className="inline-flex items-center gap-1.5"><Coins className="h-3.5 w-3.5" />Pay outcome</span>} note="increments and bonus from appraisal cycles linked to this cycle">
+      <Card
+        title={<span className="inline-flex items-center gap-1.5"><Coins className="h-3.5 w-3.5" />Pay outcome</span>}
+        note="increments and bonus from appraisal cycles linked to this cycle"
+        right={(d.pay || []).length > 0 ? <AppraisalLinkActions cycle={c} area={area} onLinked={() => setReload((n) => n + 1)} /> : undefined}
+      >
         {(d.pay || []).length === 0 ? (
           <div className="rounded-lg border border-dashed border-line p-4 text-xs text-fg-muted">
             <p className="font-semibold text-fg">No appraisal cycle uses these ratings yet.</p>
-            <p className="mt-1">In Compensation, open an appraisal cycle and pick “{c.name}” under Performance ratings. Released ratings then set each person’s increment % from the guide, and a bonus % per rating creates one-time bonus payouts paid with payroll.</p>
-            <Link href={`${area}/compensation`} className={cx(btnClass('secondary', 'sm'), 'mt-3')}>Open Compensation</Link>
+            <p className="mt-1">Create an appraisal cycle from here, already linked to “{c.name}”, or add it to an open one. Released ratings then set each person’s increment % from the guide, and a bonus % per rating creates one-time bonus payouts paid with payroll.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <AppraisalLinkActions cycle={c} area={area} onLinked={() => setReload((n) => n + 1)} />
+              <Link href={`${area}/compensation`} className={btnClass('ghost', 'sm')}>Open Compensation</Link>
+            </div>
           </div>
         ) : (
           <div className="grid gap-3 lg:grid-cols-2">{d.pay!.map((x) => <PayCycle key={x.id} c={x} base={area} />)}</div>

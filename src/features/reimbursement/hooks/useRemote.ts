@@ -46,10 +46,14 @@ export function useRemote<T>(fetcher: (() => Promise<T>) | null, key: string) {
     }
   }, []);
 
+  // A fetcher that turns on later (a drawer opened after mount) must load then: `enabled` is part of the trigger.
+  const enabled = Boolean(fetcher);
   useEffect(() => {
     setIsLoading(Boolean(fetcherRef.current));
     load();
-  }, [key, load]);
+  }, [key, load, enabled]);
 
-  return { data, setData, isLoading, isFetching, error, notFound, refetch: load };
+  // Between turning on and the first answer there is nothing to show yet: that is loading, not empty.
+  const waiting = isLoading || (enabled && data === null && !error && !notFound);
+  return { data, setData, isLoading: waiting, isFetching, error, notFound, refetch: load };
 }

@@ -2,7 +2,7 @@ import type { PlaceDto, PunchDto, ReviewPageDto } from './review.dto';
 import type { Place, RequestRow, ReviewedPunch, ReviewStatusFilter, RowPage, RowStatus } from './review.model';
 import type { RegularizationKind } from '@/features/my-attendance/types/regularization.model';
 
-const KINDS: readonly string[] = ['missed_checkout', 'missed_checkin', 'missed_both', 'wrong_time', 'remove_late_mark', 'remove_late_penalty', 'remove_early_mark', 'remove_early_penalty'];
+const KINDS: readonly string[] = ['missed_checkout', 'missed_checkin', 'missed_both', 'wrong_time', 'night_ot_missed_both', 'night_ot_missed_end', 'night_ot_wrong_time', 'remove_late_mark', 'remove_late_penalty', 'remove_early_mark', 'remove_early_penalty'];
 const STATUSES: readonly string[] = ['pending', 'approved', 'rejected', 'cancelled'];
 const kindsOf = (list: string[] | undefined) => (list || []).filter((k): k is RegularizationKind => KINDS.includes(k));
 const statusOf = (s: string): RowStatus => (STATUSES.includes(s) ? (s as RowStatus) : 'pending');
@@ -25,6 +25,7 @@ export function toReviewPage(dto: ReviewPageDto): RowPage {
         unit: r.leave.unit === 'hour' ? 'hour' : 'day', hours: r.leave.hours, days: Number(r.leave.days) || 0, lopDays: Number(r.leave.lop_days) || 0,
       } : null,
       compoff: r.compoff ? { reason: r.compoff.reason, kind: r.compoff.kind, units: Number(r.compoff.units) || 0, minutes: r.compoff.minutes, expiresOn: r.compoff.expires_on } : null,
+      optionalHoliday: r.optional_holiday ?? null,
       absenceCover: r.absence_cover ? { type: r.absence_cover.leave_type, days: Number(r.absence_cover.days) || 0, isCompOff: r.absence_cover.is_comp_off, isPenalty: r.absence_cover.is_penalty } : null,
     })),
     total: dto.total, page: dto.page, pageSize: dto.page_size,

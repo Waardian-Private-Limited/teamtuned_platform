@@ -16,12 +16,13 @@ export const SOURCE_OPTIONS = [
   { value: 3, label: 'Expense claims', source: 'reimbursement' as const },
   { value: 4, label: 'Wallet funds', source: 'wallet_fund' as const },
   { value: 5, label: 'Referral rewards', source: 'referral' as const },
+  { value: 6, label: 'Petty cash funds', source: 'petty_cash_fund' as const },
 ];
 
-export const SOURCE_LABEL = { salary: 'Salary', advance: 'Advance', reimbursement: 'Expense claim', wallet_fund: 'Wallet funds', referral: 'Referral reward' } as const;
+export const SOURCE_LABEL = { salary: 'Salary', advance: 'Advance', reimbursement: 'Expense claim', wallet_fund: 'Wallet funds', petty_cash_fund: 'Petty cash funds', referral: 'Referral reward' } as const;
 
 /** Sources that need a payment reference when marked paid (everything but salaries). */
-export const REFERENCE_REQUIRED = ['advance', 'reimbursement', 'wallet_fund', 'referral'] as const;
+export const REFERENCE_REQUIRED = ['advance', 'reimbursement', 'wallet_fund', 'petty_cash_fund', 'referral'] as const;
 
 export const STATUS_LABEL = { unpaid: 'To pay', paid: 'Paid', failed: 'Failed' } as const;
 

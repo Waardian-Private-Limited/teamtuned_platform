@@ -304,6 +304,8 @@ export interface KeyPosition {
 export interface DashPerson { sheet_id: number; employee_id: number; employee_name: string; employee_code: string | null; department_name: string | null }
 export interface DashPayCycle {
   id: number; name: string; status: string; effective_from: string | null; budget_percent: number | null; bonus_configured: boolean;
+  /** Every performance cycle this appraisal takes ratings from (this one included), oldest first. */
+  performance_cycle_ids: number[];
   rating_scale: { rating: string; label: string; percent: number; bonus_percent: number | null }[];
   summary: { proposals: number; approved: number; applied: number; pending: number; promotions: number; increase: number; increase_percent: number; budget_used_percent: number | null };
   bonus: { payouts: number; employees: number; amount: number; by_status: { status: string; payouts: number; employees: number; amount: number }[] };

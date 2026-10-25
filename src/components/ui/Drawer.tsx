@@ -10,11 +10,13 @@ interface DrawerProps {
   title?: string;
   children: React.ReactNode;
   maxWidthClassName?: string;
+  /** Pinned under the scrolling body, so the actions stay in view however long the content is. */
+  footer?: React.ReactNode;
 }
 
 // Shares Dialog's overlay, focus-trap, and scroll-lock behaviour but slides
 // in from the right; collapses to a full-screen sheet below the `sm` break.
-export function Drawer({ open, onClose, title, children, maxWidthClassName }: DrawerProps) {
+export function Drawer({ open, onClose, title, children, maxWidthClassName, footer }: DrawerProps) {
   const panelRef = useModalBehavior(open, onClose);
 
   if (!open) return null;
@@ -47,6 +49,7 @@ export function Drawer({ open, onClose, title, children, maxWidthClassName }: Dr
           </button>
         </div>
         <div className="flex-1 overflow-y-auto tt-scroll-hidden px-4 py-4 sm:px-6 sm:py-5">{children}</div>
+        {footer && <div className="border-t border-line px-4 py-3 sm:px-6">{footer}</div>}
       </div>
     </div>
   );

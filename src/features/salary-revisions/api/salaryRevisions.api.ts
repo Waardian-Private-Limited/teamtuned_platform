@@ -21,17 +21,25 @@ export interface RevisionListResponse {
   counts: Record<string, number>;
 }
 
-export interface LetterDto {
-  kind: 'increment' | 'promotion';
-  revision_id: number;
-  company: { name: string; address: string | null; logo_url: string | null; gst_number: string | null; email: string | null; phone: string | null };
-  recipient: { name: string; employee_code: string; designation: string; department: string };
-  date: string;
-  title: string;
-  paragraphs: string[];
-  structure: { name: string; monthly: number; annual: number }[];
-  totals: { monthly_gross: number | null; annual_ctc: number | null };
-  signatory: string;
+/** The letter dialog: the Document Centre template for this revision and what HR confirms before downloading. */
+export interface RevisionLetterFormDto {
+  docType: 'increment_letter' | 'promotion_letter';
+  docTypeLabel: string;
+  template: { id: number; name: string };
+  reference: string | null;
+  issuedAt: string | null;
+  inputs: Array<{ key: string; label: string; type: 'date' | 'text' | 'number' | 'money'; required: boolean; value: string }>;
+  slots: Array<{ key: string; label: string; signatoryId: number | null; open: boolean; chosen: number | null }>;
+  usesStamp: boolean;
+  stampId: number | null;
+  signatories: Array<{ id: number; name: string; designation: string | null }>;
+  stamps: Array<{ id: number; name: string }>;
+}
+
+export interface RevisionLetterChoice {
+  inputs: Record<string, string>;
+  signatories: Record<string, number>;
+  stamp_id: number | null;
 }
 
 export function listRevisions(params: RevisionListParams) {
@@ -56,7 +64,11 @@ export const submitRevisions = (ids: number[]) => apiClient.post<{ submitted: nu
 export const decideRevisions = (ids: number[], decision: 'approve' | 'reject', note?: string) =>
   apiClient.post<{ decided: number; blocked: number; applied: number }>('/salary-revisions/decide', { ids, decision, note }, auth);
 export const cancelRevisions = (ids: number[]) => apiClient.post<{ cancelled: number }>('/salary-revisions/cancel', { ids }, auth);
-export const getLetter = (id: number) => apiClient.get<LetterDto>(`/salary-revisions/${id}/letter`, undefined, auth);
-export const getMyLetter = (id: number) => apiClient.get<LetterDto>(`/salary-revisions/me/${id}/letter`, undefined, auth);
+export const getLetterForm = (id: number) => apiClient.get<RevisionLetterFormDto>(`/salary-revisions/${id}/letter/form`, undefined, auth);
+/** The letter PDF, made on demand: the first download takes a reference number, later ones keep it. */
+export const downloadLetter = (id: number, choice: RevisionLetterChoice) =>
+  apiClient<Blob>(`/salary-revisions/${id}/letter`, { ...auth, method: 'POST', body: choice, responseType: 'blob' });
+/** The employee's own copy of an issued letter (404 until HR has issued it). */
+export const downloadMyLetter = (id: number) => apiClient<Blob>(`/salary-revisions/me/${id}/letter`, { ...auth, responseType: 'blob' });
 export const listRoles = () => apiClient.get<{ id: number; name: string }[]>('/organization/roles', undefined, auth);
 export const voidRevision = (id: number, reason: string) => apiClient.post<RevisionDto>(`/salary-revisions/${id}/void`, { reason }, auth);

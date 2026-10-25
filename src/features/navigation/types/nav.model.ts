@@ -28,6 +28,8 @@ export interface NavGate {
   recruitmentRole?: 'interviewer' | 'hiring_manager' | 'reviewer';
   /** Only for employees income tax is deducted for, from GET /payroll/tax/me/eligibility. Not bypassed for org admins. */
   taxEligible?: boolean;
+  /** Only for managers with people to rate in an open appraisal, from GET /compensation/team-appraisals/status. Not bypassed for org admins. */
+  appraisalReviewer?: boolean;
   /** Hidden when the person holds any of these (e.g. they already see the full Recruitment menu). */
   noneOfPerms?: string[];
 }
@@ -42,8 +44,8 @@ export interface NavLink {
   /**
    * Extra hrefs treated as this link's own route for active-state matching
    * only — navigation still goes to `href`. Used for the handful of legacy
-   * items whose "active" check spans two routes (e.g. DPR Planning covers
-   * both /dps/schedule and /dps/planned-schedules).
+   * items whose "active" check spans two routes (e.g. a list page that also
+   * covers its detail pages under another path).
    */
   altHrefs?: string[];
   /**
@@ -78,4 +80,6 @@ export interface NavContext {
   recruitmentRoles?: Array<'interviewer' | 'hiring_manager' | 'reviewer'>;
   /** TDS applies to this employee; undefined until known. */
   taxEligible?: boolean;
+  /** Has people to rate in an open appraisal; undefined until known. */
+  appraisalReviewer?: boolean;
 }

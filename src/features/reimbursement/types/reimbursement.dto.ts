@@ -1,5 +1,36 @@
 /** Wire shapes of /api/v1/reimbursement (see teamtuned_backend/docs/REIMBURSEMENT_V2_API.md). */
 
+import type {
+  FlagDto,
+  LineAttachmentDto,
+  PaymentModeDto,
+  ExtractedBillDto,
+  BillNoteDto,
+  BillDto,
+  PagedDto,
+  ExportFormatDto,
+  UploadedFileDto,
+} from '@/features/expense-bills/types/bill.dto';
+
+export type {
+  FlagSeverityDto,
+  FlagDto,
+  LineAttachmentDto,
+  PaymentModeDto,
+  ExtractedBillDto,
+  BillTaxModeDto,
+  BillSellerDto,
+  BillBuyerDto,
+  BillItemDto,
+  BillTotalsDto,
+  BillNoteDto,
+  BillDto,
+  PagedDto,
+  ExportFormatDto,
+  UploadedFileDto,
+} from '@/features/expense-bills/types/bill.dto';
+
+
 export type ChannelDto = 'claim' | 'wallet';
 export type ClaimStatusDto = 'draft' | 'pending' | 'approved' | 'paid' | 'rejected' | 'cancelled';
 export type PayoutModeDto = 'manual' | 'payroll';
@@ -7,33 +38,12 @@ export type CategoryKindDto = 'amount' | 'distance';
 export type WalletStatusDto = 'active' | 'frozen' | 'closed';
 export type FundRequestStatusDto = 'pending' | 'approved' | 'paid' | 'rejected' | 'cancelled';
 export type LedgerTypeDto = 'opening' | 'top_up' | 'expense' | 'return' | 'adjustment';
-export type FlagSeverityDto = 'error' | 'warning' | 'info';
-
-/**
- * Codes: per_claim, per_month, per_year, wallet_negative, no_rate, duplicate_invoice, and from the bill
- * check bill_mismatch, gstin_invalid, tax_type, items_deduplicated, amount_differs, value_corrected,
- * row_mismatch, tax_mismatch.
- */
-export interface FlagDto {
-  code: string;
-  severity: FlagSeverityDto;
-  message: string;
-  over?: number;
-}
 
 export interface EmployeeRefDto {
   id: number;
   code: string | null;
   name: string | null;
   department: string | null;
-}
-
-export interface LineAttachmentDto {
-  index: number;
-  name: string;
-  size: number | null;
-  type: string | null;
-  key?: string;
 }
 
 export interface LineDto {
@@ -61,103 +71,6 @@ export interface LineDto {
   payment_reference?: string | null;
   /** Proof of payment (screenshot, card slip). Open with `/…/lines/:lineId/payment-proofs/:index`. */
   payment_proofs?: LineAttachmentDto[];
-}
-
-export type PaymentModeDto = 'cash' | 'upi' | 'card' | 'net_banking' | 'cheque' | 'other';
-
-/** Raw read of the receipt (before the bill check). Kept on the line and sent back unchanged; the UI shows `bill`. */
-export interface ExtractedBillDto {
-  seller?: { name?: string | null; address?: string | null; gstin?: string | null; contact?: string | null } | null;
-  buyer?: { name?: string | null; gstin?: string | null } | null;
-  currency?: string | null;
-  subtotal?: number | null;
-  tax_total?: number | null;
-  charges_total?: number | null;
-  grand_total?: number | null;
-  items?: Array<{ name?: string | null; qty?: number | null; rate?: number | null; tax_percent?: number | null; total?: number | null }> | null;
-  taxes?: Array<{ label?: string | null; percent?: number | null; amount?: number | null }> | null;
-}
-
-export type BillTaxModeDto = 'item' | 'bill' | 'both' | 'inclusive' | 'none';
-
-export interface BillSellerDto {
-  name: string | null;
-  address: string | null;
-  state: string | null;
-  state_code?: string | null;
-  pincode?: string | null;
-  gstin: string | null;
-  /** Claim detail. */
-  gstin_valid?: boolean | null;
-  /** Scan. */
-  gstin_check?: { gstin?: string; valid: boolean; state_code?: string | null; state?: string | null; pan?: string | null; problem?: string | null } | null;
-  pan?: string | null;
-  phone?: string | null;
-  email?: string | null;
-}
-
-export interface BillBuyerDto {
-  name: string | null;
-  address: string | null;
-  state: string | null;
-  gstin: string | null;
-}
-
-export interface BillItemDto {
-  name: string;
-  hsn: string | null;
-  qty: number | null;
-  unit: string | null;
-  rate: number | null;
-  discount: number | null;
-  taxable_value: number | null;
-  tax_rate: number | null;
-  cgst: number | null;
-  sgst: number | null;
-  igst: number | null;
-  cess: number | null;
-  amount: number | null;
-  /** Sent only: the row's total tax when the user typed it (the server splits it into CGST/SGST or IGST). */
-  tax_amount?: number | null;
-}
-
-export interface BillTotalsDto {
-  taxable: number | null;
-  discount: number | null;
-  cgst: number | null;
-  sgst: number | null;
-  igst: number | null;
-  cess: number | null;
-  other_tax: number | null;
-  tax: number | null;
-  charges: number | null;
-  round_off: number | null;
-  grand: number | null;
-}
-
-export interface BillNoteDto {
-  code: string;
-  message: string;
-}
-
-/** Full bill data (`expense_bills` + items). The server recomputes every total; client totals are never trusted. */
-export interface BillDto {
-  invoice_number: string | null;
-  invoice_date: string | null;
-  place_of_supply: string | null;
-  payment_mode: string | null;
-  currency: string | null;
-  seller: BillSellerDto;
-  buyer: BillBuyerDto;
-  tax_mode: BillTaxModeDto;
-  items: BillItemDto[];
-  charges: Array<{ label: string; amount: number | null }>;
-  totals: BillTotalsDto;
-  reconciled: boolean;
-  difference: number | null;
-  notes: BillNoteDto[];
-  source: 'ai' | 'manual';
-  model: string | null;
 }
 
 /** Paper bill (policy v19, migration 073). Separate from the approval / payment status. */
@@ -307,6 +220,10 @@ export interface CategoryDto {
   status: 'active' | 'inactive';
   sort_order: number;
   sub_organization_id: number | null;
+  /** Where the category can be used; missing on older servers (both). */
+  applies_to?: string[];
+  /** Petty cash: expenses of this category are goods that get received per item. */
+  needs_inward?: boolean;
   rule?: CategoryRuleDto;
   used?: { month: number; year: number };
 }
@@ -332,20 +249,12 @@ export interface MyOverviewDto {
   counts: Record<'draft' | 'pending' | 'to_be_paid' | 'paid' | 'wallet_spent' | 'rejected', CountAmountDto>;
 }
 
-export interface PagedDto<T> {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
 export interface ClaimListResponseDto extends PagedDto<ClaimDto> {
   amount?: number;
   /** Status counts plus `bills_to_collect` and `bills_collected`. */
   counts?: Partial<Record<string, number>>;
 }
 
-export type ExportFormatDto = 'pdf' | 'xlsx';
 
 /** `POST /exports/expense-claims` and `/exports/my-expenses` (no employee, department or site filter). */
 export interface ClaimsExportRequestDto {
@@ -387,13 +296,6 @@ export interface WalletStatementExportRequestDto {
   from?: string;
   to?: string;
   wallet_id?: number;
-}
-
-export interface UploadedFileDto {
-  key: string;
-  name: string;
-  size: number;
-  type: string;
 }
 
 export interface ClaimLineRequestDto {
@@ -516,6 +418,7 @@ export interface CategoryRequestDto {
   gl_code?: string | null;
   sort_order?: number;
   sub_organization_id?: number | null;
+  applies_to?: Array<'claims' | 'petty_cash'>;
 }
 
 export interface WalletTotalsDto {

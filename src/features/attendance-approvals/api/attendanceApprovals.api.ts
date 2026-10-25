@@ -10,6 +10,7 @@ const PATHS: Record<RequestType, string> = {
   leave: '/leave/requests/review',
   compoff: '/leave/compoff/review',
   absence_cover: '/leave/absence-cover/review',
+  optional_holiday: '/holidays/optional/review',
 };
 
 /** Requests of one type the signed-in reviewer is part of; the server decides which, from the approval flows. */

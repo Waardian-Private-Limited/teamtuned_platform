@@ -1,6 +1,6 @@
 // Document Centre wire types (backend /api/v1/documents, docs/DOCUMENTS_DESIGN.md).
 
-export type DocType = 'offer_letter' | 'appointment_letter' | 'joining_letter' | 'confirmation_letter' | 'experience_letter' | 'relieving_letter';
+export type DocType = 'offer_letter' | 'appointment_letter' | 'joining_letter' | 'confirmation_letter' | 'experience_letter' | 'relieving_letter' | 'increment_letter' | 'promotion_letter';
 export type SubjectType = 'employee' | 'candidate';
 export type InputType = 'date' | 'text' | 'number' | 'money';
 
@@ -10,7 +10,8 @@ export interface DocTypeDto {
   code: DocType;
   label: string;
   description: string;
-  subjects: SubjectType[];
+  /** 'revision' = increment / promotion letters, issued from Compensation, not from Generate. */
+  subjects: Array<SubjectType | 'revision'>;
   referenceFormat: string;
   fields: FieldDto[];
 }

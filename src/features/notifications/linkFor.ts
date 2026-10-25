@@ -25,8 +25,18 @@ const PAGES: Record<string, Record<Area, Page>> = {
   'advance.list': both('/employee/my-advances', '/org-admin/salary-advance'),
   'advance.detail': both('/employee/my-advances', '/org-admin/salary-advance'),
   'expense.claim': both((p) => (p.claim_id ? `/employee/my-expenses/${p.claim_id}` : '/employee/my-expenses'), '/org-admin/expenses'),
-  'wallet.statement': both('/employee/my-expenses/wallet', '/org-admin/wallet-overview'),
+  'wallet.statement': both('/employee/my-expenses/wallet', '/org-admin/expenses/wallets'),
+  'petty_cash.expense': both(
+    (p) => (p.expense_id ? `/employee/my-petty-cash/expenses/${p.expense_id}` : '/employee/my-petty-cash?tab=expenses'),
+    (p) => (p.expense_id ? `/org-admin/petty-cash/expenses/${p.expense_id}` : '/org-admin/petty-cash/expenses')
+  ),
+  'petty_cash.wallet': both(
+    (p) => (p.wallet_id ? `/employee/my-petty-cash/wallets/${p.wallet_id}` : '/employee/my-petty-cash'),
+    (p) => (p.wallet_id ? `/org-admin/petty-cash/wallets/${p.wallet_id}` : '/org-admin/petty-cash/wallets')
+  ),
   'approvals.inbox': both('/employee/approvals', '/org-admin/approvals'),
+  // Approver pushes for petty cash expenses and fund requests.
+  'petty_cash.approvals': both('/employee/approvals', '/org-admin/approvals'),
   'birthday.wall': both((p) => `/employee/birthdays${p.employee_id ? `?e=${p.employee_id}` : ''}`, (p) => `/org-admin/birthdays${p.employee_id ? `?e=${p.employee_id}` : ''}`),
   'roster.mine': both('/employee/roster', '/org-admin/roster'),
   'recruitment.interview': both('/employee/my-interviews', '/org-admin/recruitment'),
@@ -35,9 +45,12 @@ const PAGES: Record<string, Record<Area, Page>> = {
   'meeting.home': both('/employee/mom', '/org-admin/mom'),
   'meeting.detail': both((p) => `/employee/mom/meetings/${p.id}`, (p) => `/org-admin/mom/meetings/${p.id}`),
   'meeting.point': both((p) => `/employee/mom/meetings/${p.id}?point=${p.point_id}`, (p) => `/org-admin/mom/meetings/${p.id}?point=${p.point_id}`),
+  'dpr.home': both((p) => (p.site_id ? (p.tab === 'plan' ? `/employee/dpr/planning/${p.site_id}?tab=plan` : `/employee/dpr/dashboard?site=${p.site_id}`) : '/employee/dpr/daily'), (p) => (p.site_id ? (p.tab === 'plan' ? `/org-admin/dpr/planning/${p.site_id}?tab=plan` : `/org-admin/dpr/dashboard?site=${p.site_id}`) : '/org-admin/dpr/daily')),
+  'dpr.report': both((p) => `/employee/dpr/daily/${p.site_id}/${p.date}?kind=${p.kind || 'progress'}`, (p) => `/org-admin/dpr/daily/${p.site_id}/${p.date}?kind=${p.kind || 'progress'}`),
   // `tab` picks the page: my goals, team goals, 360 feedback, improvement plans.
   'learning': both((p) => `/employee/learning?tab=${p.tab === 'team' ? 'team' : 'mine'}`, (p) => `/org-admin/learning?tab=${p.tab === 'team' ? 'team' : 'mine'}`),
   'surveys': both('/employee/surveys', '/org-admin/surveys'),
+  'appraisal.team': both('/employee/team-appraisals', '/org-admin/compensation?tab=appraisals'),
   'performance': both((p) => `/employee/performance/${PERF_PAGE[p.tab ?? ''] ?? 'my-goals'}`, (p) => `/org-admin/performance/${p.tab === 'goals' ? 'team-goals' : PERF_PAGE[p.tab ?? ''] ?? 'team-goals'}`),
   'employee.detail': both(
     (p) => `/employee/employee-management${p.id ? `/${p.id}` : ''}`,

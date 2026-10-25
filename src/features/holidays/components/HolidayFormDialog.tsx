@@ -9,6 +9,7 @@ import { usePermission } from '@/lib/hooks/usePermission';
 import { listSites } from '@/features/sites/api/sites.api';
 import type { SiteDto } from '@/features/sites/types/sites.dto';
 import { cx } from '@/theme/tokens';
+import { optionalHolidaysEnabled } from '../api/holidays.api';
 import { HOLIDAY_TYPES, SESSION_LABEL } from '../constants';
 import type { Holiday, HolidayInput, HolidaySession, HolidaySite } from '../types/holidays';
 import type { HolidayFieldError } from '../hooks/useHolidayMutations';
@@ -32,6 +33,8 @@ export function HolidayFormDialog({ open, initial, defaultYear, saving, fieldErr
   const [half, setHalf] = React.useState(false);
   const [halfSession, setHalfSession] = React.useState<'first_half' | 'second_half'>('second_half');
   const [optional, setOptional] = React.useState(false);
+  // Null until known. A holiday can be marked optional only while a policy lets employees take optional holidays.
+  const [optionalOn, setOptionalOn] = React.useState<boolean | null>(null);
   const [subOrg, setSubOrg] = React.useState<number | null>(null);
   const [siteMode, setSiteMode] = React.useState<'all' | 'some'>('all');
   const [sites, setSites] = React.useState<HolidaySite[]>([]);
@@ -52,6 +55,11 @@ export function HolidayFormDialog({ open, initial, defaultYear, saving, fieldErr
     setSiteMode(initial && initial.sites.length ? 'some' : 'all');
     setErrors({});
   }, [open, initial, defaultYear]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    optionalHolidaysEnabled().then((r) => setOptionalOn(r.enabled)).catch(() => setOptionalOn(null));
+  }, [open]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -120,9 +128,13 @@ export function HolidayFormDialog({ open, initial, defaultYear, saving, fieldErr
         <div className="flex items-center justify-between rounded-lg border border-line p-3">
           <div>
             <p className="text-sm font-semibold text-fg">Optional (restricted) holiday</p>
-            <p className="text-xs text-fg-muted">Employees choose it with the optional holiday leave. It is a working day for everyone else.</p>
+            <p className="text-xs text-fg-muted">
+              {optionalOn === false && !optional
+                ? 'Turn on Optional holidays in a policy (Work Rules) first. Then employees can choose this holiday, up to their limit.'
+                : 'A working day unless an employee chooses it, up to the limit in their policy.'}
+            </p>
           </div>
-          <Switch checked={optional} onChange={setOptional} label="Optional holiday" />
+          <Switch checked={optional} onChange={setOptional} label="Optional holiday" disabled={optionalOn === false && !optional} />
         </div>
 
         <SubOrgPicker value={subOrg} onChange={(v) => { setSubOrg(v); setSites([]); }} allowShared={isOrgAdmin} />

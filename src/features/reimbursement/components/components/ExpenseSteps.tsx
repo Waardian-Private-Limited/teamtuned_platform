@@ -1,29 +1,23 @@
 'use client';
 
 import React from 'react';
-import { Check, PenLine, Trash2 } from 'lucide-react';
+import { PenLine, Trash2 } from 'lucide-react';
 import { cx } from '@/theme/tokens';
-import { FieldLabel, FieldMessage, TextField } from '@/components/ui/FormControls';
-import type { UploadScope } from '../../api/reimbursement.api';
-import { MAX_PAYMENT_PROOFS, MAX_PAYMENT_REFERENCE, PAYMENT_MODES, PAYMENT_MODE_LABEL } from '../../constants/reimbursement.constants';
+import { PaymentFields } from '@/features/expense-bills/components/PaymentFields';
+import * as api from '../../api/reimbursement.api';
+import { PAYMENT_MODE_LABEL } from '../../constants/reimbursement.constants';
 import type { Category, ClaimPreviewLine, LineInput } from '../../types/reimbursement.model';
-import { withServerCheck, withoutBillNotes } from '../../utils/bill';
+import { withServerCheck, withoutBillNotes } from '@/features/expense-bills/utils/bill';
 import { lineKey } from '../../utils/errors';
 import { dateText, money } from '../../utils/format';
-import { AiMarker } from './BillPanel';
+import { AiMarker } from '@/features/expense-bills/components/BillPanel';
 import { CategoryIcon } from './Primitives';
-import { ReceiptPicker } from './ReceiptPicker';
-import { ReceiptViewer, type ReceiptFile } from './ReceiptViewer';
+import { ReceiptViewer, type ReceiptFile } from '@/features/expense-bills/components/ReceiptViewer';
 import { FlagList } from './StatusBadges';
 import { lineAmount } from './LineEditor';
 
-export type Step = 1 | 2 | 3 | 4;
-export const STEPS: ReadonlyArray<{ step: Step; label: string }> = [
-  { step: 1, label: 'Bill' },
-  { step: 2, label: 'Details & items' },
-  { step: 3, label: 'Payment' },
-  { step: 4, label: 'Review & submit' },
-];
+export { STEPS, StepHeader, type Step } from '@/features/expense-bills/components/StepHeader';
+import type { Step } from '@/features/expense-bills/components/StepHeader';
 
 /** Fields of a line edited on the payment step; every other line field is on the details step. */
 export const PAYMENT_FIELDS = new Set(['payment_mode', 'payment_reference', 'payment_proofs']);
@@ -33,39 +27,13 @@ export function stepOfField(field: string): Step {
   return PAYMENT_FIELDS.has(field) ? 3 : 2;
 }
 
-/** The numbered steps at the top of the form. */
-export function StepHeader({ step, bill }: { step: Step; bill: number | null }) {
-  return (
-    <div className="space-y-2">
-      <ol className="grid grid-cols-4 gap-1.5" aria-label="Steps">
-        {STEPS.map((s) => {
-          const done = s.step < step;
-          const current = s.step === step;
-          return (
-            <li key={s.step} aria-current={current ? 'step' : undefined} className="min-w-0">
-              <div className={cx('h-1 rounded-full transition-opacity', done || current ? 'bg-fg' : 'bg-line', current ? 'opacity-100' : done ? 'opacity-60' : 'opacity-100')} />
-              <p className={cx('mt-1.5 flex items-center gap-1 truncate text-[11px] sm:text-xs', current ? 'font-bold text-fg' : 'font-medium text-fg-muted')}>
-                <span className={cx('flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold', current ? 'bg-fg text-[var(--tt-on-primary)]' : done ? 'bg-fg/70 text-[var(--tt-on-primary)]' : 'border border-line-strong text-fg-muted')}>
-                  {done ? <Check className="h-2.5 w-2.5" aria-hidden /> : s.step}
-                </span>
-                <span className={cx('truncate', !current && 'hidden sm:inline')}>{s.label}</span>
-              </p>
-            </li>
-          );
-        })}
-      </ol>
-      {bill !== null && step < 4 && <p className="text-[11px] font-semibold uppercase tracking-wide text-fg-muted">Bill {bill}</p>}
-    </div>
-  );
-}
-
 // ── Step 3: payment ─────────────────────────────────────────────────────────
 
 interface PaymentStepProps {
   index: number;
   line: LineInput;
   errors: Record<string, string>;
-  uploadScope: UploadScope;
+  uploadScope: api.UploadScope;
   employeeId?: number | null;
   onChange: (patch: Partial<LineInput>) => void;
   onClearError: (key: string) => void;
@@ -76,67 +44,25 @@ interface PaymentStepProps {
 
 /** Step 3 of a bill: how the employee paid it, the transaction / UPI reference and proof of payment. */
 export function PaymentStep({ index, line, errors, uploadScope, employeeId, onChange, onClearError, onBusyChange, onLocalFile }: PaymentStepProps) {
-  const err = (f: string) => errors[lineKey(index, f)];
-  const set = (patch: Partial<LineInput>, field: string) => {
-    onChange(patch);
-    onClearError(lineKey(index, field));
-  };
-  const printed = line.bill?.paymentMode;
-  const cash = line.paymentMode === 'cash';
+  const store = React.useCallback((file: File) => api.uploadAttachment(file, uploadScope, employeeId), [uploadScope, employeeId]);
+  const fields = { mode: 'payment_mode', reference: 'payment_reference', proofs: 'payment_proofs' } as const;
   return (
-    <div className="tt-fade-in space-y-4">
-      <div>
-        <FieldLabel label="Paid by" />
-        <div role="radiogroup" aria-label="Paid by" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {PAYMENT_MODES.map((m) => {
-            const on = line.paymentMode === m.value;
-            return (
-              <button
-                key={m.value}
-                type="button"
-                role="radio"
-                aria-checked={on}
-                onClick={() => set({ paymentMode: on ? null : m.value }, 'payment_mode')}
-                className={cx(
-                  'flex h-10 items-center justify-center rounded-lg border px-3 text-xs font-semibold transition-colors sm:text-sm',
-                  err('payment_mode') ? 'border-[var(--tt-danger)]' : on ? 'border-fg bg-fg text-[var(--tt-on-primary)]' : 'border-line bg-surface text-fg hover:bg-bg-subtle'
-                )}
-              >
-                {m.label}
-              </button>
-            );
-          })}
-        </div>
-        <FieldMessage error={err('payment_mode')} hint={printed ? `The bill says: ${printed}` : 'Helps Accounts match the payment.'} />
-      </div>
-
-      {!cash && (
-        <TextField
-          label="Transaction / UPI ref"
-          value={line.paymentReference}
-          onChange={(v) => set({ paymentReference: v }, 'payment_reference')}
-          placeholder={line.paymentMode === 'upi' ? 'e.g. 412345678901' : 'Reference or transaction id'}
-          maxLength={MAX_PAYMENT_REFERENCE}
-          autoComplete="off"
-          error={err('payment_reference')}
-        />
-      )}
-
-      <ReceiptPicker
-        label="Payment proof"
-        value={line.paymentProofs}
-        onChange={(paymentProofs) => set({ paymentProofs }, 'payment_proofs')}
-        max={MAX_PAYMENT_PROOFS}
-        error={err('payment_proofs')}
-        hint={`Screenshot, card slip or receipt · PDF, JPG or PNG, up to 5 MB each, up to ${MAX_PAYMENT_PROOFS} files`}
-        scope={uploadScope}
-        employeeId={employeeId}
-        onBusyChange={onBusyChange}
-        onUploaded={onLocalFile}
-        addLabel="Attach proof"
-        compact
-      />
-    </div>
+    <PaymentFields
+      value={{ mode: line.paymentMode, reference: line.paymentReference, proofs: line.paymentProofs }}
+      errors={{ mode: errors[lineKey(index, fields.mode)], reference: errors[lineKey(index, fields.reference)], proofs: errors[lineKey(index, fields.proofs)] }}
+      printed={line.bill?.paymentMode}
+      onChange={(patch) => {
+        const next: Partial<LineInput> = {};
+        if ('mode' in patch) next.paymentMode = patch.mode ?? null;
+        if ('reference' in patch) next.paymentReference = patch.reference ?? '';
+        if ('proofs' in patch) next.paymentProofs = patch.proofs ?? [];
+        onChange(next);
+        (Object.keys(patch) as Array<keyof typeof fields>).forEach((k) => onClearError(lineKey(index, fields[k])));
+      }}
+      store={store}
+      onBusyChange={onBusyChange}
+      onLocalFile={onLocalFile}
+    />
   );
 }
 

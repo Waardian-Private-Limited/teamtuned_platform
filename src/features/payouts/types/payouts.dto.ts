@@ -1,4 +1,4 @@
-export type PayoutSourceDto = 'salary' | 'advance' | 'reimbursement' | 'wallet_fund' | 'referral';
+export type PayoutSourceDto = 'salary' | 'advance' | 'reimbursement' | 'wallet_fund' | 'petty_cash_fund' | 'referral';
 export type PayoutStatusDto = 'unpaid' | 'paid' | 'failed';
 export type PayoutTabDto = 'to_pay' | 'failed' | 'paid' | 'all';
 
@@ -36,7 +36,7 @@ export interface PayoutFigureDto {
 
 export interface PayoutOverviewDto {
   month: string;
-  to_pay: { salary: PayoutFigureDto; advance: PayoutFigureDto; reimbursement?: PayoutFigureDto; wallet_fund?: PayoutFigureDto; referral?: PayoutFigureDto; total: PayoutFigureDto };
+  to_pay: { salary: PayoutFigureDto; advance: PayoutFigureDto; reimbursement?: PayoutFigureDto; wallet_fund?: PayoutFigureDto; petty_cash_fund?: PayoutFigureDto; referral?: PayoutFigureDto; total: PayoutFigureDto };
   failed: PayoutFigureDto;
   paid_this_month: PayoutFigureDto;
 }

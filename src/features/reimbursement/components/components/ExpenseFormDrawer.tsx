@@ -16,7 +16,8 @@ import { useClaimPreview } from '../../hooks/useClaimPreview';
 import { scanPagesProblem, useReceiptScan } from '../../hooks/useReceiptScan';
 import { applyScan, emptyLine, isBlankLine, lineInputOf, toClaimBody, toClaimDetail } from '../../types/reimbursement.mapper';
 import type { Category, Channel, ClaimDetail, ClaimFormErrors, ClaimPreviewLine, LineAttachment, LineInput, MyWallet, PayoutMode } from '../../types/reimbursement.model';
-import type { ReceiptFile, ReceiptSource } from '../../hooks/useFileLink';
+import type { ReceiptFile, ReceiptSource } from '@/features/expense-bills/hooks/useFileLink';
+import { claimLineSource } from '../../utils/claimFiles';
 import { placeErrors } from '../../utils/errors';
 import { belowZeroText, money, walletRoom, walletRoomText } from '../../utils/format';
 import { validateClaim, validateLineDetails, validateLinePayment, validateReport } from '../../utils/validators';
@@ -25,7 +26,7 @@ import { LineDetails, lineAmount, receiptRule } from './LineEditor';
 import { FlagList } from './StatusBadges';
 import { FormError } from './Primitives';
 import { ReceiptPicker } from './ReceiptPicker';
-import { ReceiptScanZone } from './ReceiptScanZone';
+import { ReceiptScanZone } from '@/features/expense-bills/components/ReceiptScanZone';
 
 const HEADER_FIELDS = ['title', 'purpose', 'channel', 'lines', 'employee_id', 'payout_mode'];
 const isKnownKey = (k: string) => HEADER_FIELDS.includes(k) || /^lines\[\d+\]\.[a-z_]+$/.test(k);
@@ -161,7 +162,7 @@ export function ExpenseFormDrawer(props: ExpenseFormDrawerProps) {
     const byKey = new Map<string, ReceiptSource>();
     draft?.lines.forEach((l) => {
       const add = (a: LineAttachment, payment: boolean) => {
-        const src: ReceiptSource = { kind: 'remote', scope: 'me', claimId: draft.id, lineId: l.id, index: a.index, payment };
+        const src = claimLineSource({ scope: 'me', claimId: draft.id, lineId: l.id, payment }, a.index);
         byObject.set(a, src);
         if (a.key) byKey.set(`${payment ? 'p' : 'b'}:${a.key}`, src);
       };

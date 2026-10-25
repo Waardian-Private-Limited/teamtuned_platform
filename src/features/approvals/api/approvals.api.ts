@@ -5,6 +5,9 @@ import type {
 
 const auth = { withAuth: true };
 
+export const getPunchImage = (requestId: number, punchId: number, signal?: AbortSignal) =>
+  apiClient.get<{ url: string }>(`/approvals/requests/${requestId}/punches/${punchId}/image`, undefined, { ...auth, signal });
+
 export const getCatalog = () => apiClient.get<Catalog>('/approvals/request-types', undefined, auth);
 export const getLookups = () => apiClient.get<Lookups>('/approvals/lookups', undefined, auth);
 export const searchEmployees = (search: string) => apiClient.get<EmployeeRef[]>('/approvals/employees', { search }, auth);

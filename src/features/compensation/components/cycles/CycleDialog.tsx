@@ -2,25 +2,44 @@
 
 import React from 'react';
 import { Dialog } from '@/components/ui/Dialog';
-import { FieldLabel, TextField } from '@/components/ui/FormControls';
+import { FieldLabel, OptionCard, TextField } from '@/components/ui/FormControls';
 import { ApiError, messageOf } from '@/lib/api/errors';
 import { showSuccess } from '@/lib/toast';
 import { useManageableSubOrgs } from '@/features/sub-organizations/hooks/useManageableSubOrgs';
 import { usePermission } from '@/lib/hooks/usePermission';
+import { useFeatures } from '@/lib/hooks/useFeatures';
+import { PERF_FEATURE } from '@/features/performance/constants/perf.constants';
 import * as api from '../../api/compensation.api';
-import type { CycleDto, RatingLevel } from '../../types/compensation.dto';
+import type { CycleDto, LinkablePerformanceCycleDto, RatingLevel, RatingSource } from '../../types/compensation.dto';
 import { currentFyStart } from '../../utils/format';
 import { Btn } from '../shared/Buttons';
 import { RatingScaleEditor } from '../settings/RatingScaleEditor';
+import { PerformanceCyclePicker, type PickableCycle } from './PerformanceCyclePicker';
+
+const SOURCES: { value: RatingSource; title: string; description: string }[] = [
+  { value: 'performance', title: 'Performance reviews', description: 'Released ratings from linked performance cycles' },
+  { value: 'manager', title: 'Managers rate their team', description: 'Each reporting manager rates their people here; HR decides the pay' },
+  { value: 'hr', title: 'HR enters ratings', description: 'Type them in the table or upload a CSV' },
+];
+
+/** Starting values when the cycle is created from somewhere else (the Performance dashboard): always rated from Performance. */
+export interface CyclePrefill {
+  name: string;
+  periodStart: string;
+  periodEnd: string;
+  /** Linked from the start; listed even before they reach calibration. */
+  performanceCycles: PickableCycle[];
+}
 
 interface Props {
   open: boolean;
   defaults: RatingLevel[];
+  prefill?: CyclePrefill;
   onClose: () => void;
   onSaved: (cycle: CycleDto) => void;
 }
 
-export function CycleDialog({ open, defaults, onClose, onSaved }: Props) {
+export function CycleDialog({ open, defaults, prefill, onClose, onSaved }: Props) {
   const fy = currentFyStart();
   const { subOrgs } = useManageableSubOrgs();
   const { isOrgAdmin } = usePermission();
@@ -33,16 +52,31 @@ export function CycleDialog({ open, defaults, onClose, onSaved }: Props) {
   const [minService, setMinService] = React.useState('3');
   const [includeProbation, setIncludeProbation] = React.useState(false);
   const [scale, setScale] = React.useState<RatingLevel[]>(defaults);
+  const [perfCycles, setPerfCycles] = React.useState<LinkablePerformanceCycleDto[]>([]);
+  const [perfIds, setPerfIds] = React.useState<number[]>([]);
+  const { hasFeature } = useFeatures();
+  const perfOn = hasFeature(PERF_FEATURE);
+  const [source, setSource] = React.useState<RatingSource>('manager');
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => {
     if (!open) return;
-    setName(`FY ${fy - 1}-${String(fy % 100).padStart(2, '0')} annual appraisal`);
+    setName(prefill?.name || `FY ${fy - 1}-${String(fy % 100).padStart(2, '0')} annual appraisal`);
+    if (prefill) {
+      setPeriodStart(prefill.periodStart);
+      setPeriodEnd(prefill.periodEnd);
+    }
+    setPerfIds((prefill?.performanceCycles || []).map((c) => c.id));
+    setSource(prefill || perfOn ? 'performance' : 'manager');
     setSubOrgId(subOrgs.length === 1 && !isOrgAdmin ? subOrgs[0].id : null);
     setScale(defaults);
     setErrors({});
-  }, [open, defaults, fy, subOrgs, isOrgAdmin]);
+  }, [open, defaults, prefill, fy, subOrgs, isOrgAdmin, perfOn]);
+
+  React.useEffect(() => {
+    if (open && perfOn) api.performanceCycles().then((r) => setPerfCycles(r.cycles)).catch(() => setPerfCycles([]));
+  }, [open, perfOn]);
 
   const save = async () => {
     setSaving(true);
@@ -56,9 +90,11 @@ export function CycleDialog({ open, defaults, onClose, onSaved }: Props) {
         effective_from: effectiveFrom,
         budget_percent: budget === '' ? null : Number(budget),
         rating_scale: scale,
+        rating_source: source,
+        performance_cycle_ids: source === 'performance' ? perfIds : [],
         eligibility: { joinedOnOrBefore: periodEnd, minServiceMonths: Number(minService) || 0, includeProbation },
       });
-      showSuccess('Appraisal cycle created');
+      showSuccess(cycle.rating_sync?.changed ? 'Appraisal cycle created. The guide now uses Performance’s ratings: set the increment % for each.' : 'Appraisal cycle created');
       onSaved(cycle);
       onClose();
     } catch (err) {
@@ -102,6 +138,22 @@ export function CycleDialog({ open, defaults, onClose, onSaved }: Props) {
             </label>
           </div>
         </div>
+        <div>
+          <FieldLabel label="Who rates" required />
+          <div className={`grid grid-cols-1 gap-2.5 ${perfOn ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+            {SOURCES.filter((o) => o.value !== 'performance' || perfOn).map((o) => (
+              <OptionCard key={o.value} selected={source === o.value} onClick={() => setSource(o.value)} title={o.title} description={o.description} disabled={Boolean(prefill) && o.value !== 'performance'} />
+            ))}
+          </div>
+          {errors.rating_source && <p role="alert" className="mt-1 text-xs font-medium text-[var(--tt-danger)]">{errors.rating_source}</p>}
+        </div>
+        {source === 'performance' && (
+          <div>
+            <FieldLabel label="Performance ratings" />
+            <PerformanceCyclePicker cycles={[...perfCycles, ...(prefill?.performanceCycles || []).filter((c) => !perfCycles.some((x) => x.id === c.id))]} value={perfIds} onChange={setPerfIds} error={errors.performance_cycle_ids} />
+            <p className="mt-1 text-[11px] text-fg-muted">Linked cycles feed each person’s rating; the guide below takes their rating codes. You can link them later too.</p>
+          </div>
+        )}
         <RatingScaleEditor value={scale} onChange={setScale} error={errors.ratingScale} />
       </div>
     </Dialog>

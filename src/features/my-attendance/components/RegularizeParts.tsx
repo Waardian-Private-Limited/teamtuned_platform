@@ -19,6 +19,12 @@ export function RecordedCard({ options }: { options: RegularizationOptions }) {
       <div className="mt-2 grid grid-cols-2 gap-3">
         <div><p className="text-xs text-fg-muted">Check-in</p><p className={cx('text-lg font-bold tabular-nums', !day.recordedIn && 'text-fg-muted')}>{hhmm(day.recordedIn)}</p></div>
         <div><p className="text-xs text-fg-muted">Check-out</p><p className={cx('text-lg font-bold tabular-nums', !day.recordedOut && 'text-fg-muted')}>{hhmm(day.recordedOut)}</p></div>
+        {(day.recordedNightIn || day.recordedNightOut) && (
+          <>
+            <div><p className="text-xs text-fg-muted">Night OT start</p><p className={cx('text-lg font-bold tabular-nums', !day.recordedNightIn && 'text-fg-muted')}>{hhmm(day.recordedNightIn)}</p></div>
+            <div><p className="text-xs text-fg-muted">Night OT end</p><p className={cx('text-lg font-bold tabular-nums', !day.recordedNightOut && 'text-fg-muted')}>{hhmm(day.recordedNightOut)}</p></div>
+          </>
+        )}
       </div>
     </div>
   );

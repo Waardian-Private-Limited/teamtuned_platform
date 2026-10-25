@@ -1,8 +1,7 @@
-"use client";
+'use client';
 
-import React from "react";
-import PettyCash from "@/components/org/PettyCash";
+import { OverviewPage } from '@/features/petty-cash/components/OverviewPage';
 
-export default function EmployeePettyCashPage() {
-  return <PettyCash />;
+export default function OrgAdminPettyCashOverviewRoute() {
+  return <OverviewPage />;
 }

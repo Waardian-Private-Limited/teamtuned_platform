@@ -36,10 +36,6 @@ const PAGE_TITLES: Record<string, { title: string; category: string }> = {
     '/employee/attendance-dashboard': { title: 'Attendance Dashboard', category: 'Management' },
     '/employee/attendance': { title: 'Detailed Attendance', category: 'Attendance' },
     '/org-admin/attendance/employee': { title: 'Detailed Attendance', category: 'Attendance' },
-    '/employee/petty-cash': { title: 'Petty Cash', category: 'Management' },
-    '/employee/wallet-expenses': { title: 'Wallet Expenses', category: 'Management' },
-    '/employee/wallet-config': { title: 'Wallet Config', category: 'Management' },
-    '/employee/wallet-topups': { title: 'Wallet Topups', category: 'Management' },
     '/employee/verification-issues': { title: 'Verification Issues', category: 'Management' },
     '/employee/payroll': { title: 'Payroll', category: 'Management' },
     // Insurance
@@ -71,6 +67,25 @@ const PAGE_TITLES: Record<string, { title: string; category: string }> = {
     '/org-admin/expenses/wallets': { title: 'Wallets', category: 'Expenses' },
     '/employee/expenses/categories': { title: 'Categories', category: 'Expenses' },
     '/org-admin/expenses/categories': { title: 'Categories', category: 'Expenses' },
+
+    // Petty cash
+    '/employee/my-petty-cash': { title: 'My petty cash', category: 'Self' },
+    '/employee/my-petty-cash/expenses': { title: 'My petty cash', category: 'Self' },
+    '/employee/my-petty-cash/fund-requests': { title: 'My petty cash', category: 'Self' },
+    '/employee/petty-cash': { title: 'Overview', category: 'Petty Cash' },
+    '/org-admin/petty-cash': { title: 'Overview', category: 'Petty Cash' },
+    '/employee/petty-cash/wallets': { title: 'Wallets', category: 'Petty Cash' },
+    '/org-admin/petty-cash/wallets': { title: 'Wallets', category: 'Petty Cash' },
+    '/employee/petty-cash/expenses': { title: 'Expenses', category: 'Petty Cash' },
+    '/org-admin/petty-cash/expenses': { title: 'Expenses', category: 'Petty Cash' },
+    '/employee/petty-cash/fund-requests': { title: 'Fund requests', category: 'Petty Cash' },
+    '/org-admin/petty-cash/fund-requests': { title: 'Fund requests', category: 'Petty Cash' },
+    '/employee/petty-cash/inward': { title: 'Inward register', category: 'Petty Cash' },
+    '/org-admin/petty-cash/inward': { title: 'Inward register', category: 'Petty Cash' },
+    '/employee/petty-cash/categories': { title: 'Categories', category: 'Petty Cash' },
+    '/org-admin/petty-cash/categories': { title: 'Categories', category: 'Petty Cash' },
+    '/employee/petty-cash/settings': { title: 'Settings', category: 'Petty Cash' },
+    '/org-admin/petty-cash/settings': { title: 'Settings', category: 'Petty Cash' },
 
     // Data Collection
     '/employee/data-collection': { title: 'Overview', category: 'Data Collection' },
@@ -195,6 +210,18 @@ export function getPageTitle(pathname: string, role: 'employee' | 'org-admin') {
 
     if (/^\/(employee\/employee-management|org-admin\/employees)\/\d+$/.test(pathname)) {
         return { title: 'Employee', description: 'Management' };
+    }
+
+    if (/^\/(employee|org-admin)\/petty-cash\/wallets\/\d+$/.test(pathname) || /^\/employee\/my-petty-cash\/wallets\/\d+$/.test(pathname)) {
+        return { title: 'Wallet', description: 'Petty Cash' };
+    }
+
+    if (/^\/(employee|org-admin)\/petty-cash\/expenses\/\d+$/.test(pathname)) {
+        return { title: 'Expense', description: 'Petty Cash' };
+    }
+
+    if (/^\/employee\/my-petty-cash\/expenses\/\d+$/.test(pathname)) {
+        return { title: 'Expense', description: 'Self' };
     }
 
     if (/^\/employee\/my-interviews\/\d+$/.test(pathname)) {

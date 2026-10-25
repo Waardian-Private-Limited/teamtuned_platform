@@ -1,7 +1,7 @@
 import type { RegularizationOptionsDto, RegularizationRequestDto } from './regularization.dto';
 import type { RegularizationKind, RegularizationOptions, RegularizationRequest, RegularizationStatus } from './regularization.model';
 
-const KINDS: readonly string[] = ['missed_checkout', 'missed_checkin', 'missed_both', 'wrong_time', 'remove_late_mark', 'remove_late_penalty', 'remove_early_mark', 'remove_early_penalty'];
+const KINDS: readonly string[] = ['missed_checkout', 'missed_checkin', 'missed_both', 'wrong_time', 'night_ot_missed_both', 'night_ot_missed_end', 'night_ot_wrong_time', 'remove_late_mark', 'remove_late_penalty', 'remove_early_mark', 'remove_early_penalty'];
 const STATUSES: readonly string[] = ['pending', 'approved', 'rejected', 'cancelled'];
 
 // A kind this app does not know is left out rather than offered: it cannot be sent back correctly.
@@ -38,6 +38,8 @@ export function toOptions(dto: RegularizationOptionsDto): RegularizationOptions 
       holiday: dto.day.holiday,
       recordedIn: dto.day.recorded_in_time,
       recordedOut: dto.day.recorded_out_time,
+      recordedNightIn: dto.day.recorded_night_in_time ?? null,
+      recordedNightOut: dto.day.recorded_night_out_time ?? null,
       shiftStart: dto.day.shift_start_time,
       shiftEnd: dto.day.shift_end_time,
     },

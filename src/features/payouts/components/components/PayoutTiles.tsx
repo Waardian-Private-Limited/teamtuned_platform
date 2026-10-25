@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, Banknote, CheckCircle2, Gift, HandCoins, Receipt, Wallet, WalletCards } from 'lucide-react';
+import { AlertTriangle, Banknote, CheckCircle2, Gift, HandCoins, Landmark, Receipt, Wallet, WalletCards } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { useFeatures } from '@/lib/hooks/useFeatures';
@@ -34,6 +34,7 @@ export function PayoutTiles({ overview, loading, onOpen }: { overview: PayoutOve
   const { hasFeature } = useFeatures();
   const claimsOn = hasFeature('REIMBURSEMENT_FEATURE');
   const walletOn = hasFeature('EXPENSE_WALLET_FEATURE');
+  const pettyOn = hasFeature('PETTY_CASH_FEATURE');
   if (loading || !overview) {
     return (
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
@@ -43,7 +44,7 @@ export function PayoutTiles({ overview, loading, onOpen }: { overview: PayoutOve
   }
   const o = overview;
   const people = (n: number) => `${n} ${n === 1 ? 'payment' : 'payments'}`;
-  const hasExpenses = claimsOn || walletOn || o.toPay.reimbursement.count > 0 || o.toPay.walletFund.count > 0;
+  const hasExpenses = claimsOn || walletOn || pettyOn || o.toPay.reimbursement.count > 0 || o.toPay.walletFund.count > 0 || o.toPay.pettyCashFund.count > 0;
   return (
     <div className={cx('grid grid-cols-2 gap-3', hasExpenses ? 'md:grid-cols-4 xl:grid-cols-7' : 'lg:grid-cols-5')}>
       <Tile icon={Wallet} label="To pay" value={money(o.toPay.total.amount)} note={people(o.toPay.total.count)} onClick={() => onOpen('to_pay')} />
@@ -52,6 +53,7 @@ export function PayoutTiles({ overview, loading, onOpen }: { overview: PayoutOve
       {hasExpenses && (
         <>
           {(claimsOn || o.toPay.reimbursement.count > 0) && <Tile icon={Receipt} label="Expense claims" value={money(o.toPay.reimbursement.amount)} note={people(o.toPay.reimbursement.count)} onClick={() => onOpen('to_pay', 'reimbursement')} />}
+          {(pettyOn || o.toPay.pettyCashFund.count > 0) && <Tile icon={Landmark} label="Petty cash funds" value={money(o.toPay.pettyCashFund.amount)} note={people(o.toPay.pettyCashFund.count)} onClick={() => onOpen('to_pay', 'petty_cash_fund')} />}
           {(walletOn || o.toPay.walletFund.count > 0) && <Tile icon={WalletCards} label="Wallet funds" value={money(o.toPay.walletFund.amount)} note={people(o.toPay.walletFund.count)} onClick={() => onOpen('to_pay', 'wallet_fund')} />}
         </>
       )}

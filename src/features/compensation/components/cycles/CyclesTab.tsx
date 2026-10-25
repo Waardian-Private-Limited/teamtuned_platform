@@ -13,6 +13,8 @@ import { Empty, Panel, Toolbar } from '../shared/Panel';
 import { StatusBadge } from '../shared/StatusBadge';
 import { CycleDialog } from './CycleDialog';
 
+const RATED_BY: Record<CycleDto['rating_source'], string> = { performance: 'from Performance', manager: 'managers rate', hr: 'HR rates' };
+
 export function CyclesTab({ canAdd, basePath, ratingScale }: { canAdd: boolean; basePath: string; ratingScale: RatingLevel[] }) {
   const [cycles, setCycles] = React.useState<CycleDto[] | null>(null);
   const [error, setError] = React.useState('');
@@ -46,7 +48,7 @@ export function CyclesTab({ canAdd, basePath, ratingScale }: { canAdd: boolean; 
               </div>
               <p className="mt-2 flex items-center gap-1.5 text-xs text-fg-muted"><CalendarRange className="h-3.5 w-3.5" />{date(c.period_start)} – {date(c.period_end)}</p>
               <p className="mt-1 text-xs text-fg-muted">Effective {date(c.effective_from)}{c.budget_percent !== null ? ` · Budget ${c.budget_percent}%` : ''}</p>
-              <p className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-fg"><Users className="h-3.5 w-3.5" />{c.proposals ?? 0} proposals</p>
+              <p className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-fg"><Users className="h-3.5 w-3.5" />{c.proposals ?? 0} proposals<span className="font-normal text-fg-muted">· {RATED_BY[c.rating_source]}</span></p>
             </Link>
           ))}
         </div>

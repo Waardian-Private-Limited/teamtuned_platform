@@ -53,6 +53,7 @@ export function sourceHref(row: Payout, area: string) {
   if (row.source === 'reimbursement') return `${area}/expenses/claims/${row.id}`;
   // Fund-request rows carry no wallet id, so they open the wallets' fund-request queue.
   if (row.source === 'wallet_fund') return `${area}/expenses/wallets?tab=requests`;
+  if (row.source === 'petty_cash_fund') return `${area}/petty-cash/fund-requests`;
   if (row.source === 'referral') return `${area}/recruitment/referral-rewards`;
   return `${area}/salary-advance/advances/${row.id}`;
 }

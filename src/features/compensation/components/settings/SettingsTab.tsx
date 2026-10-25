@@ -10,7 +10,6 @@ import type { CompensationSettings, SettingsResponseDto } from '../../types/comp
 import { Btn } from '../shared/Buttons';
 import { RatingScaleEditor } from './RatingScaleEditor';
 import { PayoutTypesEditor } from './PayoutTypesEditor';
-import { LettersEditor } from './LettersEditor';
 
 function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string }) {
   return (
@@ -98,9 +97,6 @@ export function SettingsTab({ data, canEdit, onSaved }: { data: SettingsResponse
         </Section>
         <Section title="Payout types" description="Bonus and one-time payment types your company uses">
           <PayoutTypesEditor value={s.payoutTypes} onChange={(v) => setS((prev) => ({ ...prev, payoutTypes: v }))} error={err('payoutTypes')} />
-        </Section>
-        <Section title="Increment and promotion letters" description="Printed from Increments & Promotions once a revision is approved">
-          <LettersEditor value={s.letters} onChange={(v) => setS((prev) => ({ ...prev, letters: v }))} placeholders={data.catalog.letter_placeholders} error={err} />
         </Section>
         <Section title="Appraisal rating guide" description="Default increment per rating for new appraisal cycles">
           <RatingScaleEditor value={s.ratingScale} onChange={(v) => setS((prev) => ({ ...prev, ratingScale: v }))} error={err('ratingScale')} />

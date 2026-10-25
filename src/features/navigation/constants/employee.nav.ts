@@ -1,4 +1,6 @@
 import {
+  Banknote,
+  NotebookPen,
   ShieldCheck,
   UsersRound,
   MessageSquare,
@@ -17,7 +19,6 @@ import {
   Settings,
   Clock,
   CheckSquare,
-  AlertCircle,
   FileText,
   MinusCircle,
   Users,
@@ -98,7 +99,10 @@ export const employeeNav: NavNode[] = [
       { kind: 'link', label: 'My forms', href: '/employee/data-collection/my', icon: ClipboardList, match: 'prefix', gate: { feature: 'DATA_COLLECTION_FEATURE' } },
       { kind: 'link', label: 'My Attendance', href: '/employee/my-attendance', icon: CalendarCheck },
       { kind: 'link', label: 'My Leave', href: '/employee/leave', icon: TreePalm, match: 'prefix' },
+      { kind: 'link', label: 'My Holidays', href: '/employee/my-holidays', icon: Calendar },
       { kind: 'link', label: 'Teams', href: '/employee/teams', icon: UsersRound, match: 'prefix' },
+      // Managers HR asked to rate their people for an appraisal (no compensation permission needed).
+      { kind: 'link', label: 'Team appraisals', href: '/employee/team-appraisals', icon: ClipboardCheck, gate: { appraisalReviewer: true } },
       { kind: 'link', label: 'My interviews', href: '/employee/my-interviews', icon: CalendarClock, match: 'prefix', gate: { recruitmentRole: 'interviewer' } },
       { kind: 'link', label: 'My reviews', href: '/employee/my-reviews', icon: ClipboardCheck, match: 'prefix', gate: { recruitmentRole: 'reviewer' } },
       // Hiring managers without recruitment permissions: their own positions (the page defaults to "Mine").
@@ -117,22 +121,22 @@ export const employeeNav: NavNode[] = [
   {
     kind: 'group', id: 'attendance', label: 'Attendance', gate: { feature: 'PAYROLL_FEATURE' },
     children: [
-      { kind: 'link', label: 'Approvals', href: '/employee/attendance/approvals', icon: CheckSquare },
       { kind: 'link', label: 'Dashboard', href: '/employee/attendance-dashboard', icon: BarChart3, match: 'prefix', gate: { anyPerm: ['ATTEND_VIEW', 'ATTEND_ADD', 'ATTEND_EDIT'] } },
-      { kind: 'link', label: 'Workforce Insights', href: '/employee/attendance-insights', icon: TrendingUp, match: 'prefix', gate: { anyPerm: ['ATTEND_VIEW', 'ATTEND_ADD', 'ATTEND_EDIT'] } },
-      { kind: 'link', label: 'Approval Audit', href: '/employee/attendance-approval-audit', icon: Timer, gate: { anyPerm: ['ATTEND_VIEW', 'ATTEND_ADD', 'ATTEND_EDIT'] } },
       {
         kind: 'link', label: 'Detailed Attendance', href: '/employee/attendance', icon: ClipboardList,
         activeTest: (p) => p === '/employee/attendance' || (p.startsWith('/employee/attendance/') && !p.startsWith('/employee/attendance-') && !p.startsWith('/employee/attendance/approvals')),
         gate: { anyPerm: ['ATTEND_VIEW', 'ATTEND_ADD', 'ATTEND_EDIT'] },
       },
-      { kind: 'link', label: 'Holidays', href: '/employee/holidays', icon: Calendar, match: 'prefix' },
+      { kind: 'link', label: 'Approvals', href: '/employee/attendance/approvals', icon: CheckSquare },
       { kind: 'link', label: 'Leave Management', href: '/employee/leave-requests', icon: Calendar, match: 'prefix', gate: { anyPerm: ['LEAVE_VIEW', 'LEAVE_ADD', 'LEAVE_EDIT', 'LEAVE_APPROVE'] } },
+      { kind: 'link', label: 'Workforce Insights', href: '/employee/attendance-insights', icon: TrendingUp, match: 'prefix', gate: { anyPerm: ['ATTEND_VIEW', 'ATTEND_ADD', 'ATTEND_EDIT'] } },
+      { kind: 'link', label: 'Approval Audit', href: '/employee/attendance-approval-audit', icon: Timer, gate: { anyPerm: ['ATTEND_VIEW', 'ATTEND_ADD', 'ATTEND_EDIT'] } },
+      { kind: 'link', label: 'Holidays', href: '/employee/holidays', icon: Calendar, match: 'prefix' },
     ],
   },
 
   {
-    kind: 'group', id: 'payroll', label: 'Payroll', gate: { feature: 'PAYROLL_FEATURE' },
+    kind: 'group', id: 'payroll', label: 'Payroll', icon: Banknote, gate: { feature: 'PAYROLL_FEATURE' },
     children: [
       { kind: 'link', label: 'Payroll', href: '/employee/payroll', icon: DollarSign, match: 'prefix', gate: { anyPerm: ['PAYROLL_VIEW', 'HR_MODE'] } },
       { kind: 'link', label: 'Salary Slips', href: '/employee/salary-slips', icon: FileText, match: 'prefix', gate: { anyPerm: ['PAYROLL_VIEW', 'HR_MODE'] } },
@@ -240,12 +244,16 @@ export const employeeNav: NavNode[] = [
   },
 
   {
-    kind: 'group', id: 'petty-cash', label: 'Petty Cash', gate: { feature: 'WALLET_FEATURE' },
+    kind: 'group', id: 'petty-cash', label: 'Petty Cash', icon: Coins, gate: { feature: 'PETTY_CASH_FEATURE' },
     children: [
-      { kind: 'link', label: 'Wallets', href: '/employee/petty-cash', icon: DollarSign, match: 'prefix', gate: { anyPerm: ['WALLET_ADMIN', 'WALLET_VIEW', 'WALLET_ADD'] } },
-      { kind: 'link', label: 'Wallet Expenses', href: '/employee/wallet-overview', icon: Receipt, match: 'prefix', gate: { anyPerm: ['WALLET_ADMIN', 'EXPENSE_VIEW', 'EXPENSE_ADD', 'EXPENSE_EDIT', 'EXPENSE_DELETE'] } },
-      { kind: 'link', label: 'Wallet Config', href: '/employee/wallet-config', icon: Cog, match: 'prefix', gate: { anyPerm: ['WALLET_ADMIN'] } },
-      { kind: 'link', label: 'Wallet Topups', href: '/employee/wallet-topups', icon: ArrowUpCircle, match: 'prefix', gate: { anyPerm: ['WALLET_ADMIN', 'WALLET_TOPUP'] } },
+      { kind: 'link', label: 'My petty cash', href: '/employee/my-petty-cash', icon: Wallet, match: 'prefix', gate: { anyPerm: ['PC_SPEND'] } },
+      { kind: 'link', label: 'Overview', href: '/employee/petty-cash', icon: LayoutDashboard, gate: { anyPerm: ['PC_VIEW', 'PC_ADMIN'] } },
+      { kind: 'link', label: 'Wallets', href: '/employee/petty-cash/wallets', icon: DollarSign, match: 'prefix', gate: { anyPerm: ['PC_VIEW', 'PC_ADMIN', 'PC_FUND'] } },
+      { kind: 'link', label: 'Expenses', href: '/employee/petty-cash/expenses', icon: ClipboardList, match: 'prefix', gate: { anyPerm: ['PC_VIEW', 'PC_ADMIN', 'PC_APPROVE', 'PC_FUND', 'PC_INWARD'] } },
+      { kind: 'link', label: 'Fund requests', href: '/employee/petty-cash/fund-requests', icon: HandCoins, match: 'prefix', gate: { anyPerm: ['PC_VIEW', 'PC_ADMIN', 'PC_FUND'] } },
+      { kind: 'link', label: 'Inward register', href: '/employee/petty-cash/inward', icon: Inbox, match: 'prefix', gate: { anyPerm: ['PC_INWARD', 'PC_VIEW', 'PC_ADMIN'] } },
+      { kind: 'link', label: 'Categories', href: '/employee/petty-cash/categories', icon: Tags, match: 'prefix', gate: { anyPerm: ['PC_ADMIN'] } },
+      { kind: 'link', label: 'Settings', href: '/employee/petty-cash/settings', icon: Cog, match: 'prefix', gate: { anyPerm: ['PC_VIEW', 'PC_ADMIN'] } },
     ],
   },
 
@@ -320,16 +328,12 @@ export const employeeNav: NavNode[] = [
   },
 
   {
-    kind: 'group', id: 'dpr', label: 'DPR',
+    kind: 'group', id: 'dpr', label: 'DPR', icon: HardHat, gate: { feature: 'DPR_FEATURE' },
     children: [
-      {
-        kind: 'link', label: 'Planning', href: '/employee/dps/schedule', icon: Calendar, match: 'prefix',
-        altHrefs: ['/employee/dps/planned-schedules'],
-        gate: { anyPerm: ['DPR_ADMIN', 'DPR_PLAN', 'DPR_CONFIG', 'DPR_EDIT'] },
-      },
-      { kind: 'link', label: 'Daily Forms', href: '/employee/dps/assignments', icon: UserPlus, gate: { anyPerm: ['DPR_ADMIN', 'DPR_FILL', 'DPR_ADD', 'DPR_VIEW'] } },
-      { kind: 'link', label: 'Planning Dashboard', href: '/employee/dps/planning-dashboard', icon: LayoutDashboard, gate: { anyPerm: ['DPR_ADMIN', 'DPR_VIEW'] } },
-      { kind: 'link', label: 'CBD Dashboard', href: '/employee/dps/cbd-dashboard', icon: LayoutDashboard, gate: { anyPerm: ['DPR_ADMIN', 'DPR_VIEW'] } },
+      { kind: 'link', label: 'Planning', href: '/employee/dpr/planning', icon: Calendar, match: 'prefix', altHrefs: ['/employee/dpr/lists'], gate: { anyPerm: ['DPR_PLAN', 'DPR_ADMIN'] } },
+      // Reporters and reviewers are named per site, not by a permission: the pages show the sites they are named on.
+      { kind: 'link', label: 'Daily Forms', href: '/employee/dpr/daily', icon: ClipboardList, match: 'prefix' },
+      { kind: 'link', label: 'Dashboard', href: '/employee/dpr/dashboard', icon: LayoutDashboard },
     ],
   },
 
@@ -361,7 +365,7 @@ export const employeeNav: NavNode[] = [
   },
 
   {
-    kind: 'group', id: 'mom', label: 'Minutes of Meeting', gate: { feature: 'MOM_FEATURE' },
+    kind: 'group', id: 'mom', label: 'Minutes of Meeting', icon: NotebookPen, gate: { feature: 'MOM_FEATURE' },
     children: [
       { kind: 'link', label: 'Dashboard', href: '/employee/mom', icon: LayoutDashboard },
       { kind: 'link', label: 'Meetings', href: '/employee/mom/meetings', icon: List, match: 'prefix' },

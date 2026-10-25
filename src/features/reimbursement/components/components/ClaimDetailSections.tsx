@@ -7,11 +7,12 @@ import { messageOf } from '@/lib/api/errors';
 import * as api from '../../api/reimbursement.api';
 import { EVENT_LABEL, PAYMENT_MODE_LABEL, PAYOUT_MODE_LABEL } from '../../constants/reimbursement.constants';
 import type { ApprovalSummary, ClaimDetail, ClaimEvent, ClaimLine } from '../../types/reimbursement.model';
-import { withoutBillNotes } from '../../utils/bill';
+import { withoutBillNotes } from '@/features/expense-bills/utils/bill';
 import { dateText, dateTimeText, initials, money } from '../../utils/format';
 import { Balance, ChannelBadge, ClaimStatusPill, FlagList } from './StatusBadges';
-import { AiMarker } from './BillPanel';
-import { ReceiptViewer, storedFiles, type ReceiptFact } from './ReceiptViewer';
+import { AiMarker } from '@/features/expense-bills/components/BillPanel';
+import { claimLineFiles } from '../../utils/claimFiles';
+import { ReceiptViewer, type ReceiptFact } from '@/features/expense-bills/components/ReceiptViewer';
 import { Block, CategoryIcon, Fact } from './Primitives';
 
 type FileTarget = 'proof';
@@ -90,8 +91,8 @@ function LineRow({ line, scope, claimId }: { line: ClaimLine; scope: 'me' | 'hr'
   const reduced = l.approvedAmount !== null && l.approvedAmount < l.amount;
   // Bill-check notes are shown in the bill panel.
   const lineFlags = withoutBillNotes(l.flags);
-  const bills = React.useMemo(() => storedFiles(scope, claimId, l.id, l.attachments), [scope, claimId, l.id, l.attachments]);
-  const proofs = React.useMemo(() => storedFiles(scope, claimId, l.id, l.paymentProofs, true), [scope, claimId, l.id, l.paymentProofs]);
+  const bills = React.useMemo(() => claimLineFiles(l.attachments, { scope, claimId, lineId: l.id }), [scope, claimId, l.id, l.attachments]);
+  const proofs = React.useMemo(() => claimLineFiles(l.paymentProofs, { scope, claimId, lineId: l.id, payment: true }), [scope, claimId, l.id, l.paymentProofs]);
   const paidBy = [l.paymentMode ? PAYMENT_MODE_LABEL[l.paymentMode] : null, l.paymentReference ? `Ref ${l.paymentReference}` : null].filter(Boolean).join(' · ');
   const facts: ReceiptFact[] = [
     { label: 'Claimed', value: money(l.amount) },

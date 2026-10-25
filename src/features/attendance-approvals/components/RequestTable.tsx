@@ -156,6 +156,18 @@ function CoverFrom({ row }: { row: RequestRow }) {
   );
 }
 
+/** Which optional holiday, and its kind. */
+function HolidayKind({ row }: { row: RequestRow }) {
+  const h = row.optionalHoliday;
+  if (!h) return <span className="text-fg-subtle">—</span>;
+  return (
+    <span className="flex flex-col text-xs">
+      <span className="font-semibold text-fg">{h.name}</span>
+      {h.category && <span className="capitalize text-fg-muted">{h.category}</span>}
+    </span>
+  );
+}
+
 function CoverDays({ row }: { row: RequestRow }) {
   const c = row.absenceCover;
   return <span className="text-xs font-semibold tabular-nums text-fg">{c ? daysText(c.days) : '—'}</span>;
@@ -183,8 +195,9 @@ export function RequestTable({ type, rows, onOpen }: { type: RequestType; rows: 
   const leave = type === 'leave';
   const compoff = type === 'compoff';
   const cover = type === 'absence_cover';
-  const columns = regularize ? ['Asking for', 'Times'] : leave ? ['Leave', 'Days'] : compoff ? ['Extra work', 'Earns'] : cover ? ['Covered from', 'Days'] : ['Punches'];
-  const cells = (r: RequestRow) => (regularize
+  const holiday = type === 'optional_holiday';
+  const columns = holiday ? ['Optional holiday'] : regularize ? ['Asking for', 'Times'] : leave ? ['Leave', 'Days'] : compoff ? ['Extra work', 'Earns'] : cover ? ['Covered from', 'Days'] : ['Punches'];
+  const cells = (r: RequestRow) => (holiday ? [<HolidayKind key="h" row={r} />] : regularize
     ? [<Kinds key="k" row={r} />, <Times key="t" row={r} />]
     : leave ? [<LeaveKind key="k" row={r} />, <LeaveDays key="d" row={r} />]
       : compoff ? [<CompOffKind key="k" row={r} />, <CompOffAmount key="a" row={r} />]
@@ -197,7 +210,7 @@ export function RequestTable({ type, rows, onOpen }: { type: RequestType; rows: 
           <thead className="sticky top-0 z-10">
             <tr>
               <th className={head}>Employee</th>
-              <th className={head}>{leave ? 'Dates' : compoff ? 'Worked on' : cover ? 'Absent on' : 'Attendance date'}</th>
+              <th className={head}>{leave ? 'Dates' : compoff ? 'Worked on' : cover ? 'Absent on' : holiday ? 'Holiday on' : 'Attendance date'}</th>
               {columns.map((c) => <th key={c} className={head}>{c}</th>)}
               <th className={head}>Reason</th>
               <th className={head}>Sent</th>

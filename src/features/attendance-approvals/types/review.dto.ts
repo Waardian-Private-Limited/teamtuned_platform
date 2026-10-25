@@ -21,6 +21,7 @@ export interface ReviewRowDto {
   leave?: LeaveDto;
   compoff?: CompOffDto;
   absence_cover?: AbsenceCoverDto;
+  optional_holiday?: { name: string; category: string | null; year: number };
   submitted_at: string | null;
 }
 

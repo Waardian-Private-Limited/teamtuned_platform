@@ -4,7 +4,7 @@ import type { RegularizationKind } from '@/features/my-attendance/types/regulari
 export type ReviewScope = 'assigned' | 'all';
 export type ReviewStatusFilter = 'waiting' | 'pending' | 'approved' | 'rejected' | 'cancelled' | 'all';
 /** The kinds of request a reviewer works through here, each its own tab. */
-export type RequestType = 'regularize' | 'verification' | 'leave' | 'compoff' | 'absence_cover';
+export type RequestType = 'regularize' | 'verification' | 'leave' | 'compoff' | 'absence_cover' | 'optional_holiday';
 export type RowStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 
 /** Where a recorded punch was made; outside means beyond the site's boundary. */
@@ -84,6 +84,8 @@ export interface RequestRow {
   compoff: CompOffInfo | null;
   /** Set for an absence cover request. */
   absenceCover: AbsenceCoverInfo | null;
+  /** Set for an optional holiday application. */
+  optionalHoliday: { name: string; category: string | null; year: number } | null;
   submittedAt: string | null;
 }
 

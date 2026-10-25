@@ -19,8 +19,8 @@ const initialFilters = (): ReviewFilters => ({
  * answer to a newer one.
  */
 export function useRequestList(type: RequestType) {
-  // Null until the person picks one: the server starts those who may follow everything on "all".
-  const [chosenScope, setChosenScope] = useState<ReviewScope | null>(null);
+  // Starts on what is assigned to the person; those who may follow everything can switch to "all".
+  const [chosenScope, setChosenScope] = useState<ReviewScope | null>('assigned');
   const [applied, setApplied] = useState<{ scope: ReviewScope; status: ReviewFilters['status'] }>({ scope: 'assigned', status: 'waiting' });
   const [filters, setFilters] = useState<ReviewFilters>(initialFilters);
   const [counts, setCounts] = useState<RowPage['counts']>({});

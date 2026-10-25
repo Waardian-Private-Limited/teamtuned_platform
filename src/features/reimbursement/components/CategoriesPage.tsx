@@ -20,7 +20,7 @@ import { CATEGORY_ICON_LABEL, ILLUSTRATIONS, REIMB_PERMISSIONS, categoryIcon } f
 import { useCategories } from '../hooks/useCategories';
 import { invalidateExpenseCategoryOptions } from '../hooks/useExpenseCategoryOptions';
 import { useExpenseFeatures } from '../hooks/useExpenseFeatures';
-import type { Category, CategoryKind } from '../types/reimbursement.model';
+import type { Category, CategoryKind, CategoryUse } from '../types/reimbursement.model';
 import { placeErrors } from '../utils/errors';
 import { CategoryIcon, FeatureOff, FormError, NoAccess, PageHeader, primaryBtn } from './components/Primitives';
 
@@ -32,7 +32,14 @@ export function CategoriesPage() {
   return <Categories />;
 }
 
-const FIELDS = ['name', 'code', 'kind', 'icon', 'description', 'gl_code', 'sort_order', 'sub_organization_id'];
+const FIELDS = ['name', 'code', 'kind', 'icon', 'description', 'gl_code', 'sort_order', 'sub_organization_id', 'applies_to'];
+
+const USES: ReadonlyArray<{ value: CategoryUse; label: string; description: string }> = [
+  { value: 'claims', label: 'Claims', description: 'Expense claims and wallet expenses' },
+  { value: 'petty_cash', label: 'Petty cash', description: 'Cash spent from site and office wallets' },
+];
+
+const USE_LABEL: Record<CategoryUse, string> = { claims: 'Claims', petty_cash: 'Petty cash' };
 
 function CategoryDialog({ open, category, icons, onClose, onSaved }: { open: boolean; category: Category | null; icons: string[]; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = React.useState('');
@@ -43,6 +50,7 @@ function CategoryDialog({ open, category, icons, onClose, onSaved }: { open: boo
   const [glCode, setGlCode] = React.useState('');
   const [sortOrder, setSortOrder] = React.useState('');
   const [subOrgId, setSubOrgId] = React.useState<number | null>(null);
+  const [appliesTo, setAppliesTo] = React.useState<CategoryUse[]>(['claims', 'petty_cash']);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [formError, setFormError] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -57,6 +65,7 @@ function CategoryDialog({ open, category, icons, onClose, onSaved }: { open: boo
     setGlCode(category?.glCode ?? '');
     setSortOrder(category ? String(category.sortOrder) : '');
     setSubOrgId(category?.subOrganizationId ?? null);
+    setAppliesTo(category?.appliesTo.length ? category.appliesTo : ['claims', 'petty_cash']);
     setErrors({});
     setFormError('');
   }, [open, category]);
@@ -79,6 +88,7 @@ function CategoryDialog({ open, category, icons, onClose, onSaved }: { open: boo
       description: description.trim() || null,
       gl_code: glCode.trim() || null,
       sort_order: sortOrder ? Number(sortOrder) : 0,
+      applies_to: appliesTo,
     };
     try {
       if (category) await api.updateCategory(category.id, body);
@@ -131,6 +141,29 @@ function CategoryDialog({ open, category, icons, onClose, onSaved }: { open: boo
             <OptionCard selected={kind === 'distance'} onClick={() => setKind('distance')} title="A distance" description="Kilometres, paid at the policy’s rate per km" />
           </div>
           <FormError message={errors.kind} className="mt-1.5" />
+        </div>
+        <div>
+          <p className="mb-1.5 text-xs font-semibold text-fg sm:text-[13px]">Applies to</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {USES.map((u) => {
+              const on = appliesTo.includes(u.value);
+              return (
+                <OptionCard
+                  key={u.value}
+                  selected={on}
+                  onClick={() => {
+                    // At least one use stays selected.
+                    if (on && appliesTo.length === 1) return;
+                    setAppliesTo(on ? appliesTo.filter((x) => x !== u.value) : [...appliesTo, u.value]);
+                    clear('applies_to');
+                  }}
+                  title={u.label}
+                  description={u.description}
+                />
+              );
+            })}
+          </div>
+          <FormError message={errors.applies_to} className="mt-1.5" />
         </div>
         <div>
           <p className="mb-1.5 text-xs font-semibold text-fg sm:text-[13px]">Icon</p>
@@ -262,6 +295,7 @@ function Categories() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="truncate text-sm font-semibold text-fg">{cat.name}</span>
                     <span className="rounded-md border border-line px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-fg-muted">{cat.kind === 'distance' ? 'Per km' : 'Amount'}</span>
+                    {cat.appliesTo.length === 1 && <span className="rounded-md border border-dashed border-line-strong px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-fg-muted">{USE_LABEL[cat.appliesTo[0]]} only</span>}
                     {cat.status === 'inactive' && <StatusPill label="Off" tone="neutral" />}
                   </div>
                   <p className="mt-0.5 truncate text-xs text-fg-muted">{[cat.code, cat.glCode ? `GL ${cat.glCode}` : null, cat.description].filter(Boolean).join(' · ')}</p>

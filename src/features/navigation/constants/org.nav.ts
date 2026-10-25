@@ -1,4 +1,6 @@
 import {
+  Banknote,
+  NotebookPen,
   ShieldCheck,
   UsersRound,
   MessageSquare,
@@ -10,7 +12,6 @@ import {
   Target,
   ClipboardList,
   Clock,
-  AlertCircle,
   Activity,
   FileText,
   MinusCircle,
@@ -26,9 +27,7 @@ import {
   Wallet,
   Receipt,
   CheckSquare,
-  ListTodo,
   UserPlus,
-  PlusCircle,
   Package,
   LayoutGrid,
   Layers,
@@ -95,16 +94,16 @@ export const orgNav: NavNode[] = [
     kind: 'group', id: 'attendance', label: 'Attendance',
     children: [
       { kind: 'link', label: 'Dashboard', href: '/org-admin/attendance/dashboard', icon: LayoutDashboard },
-      { kind: 'link', label: 'Workforce Insights', href: '/org-admin/attendance/insights', icon: TrendingUp, match: 'prefix' },
-      { kind: 'link', label: 'Approval Audit', href: '/org-admin/attendance/approval-audit', icon: Timer },
       { kind: 'link', label: 'Detailed Attendance', href: '/org-admin/attendance/employee', icon: UserCheck },
       { kind: 'link', label: 'Approvals', href: '/org-admin/attendance/approvals', icon: CheckSquare },
+      { kind: 'link', label: 'Leave Management', href: '/org-admin/leave', icon: ClipboardList },
+      { kind: 'link', label: 'Workforce Insights', href: '/org-admin/attendance/insights', icon: TrendingUp, match: 'prefix' },
+      { kind: 'link', label: 'Approval Audit', href: '/org-admin/attendance/approval-audit', icon: Timer },
       { kind: 'link', label: 'Holidays', href: '/org-admin/holidays', icon: Calendar },
-      { kind: 'link', label: 'Leave', href: '/org-admin/leave', icon: ClipboardList },
     ],
   },
   {
-    kind: 'group', id: 'payroll', label: 'Payroll',
+    kind: 'group', id: 'payroll', label: 'Payroll', icon: Banknote,
     children: [
       { kind: 'link', label: 'Payroll', href: '/org-admin/payroll', icon: ListChecks, match: 'prefix' },
       { kind: 'link', label: 'Salary Slips', href: '/org-admin/salary-slips', icon: FileText },
@@ -248,24 +247,23 @@ export const orgNav: NavNode[] = [
   { kind: 'link', label: 'Learning', href: '/org-admin/learning', icon: GraduationCap, match: 'prefix', gate: { feature: 'LEARNING_FEATURE' } },
   { kind: 'link', label: 'Surveys', href: '/org-admin/surveys', icon: MessagesSquare, match: 'prefix', gate: { feature: 'ENGAGEMENT_FEATURE' } },
   {
-    kind: 'group', id: 'dpr', label: 'DPR',
+    kind: 'group', id: 'dpr', label: 'DPR', icon: HardHat, gate: { feature: 'DPR_FEATURE' },
     children: [
-      {
-        kind: 'link', label: 'Planning', href: '/org-admin/dps/schedule', icon: Calendar, match: 'prefix',
-        altHrefs: ['/org-admin/dps/planned-schedules'],
-      },
-      { kind: 'link', label: 'Daily Forms', href: '/org-admin/dps/assignments', icon: UserPlus },
-      { kind: 'link', label: 'Planning Dashboard', href: '/org-admin/dps/planning-dashboard', icon: LayoutDashboard },
-      { kind: 'link', label: 'CBD Dashboard', href: '/org-admin/dps/cbd-dashboard', icon: LayoutDashboard },
+      { kind: 'link', label: 'Planning', href: '/org-admin/dpr/planning', icon: Calendar, match: 'prefix', altHrefs: ['/org-admin/dpr/lists'] },
+      { kind: 'link', label: 'Daily Forms', href: '/org-admin/dpr/daily', icon: ClipboardList, match: 'prefix' },
+      { kind: 'link', label: 'Dashboard', href: '/org-admin/dpr/dashboard', icon: LayoutDashboard },
     ],
   },
   {
-    kind: 'group', id: 'petty-cash', label: 'Petty Cash',
+    kind: 'group', id: 'petty-cash', label: 'Petty Cash', icon: Coins, gate: { feature: 'PETTY_CASH_FEATURE' },
     children: [
-      { kind: 'link', label: 'Wallets', href: '/org-admin/petty-cash', icon: DollarSign },
-      { kind: 'link', label: 'Wallet Expenses', href: '/org-admin/wallet-overview', icon: Receipt },
-      { kind: 'link', label: 'Wallet Config', href: '/org-admin/wallet-config', icon: Cog },
-      { kind: 'link', label: 'Wallet Topups', href: '/org-admin/wallet-topups', icon: ArrowUpCircle },
+      { kind: 'link', label: 'Overview', href: '/org-admin/petty-cash', icon: LayoutDashboard, gate: { anyPerm: ['PC_VIEW', 'PC_ADMIN'] } },
+      { kind: 'link', label: 'Wallets', href: '/org-admin/petty-cash/wallets', icon: Wallet, match: 'prefix', gate: { anyPerm: ['PC_VIEW', 'PC_ADMIN', 'PC_FUND'] } },
+      { kind: 'link', label: 'Expenses', href: '/org-admin/petty-cash/expenses', icon: Receipt, match: 'prefix', gate: { anyPerm: ['PC_VIEW', 'PC_ADMIN', 'PC_APPROVE', 'PC_FUND', 'PC_INWARD'] } },
+      { kind: 'link', label: 'Fund requests', href: '/org-admin/petty-cash/fund-requests', icon: ArrowUpCircle, match: 'prefix', gate: { anyPerm: ['PC_VIEW', 'PC_ADMIN', 'PC_FUND'] } },
+      { kind: 'link', label: 'Inward register', href: '/org-admin/petty-cash/inward', icon: Inbox, match: 'prefix', gate: { anyPerm: ['PC_INWARD', 'PC_VIEW', 'PC_ADMIN'] } },
+      { kind: 'link', label: 'Categories', href: '/org-admin/petty-cash/categories', icon: Tags, match: 'prefix', gate: { anyPerm: ['PC_ADMIN'] } },
+      { kind: 'link', label: 'Settings', href: '/org-admin/petty-cash/settings', icon: Cog, match: 'prefix', gate: { anyPerm: ['PC_VIEW', 'PC_ADMIN'] } },
     ],
   },
   {
@@ -293,7 +291,7 @@ export const orgNav: NavNode[] = [
     ],
   },
   {
-    kind: 'group', id: 'mom', label: 'Minutes of Meeting', gate: { feature: 'MOM_FEATURE' },
+    kind: 'group', id: 'mom', label: 'Minutes of Meeting', icon: NotebookPen, gate: { feature: 'MOM_FEATURE' },
     children: [
       { kind: 'link', label: 'Team actions', href: '/org-admin/mom', icon: LayoutDashboard },
       { kind: 'link', label: 'Meetings', href: '/org-admin/mom/meetings', icon: List, match: 'prefix' },

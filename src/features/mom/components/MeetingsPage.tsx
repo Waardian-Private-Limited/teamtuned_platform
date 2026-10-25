@@ -74,12 +74,13 @@ export function MeetingsPage({ basePath }: { basePath: string }) {
                     <tr key={m.id} className="cursor-pointer transition-colors hover:bg-bg-subtle/50" onClick={() => router.push(`${basePath}/meetings/${m.id}`)}>
                       <td className={td}>
                         <Link href={`${basePath}/meetings/${m.id}`} className="font-semibold text-fg hover:underline" onClick={(e) => e.stopPropagation()}>{m.title}</Link>
+                        {m.source === 'dpr' && <span className="ml-2 rounded border border-line bg-bg-subtle px-1.5 py-0.5 align-middle text-[10px] font-semibold uppercase tracking-wide text-fg-muted">DPR</span>}
                         <span className="block text-[11px] text-fg-muted">{[m.place, `${m.attendee_count ?? 0} people`, `${m.point_count ?? 0} points`].filter(Boolean).join(' · ')}</span>
                       </td>
                       <td className={`${td} text-fg-muted`}>{formatDayTime(m.starts_at, tz)}</td>
                       <td className={`${td} text-fg-muted`}>{m.organizer_name || '—'}{m.organizer_employee_id === employee_id ? ' (you)' : ''}</td>
                       <td className={`${td} tabular-nums`}>{m.open_actions ? <span className="font-semibold">{m.open_actions} open</span> : <span className="text-fg-muted">None open</span>}</td>
-                      <td className={td}><StatusPill label={MEETING_STATUS[m.status].label} tone={MEETING_STATUS[m.status].tone} /></td>
+                      <td className={td}>{m.source === 'dpr' ? <StatusPill label="Site month (DPR)" tone="neutral" /> : <StatusPill label={MEETING_STATUS[m.status].label} tone={MEETING_STATUS[m.status].tone} />}</td>
                     </tr>
                   ))}
                 </Table>

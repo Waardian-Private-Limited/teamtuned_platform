@@ -85,6 +85,31 @@ export function StepEditor({ index, count, step, type, lookups, employees, error
           {step.mode === 'quorum' && <TextField label="How many must approve" type="number" min={1} value={String(step.quorum ?? 2)} onChange={(v) => onChange({ ...step, quorum: Number(v) || 1 })} />}
         </div>
 
+        {(type.stepActions?.length ?? 0) > 0 && (
+          <div className="space-y-2 rounded-lg border border-line p-3">
+            <p className="text-xs font-semibold text-fg sm:text-[13px]">At this step the approver must</p>
+            {type.stepActions?.includes('goods') && (
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm text-fg">Receive the goods</p>
+                  <p className="text-[11px] text-fg-muted sm:text-xs">Approving is blocked until the goods on the bill are received. They get the inward number here.</p>
+                </div>
+                <Switch checked={Boolean(step.receives?.goods)} onChange={(v) => onChange({ ...step, receives: { ...step.receives, goods: v } })} label="Receive the goods at this step" />
+              </div>
+            )}
+            {type.stepActions?.includes('paper') && (
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm text-fg">Tick the paper bill</p>
+                  <p className="text-[11px] text-fg-muted sm:text-xs">Approving is blocked until the original paper bill is ticked as in hand.</p>
+                </div>
+                <Switch checked={Boolean(step.receives?.paper)} onChange={(v) => onChange({ ...step, receives: { ...step.receives, paper: v } })} label="Tick the paper bill at this step" />
+              </div>
+            )}
+            <p className="text-[11px] text-fg-muted sm:text-xs">If no step is marked, the petty cash settings apply and the first approver does it. If the marked step is skipped, the next step that is decided does it.</p>
+          </div>
+        )}
+
         {!isLast(index, count) && (
           <SelectField label="If nobody is found" value={step.ifNobody} onChange={(v) => v && onChange({ ...step, ifNobody: v as FlowStep['ifNobody'] })}
             options={[{ value: 'org_admins', label: 'Send to organization admins' }, { value: 'skip', label: 'Skip this step' }]} />

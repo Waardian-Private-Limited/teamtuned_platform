@@ -83,10 +83,6 @@ export const LEAVE_PRESETS: Record<string, Preset> = {
     request: { smallestUnit: 'full_day' },
     frequency: { requestsPerYear: on(1) },
   },
-  OPTIONAL_HOLIDAY: {
-    entitlement: { mode: 'yearly', daysPerYear: 2 },
-    request: { smallestUnit: 'full_day' },
-  },
   RELIGIOUS: {
     entitlement: { mode: 'yearly', daysPerYear: 2 },
     request: { smallestUnit: 'full_day' },

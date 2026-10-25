@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/apiClient';
-import type { Holiday, HolidayInput, HolidayListResponse, MyHoliday } from '../types/holidays';
+import type { Holiday, HolidayInput, HolidayListResponse, MyHolidaysResponse } from '../types/holidays';
 
 interface ListParams {
   year: number;
@@ -29,4 +29,8 @@ export const setHolidayStatus = (id: number, status: string) => apiClient.patch<
 export const deleteHoliday = (id: number) => apiClient.delete<{ success: boolean }>(`/holidays/${id}`, { withAuth: true });
 export const copyHolidays = (fromYear: number, toYear: number, ids?: number[]) =>
   apiClient.post<{ created: number; skipped: number }>('/holidays/copy', { from_year: fromYear, to_year: toYear, ids }, { withAuth: true });
-export const myHolidays = (year: number) => apiClient.get<{ holidays: MyHoliday[]; year: number }>('/holidays/me', { year }, { withAuth: true });
+export const myHolidays = (year: number) => apiClient.get<MyHolidaysResponse>('/holidays/me', { year }, { withAuth: true });
+/** Whether a policy in force lets employees take optional holidays: only then can a holiday be marked optional. */
+export const optionalHolidaysEnabled = () => apiClient.get<{ enabled: boolean }>('/holidays/optional/settings', undefined, { withAuth: true });
+export const applyOptionalHoliday = (holidayId: number) => apiClient.post<{ id: number; state: string }>('/holidays/me/optional', { holiday_id: holidayId }, { withAuth: true });
+export const cancelOptionalHoliday = (choiceId: number) => apiClient.post<{ id: number; state: string }>(`/holidays/me/optional/${choiceId}/cancel`, {}, { withAuth: true });

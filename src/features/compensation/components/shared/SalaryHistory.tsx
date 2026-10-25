@@ -81,7 +81,7 @@ export function SalaryHistory({ history, compact = false, onLetter }: { history:
                 {it.data.reason && <p className="mt-1 text-xs text-fg-muted">{it.data.reason}</p>}
                 {onLetter && it.data.revision_type !== 'joining' && ['approved', 'applied'].includes(it.data.status) && (
                   <button type="button" onClick={() => onLetter(it.data.id)} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-fg hover:underline">
-                    <FileText className="h-3.5 w-3.5" /> View letter
+                    <FileText className="h-3.5 w-3.5" /> Letter
                   </button>
                 )}
               </div>

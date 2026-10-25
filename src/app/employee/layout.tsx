@@ -11,6 +11,7 @@ import { useUserStore } from "@/lib/store/userStore";
 import { EMPLOYEE_ONBOARDING_ROUTE } from "@/config/routes";
 import { useMyRecruitmentRoles } from "@/features/recruitment/shared/hooks/useMyRecruitmentRoles";
 import { useTaxEligibility } from "@/features/my-tax/hooks/useTaxEligibility";
+import { useAppraisalReviewer } from "@/features/compensation/hooks/useAppraisalReviewer";
 
 export default function EmployeeLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -22,6 +23,8 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
   const recruitmentRoles = useMyRecruitmentRoles(Boolean(isAuthenticated));
   // "Tax declaration" only for employees income tax is deducted for.
   const taxEligible = useTaxEligibility(Boolean(isAuthenticated) && Boolean(employee_id));
+  // "Team appraisals" only for managers HR asked to rate their people.
+  const appraisalReviewer = useAppraisalReviewer(Boolean(isAuthenticated) && Boolean(employee_id));
 
   // Extract organization features
   const features = React.useMemo(() => {
@@ -100,6 +103,7 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
             features,
             recruitmentRoles,
             taxEligible,
+            appraisalReviewer,
           }}
           orgName={organization?.name}
           orgLogoUrl={organization?.logo_url}

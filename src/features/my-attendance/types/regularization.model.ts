@@ -4,6 +4,9 @@ export type RegularizationKind =
   | 'missed_checkin'
   | 'missed_both'
   | 'wrong_time'
+  | 'night_ot_missed_both'
+  | 'night_ot_missed_end'
+  | 'night_ot_wrong_time'
   | 'remove_late_mark'
   | 'remove_late_penalty'
   | 'remove_early_mark'
@@ -50,6 +53,9 @@ export interface RegularizationOptions {
     holiday: { name: string; half: boolean } | null;
     recordedIn: string | null;
     recordedOut: string | null;
+    /** Night overtime start and end as recorded; null when none. */
+    recordedNightIn: string | null;
+    recordedNightOut: string | null;
     shiftStart: string | null;
     shiftEnd: string | null;
   };
@@ -58,7 +64,10 @@ export interface RegularizationOptions {
   request: RegularizationRequest | null;
 }
 
+/** A fix to night overtime punches rather than the day's check-in and check-out. */
+export const isNightKind = (k: RegularizationKind | null) => k === 'night_ot_missed_both' || k === 'night_ot_missed_end' || k === 'night_ot_wrong_time';
+
 /** A fix that changes punch times; only one can be chosen at once. */
-export const isTimeKind = (k: RegularizationKind) => k === 'missed_checkout' || k === 'missed_checkin' || k === 'missed_both' || k === 'wrong_time';
-export const asksIn = (k: RegularizationKind | null) => k === 'missed_checkin' || k === 'missed_both' || k === 'wrong_time';
-export const asksOut = (k: RegularizationKind | null) => k === 'missed_checkout' || k === 'missed_both' || k === 'wrong_time';
+export const isTimeKind = (k: RegularizationKind) => k === 'missed_checkout' || k === 'missed_checkin' || k === 'missed_both' || k === 'wrong_time' || k === 'night_ot_missed_both' || k === 'night_ot_missed_end' || k === 'night_ot_wrong_time';
+export const asksIn = (k: RegularizationKind | null) => k === 'missed_checkin' || k === 'missed_both' || k === 'wrong_time' || k === 'night_ot_missed_both' || k === 'night_ot_wrong_time';
+export const asksOut = (k: RegularizationKind | null) => k === 'missed_checkout' || k === 'missed_both' || k === 'wrong_time' || k === 'night_ot_missed_both' || k === 'night_ot_missed_end' || k === 'night_ot_wrong_time';

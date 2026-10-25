@@ -20,3 +20,15 @@ export const STATUS_OPTIONS = [
   { value: 'inactive', label: 'Inactive' },
 ] as const;
 export type HolidayStatusFilter = (typeof STATUS_OPTIONS)[number]['value'];
+
+export const OPTIONAL_STATE_LABEL: Record<string, string> = {
+  pending: 'Waiting for approval',
+  approved: 'You are off',
+  rejected: 'Not approved',
+};
+
+/** Why an optional holiday cannot be taken, in words; a code with no entry is not shown. */
+export const OPTIONAL_BLOCKED_TEXT: Record<string, string> = {
+  HOLIDAY_OPTIONAL_WINDOW_CLOSED: 'Time to apply has passed',
+  HOLIDAY_OPTIONAL_LIMIT_REACHED: 'Limit for the year used',
+};

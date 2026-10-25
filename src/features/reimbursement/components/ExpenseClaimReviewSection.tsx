@@ -10,10 +10,11 @@ import { money } from '@/features/salary-slips/utils/format';
 import * as api from '../api/reimbursement.api';
 import { PAYMENT_MODE_LABEL, categoryIcon } from '../constants/reimbursement.constants';
 import { toBillModel, toFlag, toPaymentMode } from '../types/reimbursement.mapper';
-import { withoutBillNotes } from '../utils/bill';
+import { withoutBillNotes } from '@/features/expense-bills/utils/bill';
 import type { ClaimDetailDto, LineDto } from '../types/reimbursement.dto';
-import { AiMarker } from './components/BillPanel';
-import { ReceiptViewer, storedFiles, type ReceiptFact } from './components/ReceiptViewer';
+import { AiMarker } from '@/features/expense-bills/components/BillPanel';
+import { claimLineFiles } from '../utils/claimFiles';
+import { ReceiptViewer, type ReceiptFact } from '@/features/expense-bills/components/ReceiptViewer';
 
 export interface ClaimReviewValue {
   lines: Array<{ id: number; approved_amount: number }>;
@@ -143,8 +144,8 @@ function LineRow({ claimId, line, readOnly, value, onChange }: { claimId: number
   const proofs = line.payment_proofs?.length ?? 0;
   const paid = [mode ? PAYMENT_MODE_LABEL[mode] : null, line.payment_reference ? `Ref ${line.payment_reference}` : null, proofs ? `${proofs} payment ${proofs === 1 ? 'proof' : 'proofs'}` : null].filter(Boolean).join(' · ');
   // The approver's links are the HR file links (they work for the claim's current approver).
-  const bills = React.useMemo(() => storedFiles('hr', claimId, line.id, line.attachments), [claimId, line.id, line.attachments]);
-  const proofFiles = React.useMemo(() => storedFiles('hr', claimId, line.id, line.payment_proofs ?? [], true), [claimId, line.id, line.payment_proofs]);
+  const bills = React.useMemo(() => claimLineFiles(line.attachments, { scope: 'hr', claimId, lineId: line.id }), [claimId, line.id, line.attachments]);
+  const proofFiles = React.useMemo(() => claimLineFiles(line.payment_proofs ?? [], { scope: 'hr', claimId, lineId: line.id, payment: true }), [claimId, line.id, line.payment_proofs]);
   const flags = React.useMemo(() => withoutBillNotes(line.flags.map(toFlag)), [line.flags]);
   const approving = Number(value);
   const facts: ReceiptFact[] = [

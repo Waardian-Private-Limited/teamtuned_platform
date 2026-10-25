@@ -50,7 +50,7 @@ export function ApprovalTimeline({ request }: { request: RequestDetail }) {
       </ol>
       <div>
         <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-fg-muted">History</h4>
-        <ol className="space-y-2 border-l border-line pl-4">
+        <ol className="max-h-48 space-y-2 overflow-y-auto border-l border-line pl-4 pr-1">
           {request.events.map((e) => (
             <li key={e.id} className="text-sm">
               <p className="font-medium text-fg">{EVENT_LABEL[e.action] || e.action.replace(/_/g, ' ')}{e.actor ? ` · ${e.actor}` : ''}</p>

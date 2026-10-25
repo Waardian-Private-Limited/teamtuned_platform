@@ -571,6 +571,19 @@ const WORK_RULES: Record<string, (c: Config) => CardSummary> = {
     };
   },
 
+  optionalHolidays(c) {
+    if (!b(c.enabled)) return { rule: ['Optional holidays stay information only: an optional holiday is a working day, and employees cannot apply for it.'] };
+    const limit = n(c.limitPerYear);
+    const before = n(c.applyBeforeDays);
+    return {
+      rule: [
+        `Each employee can take up to ${limit} optional holiday${limit === 1 ? '' : 's'} a leave year, and none of it comes from a leave balance.`,
+        before > 0 ? `They apply at least ${before} day${before === 1 ? '' : 's'} before the holiday, and can give it back ${n(c.cancelBeforeDays)} day${n(c.cancelBeforeDays) === 1 ? '' : 's'} before.` : 'They can apply up to the day itself.',
+        b(c.requiresApproval) ? 'Each application goes through the approval flow for Optional holiday before the day becomes a holiday.' : 'An application is approved straight away, with no approval.',
+      ],
+    };
+  },
+
   regularization(c) {
     if (!b(c.allowed)) return { rule: ['Employees cannot fix a missed punch themselves — an admin has to correct it.'] };
     return {

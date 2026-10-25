@@ -29,7 +29,7 @@ import { useExpenseFeatures } from '../../hooks/useExpenseFeatures';
 import type { ClaimsExportRequestDto, ExportFormatDto } from '../../types/reimbursement.dto';
 import type { Category, Channel, PaymentMode, PayoutMode } from '../../types/reimbursement.model';
 import { categoryOptions } from './LineEditor';
-import { DateRangeFields, DeliveryFooter, EmailsField, FILES_HELP, FormatField, parseEmails, plural, ToggleRow, useExportJob, type Delivery } from './ExportParts';
+import { DateRangeFields, DeliveryFooter, EmailsField, FILES_HELP, FormatField, parseEmails, plural, ToggleRow, useExportJob, type Delivery } from '@/features/expense-bills/components/ExportParts';
 import { FormError } from './Primitives';
 
 const END_BEFORE_START = 'The end date is before the start date';

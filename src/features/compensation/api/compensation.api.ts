@@ -18,6 +18,9 @@ import type {
   BenchmarkDto,
   MarketImportDto,
   MarketSurveyDto,
+  ManagerReviewSummaryDto,
+  RatingUploadDto,
+  TeamAppraisalDto,
 } from '../types/compensation.dto';
 
 const auth = { withAuth: true };
@@ -51,12 +54,36 @@ export const listProposals = (id: number, params: Params) =>
 export const updateProposals = (id: number, items: Record<string, unknown>[]) =>
   apiClient.put<{ updated: number; summary: CycleSummaryDto }>(`/compensation/cycles/${id}/proposals`, { items }, auth);
 export const applyRatings = (id: number) => apiClient.post<{ updated: number; summary: CycleSummaryDto }>(`/compensation/cycles/${id}/apply-ratings`, {}, auth);
-export const performanceCycles = () => apiClient.get<{ cycles: LinkablePerformanceCycleDto[] }>('/compensation/performance-cycles', undefined, auth);
-export const linkPerformanceCycle = (id: number, performanceCycleId: number | null) =>
-  apiClient.put<CycleDto>(`/compensation/cycles/${id}/performance-link`, { performance_cycle_id: performanceCycleId }, auth);
+/** enabled: false when the organization has no Performance module (cycles is then empty). */
+export const performanceCycles = () => apiClient.get<{ enabled: boolean; cycles: LinkablePerformanceCycleDto[] }>('/compensation/performance-cycles', undefined, auth);
+/** Replaces the performance cycles an appraisal cycle takes ratings from (empty list unlinks). */
+export const linkPerformanceCycles = (id: number, performanceCycleIds: number[]) =>
+  apiClient.put<CycleDto>(`/compensation/cycles/${id}/performance-link`, { performance_cycle_ids: performanceCycleIds }, auth);
+/** Rebuilds a draft's guide from the linked cycles' ratings when it is missing any of them. */
+export const syncRatings = (id: number) => apiClient.post<CycleDto>(`/compensation/cycles/${id}/sync-ratings`, {}, auth);
 export const importPerformanceRatings = (id: number, apply: boolean) =>
   apiClient.post<PerformanceImportDto>(`/compensation/cycles/${id}/import-performance-ratings`, { apply }, auth);
-export const submitCycle = (id: number) => apiClient.post<CycleDto>(`/compensation/cycles/${id}/submit`, {}, auth);
+// Manager review of a manager-rated cycle (HR side)
+export const sendManagerReview = (id: number, dueDate: string) => apiClient.post<CycleDto>(`/compensation/cycles/${id}/manager-review/send`, { due_date: dueDate }, auth);
+export const remindManagers = (id: number, evaluatorEmployeeId?: number) =>
+  apiClient.post<{ reminded: number }>(`/compensation/cycles/${id}/manager-review/remind`, evaluatorEmployeeId ? { evaluator_employee_id: evaluatorEmployeeId } : {}, auth);
+export const reopenManagerReview = (id: number, evaluatorEmployeeId: number) =>
+  apiClient.post<CycleDto & { reopened: number }>(`/compensation/cycles/${id}/manager-review/reopen`, { evaluator_employee_id: evaluatorEmployeeId }, auth);
+export const rateForManager = (id: number, items: Record<string, unknown>[]) =>
+  apiClient.put<{ rated: number; manager_review: ManagerReviewSummaryDto }>(`/compensation/cycles/${id}/manager-review/ratings`, { items }, auth);
+export const closeManagerReview = (id: number) => apiClient.post<CycleDto>(`/compensation/cycles/${id}/manager-review/close`, {}, auth);
+/** HR's rating file: [{ employee_code, rating, increment_percent?, comment? }]. */
+export const uploadRatings = (id: number, rows: Record<string, string>[]) => apiClient.post<RatingUploadDto>(`/compensation/cycles/${id}/ratings-upload`, { rows }, auth);
+
+// Managers rating their own people (no compensation permission needed)
+export const teamAppraisalStatus = () => apiClient.get<{ has_reviews: boolean }>('/compensation/team-appraisals/status', undefined, auth);
+export const teamAppraisals = () => apiClient.get<{ cycles: TeamAppraisalDto[] }>('/compensation/team-appraisals', undefined, auth);
+export const saveTeamAppraisal = (id: number, items: Record<string, unknown>[]) => apiClient.put<TeamAppraisalDto | null>(`/compensation/team-appraisals/${id}`, { items }, auth);
+export const submitTeamAppraisal = (id: number) => apiClient.post<TeamAppraisalDto | null>(`/compensation/team-appraisals/${id}/submit`, {}, auth);
+
+/** acknowledge = submit even though ratings changed in Performance after the import or disputes are open. */
+export const submitCycle = (id: number, acknowledge = false) =>
+  apiClient.post<CycleDto>(`/compensation/cycles/${id}/submit`, acknowledge ? { acknowledge_rating_issues: true } : {}, auth);
 export const approveCycle = (id: number) => apiClient.post<CycleDto>(`/compensation/cycles/${id}/approve`, {}, auth);
 /** Rating-based bonus payouts of a cycle; dry_run (default) only previews. */
 export const bonusPayouts = (id: number, body: { base: BonusBase; payout_month: string; payout_type?: string; title?: string; dry_run: boolean }) =>

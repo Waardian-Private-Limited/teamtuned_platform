@@ -14,7 +14,7 @@ import { useExpensesBasePath } from '../hooks/useExpensesBasePath';
 import { useWalletDetail } from '../hooks/useWalletDetail';
 import type { Wallet } from '../types/reimbursement.model';
 import { belowZeroText, dateText, initials, money, walletRoomText } from '../utils/format';
-import { DateRange } from './components/DateRange';
+import { DateRange } from '@/features/expense-bills/components/DateRange';
 import { ExportStatementDialog } from './components/ExportDialogs';
 import { LedgerList } from './components/LedgerList';
 import { Balance, WalletStatusPill } from './components/StatusBadges';

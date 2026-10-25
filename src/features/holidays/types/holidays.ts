@@ -36,6 +36,28 @@ export interface HolidayInput {
   sites: HolidaySite[];
 }
 
+/** What an employee can do about one optional holiday, when the policy lets them take it. */
+export interface OptionalChoice {
+  choice: { id: number; state: 'pending' | 'approved' | 'rejected' | 'cancelled' } | null;
+  can_apply: boolean;
+  can_cancel: boolean;
+  /** A HOLIDAY_OPTIONAL_* code saying why not, when the policy has a reason. */
+  blocked_reason: string | null;
+}
+
+/** The year's optional holiday allowance: what is allotted, taken and left. */
+export interface OptionalPolicy {
+  enabled: boolean;
+  limit: number;
+  used: number;
+  remaining: number;
+  apply_before_days: number;
+  cancel_before_days: number;
+  needs_approval: boolean;
+  /** The leave year the balance is for. */
+  period?: { start: string; end: string };
+}
+
 export interface MyHoliday {
   id: number;
   date: string;
@@ -43,4 +65,11 @@ export interface MyHoliday {
   session: HolidaySession;
   is_optional: boolean;
   type: string | null;
+  optional?: OptionalChoice;
+}
+
+export interface MyHolidaysResponse {
+  holidays: MyHoliday[];
+  year: number;
+  optional_policy?: OptionalPolicy;
 }

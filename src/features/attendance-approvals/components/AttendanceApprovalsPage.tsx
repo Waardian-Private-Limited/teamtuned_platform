@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { CalendarX, Clock, ListChecks, MapPinCheck, Plane, TreePalm } from 'lucide-react';
+import { CalendarX, CalendarHeart, Clock, ListChecks, MapPinCheck, Plane, TreePalm } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { Alert } from '@/components/ui/Alert';
 import { Pagination } from '@/components/ui/Pagination';
@@ -32,6 +32,7 @@ const TYPES: ReadonlyArray<{ value: RequestType; label: string; noun: string; ic
   { value: 'leave', label: 'Leave', noun: 'Leave requests', icon: TreePalm },
   { value: 'compoff', label: 'Comp-off', noun: 'Comp-off requests', icon: Clock },
   { value: 'absence_cover', label: 'Absence cover', noun: 'Absence cover requests', icon: CalendarX },
+  { value: 'optional_holiday', label: 'Holiday', noun: 'Optional holiday requests', icon: CalendarHeart },
 ];
 
 /**

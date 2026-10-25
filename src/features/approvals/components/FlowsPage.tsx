@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useSearchParams } from 'next/navigation';
 import { ChevronDown, Power, Plus, Search, SquarePen, Trash2 } from 'lucide-react';
 import { Alert } from '@/components/ui/Alert';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -52,6 +53,7 @@ export function FlowsPage() {
   const { can, hasPerm } = usePermission();
   const canManage = can(FLOW_PERMISSIONS.MANAGE) || hasPerm('HR_MODE');
   const { catalog, lookups, error: catalogError } = useCatalog();
+  const wantedType = useSearchParams()?.get('type') || '';
   const [typeKey, setTypeKey] = React.useState<string>('');
   const [view, setView] = React.useState<View>('flows');
   const [flows, setFlows] = React.useState<Flow[] | null>(null);
@@ -62,8 +64,11 @@ export function FlowsPage() {
   const [togglingId, setTogglingId] = React.useState<number | null>(null);
 
   React.useEffect(() => {
-    if (catalog && !typeKey) setTypeKey(catalog.requestTypes[0]?.type ?? '');
-  }, [catalog, typeKey]);
+    if (catalog && !typeKey) {
+      const wanted = catalog.requestTypes.find((t) => t.type === wantedType);
+      setTypeKey(wanted?.type ?? catalog.requestTypes[0]?.type ?? '');
+    }
+  }, [catalog, typeKey, wantedType]);
 
   const type = catalog?.requestTypes.find((t) => t.type === typeKey) || null;
 

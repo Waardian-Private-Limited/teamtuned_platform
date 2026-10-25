@@ -11,7 +11,6 @@ import { Btn } from '@/features/compensation/components/shared/Buttons';
 import { SalaryHistoryDrawer } from '@/features/compensation/components/SalaryHistoryDrawer';
 import { useCompensationSettings } from '@/features/compensation/hooks/useCompensationSettings';
 import type { RevisionDto } from '@/features/compensation/types/compensation.dto';
-import * as api from '../api/salaryRevisions.api';
 import { REVISION_PERMISSIONS } from '../constants/salaryRevisions.constants';
 import { useRevisionList } from '../hooks/useRevisionList';
 import { useRevisionMutations } from '../hooks/useRevisionMutations';
@@ -20,7 +19,7 @@ import { RevisionTable } from './components/RevisionTable';
 import { RevisionCardList } from './components/RevisionCardList';
 import { RevisionsEmptyState } from './components/RevisionsEmptyState';
 import { RevisionFormDialog } from './components/RevisionFormDialog';
-import { RevisionLetterDrawer } from './components/RevisionLetterDrawer';
+import { RevisionLetterDialog } from './components/RevisionLetterDialog';
 import { RevisionDecisionDialog, type DecisionTarget } from './components/RevisionDecisionDialog';
 import { RevisionVoidDialog } from './components/RevisionVoidDialog';
 import type { RevisionActionHandlers } from './components/RevisionRowActions';
@@ -40,7 +39,7 @@ export function SalaryRevisionsPage() {
   const [selected, setSelected] = React.useState<Set<number>>(new Set());
   const [form, setForm] = React.useState<{ open: boolean; revision?: RevisionDto | null }>({ open: false });
   const [historyId, setHistoryId] = React.useState<number | null>(null);
-  const [letterId, setLetterId] = React.useState<number | null>(null);
+  const [letterFor, setLetterFor] = React.useState<RevisionDto | null>(null);
   const [decision, setDecision] = React.useState<DecisionTarget | null>(null);
   const [voiding, setVoiding] = React.useState<RevisionDto | null>(null);
 
@@ -52,7 +51,7 @@ export function SalaryRevisionsPage() {
 
   const handlers: RevisionActionHandlers = {
     onHistory: (r) => setHistoryId(r.employee.id),
-    onLetter: (r) => setLetterId(r.id),
+    onLetter: (r) => setLetterFor(r),
     onEdit: (r) => setForm({ open: true, revision: r }),
     onSubmit: (r) => setDecision({ ids: [r.id], decision: 'submit', label: r.employee.name }),
     onDecide: (r, d) => setDecision({ ids: [r.id], decision: d, label: r.employee.name }),
@@ -72,7 +71,7 @@ export function SalaryRevisionsPage() {
   const pending = pick('pending');
   const drafts = pick('draft');
   const fade = list.isFetching ? 'opacity-75' : 'opacity-100';
-  const loadLetter = React.useCallback((id: number) => api.getLetter(id), []);
+  const closeLetter = React.useCallback(() => setLetterFor(null), []);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
@@ -134,7 +133,7 @@ export function SalaryRevisionsPage() {
       <RevisionFormDialog open={form.open} revision={form.revision} revisionTypes={settings.data?.catalog.revision_types || []} onClose={() => setForm({ open: false })} onSaved={list.refetch} />
       <RevisionDecisionDialog target={decision} onClose={() => setDecision(null)} onConfirm={confirm} />
       <RevisionVoidDialog revision={voiding} onClose={() => setVoiding(null)} onVoided={list.refetch} />
-      <RevisionLetterDrawer revisionId={letterId} load={loadLetter} onClose={() => setLetterId(null)} />
+      <RevisionLetterDialog revisionId={letterFor?.id ?? null} employeeName={letterFor?.employee.name} onClose={closeLetter} />
       <SalaryHistoryDrawer employeeId={historyId} onClose={() => setHistoryId(null)} />
     </div>
   );

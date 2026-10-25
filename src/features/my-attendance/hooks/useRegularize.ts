@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { messageOf } from '@/lib/api/errors';
 import * as api from '../api/myAttendance.api';
 import { toOptions, toRequest } from '../types/regularization.mapper';
-import { asksIn, asksOut, isTimeKind } from '../types/regularization.model';
+import { asksIn, asksOut, isNightKind, isTimeKind } from '../types/regularization.model';
 import type { RegularizationKind, RegularizationOptions } from '../types/regularization.model';
 import { getOrgTimezone } from '@/lib/datetime';
 
@@ -45,10 +45,11 @@ export function useRegularize(date: string) {
         // A shift time that has not come yet today is not offered: it would be refused as a future time.
         const shiftTime = (t: string | null) => (t && (o.date !== now.date || t <= now.time) ? t : '');
         setOptions(o);
-        setInTime(o.day.recordedIn ?? shiftTime(o.day.shiftStart));
-        setOutTime(o.day.recordedOut ?? shiftTime(o.day.shiftEnd));
         // The first fix that changes punch times is chosen already, so the common case starts at the times.
         const first = o.kinds.find(isTimeKind);
+        const night = isNightKind(first ?? null);
+        setInTime((night ? o.day.recordedNightIn : o.day.recordedIn) ?? (night ? '' : shiftTime(o.day.shiftStart)));
+        setOutTime((night ? o.day.recordedNightOut : o.day.recordedOut) ?? (night ? '' : shiftTime(o.day.shiftEnd)));
         setKinds(first && o.eligible && !(o.request?.status === 'pending') ? [first] : []);
         setLoadError(null);
       })
@@ -58,6 +59,7 @@ export function useRegularize(date: string) {
   }, [date, nonce]);
 
   const timeKind = useMemo(() => kinds.find(isTimeKind) ?? null, [kinds]);
+  const night = isNightKind(timeKind);
   const needsIn = asksIn(timeKind);
   const needsOut = asksOut(timeKind);
   const timesReady = (!needsIn || inTime !== '') && (!needsOut || outTime !== '');
@@ -69,7 +71,13 @@ export function useRegularize(date: string) {
       if (current.includes(kind)) return current.filter((k) => k !== kind);
       return [...(isTimeKind(kind) ? current.filter((k) => !isTimeKind(k)) : current), kind];
     });
-  }, []);
+    // The times start from what was recorded for that kind of punch: night overtime has its own.
+    if (isTimeKind(kind) && options) {
+      const d = options.day;
+      setInTime((isNightKind(kind) ? d.recordedNightIn : d.recordedIn) ?? '');
+      setOutTime((isNightKind(kind) ? d.recordedNightOut : d.recordedOut) ?? '');
+    }
+  }, [options]);
 
   const submit = useCallback(async () => {
     if (!canSubmit) return false;
@@ -114,5 +122,5 @@ export function useRegularize(date: string) {
     }
   }, [options]);
 
-  return { options, loading, loadError, kinds, toggle, timeKind, needsIn, needsOut, inTime, setInTime, outTime, setOutTime, reason, setReason, file, setFile, busy, error, canSubmit, submit, withdraw };
+  return { options, loading, loadError, kinds, toggle, timeKind, night, needsIn, needsOut, inTime, setInTime, outTime, setOutTime, reason, setReason, file, setFile, busy, error, canSubmit, submit, withdraw };
 }
