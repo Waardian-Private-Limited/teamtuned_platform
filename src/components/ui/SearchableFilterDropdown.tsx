@@ -17,6 +17,8 @@ interface SearchableFilterDropdownProps {
   onChange: (value: number | null) => void;
   className?: string;
   searchPlaceholder?: string;
+  /** No "all" choice and no clear button: one option must always be picked. */
+  hideAll?: boolean;
 }
 
 export function SearchableFilterDropdown({
@@ -27,6 +29,7 @@ export function SearchableFilterDropdown({
   onChange,
   className,
   searchPlaceholder,
+  hideAll,
 }: SearchableFilterDropdownProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -100,7 +103,7 @@ export function SearchableFilterDropdown({
 
         <span className="flex shrink-0 items-center gap-1">
           {/* Quick Clear Button */}
-          {selected && (
+          {selected && !hideAll && (
             <span
               role="button"
               tabIndex={-1}
@@ -157,7 +160,7 @@ export function SearchableFilterDropdown({
             className="mt-1.5 max-h-52 overflow-y-auto tt-scrollbar space-y-0.5 p-0.5 text-xs sm:text-sm"
           >
             {/* "All" reset option */}
-            <li role="option" aria-selected={value === null || value === undefined}>
+            {!hideAll && <li role="option" aria-selected={value === null || value === undefined}>
               <button
                 type="button"
                 onClick={() => handleSelect(null)}
@@ -173,9 +176,9 @@ export function SearchableFilterDropdown({
                   <Check className="h-3.5 w-3.5 text-[var(--tt-primary)] shrink-0" />
                 )}
               </button>
-            </li>
+            </li>}
 
-            <li className="border-t border-line/50 my-1" />
+            {!hideAll && <li className="border-t border-line/50 my-1" />}
 
             {/* Filtered items */}
             {filtered.length === 0 ? (

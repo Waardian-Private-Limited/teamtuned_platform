@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Building2, ChevronDown, ChevronRight, LogOut, Menu, Settings, BarChart2, Smartphone, CreditCard, User, FileText, Percent, Shield } from "lucide-react";
+import { Home, Building2, ChevronDown, ChevronRight, LogOut, Menu, Settings, BarChart2, Smartphone, CreditCard, User, FileText, Percent, Shield, HardHat } from "lucide-react";
 
 export default function SuperadminSidebar({
   isCollapsed,
@@ -141,6 +141,7 @@ export default function SuperadminSidebar({
             <div className="mt-2 space-y-1">
               <Item icon={User} label="Billing Profile" href="/superadmin/billing-profile" active={pathname === "/superadmin/billing-profile"} />
               <Item icon={FileText} label="Custom Invoices" href="/superadmin/custom-invoices" active={pathname === "/superadmin/custom-invoices"} />
+              <Item icon={HardHat} label="Labour Billing" href="/superadmin/labour-billing" active={pathname.startsWith("/superadmin/labour-billing")} />
               <Item icon={CreditCard} label="TDS Deductions" href="/superadmin/tds-deductions" active={pathname === "/superadmin/tds-deductions"} />
             </div>
           )}

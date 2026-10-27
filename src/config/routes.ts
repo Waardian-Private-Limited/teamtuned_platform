@@ -27,7 +27,6 @@ export const PUBLIC_ROUTES = [
   // /careers/test/[token] and /careers/offer/[token].
   '/careers',
   '/vendor',
-  '/biometric',
   // 360 feedback from people outside the company: /feedback/[token]
   '/feedback',
 ];

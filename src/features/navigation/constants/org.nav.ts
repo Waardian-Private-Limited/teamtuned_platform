@@ -68,8 +68,10 @@ import {
   Timer,
   TrendingUp,
   Gauge,
+  Ruler,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
+import { ANY_LABOUR_PERM, LABOUR_MEAS_PAGE_PERMS, LABOUR_PAYABLE_PERMS, LABOUR_SETTINGS_PAGE_PERMS, LABOUR_VIEW_PERMS, LP } from '@/features/labour/constants/labour.constants';
 
 /**
  * Org admin nav tree — transcribed from the legacy
@@ -267,27 +269,21 @@ export const orgNav: NavNode[] = [
     ],
   },
   {
-    kind: 'group', id: 'labor-management', label: 'Labor Management',
+    kind: 'group', id: 'labour', label: 'Labour', icon: HardHat, gate: { feature: 'LABOUR_FEATURE', anyPerm: ANY_LABOUR_PERM },
     children: [
-      { kind: 'link', label: 'Attendance Dashboard', href: '/org-admin/labor-attendance/dashboard', icon: LayoutDashboard },
-      { kind: 'link', label: 'Contractor Dashboard', href: '/org-admin/labor-attendance/contractor-dashboard', icon: BarChart3 },
-      { kind: 'link', label: 'Attendance Logs', href: '/org-admin/labor-attendance/logs', icon: ClipboardList },
-      { kind: 'link', label: 'Punch Regularization', href: '/org-admin/labor-attendance/regularization', icon: Clock },
-      { kind: 'link', label: 'Categories', href: '/org-admin/labor/categories', icon: LayoutGrid },
-      { kind: 'link', label: 'Subcategories', href: '/org-admin/labor/subcategories', icon: Layers },
-      { kind: 'link', label: 'Contractors', href: '/org-admin/labor/contractors', icon: Briefcase },
-      { kind: 'link', label: 'Laborers', href: '/org-admin/labor/laborers', icon: HardHat },
-      { kind: 'link', label: 'Rate Cards', href: '/org-admin/labor/rate-cards', icon: DollarSign },
-      {
-        kind: 'link', label: 'Billing Config', href: '/org-admin/labor/billing-config', icon: DollarSign,
-        gate: { perm: 'LABOR_ADMIN' },
-      },
-      { kind: 'link', label: 'Wallet Ledger', href: '/org-admin/labor/wallet-ledger', icon: Wallet },
-      { kind: 'link', label: 'Site Logins', href: '/org-admin/site-logins', icon: Shield },
-      { kind: 'link', label: 'Settings', href: '/org-admin/labor/settings', icon: Settings },
-      { kind: 'link', label: 'Device Health', href: '/org-admin/labor-attendance/temperature-dashboard', icon: Activity },
-      { kind: 'link', label: 'Device Logs', href: '/org-admin/labor-attendance/device-logs', icon: Thermometer },
-      { kind: 'link', label: 'Biometric Punch', href: '/org-admin/labor-attendance/biometric', icon: Camera },
+      { kind: 'link', label: 'Dashboard', href: '/org-admin/labour', icon: LayoutDashboard, gate: { anyPerm: LABOUR_VIEW_PERMS } },
+      { kind: 'link', label: 'Attendance', href: '/org-admin/labour/days', icon: ClipboardList, match: 'prefix', gate: { anyPerm: LABOUR_VIEW_PERMS } },
+      { kind: 'link', label: 'Regularization', href: '/org-admin/labour/regularization', icon: Clock, match: 'prefix', gate: { anyPerm: LABOUR_VIEW_PERMS } },
+      { kind: 'link', label: 'Labourers', href: '/org-admin/labour/labourers', icon: HardHat, match: 'prefix', gate: { anyPerm: LABOUR_VIEW_PERMS } },
+      { kind: 'link', label: 'Contractors', href: '/org-admin/labour/contractors', icon: Briefcase, match: 'prefix', gate: { anyPerm: LABOUR_VIEW_PERMS } },
+      { kind: 'link', label: 'Measurement book', href: '/org-admin/labour/measurements', icon: Ruler, match: 'prefix', gate: { anyPerm: LABOUR_MEAS_PAGE_PERMS } },
+      { kind: 'link', label: 'Payable', href: '/org-admin/labour/payable', icon: HandCoins, match: 'prefix', gate: { anyPerm: LABOUR_PAYABLE_PERMS } },
+      { kind: 'link', label: 'Categories', href: '/org-admin/labour/categories', icon: LayoutGrid, match: 'prefix', gate: { anyPerm: LABOUR_VIEW_PERMS } },
+      { kind: 'link', label: 'Devices', href: '/org-admin/labour/devices', icon: Activity, match: 'prefix', gate: { anyPerm: LABOUR_VIEW_PERMS } },
+      { kind: 'link', label: 'Billing', href: '/org-admin/labour/billing', icon: Receipt, match: 'prefix', gate: { anyPerm: [LP.BILLING] } },
+      { kind: 'link', label: 'Compliance forms', href: '/org-admin/labour/compliance', icon: FileText, match: 'prefix', gate: { anyPerm: [LP.COMPLIANCE] } },
+      { kind: 'link', label: 'Settings', href: '/org-admin/labour/settings', icon: Settings, match: 'prefix', gate: { anyPerm: LABOUR_SETTINGS_PAGE_PERMS } },
+      { kind: 'link', label: 'Site Logins', href: '/org-admin/site-logins', icon: Shield, match: 'prefix', gate: { anyPerm: ['SITE_EDIT', 'SITE_ADD'] } },
     ],
   },
   {

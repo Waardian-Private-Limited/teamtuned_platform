@@ -1,5 +1,6 @@
 import {
   Banknote,
+  Activity,
   NotebookPen,
   ShieldCheck,
   UsersRound,
@@ -68,8 +69,10 @@ import {
   Timer,
   TrendingUp,
   Gauge,
+  Ruler,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
+import { ANY_LABOUR_PERM, LABOUR_MEAS_PAGE_PERMS, LABOUR_PAYABLE_PERMS, LABOUR_SETTINGS_PAGE_PERMS, LABOUR_VIEW_PERMS, LP } from '@/features/labour/constants/labour.constants';
 
 /**
  * Employee-area nav tree — transcribed from the legacy
@@ -197,7 +200,7 @@ export const employeeNav: NavNode[] = [
       { kind: 'link', label: 'Organization Profile', href: '/employee/orgProfile', icon: Building2, match: 'prefix', gate: { anyPerm: ['ORGPROFILE_VIEW', 'ORGPROFILE_ADD', 'ORGPROFILE_EDIT', 'ORGPROFILE_DELETE'] } },
       { kind: 'link', label: 'Site-Sub-Org Mapper', href: '/employee/site-sub-org-mapper', icon: Link2, gate: { anyPerm: ['SITE_VIEW', 'SITE_ADD', 'SITE_EDIT', 'SITE_DELETE'] } },
       { kind: 'link', label: 'Site Assignment', href: '/employee/employee-sites', icon: MapPin, match: 'prefix', gate: { anyPerm: ['EMPSITE_VIEW', 'EMPLOYEE_ASSIGN_SITE'] } },
-      { kind: 'link', label: 'Site Logins', href: '/employee/site-logins', icon: Shield, match: 'prefix', gate: { perm: 'LABOR_ADMIN' } },
+      { kind: 'link', label: 'Site Logins', href: '/employee/site-logins', icon: Shield, match: 'prefix', gate: { anyPerm: ['SITE_EDIT', 'SITE_ADD'] } },
       { kind: 'link', label: 'Employee Devices', href: '/employee/device-management', icon: Smartphone, match: 'prefix', gate: { perm: 'EMP_DEVICE_MANAGEMENT' } },
     ],
   },
@@ -338,29 +341,20 @@ export const employeeNav: NavNode[] = [
   },
 
   {
-    kind: 'group', id: 'labor-management', label: 'Labor Management', gate: {
-      feature: 'PAYROLL_FEATURE',
-      anyPerm: [
-        'LABOR_CAT_VIEW', 'LABOR_CAT_ADD', 'LABOR_CAT_EDIT',
-        'LABOR_CONTRACTOR_VIEW', 'LABOR_CONTRACTOR_ADD', 'LABOR_CONTRACTOR_EDIT',
-        'LABORER_VIEW', 'LABORER_ADD', 'LABORER_EDIT',
-        'LABOR_RATE_VIEW', 'LABOR_RATE_ADD', 'LABOR_RATE_EDIT',
-        'LABOR_SETTINGS_VIEW', 'LABOR_SETTINGS_EDIT',
-        'LABOR_ADMIN',
-      ],
-    },
+    kind: 'group', id: 'labour', label: 'Labour', icon: HardHat, gate: { feature: 'LABOUR_FEATURE', anyPerm: ANY_LABOUR_PERM },
     children: [
-      { kind: 'link', label: 'Dashboard', href: '/employee/labor-attendance/dashboard', icon: LayoutDashboard },
-      { kind: 'link', label: 'Attendance Logs', href: '/employee/labor-attendance/logs', icon: ClipboardList },
-      { kind: 'link', label: 'Contractor Dashboard', href: '/employee/labor-attendance/contractor-dashboard', icon: BarChart3, match: 'prefix', gate: { anyPerm: ['LABOR_ATTEND_VIEW', 'LABOR_ATTENDANCE_ADD', 'LABOR_ATTENDANCE_EDIT'] } },
-      { kind: 'link', label: 'Categories', href: '/employee/labor/categories', icon: LayoutGrid, match: 'prefix', gate: { anyPerm: ['LABOR_CAT_VIEW', 'LABOR_CAT_ADD', 'LABOR_CAT_EDIT'] } },
-      { kind: 'link', label: 'Subcategories', href: '/employee/labor/subcategories', icon: Layers, match: 'prefix', gate: { anyPerm: ['LABOR_CAT_VIEW', 'LABOR_CAT_ADD', 'LABOR_CAT_EDIT'] } },
-      { kind: 'link', label: 'Contractors', href: '/employee/labor/contractors', icon: Briefcase, match: 'prefix', gate: { anyPerm: ['LABOR_CONTRACTOR_VIEW', 'LABOR_CONTRACTOR_ADD', 'LABOR_CONTRACTOR_EDIT'] } },
-      { kind: 'link', label: 'Laborers', href: '/employee/labor/laborers', icon: HardHat, match: 'prefix', gate: { anyPerm: ['LABORER_VIEW', 'LABORER_ADD', 'LABORER_EDIT'] } },
-      { kind: 'link', label: 'Rate Cards', href: '/employee/labor/rate-cards', icon: DollarSign, match: 'prefix', gate: { anyPerm: ['LABOR_RATE_VIEW', 'LABOR_RATE_ADD', 'LABOR_RATE_EDIT'] } },
-      { kind: 'link', label: 'Labor Billing Config', href: '/employee/labor/billing-config', icon: DollarSign, match: 'prefix', gate: { perm: 'LABOR_ADMIN' } },
-      { kind: 'link', label: 'Wallet Ledger', href: '/employee/labor/wallet-ledger', icon: Wallet, match: 'prefix', gate: { perm: 'LABOR_ADMIN' } },
-      { kind: 'link', label: 'Settings', href: '/employee/labor/settings', icon: Settings, match: 'prefix', gate: { anyPerm: ['LABOR_SETTINGS_VIEW', 'LABOR_SETTINGS_EDIT'] } },
+      { kind: 'link', label: 'Dashboard', href: '/employee/labour', icon: LayoutDashboard, gate: { anyPerm: LABOUR_VIEW_PERMS } },
+      { kind: 'link', label: 'Attendance', href: '/employee/labour/days', icon: ClipboardList, match: 'prefix', gate: { anyPerm: LABOUR_VIEW_PERMS } },
+      { kind: 'link', label: 'Regularization', href: '/employee/labour/regularization', icon: Clock, match: 'prefix', gate: { anyPerm: LABOUR_VIEW_PERMS } },
+      { kind: 'link', label: 'Labourers', href: '/employee/labour/labourers', icon: HardHat, match: 'prefix', gate: { anyPerm: LABOUR_VIEW_PERMS } },
+      { kind: 'link', label: 'Contractors', href: '/employee/labour/contractors', icon: Briefcase, match: 'prefix', gate: { anyPerm: LABOUR_VIEW_PERMS } },
+      { kind: 'link', label: 'Measurement book', href: '/employee/labour/measurements', icon: Ruler, match: 'prefix', gate: { anyPerm: LABOUR_MEAS_PAGE_PERMS } },
+      { kind: 'link', label: 'Payable', href: '/employee/labour/payable', icon: HandCoins, match: 'prefix', gate: { anyPerm: LABOUR_PAYABLE_PERMS } },
+      { kind: 'link', label: 'Categories', href: '/employee/labour/categories', icon: LayoutGrid, match: 'prefix', gate: { anyPerm: LABOUR_VIEW_PERMS } },
+      { kind: 'link', label: 'Devices', href: '/employee/labour/devices', icon: Activity, match: 'prefix', gate: { anyPerm: LABOUR_VIEW_PERMS } },
+      { kind: 'link', label: 'Billing', href: '/employee/labour/billing', icon: Receipt, match: 'prefix', gate: { anyPerm: [LP.BILLING] } },
+      { kind: 'link', label: 'Compliance forms', href: '/employee/labour/compliance', icon: FileText, match: 'prefix', gate: { anyPerm: [LP.COMPLIANCE] } },
+      { kind: 'link', label: 'Settings', href: '/employee/labour/settings', icon: Settings, match: 'prefix', gate: { anyPerm: LABOUR_SETTINGS_PAGE_PERMS } },
     ],
   },
 

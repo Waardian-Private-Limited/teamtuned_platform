@@ -4,7 +4,6 @@ import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/features/navigation/components/AppShell";
 import { employeeNav } from "@/features/navigation/constants/employee.nav";
-import { OrgProvider } from "@/components/shared/OrgContext";
 import { InventoryStoreProvider } from "@/components/inventory/InventoryStoreContext";
 import { useAuth } from "@/context/AuthContext";
 import { useUserStore } from "@/lib/store/userStore";
@@ -91,7 +90,6 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
   const isOrgAdmin = (role || "").toLowerCase() === "orgadmin";
 
   return (
-    <OrgProvider defaultHQ={false}>
       <InventoryStoreProvider>
         <AppShell
           storageRole="employee"
@@ -116,6 +114,5 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
           {children}
         </AppShell>
       </InventoryStoreProvider>
-    </OrgProvider>
   );
 }

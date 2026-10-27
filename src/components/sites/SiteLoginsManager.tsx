@@ -1,30 +1,27 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { apiClient } from "@/lib/apiClient";
-import TeamTunedLoader from "@/components/common/TeamTunedLoader";
-import {
-    Plus,
-    Search,
-    Trash2,
-    Edit2,
-    User,
-    MapPin,
-    Shield,
-    Eye,
-    EyeOff,
-    CheckCircle,
-    XCircle,
-    AlertCircle
-} from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { apiClient } from "@/lib/apiClient";
+import { cx, field } from "@/theme/tokens";
+import { formatDateTime } from "@/lib/datetime";
+import { Dialog } from "@/components/ui/Dialog";
+import { ConfirmDialog, type ConfirmState } from "@/components/ui/ConfirmDialog";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Field } from "@/components/ui/Field";
+import { StatusPill } from "@/components/ui/StatusPill";
+import { Switch } from "@/components/ui/Switch";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
+import { PageHeader, primaryBtn, secondaryBtn } from "@/features/expense-bills/components/Primitives";
+import { SearchBox, th, td, trCls } from "@/features/labour/components/shared/Primitives";
 
 interface SiteLogin {
     id: number;
     site_id: number | null;
     username: string;
     collection_name: string | null;
-    status: 'active' | 'inactive';
+    status: "active" | "inactive";
     created_at: string;
 }
 
@@ -33,353 +30,227 @@ interface Site {
     name: string;
 }
 
+interface FormState {
+    username: string;
+    password: string;
+    site_id: string;
+    collection_name: string;
+    active: boolean;
+}
+
+const EMPTY: FormState = { username: "", password: "", site_id: "", collection_name: "", active: true };
+
 export default function SiteLoginsManager() {
     const [logins, setLogins] = useState<SiteLogin[]>([]);
     const [sites, setSites] = useState<Site[]>([]);
     const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState("");
+    const [search, setSearch] = useState("");
 
-    // Modal State
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingLogin, setEditingLogin] = useState<SiteLogin | null>(null);
+    const [open, setOpen] = useState(false);
+    const [editing, setEditing] = useState<SiteLogin | null>(null);
+    const [form, setForm] = useState<FormState>(EMPTY);
+    const [errors, setErrors] = useState<{ username?: string; password?: string }>({});
+    const [saving, setSaving] = useState(false);
+    const [confirm, setConfirm] = useState<ConfirmState | null>(null);
 
-    // Form State
-    const [formData, setFormData] = useState({
-        username: "",
-        password: "",
-        site_id: "",
-        collection_name: "",
-        status: "active"
-    });
-    const [showPassword, setShowPassword] = useState(false);
-    const [submitting, setSubmitting] = useState(false);
-
-    useEffect(() => {
-        fetchData();
-    }, []);
-
-    const fetchData = async () => {
+    const load = useCallback(async () => {
         try {
             setLoading(true);
             const [loginsRes, sitesRes] = await Promise.all([
-                apiClient<{ success: boolean; data: SiteLogin[] }>('/organization/site-logins'),
-                apiClient<{ status: string; sites: Site[] }>('/sites') // Standard sites endpoint often returns { status: 'success', sites: [...] }
+                apiClient<{ success: boolean; data: SiteLogin[] }>("/organization/site-logins"),
+                apiClient<{ status: string; sites: Site[] }>("/sites"),
             ]);
-
             setLogins(loginsRes.data || []);
             setSites(sitesRes.sites || []);
-        } catch (error) {
-            console.error("Failed to fetch data", error);
+        } catch {
             toast.error("Failed to load site logins");
         } finally {
             setLoading(false);
         }
+    }, []);
+
+    useEffect(() => { load(); }, [load]);
+
+    const siteName = useMemo(() => new Map(sites.map((s) => [s.id, s.name])), [sites]);
+
+    const rows = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        if (!q) return logins;
+        return logins.filter((l) => l.username.toLowerCase().includes(q) || (l.collection_name || "").toLowerCase().includes(q));
+    }, [logins, search]);
+
+    const openCreate = () => {
+        setEditing(null);
+        setForm(EMPTY);
+        setErrors({});
+        setOpen(true);
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const openEdit = (login: SiteLogin) => {
+        setEditing(login);
+        setForm({ username: login.username, password: "", site_id: login.site_id ? String(login.site_id) : "", collection_name: login.collection_name || "", active: login.status === "active" });
+        setErrors({});
+        setOpen(true);
+    };
+
+    const close = () => { setOpen(false); setEditing(null); };
+
+    const submit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setSubmitting(true);
+        const next: { username?: string; password?: string } = {};
+        if (!form.username.trim()) next.username = "Enter a username";
+        if (!editing && !form.password) next.password = "Enter a password";
+        setErrors(next);
+        if (Object.keys(next).length) return;
 
+        const body = {
+            username: form.username.trim(),
+            site_id: form.site_id ? parseInt(form.site_id, 10) : null,
+            collection_name: form.collection_name,
+            status: form.active ? "active" : "inactive",
+            ...(form.password ? { password: form.password } : {}),
+        };
+        setSaving(true);
         try {
-            const payload = {
-                ...formData,
-                site_id: formData.site_id ? parseInt(formData.site_id) : null,
-                // Only send password if provided (for edit) or always for create
-                ...(formData.password ? { password: formData.password } : {})
-            };
-
-            if (editingLogin) {
-                // Update
-                // If password empty, don't send it. But payload construction above handles it if empty string is falsy.
-                if (!formData.password) delete (payload as any).password;
-
-                await apiClient(`/organization/site-logins/${editingLogin.id}`, {
-                    method: 'PUT',
-                    body: payload
-                });
-                toast.success("Site Login updated successfully");
+            if (editing) {
+                await apiClient(`/organization/site-logins/${editing.id}`, { method: "PUT", body });
+                toast.success("Site login updated");
             } else {
-                // Create
-                if (!formData.password) {
-                    toast.error("Password is required for new logins");
-                    setSubmitting(false);
-                    return;
-                }
-                await apiClient('/organization/site-logins', {
-                    method: 'POST',
-                    body: payload
-                });
-                toast.success("Site Login created successfully");
+                await apiClient("/organization/site-logins", { method: "POST", body });
+                toast.success("Site login created");
             }
-
-            closeModal();
-            fetchData();
-        } catch (error: any) {
-            toast.error(error.message || "Operation failed");
+            close();
+            load();
+        } catch (error: unknown) {
+            toast.error(error instanceof Error ? error.message : "Operation failed");
         } finally {
-            setSubmitting(false);
+            setSaving(false);
         }
     };
 
-    const handleDelete = async (id: number) => {
-        if (!confirm("Are you sure you want to delete this login?")) return;
-
-        try {
-            await apiClient(`/organization/site-logins/${id}`, { method: 'DELETE' });
-            toast.success("Deleted successfully");
-            setLogins(logins.filter(l => l.id !== id));
-        } catch (error) {
-            toast.error("Failed to delete");
-        }
-    };
-
-    const openCreateModal = () => {
-        setEditingLogin(null);
-        setFormData({
-            username: "",
-            password: "",
-            site_id: "",
-            collection_name: "",
-            status: "active"
-        });
-        setIsModalOpen(true);
-    };
-
-    const openEditModal = (login: SiteLogin) => {
-        setEditingLogin(login);
-        setFormData({
-            username: login.username,
-            password: "", // Leave empty to keep existing
-            site_id: login.site_id?.toString() || "",
-            collection_name: login.collection_name || "",
-            status: login.status as string
-        });
-        setIsModalOpen(true);
-    };
-
-    const closeModal = () => {
-        setIsModalOpen(false);
-        setEditingLogin(null);
-        setFormData({ username: "", password: "", site_id: "", collection_name: "", status: "active" });
-    };
-
-    const filteredLogins = logins.filter(
-        (l) =>
-            l.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (l.collection_name && l.collection_name.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-
-    if (loading) return <TeamTunedLoader />;
+    const askDelete = (login: SiteLogin) => setConfirm({
+        title: "Delete site login",
+        body: <>Delete <strong>{login.username}</strong>? Machines can no longer sign in with it.</>,
+        cta: "Delete",
+        danger: true,
+        run: async () => {
+            try {
+                await apiClient(`/organization/site-logins/${login.id}`, { method: "DELETE" });
+                setLogins((list) => list.filter((l) => l.id !== login.id));
+                toast.success("Site login deleted");
+            } catch {
+                toast.error("Failed to delete");
+            }
+        },
+    });
 
     return (
-        <div className="p-6 max-w-7xl mx-auto">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Site Logins</h1>
-                    <p className="text-gray-500 mt-1">Manage Kiosk and Site-level credentials</p>
-                </div>
-                <button
-                    onClick={openCreateModal}
-                    className="flex items-center justify-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all font-medium"
-                >
-                    <Plus size={20} />
-                    <span>New Login</span>
+        <div className="flex h-full min-h-0 flex-col gap-3 p-3 sm:p-4 2xl:p-5">
+            <PageHeader title="Site logins" description="Credentials that kiosks and site machines use to sign in.">
+                <SearchBox value={search} onChange={setSearch} placeholder="Search username or name" />
+                <button type="button" className={primaryBtn} onClick={openCreate}>
+                    <Plus className="h-4 w-4" aria-hidden /> New login
                 </button>
-            </div>
+            </PageHeader>
 
-            {/* Search */}
-            <div className="mb-6 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                <input
-                    type="text"
-                    placeholder="Search by username or collection name..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
-                />
-            </div>
-
-            {/* List */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {filteredLogins.map((login) => {
-                    const siteName = sites.find(s => s.id === login.site_id)?.name || "All Sites (Unbound)";
-                    return (
-                        <div key={login.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all group">
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
-                                    <Shield size={24} />
-                                </div>
-                                <div className={`px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${login.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-                                    }`}>
-                                    {login.status === 'active' ? <CheckCircle size={12} /> : <XCircle size={12} />}
-                                    <span className="uppercase">{login.status}</span>
-                                </div>
-                            </div>
-
-                            <h3 className="font-bold text-lg text-gray-900 mb-1">{login.username}</h3>
-                            <div className="space-y-2 text-sm text-gray-600 mb-4">
-                                {login.collection_name && (
-                                    <div className="flex items-center gap-2">
-                                        <User size={16} className="text-gray-400" />
-                                        <span>{login.collection_name}</span>
-                                    </div>
-                                )}
-                                <div className="flex items-center gap-2">
-                                    <MapPin size={16} className="text-gray-400" />
-                                    <span className={!login.site_id ? "italic text-gray-400" : ""}>{siteName}</span>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-2 pt-4 border-t border-gray-50">
-                                <button
-                                    onClick={() => openEditModal(login)}
-                                    className="flex-1 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-                                >
-                                    Edit
-                                </button>
-                                <button
-                                    onClick={() => handleDelete(login.id)}
-                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                    title="Delete"
-                                >
-                                    <Trash2 size={18} />
-                                </button>
-                            </div>
-                        </div>
-                    )
-                })}
-                {filteredLogins.length === 0 && (
-                    <div className="col-span-full flex flex-col items-center justify-center py-12 text-gray-400">
-                        <AlertCircle size={48} className="mb-4 opacity-20" />
-                        <p>No site logins found</p>
-                    </div>
+            <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-line bg-surface tt-scroll-hidden">
+                {loading ? (
+                    <TableSkeleton rows={6} columns={5} />
+                ) : rows.length === 0 ? (
+                    <EmptyState
+                        compact={!!search}
+                        title={search ? "No site logins match your search" : "No site logins yet"}
+                        description={search ? undefined : "Create a login for each kiosk or site machine."}
+                        action={search ? undefined : { label: "New login", onClick: openCreate }}
+                    />
+                ) : (
+                    <table className="w-full min-w-[720px] border-separate border-spacing-0">
+                        <thead className="sticky top-0 z-10">
+                            <tr>
+                                <th className={th}>Username</th>
+                                <th className={th}>Display name</th>
+                                <th className={th}>Site</th>
+                                <th className={cx(th, "w-32")}>Status</th>
+                                <th className={cx(th, "w-44")}>Created</th>
+                                <th className={cx(th, "w-24 text-right")}><span className="sr-only">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map((login) => (
+                                <tr key={login.id} className={trCls}>
+                                    <td className={cx(td, "align-middle font-semibold text-fg")}>{login.username}</td>
+                                    <td className={cx(td, "align-middle text-fg-muted")}>{login.collection_name || "—"}</td>
+                                    <td className={cx(td, "align-middle")}>
+                                        {login.site_id ? (siteName.get(login.site_id) || `Site ${login.site_id}`) : <span className="text-fg-subtle">Not tied to a site</span>}
+                                    </td>
+                                    <td className={cx(td, "align-middle")}>
+                                        <StatusPill label={login.status === "active" ? "Active" : "Inactive"} tone={login.status === "active" ? "active" : "inactive"} />
+                                    </td>
+                                    <td className={cx(td, "align-middle text-fg-muted")}>{formatDateTime(login.created_at)}</td>
+                                    <td className={cx(td, "align-middle")}>
+                                        <div className="flex justify-end gap-1">
+                                            <button type="button" aria-label={`Edit ${login.username}`} title="Edit" onClick={() => openEdit(login)} className="rounded-lg p-2 text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg">
+                                                <Pencil className="h-4 w-4" />
+                                            </button>
+                                            <button type="button" aria-label={`Delete ${login.username}`} title="Delete" onClick={() => askDelete(login)} className="rounded-lg p-2 text-fg-muted transition-colors hover:bg-[var(--tt-danger-soft)] hover:text-[var(--tt-danger)]">
+                                                <Trash2 className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 )}
             </div>
 
-            {/* Modal */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl scale-100 transition-all">
-                        <h2 className="text-xl font-bold text-gray-900 mb-1">
-                            {editingLogin ? "Edit Site Login" : "New Site Login"}
-                        </h2>
-                        <p className="text-sm text-gray-500 mb-6">Enter credentials for Kiosk access.</p>
-
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            {/* Username */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
-                                <input
-                                    type="text"
-                                    required
-                                    value={formData.username}
-                                    onChange={e => setFormData({ ...formData, username: e.target.value })}
-                                    className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black"
-                                    placeholder="e.g. site_a_kiosk"
-                                />
-                            </div>
-
-                            {/* Password */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Password {editingLogin && <span className="text-gray-400 font-normal">(Leave empty to keep current)</span>}
-                                </label>
-                                <div className="relative">
-                                    <input
-                                        type={showPassword ? "text" : "password"}
-                                        required={!editingLogin}
-                                        value={formData.password}
-                                        onChange={e => setFormData({ ...formData, password: e.target.value })}
-                                        className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black pr-10"
-                                        placeholder="••••••••"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                                    >
-                                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Site */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Site Context (Optional)</label>
-                                <select
-                                    value={formData.site_id}
-                                    onChange={e => setFormData({ ...formData, site_id: e.target.value })}
-                                    className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black"
-                                >
-                                    <option value="">No specific site (Global/Float)</option>
-                                    {sites.map(site => (
-                                        <option key={site.id} value={site.id}>{site.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Collection Name */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Collection Name / Display Name</label>
-                                <input
-                                    type="text"
-                                    value={formData.collection_name}
-                                    onChange={e => setFormData({ ...formData, collection_name: e.target.value })}
-                                    className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black"
-                                    placeholder="e.g. Main Gate Kiosk 1"
-                                />
-                            </div>
-
-                            {/* Status */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                                <div className="flex gap-4">
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="radio"
-                                            name="status"
-                                            value="active"
-                                            checked={formData.status === 'active'}
-                                            onChange={() => setFormData({ ...formData, status: 'active' })}
-                                            className="accent-black"
-                                        />
-                                        <span className="text-sm">Active</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="radio"
-                                            name="status"
-                                            value="inactive"
-                                            checked={formData.status === 'inactive'}
-                                            onChange={() => setFormData({ ...formData, status: 'inactive' })}
-                                            className="accent-black"
-                                        />
-                                        <span className="text-sm">Inactive</span>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <div className="flex gap-3 pt-4">
-                                <button
-                                    type="button"
-                                    onClick={closeModal}
-                                    className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={submitting}
-                                    className="flex-1 py-2.5 bg-black text-white font-medium rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-50"
-                                >
-                                    {submitting ? "Saving..." : (editingLogin ? "Update" : "Create")}
-                                </button>
-                            </div>
-                        </form>
+            <Dialog
+                open={open}
+                onClose={close}
+                title={editing ? "Edit site login" : "New site login"}
+                maxWidthClassName="max-w-md"
+                footer={
+                    <>
+                        <button type="button" className={secondaryBtn} onClick={close}>Cancel</button>
+                        <button type="submit" form="site-login-form" className={primaryBtn} disabled={saving}>{saving ? "Saving..." : editing ? "Save" : "Create"}</button>
+                    </>
+                }
+            >
+                <form id="site-login-form" onSubmit={submit} className="space-y-4" noValidate>
+                    <Field label="Username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="e.g. site_a_kiosk" error={errors.username} autoComplete="off" />
+                    <Field
+                        label="Password"
+                        type="password"
+                        value={form.password}
+                        onChange={(e) => setForm({ ...form, password: e.target.value })}
+                        hint={editing ? "Leave empty to keep the current password" : undefined}
+                        error={errors.password}
+                        autoComplete="new-password"
+                    />
+                    <div>
+                        <label htmlFor="site-login-site" className={field.label}>Site (optional)</label>
+                        <select
+                            id="site-login-site"
+                            value={form.site_id}
+                            onChange={(e) => setForm({ ...form, site_id: e.target.value })}
+                            className="h-[52px] w-full rounded-[var(--tt-radius-control)] border border-line bg-surface px-4 text-[15px] text-fg hover:border-line-strong focus:border-[var(--tt-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--tt-ring)]"
+                        >
+                            <option value="">Not tied to a site</option>
+                            {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
                     </div>
-                </div>
-            )}
+                    <Field label="Display name" value={form.collection_name} onChange={(e) => setForm({ ...form, collection_name: e.target.value })} placeholder="e.g. Main gate kiosk 1" />
+                    <div className="flex items-center justify-between rounded-xl border border-line px-4 py-3">
+                        <div>
+                            <p className="text-sm font-semibold text-fg">Active</p>
+                            <p className="text-xs text-fg-muted">Switch off to stop new sign-ins with this login.</p>
+                        </div>
+                        <Switch checked={form.active} onChange={(v) => setForm({ ...form, active: v })} label="Active" />
+                    </div>
+                </form>
+            </Dialog>
+
+            <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
         </div>
     );
 }

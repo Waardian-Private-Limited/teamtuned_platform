@@ -4,7 +4,6 @@ import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/features/navigation/components/AppShell";
 import { orgNav } from "@/features/navigation/constants/org.nav";
-import { OrgProvider } from "@/components/shared/OrgContext";
 import { InventoryStoreProvider } from "@/components/inventory/InventoryStoreContext";
 import { useAuth } from "@/context/AuthContext";
 import { useUserStore } from "@/lib/store/userStore";
@@ -50,7 +49,6 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
     }
 
     return (
-        <OrgProvider defaultHQ={true}>
             <InventoryStoreProvider>
                 <AppShell
                     storageRole="org-admin"
@@ -72,6 +70,5 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
                     {children}
                 </AppShell>
             </InventoryStoreProvider>
-        </OrgProvider>
     );
 }
