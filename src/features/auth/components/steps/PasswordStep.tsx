@@ -67,7 +67,7 @@ export function PasswordStep({
         Sign in
       </Button>
       {!isRemembered && (
-        <Button variant="ghost" onClick={onBack} disabled={isLoading}>
+        <Button variant="ghost" onClick={onBack} disabled={isLoading} className="-mt-2">
           Back
         </Button>
       )}

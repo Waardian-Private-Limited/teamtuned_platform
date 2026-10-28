@@ -1,7 +1,8 @@
 'use client';
 
-import { History, Power, SquarePen, Trash2, UserX } from 'lucide-react';
+import { History, Power, UserPlus, SquarePen, Trash2, UserX } from 'lucide-react';
 import { cx } from '@/theme/tokens';
+import { usePermission } from '@/lib/hooks/usePermission';
 import { Tooltip } from '@/components/ui/Tooltip';
 import type { EmployeeListItemDto } from '../../types/employees.dto';
 import type { StatusAction } from '../../hooks/useEmployeeStatus';
@@ -21,6 +22,7 @@ const iconButtonClass =
 const iconClass = 'h-4 w-4 2xl:h-4.5 2xl:w-4.5';
 
 export function EmployeeRowActions({ employee, canEdit, canDelete, busy, onEdit, onAction, onHistory }: EmployeeRowActionsProps) {
+  const canRehire = usePermission().can('EMP_ADD');
   const terminated = employee.status === 'Terminated';
   const active = employee.status === 'Active';
   const invited = employee.status === 'Invited';
@@ -55,9 +57,16 @@ export function EmployeeRowActions({ employee, canEdit, canDelete, busy, onEdit,
         </Tooltip>
       )}
       {canEdit && !terminated && !invited && (
-        <Tooltip content="Terminate" align="end">
-          <button type="button" disabled={busy} onClick={() => onAction(employee, 'terminate')} aria-label={`Terminate ${employee.name}`} className={cx(iconButtonClass, 'hover:text-[var(--tt-danger)]')}>
+        <Tooltip content="Start exit" align="end">
+          <button type="button" disabled={busy} onClick={() => onAction(employee, 'start_exit')} aria-label={`Start exit for ${employee.name}`} className={cx(iconButtonClass, 'hover:text-[var(--tt-danger)]')}>
             <UserX className={iconClass} />
+          </button>
+        </Tooltip>
+      )}
+      {canRehire && terminated && (
+        <Tooltip content="Rehire" align="end">
+          <button type="button" disabled={busy} onClick={() => onAction(employee, 'rehire')} aria-label={`Rehire ${employee.name}`} className={iconButtonClass}>
+            <UserPlus className={iconClass} />
           </button>
         </Tooltip>
       )}

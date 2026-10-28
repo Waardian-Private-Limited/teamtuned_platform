@@ -57,10 +57,10 @@ export function TrackingPolicyAssignments({
   const handleUnassign = async (empId: number) => {
     setIsSaving(true);
     try {
+      // Back to the default policy only; whether tracking is on stays as it was.
       await setTracking({
         employeeIds: [empId],
-        enabled: true,
-        policyId: null, // resets to default policy
+        policyId: null,
       });
       await loadAssignments();
       onRefresh?.();

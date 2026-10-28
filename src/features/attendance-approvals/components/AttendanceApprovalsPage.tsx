@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { CalendarX, CalendarHeart, Clock, ListChecks, MapPinCheck, Plane, TreePalm } from 'lucide-react';
+import { CalendarX, CalendarHeart, Clock, DoorOpen, ListChecks, MapPinCheck, Plane, TreePalm } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { Alert } from '@/components/ui/Alert';
 import { Pagination } from '@/components/ui/Pagination';
@@ -14,6 +14,7 @@ import { useFilterOptions } from '../hooks/useFilterOptions';
 import { useRequestList } from '../hooks/useRequestList';
 import { ApprovalsEmptyState } from './ApprovalsEmptyState';
 import { RequestFilters } from './RequestFilters';
+import { ExitApprovalsQueue } from '@/features/exits/components/ExitApprovalsQueue';
 import { RequestTable } from './RequestTable';
 import { ROW_STATUS } from '../constants/review.constants';
 import type { RequestType, ReviewScope, RowStatus } from '../types/review.model';
@@ -26,13 +27,15 @@ const SCOPES: ReadonlyArray<{ value: ReviewScope; label: string }> = [
 const COUNTED: RowStatus[] = ['pending', 'approved', 'rejected', 'cancelled'];
 
 /** Request types this page covers, each its own tab. */
-const TYPES: ReadonlyArray<{ value: RequestType; label: string; noun: string; icon: typeof ListChecks }> = [
+type TabValue = RequestType | 'exit';
+const TYPES: ReadonlyArray<{ value: TabValue; label: string; noun: string; icon: typeof ListChecks }> = [
   { value: 'regularize', label: 'Regularization', noun: 'Regularization requests', icon: ListChecks },
   { value: 'verification', label: 'Attendance review', noun: 'Attendance reviews', icon: MapPinCheck },
   { value: 'leave', label: 'Leave', noun: 'Leave requests', icon: TreePalm },
   { value: 'compoff', label: 'Comp-off', noun: 'Comp-off requests', icon: Clock },
   { value: 'absence_cover', label: 'Absence cover', noun: 'Absence cover requests', icon: CalendarX },
   { value: 'optional_holiday', label: 'Holiday', noun: 'Optional holiday requests', icon: CalendarHeart },
+  { value: 'exit', label: 'Exit', noun: 'Exit requests', icon: DoorOpen },
 ];
 
 /**
@@ -43,7 +46,7 @@ const TYPES: ReadonlyArray<{ value: RequestType; label: string; noun: string; ic
  * person's own Approvals page and under Attendance.
  */
 export function AttendanceApprovalsPage() {
-  const [type, setType] = React.useState<RequestType>('regularize');
+  const [type, setType] = React.useState<TabValue>('regularize');
   const [away, setAway] = React.useState(false);
   const options = useFilterOptions();
 
@@ -61,8 +64,12 @@ export function AttendanceApprovalsPage() {
   return (
     <>
       {/* Each type keeps its own filters, scope and page; switching starts that list fresh. */}
+      {type === 'exit' ? (
+        <ExitApprovalsQueue tabs={tabs} headerAction={<Btn icon={<Plane className="h-4 w-4" />} onClick={() => setAway(true)}>Out of office</Btn>} />
+      ) : (
       <RequestQueue key={type} type={type} noun={TYPES.find((t) => t.value === type)!.noun} options={options} tabs={tabs}
         headerAction={<Btn icon={<Plane className="h-4 w-4" />} onClick={() => setAway(true)}>Out of office</Btn>} />
+      )}
       <DelegationPanel open={away} onClose={() => setAway(false)} />
     </>
   );

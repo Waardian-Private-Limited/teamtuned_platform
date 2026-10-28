@@ -104,6 +104,10 @@ export const JOB_EVENT_LABELS: Record<string, string> = {
   site_change: 'Site change',
   status_change: 'Status change',
   job_update: 'Job update',
+  resignation: 'Resignation',
+  retained: 'Retained',
+  exit: 'Exit',
+  rejoining: 'Rejoined',
 };
 
 export const AUDIT_ACTION_LABELS: Record<string, string> = {

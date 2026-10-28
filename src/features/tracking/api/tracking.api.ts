@@ -30,8 +30,8 @@ export function getTimeline(employeeId: number, date: string, signal?: AbortSign
   return apiClient.get<TimelineDto>(`/tracking/employees/${employeeId}/days/${date}`, undefined, { ...auth, signal });
 }
 
-export function getDays(date: string, filters: TrackingFilters, page: number, pageSize: number, signal?: AbortSignal) {
-  return apiClient.get<DaysResponseDto>('/tracking/days', { date, ...filterParams(filters), limit: pageSize, offset: (page - 1) * pageSize }, { ...auth, signal });
+export function getDays(date: string, filters: TrackingFilters, page: number, pageSize: number, signal?: AbortSignal, q?: string) {
+  return apiClient.get<DaysResponseDto>('/tracking/days', { date, ...filterParams(filters), q: q || undefined, limit: pageSize, offset: (page - 1) * pageSize }, { ...auth, signal });
 }
 
 export function listPolicies(subOrgId?: number | null, includeArchived = false) {
@@ -52,9 +52,11 @@ interface PolicyInput {
   config?: Record<string, unknown>;
   isDefault?: boolean;
   subOrganizationId?: number | null;
+  /** Stored with the new revision (update only). */
+  changeNote?: string;
 }
 
-const policyBody = (i: PolicyInput) => ({ name: i.name, description: i.description ?? null, config: i.config, is_default: i.isDefault, sub_organization_id: i.subOrganizationId ?? null });
+const policyBody = (i: PolicyInput) => ({ name: i.name, description: i.description ?? null, config: i.config, is_default: i.isDefault, sub_organization_id: i.subOrganizationId ?? null, change_note: i.changeNote || undefined });
 
 export function createPolicy(input: PolicyInput) {
   return apiClient.post<TrackingPolicyDto>('/tracking/policies', policyBody(input), auth);
@@ -84,12 +86,23 @@ export function listTrackedEmployees(params: { filters: TrackingFilters; search?
   );
 }
 
-export function setTracking(input: { employeeIds: number[]; enabled: boolean; policyId?: number | null }) {
-  return apiClient.put<{ updated: number }>('/tracking/employees', { employee_ids: input.employeeIds, enabled: input.enabled, policy_id: input.policyId ?? null }, auth);
+/**
+ * Omitted `enabled` / `policyId` leave that part unchanged; `policyId: null` moves the employees to the
+ * default policy. Disabling never touches the policy, unassigning never touches `enabled`.
+ */
+export function setTracking(input: { employeeIds: number[]; enabled?: boolean; policyId?: number | null }) {
+  const body: Record<string, unknown> = { employee_ids: input.employeeIds };
+  if (input.enabled !== undefined) body.enabled = input.enabled;
+  if (input.policyId !== undefined) body.policy_id = input.policyId;
+  return apiClient.put<{ updated: number }>('/tracking/employees', body, auth);
 }
 
-export function listTrips(params: { status?: string; from?: string; to?: string; page: number; pageSize: number }) {
-  return apiClient.get<TripsResponseDto>('/tracking/trips', { status: params.status || undefined, from: params.from || undefined, to: params.to || undefined, limit: params.pageSize, offset: (params.page - 1) * params.pageSize }, auth);
+export function listTrips(params: { status?: string; from?: string; to?: string; q?: string; page: number; pageSize: number }, signal?: AbortSignal) {
+  return apiClient.get<TripsResponseDto>(
+    '/tracking/trips',
+    { status: params.status || undefined, from: params.from || undefined, to: params.to || undefined, q: params.q || undefined, limit: params.pageSize, offset: (params.page - 1) * params.pageSize },
+    { ...auth, signal }
+  );
 }
 
 export function getTrip(id: number) {

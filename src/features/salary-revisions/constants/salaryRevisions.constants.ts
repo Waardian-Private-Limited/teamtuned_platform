@@ -31,6 +31,7 @@ export const TYPE_FILTERS = [
   { value: 'demotion', label: 'Demotions' },
   { value: 'transfer', label: 'Transfers' },
   { value: 'joining', label: 'Joining salary' },
+  { value: 'retention', label: 'Retention' },
 ] as const;
 
 export const CHANGE_MODES = [

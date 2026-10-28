@@ -2,7 +2,10 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, SquarePen } from 'lucide-react';
+import { ArrowLeft, SquarePen, UserPlus } from 'lucide-react';
+import { cx } from '@/theme/tokens';
+import { CareerTab } from '@/features/exits/components/CareerTab';
+import { RehireDialog } from '@/features/exits/components/RehireDialog';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { InfoRow, Section } from '@/components/ui/FormControls';
 import { usePermission } from '@/lib/hooks/usePermission';
@@ -18,6 +21,9 @@ export function EmployeeDetailPage({ employeeId }: { employeeId: number }) {
   const { can } = usePermission();
   const canEdit = can(EMPLOYEE_PERMISSIONS.EDIT);
   const { detail: d, error, setContract } = useEmployeeDetail(employeeId);
+  const [tab, setTab] = React.useState<'overview' | 'career'>('overview');
+  const [rehire, setRehire] = React.useState(false);
+  const canRehire = can(EMPLOYEE_PERMISSIONS.ADD) && d?.status === 'Terminated';
   const primarySite = d?.sites?.find((s) => s.is_primary)?.name || null;
 
   return (
@@ -34,6 +40,12 @@ export function EmployeeDetailPage({ employeeId }: { employeeId: number }) {
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {d && d.status !== 'Deleted' && <StatusPill label={d.status} tone={STATUS_TONE[d.status]} />}
+          {canRehire && d && (
+            <button type="button" onClick={() => setRehire(true)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-fg transition-colors hover:bg-bg-subtle sm:text-sm">
+              <UserPlus className="h-3.5 w-3.5" />
+              Rehire
+            </button>
+          )}
           {canEdit && d && (
             <Link href={routes.edit(employeeId)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-fg transition-colors hover:bg-bg-subtle sm:text-sm">
               <SquarePen className="h-3.5 w-3.5" />
@@ -43,9 +55,18 @@ export function EmployeeDetailPage({ employeeId }: { employeeId: number }) {
         </div>
       </div>
 
+      <div role="tablist" aria-label="Employee sections" className="flex gap-1 border-b border-line">
+        {([['overview', 'Overview'], ['career', 'Career']] as const).map(([k, l]) => (
+          <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
+            className={cx('-mb-px border-b-2 px-3 py-2 text-sm font-semibold transition-colors', tab === k ? 'border-[var(--tt-primary)] text-fg' : 'border-transparent text-fg-muted hover:text-fg')}>{l}</button>
+        ))}
+      </div>
+
       <div className="min-h-0 flex-1 overflow-y-auto tt-scroll-hidden">
         {error ? (
           <p className="rounded-xl border border-line bg-surface p-5 text-sm text-[var(--tt-danger)]">{error}</p>
+        ) : tab === 'career' ? (
+          <CareerTab employeeId={employeeId} detailHref={routes.detail} />
         ) : !d ? (
           <div className="h-48 animate-pulse rounded-xl border border-line bg-bg-subtle" />
         ) : (
@@ -74,6 +95,7 @@ export function EmployeeDetailPage({ employeeId }: { employeeId: number }) {
           </div>
         )}
       </div>
+      {rehire && d && <RehireDialog employee={{ id: employeeId, name: d.name, employee_code: d.employee_code }} onClose={() => setRehire(false)} />}
     </div>
   );
 }

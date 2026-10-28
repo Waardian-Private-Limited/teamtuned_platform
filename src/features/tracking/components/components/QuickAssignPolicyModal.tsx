@@ -97,7 +97,7 @@ export function QuickAssignPolicyModal({
           </label>
 
           {/* Specific Policies */}
-          {policies.map((p) => {
+          {policies.filter((p) => p.status === 'active').map((p) => {
             const isSelected = selectedId === p.id;
             return (
               <label

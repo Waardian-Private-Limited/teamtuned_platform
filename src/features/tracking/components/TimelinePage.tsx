@@ -1,30 +1,23 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Calendar, ChevronLeft, ChevronRight, Radio } from 'lucide-react';
 import { Alert } from '@/components/ui/Alert';
 import { usePolling } from '@/lib/hooks/usePolling';
 import { messageOf } from '@/lib/api/errors';
 import { getTimeline } from '../api/tracking.api';
-import { kmText, minutesText, timeText, todayInput } from '../constants/tracking.constants';
+import { DEVICE_EVENT_LABEL, kmText, minutesText, timeText, todayInput } from '../constants/tracking.constants';
 import type { SegmentDto, TimelineDto } from '../types/tracking.dto';
+import { routeBreaks } from '../utils/routeGaps';
 import { TrackingMapLazy } from './map/TrackingMapLazy';
 import { TimelineEmployeePicker } from './TimelineEmployeePicker';
-import { TimelinePlayerSlider } from './TimelinePlayerSlider';
+import { TimelinePlayerSlider, indexAt } from './TimelinePlayerSlider';
 
 const SEGMENT_LABEL = { site: 'At site', stay: 'Away, standing', move: 'Moving', gap: 'No signal' } as const;
 const GAP_LABEL = { gps_off: 'Location switched off', phone_off: 'Phone switched off', app_closed: 'App closed by the employee', no_signal: 'No signal' } as const;
 const segmentLabel = (s: SegmentDto) => s.site_name || (s.kind === 'gap' && s.reason ? GAP_LABEL[s.reason] : SEGMENT_LABEL[s.kind]);
-const EVENT_LABEL: Record<string, string> = {
-  gps_off: 'Location switched off', gps_on: 'Location switched on', permission_downgraded: 'Location permission removed', permission_restored: 'Location permission given',
-  offline: 'Internet off (recording continues)', online: 'Internet back', boot: 'Phone restarted', shutdown: 'Phone switched off',
-  recorder_started: 'Recording started', recorder_stopped: 'Recording stopped', mock_detected: 'Fake location app detected', time_tamper: 'Phone clock changed',
-  low_battery: 'Battery low', power_save_on: 'Battery saver on', power_save_off: 'Battery saver off',
-  tracking_stopped: 'Tracking stopped: left the site',
-  app_terminated: 'App closed by the employee', relaunched: 'Recording resumed after the app was closed',
-  precise_off: 'Precise location turned off', precise_on: 'Precise location turned on',
-};
+const EMPTY_ROUTE: TimelineDto['route'] = [];
 
 export function TimelinePage() {
   const router = useRouter();
@@ -33,9 +26,14 @@ export function TimelinePage() {
   const date = params.get('date') || todayInput();
   const isToday = date === todayInput();
 
-  const [data, setData] = useState<TimelineDto | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState<number | null>(null);
+  // Results are kept with the employee + date they belong to; another day never shows the old route.
+  const key = `${employeeId}:${date}`;
+  const [loaded, setLoaded] = useState<{ key: string; data: TimelineDto } | null>(null);
+  const [failed, setFailed] = useState<{ key: string; message: string } | null>(null);
+  // Playhead as a timestamp, so a refresh that adds points keeps it in place; null follows the last point.
+  const [cursor, setCursor] = useState<{ key: string; at: number } | null>(null);
+  const data = loaded?.key === key ? loaded.data : null;
+  const error = failed?.key === key ? failed.message : null;
 
   const go = (next: { employee?: number | null; date?: string }) => {
     const q = new URLSearchParams(params.toString());
@@ -59,31 +57,31 @@ export function TimelinePage() {
     }
   };
 
-  // Reset step whenever employee or date changes so we default to the LAST point
-  useEffect(() => {
-    setStep(null);
-  }, [employeeId, date]);
-
-  // Today refreshes by itself; a past day loads once.
+  // Today refreshes by itself; a past day loads once. usePolling pauses while the tab is hidden.
   usePolling(
     async (signal) => {
       if (!employeeId) return;
       try {
-        setData(await getTimeline(employeeId, date, signal));
-        setError(null);
+        const next = await getTimeline(employeeId, date, signal);
+        setLoaded({ key, data: next });
+        setFailed(null);
       } catch (err) {
-        if (!signal.aborted) setError(messageOf(err));
+        if (!signal.aborted) setFailed({ key, message: messageOf(err) });
       }
     },
     isToday ? 30_000 : 24 * 3600_000,
     !!employeeId,
-    `${employeeId}:${date}`
+    key
   );
 
-  const route = data?.route ?? [];
+  const route = data?.route ?? EMPTY_ROUTE;
+  const gaps = useMemo(() => (data?.segments ?? []).filter((g) => g.kind === 'gap'), [data]);
+  const times = useMemo(() => route.map((p) => new Date(p.at).getTime()), [route]);
+  const breaks = useMemo(() => routeBreaks(route, gaps), [route, gaps]);
   const maxIdx = Math.max(0, route.length - 1);
-  // Default to the LAST point when step is null or clamped
-  const idx = route.length > 0 ? (step === null ? maxIdx : Math.min(Math.max(0, step), maxIdx)) : 0;
+  const cursorAt = cursor?.key === key ? cursor.at : null;
+  const playTime = route.length ? (cursorAt === null ? times[maxIdx] : Math.min(Math.max(cursorAt, times[0]), times[maxIdx])) : 0;
+  const idx = route.length > 0 ? indexAt(times, playTime) : 0;
   const playhead = route.length ? route[idx] : null;
 
   const stops = useMemo(
@@ -111,7 +109,7 @@ export function TimelinePage() {
         { at: b.started_at, text: `Break started${b.start_source.startsWith('auto') ? ' (automatic)' : ''}` },
         ...(b.ended_at ? [{ at: b.ended_at, text: 'Break ended' }] : []),
       ]),
-      ...data.device_events.map((e) => ({ at: e.at, text: EVENT_LABEL[e.kind] ?? e.kind.replaceAll('_', ' ') })),
+      ...data.device_events.map((e) => ({ at: e.at, text: DEVICE_EVENT_LABEL[e.kind] ?? e.kind.replaceAll('_', ' ') })),
     ].sort((a, b) => a.at.localeCompare(b.at));
   }, [data]);
 
@@ -196,6 +194,10 @@ export function TimelinePage() {
         </div>
       )}
 
+      {employeeId && !data && !error && (
+        <div className="rounded-xl border border-line bg-surface p-6 text-center text-xs text-fg-muted shadow-2xs">Loading the timeline…</div>
+      )}
+
       {employeeId && data && (
         <>
           {/* Compact Inline Stats Strip - Fits in single line to save vertical viewport space */}
@@ -245,10 +247,11 @@ export function TimelinePage() {
           <div className="h-[320px] md:h-[350px] lg:h-[380px] shrink-0 overflow-hidden rounded-xl border border-line bg-surface shadow-2xs">
             <TrackingMapLazy
               route={route}
+              gaps={gaps}
               sites={data.sites}
               stops={stops}
               playhead={playhead}
-              fitKey={`${employeeId}:${date}`}
+              fitKey={loaded?.key}
             />
           </div>
 
@@ -256,8 +259,11 @@ export function TimelinePage() {
           {route.length > 1 && (
             <TimelinePlayerSlider
               route={route}
+              times={times}
+              breaks={breaks}
               currentIndex={idx}
-              onIndexChange={(nextIdx) => setStep(nextIdx)}
+              currentTime={playTime}
+              onTimeChange={(at) => setCursor(at === null ? null : { key, at })}
               isToday={isToday}
             />
           )}

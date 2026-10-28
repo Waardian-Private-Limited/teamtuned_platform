@@ -3,6 +3,9 @@ import type { SnapshotDto } from '../types/selfDashboard.dto';
 
 export type TodayTone = 'live' | 'good' | 'warn' | 'bad' | 'muted';
 
+/** `fullDay` is the policy's full-day mark reached with hours still pending; only `complete` means the expected hours are done. */
+export type WorkBand = 'below' | 'halfDay' | 'fullDay' | 'complete';
+
 export interface TodayState {
   tone: TodayTone;
   headline: string;
@@ -14,6 +17,14 @@ export interface TodayState {
   outAt: string | null;
   expectedEndAt: string | null;
   lateMinutes: number;
+  /** How far the worked time has got against the policy's day classification: drives the ring colour. */
+  band: WorkBand;
+  /** The policy's half-day and full-day marks as fractions of the ring (0..1). */
+  marks: number[];
+  /** The day's verdict once checked out (Present, Half-Day, Absent), else null. */
+  verdict: string | null;
+  /** A session is running now, or nothing has been punched yet. */
+  inProgress: boolean;
   onBreak: boolean;
   reviewPending: boolean;
   shiftText: string;
@@ -32,16 +43,51 @@ function shiftText(s: SnapshotDto, tz: string) {
   return 'No fixed shift';
 }
 
+const asMinutes = (v: unknown) => (typeof v === 'number' && v > 0 ? v : null);
+
+export function workBand(worked: number, expected: number, half: number | null, full: number | null): WorkBand {
+  if (expected > 0 && worked >= expected) return 'complete';
+  if (full !== null && worked >= full) return 'fullDay';
+  if (half !== null && worked >= half) return 'halfDay';
+  return 'below';
+}
+
 /** What the today card says right now. Pure: the same snapshot and clock always give the same card. */
 export function todayState(s: SnapshotDto, nowMs: number): TodayState {
   const tz = s.timezone;
   const day = s.day;
   const openMs = at(s.open_since);
-  const workedMinutes = (day?.worked_minutes || 0) + (openMs !== null ? Math.max(0, Math.floor((nowMs - openMs) / MIN)) : 0);
   const live = s.rules?.live || null;
+  const prog = s.progress && at(s.progress.as_of) !== null ? s.progress : null;
+  let workedMinutes: number;
+  let expectedMinutes: number;
+  let half: number | null;
+  let full: number | null;
+  if (prog) {
+    // Server figure (policy-correct) plus whole minutes since it was computed, only while time is really accruing.
+    const asOfMs = at(prog.as_of) as number;
+    const tick = openMs !== null && !s.break?.active ? Math.max(0, Math.floor((nowMs - asOfMs) / MIN)) : 0;
+    workedMinutes = Math.max(0, prog.worked_minutes + tick);
+    expectedMinutes = prog.expected_minutes;
+    half = asMinutes(prog.half_day_minutes);
+    full = asMinutes(prog.full_day_minutes);
+  } else {
+    workedMinutes = (day?.worked_minutes || 0) + (openMs !== null ? Math.max(0, Math.floor((nowMs - openMs) / MIN)) : 0);
+    // A late check-in can push the expected end out (late extension): the day is only done once that time is worked too.
+    expectedMinutes = (s.expected_minutes || 0) + (s.expected_minutes ? live?.extension_minutes || 0 : 0);
+    const cls = s.rules?.day_classification;
+    const byWorked = cls?.basis === 'worked_percent' || cls?.basis === 'worked_minutes';
+    half = byWorked ? asMinutes(cls?.half_day_minutes) : null;
+    full = byWorked ? asMinutes(cls?.full_day_minutes) : null;
+  }
+  const closed = openMs === null && !!day?.last_out_at;
   const base = {
+    band: workBand(workedMinutes, expectedMinutes, half, full),
+    marks: [half, full].filter((m): m is number => m !== null && expectedMinutes > 0 && m < expectedMinutes).map((m) => m / expectedMinutes),
+    verdict: closed && day?.status ? day.status : null,
+    inProgress: openMs !== null || !day?.first_in_at,
     workedMinutes,
-    expectedMinutes: s.expected_minutes || 0,
+    expectedMinutes,
     inAt: day?.first_in_at || s.open_since,
     outAt: openMs === null ? day?.last_out_at || null : null,
     expectedEndAt: live?.expected_end_at || day?.expected_end_at || null,

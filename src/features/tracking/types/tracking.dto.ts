@@ -23,13 +23,19 @@ export interface LiveEmployeeDto {
   site_id: number | null;
   site_name: string | null;
   battery: number | null;
+  /** Last device event (location off, permission removed, ...); absent on older servers. */
+  health?: { kind: string; detail: string | null; at: string } | null;
 }
 
 export interface LiveBoardDto {
   employees: LiveEmployeeDto[];
+  /** Counted before the state filter, so every chip keeps its number. */
   counts: Partial<Record<TrackingState, number>>;
   sites: FenceDto[];
   as_of: string;
+  /** More employees matched than the server returns; absent on older servers. */
+  truncated?: boolean;
+  limit?: number;
 }
 
 export interface RoutePointDto {

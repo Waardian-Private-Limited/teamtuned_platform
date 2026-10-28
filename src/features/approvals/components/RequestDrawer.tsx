@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { Check, CornerUpLeft, Send, Undo2, UserRoundCog, X } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { Drawer } from '@/components/ui/Drawer';
@@ -16,6 +17,8 @@ import type { EmployeeRef, RequestDetail } from '../types/approvals';
 import { ApprovalTimeline } from './ApprovalTimeline';
 import { PunchEvidenceList } from './PunchEvidenceList';
 import { EmployeeSearch } from './EmployeeSearch';
+import { ExitReviewSection } from '@/features/exits/components/ExitReviewSection';
+import { ExitSettlementSection } from '@/features/exits/components/ExitSettlementSection';
 import { ApprovalPlanSection } from '@/features/salary-advance/components/ApprovalPlanSection';
 import type { PlanRequestDto } from '@/features/salary-advance/types/salaryAdvance.dto';
 import { ExpenseClaimReviewSection, type ClaimReviewValue } from '@/features/reimbursement/components/ExpenseClaimReviewSection';
@@ -59,6 +62,7 @@ export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; o
   // The server refused the approved amount (petty cash): shown on the amount box.
   const [amountError, setAmountError] = React.useState('');
   React.useEffect(() => { setAmountError(''); setItemsError(''); }, [action]);
+  const onExitAccept = React.useCallback((value: Record<string, unknown> | null, valid: boolean) => setFormExtra({ value, valid }), []);
   const onTimes = React.useCallback((value: { in_time?: string; out_time?: string } | null, valid: boolean) => setFormExtra({ value, valid }), []);
 
   const load = React.useCallback(async () => {
@@ -103,17 +107,21 @@ export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; o
   const fundAmount = form?.kind === 'wallet_fund_amount' && Number(form.amount) > 0 ? Number(form.amount) : null;
   const pettyExpenseId = form?.kind === 'petty_cash_expense_review' && form.expense_id ? form.expense_id : null;
   const pettyFundAmount = form?.kind === 'petty_cash_fund_amount' && Number(form.amount) > 0 ? Number(form.amount) : null;
+  const exitCaseId = form?.kind === 'exit_review' ? (form.case_id ?? request?.subjectId ?? null) : null;
+  // An exit_settlement request carries the exit case id as its subject or in the decision form.
+  const settlementCaseId = request?.requestType === 'exit_settlement' ? (Number(form?.case_id) || request.subjectId || null) : null;
   const times = request?.detail?.times ?? null;
   const correctTimes = form?.kind === 'regularization_times' && times ? times : null;
-  const wideForm = Boolean(planAdvanceId || reviewClaimId || pettyExpenseId);
+  const wideForm = Boolean(planAdvanceId || reviewClaimId || pettyExpenseId || exitCaseId !== null || settlementCaseId !== null);
   const formValid = plan.valid && formExtra.valid;
-  const titles: Record<Action, string> = { approve: 'Approve request', reject: 'Reject request', send_back: 'Send back for changes', reassign: 'Reassign to another approver' };
+  const titles: Record<Action, string> = { approve: exitCaseId !== null ? 'Accept resignation' : 'Approve request', reject: 'Reject request', send_back: 'Send back for changes', reassign: 'Reassign to another approver' };
 
   return (
     <Drawer open={Boolean(id)} onClose={onClose} title={request?.detail?.title || request?.typeLabel || 'Request'} maxWidthClassName="sm:max-w-2xl xl:max-w-5xl"
       footer={a && (a.decide || a.sendBack || a.withdraw || a.resubmit || a.override || a.reassign) ? (
         <div className="flex flex-wrap gap-2">
-          {(a.decide || a.override) && <Btn variant="primary" icon={<Check className="h-4 w-4" />} onClick={() => setAction('approve')}>{a.override ? 'Approve as admin' : 'Approve'}</Btn>}
+          {(a.decide || a.override) && <Btn variant="primary" icon={<Check className="h-4 w-4" />} onClick={() => setAction('approve')}>{exitCaseId !== null ? 'Accept' : a.override ? 'Approve as admin' : 'Approve'}</Btn>}
+          {a.decide && exitCaseId !== null && <Link href={`${window.location.pathname.startsWith('/employee') ? '/employee' : '/org-admin'}/exits/${exitCaseId}`} className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3.5 text-xs font-semibold text-fg hover:bg-bg-subtle sm:text-sm">Try to retain</Link>}
           {(a.decide || a.override) && <Btn variant="danger" icon={<X className="h-4 w-4" />} onClick={() => setAction('reject')}>Reject</Btn>}
           {a.sendBack && <Btn icon={<CornerUpLeft className="h-4 w-4" />} onClick={() => setAction('send_back')}>Send back</Btn>}
           {a.reassign && <Btn icon={<UserRoundCog className="h-4 w-4" />} onClick={() => setAction('reassign')}>Reassign</Btn>}
@@ -154,6 +162,11 @@ export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; o
           <div className="min-w-0 xl:border-l xl:border-line xl:pl-5">
             <ApprovalTimeline request={request} />
           </div>
+          {settlementCaseId !== null && (
+            <section aria-label="Settlement" className="min-w-0 border-t border-line pt-4 xl:col-span-2">
+              <ExitSettlementSection caseId={settlementCaseId} />
+            </section>
+          )}
           {pettyExpenseId && (
             <section aria-label="Bill and receipt" className="min-w-0 border-t border-line pt-4 xl:col-span-2">
               <PettyExpenseReviewSection expenseId={pettyExpenseId} amount={Number(form?.amount) || 0} physical={form?.physical} readOnly />
@@ -204,6 +217,11 @@ export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; o
         {action === 'approve' && correctTimes && (
           <div className="mb-4 border-b border-line pb-4">
             <RegularizationTimesSection times={correctTimes} onChange={onTimes} />
+          </div>
+        )}
+        {action === 'approve' && exitCaseId !== null && (
+          <div className="mb-4 border-b border-line pb-4">
+            <ExitReviewSection caseId={exitCaseId} onChange={onExitAccept} />
           </div>
         )}
         {action === 'approve' && fundAmount !== null && (

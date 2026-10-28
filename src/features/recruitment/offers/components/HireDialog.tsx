@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { CheckCircle2, MailCheck } from 'lucide-react';
 import { Dialog } from '@/components/ui/Dialog';
 import { FieldLabel, FieldMessage, SelectField, TextField } from '@/components/ui/FormControls';
+import { ApiError } from '@/lib/api/errors';
 import { messageOf } from '@/lib/api/errors';
+import { RehireDialog } from '@/features/exits/components/RehireDialog';
 import { formatDate } from '@/lib/datetime';
 import { showError } from '@/lib/toast';
 import { useEmployeeRoutes } from '@/features/employees/hooks/useEmployeeRoutes';
@@ -112,6 +114,9 @@ export function HireDialog({ offerId, candidateName, onClose, onHired }: HireDia
   const [policyOptions, setPolicyOptions] = useState<{ value: string; label: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<HireResultDto | null>(null);
+  // The PAN / UAN belongs to a former employee: offer Rehire instead of a second record.
+  const [rehireCand, setRehireCand] = useState<{ id: number; name: string } | null>(null);
+  const [rehireOpen, setRehireOpen] = useState(false);
 
   useEffect(() => {
     if (offerId === null) return;
@@ -119,6 +124,7 @@ export function HireDialog({ offerId, candidateName, onClose, onHired }: HireDia
     setForm(null);
     setResult(null);
     setErrors({});
+    setRehireCand(null);
     setLoadError('');
     setLoading(true);
     api.getHireForm(offerId)
@@ -192,6 +198,11 @@ export function HireDialog({ offerId, candidateName, onClose, onHired }: HireDia
       setResult(res);
       onHired?.(res);
     } catch (err) {
+      const data = err instanceof ApiError ? (err.data as { rehire_candidate_employee_id?: number | null; matches?: { id: number; name: string }[] } | null) : null;
+      if (data?.rehire_candidate_employee_id) {
+        const m = data.matches?.find((x) => x.id === data.rehire_candidate_employee_id);
+        setRehireCand({ id: data.rehire_candidate_employee_id, name: m?.name || candidateName || 'Former employee' });
+      }
       const f = fieldOf(err);
       if (f && fields.some((x) => x.field === f)) setErrors({ [f]: messageOf(err) });
       else showError(messageOf(err));
@@ -203,6 +214,7 @@ export function HireDialog({ offerId, candidateName, onClose, onHired }: HireDia
   const done = Boolean(result);
 
   return (
+    <>
     <Dialog
       open={offerId !== null}
       onClose={onClose}
@@ -251,6 +263,12 @@ export function HireDialog({ offerId, candidateName, onClose, onHired }: HireDia
         </div>
       ) : (
         <div className="space-y-5">
+          {rehireCand && (
+            <div className="rounded-xl border border-line bg-bg-subtle p-3 text-sm text-fg">
+              <p>This PAN or UAN belongs to a former employee, {rehireCand.name}. Rehire them to keep one career history.</p>
+              <button type="button" onClick={() => setRehireOpen(true)} className={`${btn.primary} mt-2`}>Rehire {rehireCand.name}</button>
+            </div>
+          )}
           <section>
             <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">From the offer</h3>
             <dl className="divide-y divide-line/60 rounded-xl border border-line px-3.5">
@@ -322,5 +340,7 @@ export function HireDialog({ offerId, candidateName, onClose, onHired }: HireDia
         </div>
       )}
     </Dialog>
+    {rehireOpen && rehireCand && <RehireDialog employee={{ id: rehireCand.id, name: rehireCand.name }} onClose={() => setRehireOpen(false)} />}
+    </>
   );
 }

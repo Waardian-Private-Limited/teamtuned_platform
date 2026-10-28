@@ -16,6 +16,8 @@ import { EmployeesToolbar } from './list/EmployeesToolbar';
 import { EmployeeTable } from './list/EmployeeTable';
 import { EmployeeCardList } from './list/EmployeeCardList';
 import { EmployeesEmptyState } from './list/EmployeesEmptyState';
+import { RehireDialog } from '@/features/exits/components/RehireDialog';
+import { StartExitDialog } from '@/features/exits/components/StartExitDialog';
 import { EmployeeActionDialog } from './list/EmployeeActionDialog';
 import { EmployeeTimelineDrawer } from './list/EmployeeTimelineDrawer';
 import { EmployeeSettingsDrawer } from './settings/EmployeeSettingsDrawer';
@@ -43,7 +45,10 @@ export function EmployeesPage() {
 
   const openCreate = () => router.push(routes.create);
   const openEdit = (e: EmployeeListItemDto) => router.push(routes.edit(e.id));
-  const onAction = (employee: EmployeeListItemDto, action: StatusAction) => setTarget({ employee, action });
+  const [exitFor, setExitFor] = React.useState<EmployeeListItemDto | null>(null);
+  const [rehireFor, setRehireFor] = React.useState<EmployeeListItemDto | null>(null);
+  const onAction = (employee: EmployeeListItemDto, action: StatusAction) =>
+    action === 'start_exit' ? setExitFor(employee) : action === 'rehire' ? setRehireFor(employee) : setTarget({ employee, action });
 
   const confirm = async (exit?: { exitDate: string; reason: string }) => {
     if (!target) return;
@@ -131,6 +136,8 @@ export function EmployeesPage() {
 
       <EmployeeSettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <EmployeeTimelineDrawer employee={historyOf} tabs={timelineTabs} onClose={() => setHistoryOf(null)} />
+      <RehireDialog employee={rehireFor ? { id: rehireFor.id, name: rehireFor.name, employee_code: rehireFor.employee_code } : null} onClose={() => setRehireFor(null)} onDone={() => { setRehireFor(null); void list.refetch(); }} />
+      <StartExitDialog employee={exitFor ? { id: exitFor.id, name: exitFor.name, employee_code: exitFor.employee_code } : null} onClose={() => setExitFor(null)} onStarted={() => { setExitFor(null); void list.refetch(); }} />
       <EmployeeActionDialog target={target} busy={status.busyId !== null} onClose={() => setTarget(null)} onConfirm={confirm} />
     </div>
   );

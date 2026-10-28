@@ -70,6 +70,7 @@ import {
   TrendingUp,
   Gauge,
   Ruler,
+  DoorOpen,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
 import { ANY_LABOUR_PERM, LABOUR_MEAS_PAGE_PERMS, LABOUR_PAYABLE_PERMS, LABOUR_SETTINGS_PAGE_PERMS, LABOUR_VIEW_PERMS, LP } from '@/features/labour/constants/labour.constants';
@@ -111,6 +112,7 @@ export const employeeNav: NavNode[] = [
       // Hiring managers without recruitment permissions: their own positions (the page defaults to "Mine").
       { kind: 'link', label: 'My hiring', href: '/employee/recruitment/positions', icon: Briefcase, match: 'prefix', gate: { recruitmentRole: 'hiring_manager', noneOfPerms: ['RECRUIT_VIEW', 'RECRUIT_MANAGE', 'RECRUIT_OFFER', 'RECRUIT_HIRE', 'RECRUIT_SETTINGS'] } },
       { kind: 'link', label: 'My payslips', href: '/employee/my-payslips', icon: Receipt, gate: { feature: 'PAYROLL_FEATURE' } },
+      { kind: 'link', label: 'My exit', href: '/employee/my-exit', icon: DoorOpen, gate: { anyFeature: ['EXIT_FEATURE', 'exit'] } },
       { kind: 'link', label: 'My advances', href: '/employee/my-advances', icon: Wallet, gate: { feature: 'PAYROLL_FEATURE' } },
       { kind: 'link', label: 'Tax declaration', href: '/employee/my-tax', icon: Landmark, gate: { taxEligible: true } },
       { kind: 'link', label: 'My insurance', href: '/employee/my-insurance', icon: HeartPulse, gate: { feature: 'INSURANCE_FEATURE' } },
@@ -180,6 +182,8 @@ export const employeeNav: NavNode[] = [
   {
     kind: 'group', id: 'management', label: 'Management', gate: { feature: 'PAYROLL_FEATURE' },
     children: [
+      { kind: 'link', label: 'Exits', href: '/employee/exits', icon: DoorOpen, activeTest: (p) => (p === '/employee/exits' || p.startsWith('/employee/exits/')) && !p.startsWith('/employee/exits/insights'), gate: { anyPerm: ['EXIT_VIEW', 'EXIT_MANAGE', 'HR_MODE'] } },
+      { kind: 'link', label: 'Attrition Insights', href: '/employee/exits/insights', icon: BarChart3, match: 'prefix', gate: { anyPerm: ['EXIT_VIEW', 'EXIT_MANAGE', 'HR_MODE'] } },
       { kind: 'link', label: 'Employees', href: '/employee/employee-management', icon: Users, match: 'prefix', gate: { anyPerm: ['EMP_VIEW', 'EMP_ADD', 'EMP_EDIT', 'EMP_DELETE'] } },
       { kind: 'link', label: 'Policies', href: '/employee/policies', icon: Shield, match: 'prefix', gate: { anyPerm: ['POLICY_VIEW', 'POLICY_ADD', 'POLICY_EDIT', 'POLICY_DELETE'] } },
       { kind: 'link', label: 'Shifts', href: '/employee/shift-templates', icon: Clock, match: 'prefix', gate: { anyPerm: ['ATTENDCONFIG_VIEW', 'ATTENDCONFIG_ADD', 'ATTENDCONFIG_EDIT', 'ATTENDCONFIG_DELETE'] } },

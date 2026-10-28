@@ -2,7 +2,7 @@
 
 import { useLoginFlow } from '../hooks/useLoginFlow';
 import { useQrLogin } from '../hooks/useQrLogin';
-import { STEPS_WITH_TABS, STEP_PRIMARY_FIELD, type FieldName } from '../constants/auth.constants';
+import { STEPS_WITH_QR, STEPS_WITH_TABS, STEP_PRIMARY_FIELD, type FieldName } from '../constants/auth.constants';
 import { Alert } from '@/components/ui/Alert';
 import { AuthTabs } from './components/AuthTabs';
 import { QrLoginPanel } from './components/QrLoginPanel';
@@ -21,6 +21,7 @@ export function LoginCard() {
   const qr = useQrLogin();
 
   const showChrome = STEPS_WITH_TABS.includes(flow.step);
+  const showQr = STEPS_WITH_QR.includes(flow.step);
 
   // A field-scoped error goes on its field; a general one goes on whatever
   // input this step is about. Only an error with nowhere to land is shown as
@@ -180,7 +181,7 @@ export function LoginCard() {
         )}
       </div>
 
-      {showChrome && (
+      {showQr && (
         <QrLoginPanel
           token={qr.token}
           status={qr.status}

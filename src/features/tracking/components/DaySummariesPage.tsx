@@ -5,6 +5,7 @@ import { Alert } from '@/components/ui/Alert';
 import { Pagination } from '@/components/ui/Pagination';
 import { cx } from '@/theme/tokens';
 import { messageOf } from '@/lib/api/errors';
+import { useDebounced } from '@/features/insurance/hooks/useDebounced';
 import { getDays } from '../api/tracking.api';
 import { todayInput } from '../constants/tracking.constants';
 import type { DayRowDto, TrackingFilters as Filters } from '../types/tracking.dto';
@@ -18,6 +19,7 @@ export function DaySummariesPage() {
   const [filters, setFilters] = useState<Filters>({});
   const [date, setDate] = useState(todayInput());
   const [searchValue, setSearchValue] = useState('');
+  const query = useDebounced(searchValue.trim(), 300);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [rows, setRows] = useState<DayRowDto[]>([]);
@@ -34,10 +36,18 @@ export function DaySummariesPage() {
     Boolean(filters.siteId) ||
     Boolean(filters.policyId);
 
+  // A new search starts from the first page.
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
+
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
-    getDays(date, filters, page, pageSize, controller.signal)
+    // Never leave another day's or filter's rows on screen if this load fails.
+    setRows([]);
+    setTotal(0);
+    getDays(date, filters, page, pageSize, controller.signal, query)
       .then((r) => {
         setRows(r.days);
         setTotal(r.total);
@@ -50,18 +60,18 @@ export function DaySummariesPage() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [date, filters, page, pageSize]);
+  }, [date, filters, page, pageSize, query]);
 
-  // Client-side quick filter for the search input
+  // The server searches name and code (`q`); this repeats it for servers that ignore `q`.
   const displayedRows = useMemo(() => {
-    if (!searchValue.trim()) return rows;
-    const q = searchValue.trim().toLowerCase();
+    if (!query) return rows;
+    const q = query.toLowerCase();
     return rows.filter(
       (r) =>
         r.name?.toLowerCase().includes(q) ||
         r.employee_code?.toLowerCase().includes(q)
     );
-  }, [rows, searchValue]);
+  }, [rows, query]);
 
   const clearFilters = () => {
     setFilters({});

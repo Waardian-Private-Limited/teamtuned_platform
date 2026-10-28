@@ -7,65 +7,101 @@ import type { RoutePointDto } from '../types/tracking.dto';
 
 interface TimelinePlayerSliderProps {
   route: RoutePointDto[];
+  /** Epoch ms of each route point, same order as `route`. */
+  times: number[];
+  /** breaks[i]: no track between point i-1 and point i (a gap). */
+  breaks: boolean[];
   currentIndex: number;
-  onIndexChange: (index: number) => void;
+  /** Playhead time in epoch ms. */
+  currentTime: number;
+  /** A new playhead time; null follows the latest point as the day refreshes. */
+  onTimeChange: (time: number | null) => void;
   isToday?: boolean;
 }
 
+// Replay runs on route time: 1x plays two minutes of the day per second. Gaps are skipped at once.
+const BASE_RATE = 120;
+const TICK_MS = 100;
 const SPEEDS = [
-  { label: '1x', ms: 400 },
-  { label: '2x', ms: 200 },
-  { label: '4x', ms: 100 },
+  { label: '1x', rate: BASE_RATE },
+  { label: '2x', rate: BASE_RATE * 2 },
+  { label: '4x', rate: BASE_RATE * 4 },
 ];
+
+// Index of the last point at or before `t`.
+export function indexAt(times: number[], t: number) {
+  let lo = 0;
+  let hi = times.length - 1;
+  if (hi < 0 || t <= times[0]) return 0;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (times[mid] <= t) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
+}
+
+// Typing in a field must not drive the player.
+function isEditable(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  if (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return true;
+  return target instanceof HTMLInputElement && target.type !== 'range';
+}
 
 export function TimelinePlayerSlider({
   route,
+  times,
+  breaks,
   currentIndex,
-  onIndexChange,
+  currentTime,
+  onTimeChange,
   isToday = false,
 }: TimelinePlayerSliderProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [speedIndex, setSpeedIndex] = useState(0);
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const [isHoveringTrack, setIsHoveringTrack] = useState(false);
+  const [hoverTime, setHoverTime] = useState<number | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
 
   const totalPoints = route.length;
   const maxIndex = Math.max(0, totalPoints - 1);
   const safeIndex = Math.min(Math.max(0, currentIndex), maxIndex);
   const currentPoint = route[safeIndex] ?? null;
+  const start = times[0] ?? 0;
+  const end = times[maxIndex] ?? 0;
+  const span = Math.max(1, end - start);
   const isAtLastPoint = safeIndex === maxIndex;
-  const isAtFirstPoint = safeIndex === 0;
+  const isAtFirstPoint = safeIndex === 0 && currentTime <= start;
 
   const currentSpeed = SPEEDS[speedIndex];
 
-  const currentIndexRef = useRef(safeIndex);
-  currentIndexRef.current = safeIndex;
+  const state = useRef({ currentTime, times, breaks, onTimeChange });
+  state.current = { currentTime, times, breaks, onTimeChange };
 
-  // Auto-play interval
+  // Time-based replay: advance the playhead clock, jump straight over gaps.
   useEffect(() => {
     if (!isPlaying || totalPoints <= 1) return;
-
     const interval = setInterval(() => {
-      const next = currentIndexRef.current + 1;
-      if (next >= maxIndex) {
+      const { currentTime: now, times: ts, breaks: br, onTimeChange: emit } = state.current;
+      const last = ts.length - 1;
+      let next = now + TICK_MS * currentSpeed.rate;
+      const i = indexAt(ts, now);
+      if (i < last && br[i + 1] && next < ts[i + 1]) next = ts[i + 1];
+      if (next >= ts[last]) {
         setIsPlaying(false);
-        onIndexChange(maxIndex);
+        emit(null);
       } else {
-        onIndexChange(next);
+        emit(next);
       }
-    }, currentSpeed.ms);
-
+    }, TICK_MS);
     return () => clearInterval(interval);
-  }, [isPlaying, maxIndex, totalPoints, currentSpeed.ms, onIndexChange]);
+  }, [isPlaying, totalPoints, currentSpeed.rate]);
 
   const togglePlay = () => {
     if (isPlaying) {
       setIsPlaying(false);
     } else {
-      if (isAtLastPoint) {
-        onIndexChange(0);
-      }
+      if (isAtLastPoint) onTimeChange(start);
       setIsPlaying(true);
     }
   };
@@ -76,29 +112,54 @@ export function TimelinePlayerSlider({
 
   const stepPrev = () => {
     setIsPlaying(false);
-    onIndexChange(Math.max(0, safeIndex - 1));
+    // From between two points, the previous point is the one the playhead sits on.
+    const target = currentTime > times[safeIndex] ? safeIndex : Math.max(0, safeIndex - 1);
+    onTimeChange(times[target]);
   };
 
   const stepNext = () => {
     setIsPlaying(false);
-    onIndexChange(Math.min(maxIndex, safeIndex + 1));
+    const target = Math.min(maxIndex, safeIndex + 1);
+    onTimeChange(target === maxIndex ? null : times[target]);
   };
 
   const jumpToLatest = () => {
     setIsPlaying(false);
-    onIndexChange(maxIndex);
+    onTimeChange(null);
   };
+
+  // Space plays / pauses, Left / Right step one point, unless the focus is in a text field.
+  const keys = useRef({ togglePlay, stepPrev, stepNext });
+  keys.current = { togglePlay, stepPrev, stepNext };
+  useEffect(() => {
+    if (totalPoints <= 1) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || isEditable(e.target)) return;
+      // Space on a focused button already clicks that button.
+      if (e.key === ' ' && !(e.target instanceof HTMLButtonElement)) {
+        e.preventDefault();
+        keys.current.togglePlay();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        keys.current.stepPrev();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        keys.current.stepNext();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [totalPoints]);
 
   const handleTrackMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!trackRef.current || maxIndex === 0) return;
     const rect = trackRef.current.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    setHoverIndex(Math.round(ratio * maxIndex));
+    setHoverTime(start + ratio * span);
   };
 
-  const progressPercent = maxIndex > 0 ? (safeIndex / maxIndex) * 100 : 0;
-  const hoverPoint = hoverIndex !== null && route[hoverIndex] ? route[hoverIndex] : null;
-  const hoverPercent = hoverIndex !== null && maxIndex > 0 ? (hoverIndex / maxIndex) * 100 : 0;
+  const progressPercent = Math.max(0, Math.min(100, ((currentTime - start) / span) * 100));
+  const hoverPercent = hoverTime !== null ? ((hoverTime - start) / span) * 100 : 0;
 
   if (totalPoints <= 1) {
     return null;
@@ -160,14 +221,14 @@ export function TimelinePlayerSlider({
 
         {/* Current Time Badge & Metadata */}
         <div className="flex flex-wrap items-center gap-1.5">
-          {/* Exact Timestamp */}
+          {/* Playhead time; the map shows the last fix at or before it */}
           <div className="flex items-center gap-1 rounded-lg border border-line bg-bg-subtle px-2 py-0.5 text-xs font-semibold text-fg shadow-2xs">
             <Clock className="h-3 w-3 text-fg-muted" />
-            <span>{timeText(currentPoint?.at)}</span>
+            <span>{timeText(new Date(currentTime).toISOString())}</span>
           </div>
 
           {/* Point Counter */}
-          <div className="rounded-lg border border-line bg-surface px-2 py-0.5 text-[11px] text-fg-muted shadow-2xs">
+          <div className="rounded-lg border border-line bg-surface px-2 py-0.5 text-[11px] text-fg-muted shadow-2xs" title={currentPoint ? `Fix at ${timeText(currentPoint.at)}` : undefined}>
             Point <span className="font-semibold text-fg">{safeIndex + 1}</span> /{' '}
             <span className="font-medium text-fg">{totalPoints}</span>
           </div>
@@ -201,25 +262,21 @@ export function TimelinePlayerSlider({
         </div>
       </div>
 
-      {/* Modern Scrubber Track Area */}
+      {/* Modern Scrubber Track Area: positions are by time, so gaps take their real width */}
       <div className="relative pt-1">
         {/* Floating Tooltip */}
-        {isHoveringTrack && hoverPoint && (
+        {hoverTime !== null && (
           <div
             className="pointer-events-none absolute -top-5 z-20 -translate-x-1/2 rounded bg-fg px-1.5 py-0.5 text-[10px] font-medium text-surface shadow-md transition-all duration-75"
             style={{ left: `${hoverPercent}%` }}
           >
-            {timeText(hoverPoint.at)}
+            {timeText(new Date(hoverTime).toISOString())}
           </div>
         )}
 
         <div
           ref={trackRef}
-          onMouseEnter={() => setIsHoveringTrack(true)}
-          onMouseLeave={() => {
-            setIsHoveringTrack(false);
-            setHoverIndex(null);
-          }}
+          onMouseLeave={() => setHoverTime(null)}
           onMouseMove={handleTrackMouseMove}
           className="relative flex h-5 w-full cursor-pointer items-center"
         >
@@ -232,7 +289,7 @@ export function TimelinePlayerSlider({
             />
 
             {/* Hover ghost marker */}
-            {isHoveringTrack && hoverIndex !== null && (
+            {hoverTime !== null && (
               <div
                 className="absolute top-0 h-full w-0.5 rounded-full bg-fg-muted"
                 style={{ left: `${hoverPercent}%` }}
@@ -249,14 +306,17 @@ export function TimelinePlayerSlider({
           {/* Accessible Functional Range Input */}
           <input
             type="range"
-            min={0}
-            max={maxIndex}
-            value={safeIndex}
+            min={start}
+            max={end}
+            step={1000}
+            value={Math.min(end, Math.max(start, currentTime))}
             onChange={(e) => {
               setIsPlaying(false);
-              onIndexChange(Number(e.target.value));
+              const t = Number(e.target.value);
+              onTimeChange(t >= end ? null : t);
             }}
             aria-label="Timeline scrubber"
+            aria-valuetext={timeText(new Date(currentTime).toISOString())}
             className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
           />
         </div>

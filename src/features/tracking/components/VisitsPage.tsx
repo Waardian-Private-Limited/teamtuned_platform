@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Drawer } from '@/components/ui/Drawer';
@@ -8,6 +8,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { TextField } from '@/components/ui/FormControls';
 import { usePermission } from '@/lib/hooks/usePermission';
 import { messageOf } from '@/lib/api/errors';
+import { useDebounced } from '@/features/insurance/hooks/useDebounced';
 import { adjustTrip, getTrip, listTrips } from '../api/tracking.api';
 import { TRACKING_PERMISSIONS, kmText, minutesText, timeText } from '../constants/tracking.constants';
 import type { TripDto } from '../types/tracking.dto';
@@ -17,6 +18,13 @@ import { VisitsTable } from './components/VisitsTable';
 import { VisitCardList } from './components/VisitCardList';
 import { VisitsTableSkeleton } from './components/VisitsTableSkeleton';
 import { VisitsEmptyState } from './components/VisitsEmptyState';
+
+// One CSV cell: quotes doubled, and text a spreadsheet would run as a formula (= + - @, tab, CR) prefixed with '.
+function cell(value: string | number | null | undefined) {
+  let v = value === null || value === undefined ? '' : String(value);
+  if (typeof value === 'string' && /^[=+\-@\t\r]/.test(v)) v = `'${v}`;
+  return `"${v.replaceAll('"', '""')}"`;
+}
 
 function csv(rows: TripDto[]) {
   const head = [
@@ -43,10 +51,12 @@ function csv(rows: TripDto[]) {
     t.approved_km ?? '',
     t.rate_per_km ?? '',
     t.amount ?? '',
-    (t.purpose ?? '').replaceAll('"', "'"),
+    t.purpose ?? '',
   ]);
-  return [head, ...body].map((r) => r.map((c) => `"${c}"`).join(',')).join('\n');
+  return [head, ...body].map((r) => r.map(cell).join(',')).join('\r\n');
 }
+
+const EXPORT_PAGE = 200;
 
 export function VisitsPage() {
   const { can } = usePermission();
@@ -56,6 +66,7 @@ export function VisitsPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [searchValue, setSearchValue] = useState('');
+  const query = useDebounced(searchValue.trim(), 300);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [rows, setRows] = useState<TripDto[]>([]);
@@ -68,35 +79,47 @@ export function VisitsPage() {
   const [adjusted, setAdjusted] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
-  const load = () => {
+  // Only the newest request may write the table: a slower, older response is dropped.
+  const inflight = useRef<AbortController | null>(null);
+  const load = useCallback(() => {
+    inflight.current?.abort();
+    const controller = new AbortController();
+    inflight.current = controller;
     setLoading(true);
-    return listTrips({ status, from, to, page, pageSize })
+    return listTrips({ status, from, to, q: query, page, pageSize }, controller.signal)
       .then((r) => {
+        if (controller.signal.aborted) return;
         setRows(r.trips);
         setTotal(r.total);
         setError(null);
       })
-      .catch((e) => setError(messageOf(e)))
-      .finally(() => setLoading(false));
-  };
+      .catch((e) => {
+        if (!controller.signal.aborted) setError(messageOf(e));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+  }, [status, from, to, query, page, pageSize]);
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, from, to, page, pageSize]);
+  }, [load]);
 
-  // Client-side quick filter for search input
+  useEffect(() => () => inflight.current?.abort(), []);
+
+  // A new search starts from the first page.
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
+
+  // The server searches name and code (`q`); this repeats it for servers that ignore `q`.
   const displayedRows = useMemo(() => {
-    if (!searchValue.trim()) return rows;
-    const q = searchValue.trim().toLowerCase();
-    return rows.filter(
-      (t) =>
-        t.employee_name?.toLowerCase().includes(q) ||
-        t.employee_code?.toLowerCase().includes(q) ||
-        t.purpose?.toLowerCase().includes(q)
-    );
-  }, [rows, searchValue]);
+    if (!query) return rows;
+    const q = query.toLowerCase();
+    return rows.filter((t) => t.employee_name?.toLowerCase().includes(q) || t.employee_code?.toLowerCase().includes(q));
+  }, [rows, query]);
 
   const show = async (t: TripDto) => {
     try {
@@ -122,13 +145,30 @@ export function VisitsPage() {
     }
   };
 
-  const download = () => {
-    const url = URL.createObjectURL(new Blob([csv(rows)], { type: 'text/csv' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `field-visits-${from || 'all'}-${to || 'now'}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  // Every page of the current filters, not just the one on screen.
+  const download = async () => {
+    setExporting(true);
+    setError(null);
+    try {
+      const all: TripDto[] = [];
+      for (let p = 1; ; p += 1) {
+        const r = await listTrips({ status, from, to, q: query, page: p, pageSize: EXPORT_PAGE });
+        all.push(...r.trips);
+        if (r.trips.length < EXPORT_PAGE || all.length >= r.total) break;
+      }
+      const q = query.toLowerCase();
+      const rowsOut = q ? all.filter((t) => t.employee_name?.toLowerCase().includes(q) || t.employee_code?.toLowerCase().includes(q)) : all;
+      const url = URL.createObjectURL(new Blob(['\uFEFF' + csv(rowsOut)], { type: 'text/csv;charset=utf-8' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `field-visits-${from || 'all'}-${to || 'now'}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(messageOf(e));
+    } finally {
+      setExporting(false);
+    }
   };
 
   const clearFilters = () => {
@@ -164,8 +204,8 @@ export function VisitsPage() {
         }}
         searchValue={searchValue}
         onSearchChange={setSearchValue}
-        onExportCsv={download}
-        hasRows={rows.length > 0}
+        onExportCsv={() => void download()}
+        hasRows={rows.length > 0 && !exporting}
       />
 
       {/* Main Content Card with Table & Pagination */}

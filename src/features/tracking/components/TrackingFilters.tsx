@@ -13,7 +13,7 @@ export function TrackingFilters({
   value: Filters;
   onChange: (next: Filters) => void;
 }) {
-  const { departments, roles, sites } = useFilterOptions();
+  const { departments, roles, sites, error } = useFilterOptions();
   const set = (patch: Partial<Filters>) => onChange({ ...value, ...patch });
 
   return (
@@ -43,6 +43,7 @@ export function TrackingFilters({
         options={sites}
         onChange={(v) => set({ siteId: v })}
       />
+      {error && <span role="alert" className="text-xs font-medium text-[var(--tt-danger)]">{error}</span>}
     </div>
   );
 }

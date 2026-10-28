@@ -309,6 +309,8 @@ export interface ContractRenewalDto {
 export interface IdentityDuplicateDto {
   code: 'IDENTITY_DUPLICATE';
   field: 'pan_number' | 'pf_uan';
-  matches: { id: number; employee_code: string | null; name: string; status: string }[];
+  /** Set when the matching person is a former (terminated) employee: the UI offers Rehire instead of a second record. */
+  rehire_candidate_employee_id?: number | null;
+  matches: { id: number; employee_code: string | null; name: string; status: string; rehire_candidate?: boolean }[];
   confirm: 'confirm_duplicate_identity';
 }

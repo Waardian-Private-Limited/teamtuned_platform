@@ -17,12 +17,24 @@ export interface SnapshotDto {
   next_action: 'check_in' | 'check_out';
   open_since: string | null;
   expected_minutes?: number;
+  /** Server-computed policy-correct figures as of `as_of`; null/absent before a punch, on an off day, or on an older backend. */
+  progress?: {
+    as_of: string;
+    worked_minutes: number;
+    expected_minutes: number;
+    extension_minutes?: number;
+    expected_end_at?: string | null;
+    half_day_minutes?: number | null;
+    full_day_minutes?: number | null;
+  } | null;
   break?: { enabled: boolean; active?: boolean; since?: string | null; used_minutes?: number };
   rules?: {
     day: { type: string; off_half: string | null; holiday: { name: string } | null; leave: { units: number } | null };
     late: { late_after: string | null; grace_minutes: number | null };
     check_in: { earliest_at: string | null };
-    live: { late: boolean; late_minutes: number; expected_end_at: string | null } | null;
+    live: { late: boolean; late_minutes: number; extension_minutes?: number; expected_end_at: string | null } | null;
+    /** worked_percent / worked_minutes carry the half-day and full-day marks in worked minutes. */
+    day_classification?: { basis: string; half_day_minutes?: number | null; full_day_minutes?: number | null };
   };
   day: {
     status: string;

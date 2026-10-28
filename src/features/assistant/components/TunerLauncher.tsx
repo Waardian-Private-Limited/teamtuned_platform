@@ -16,7 +16,7 @@ export function TunerLauncher({ open, onClick }: TunerLauncherProps) {
       onClick={onClick}
       aria-label={open ? 'Close Tuner' : 'Open Tuner'}
       aria-expanded={open}
-      className="fixed bottom-5 right-5 z-50 flex h-14 w-14 items-center justify-center rounded-full
+      className="fixed bottom-5 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full
         bg-white border border-zinc-200/90 shadow-xl
         transition-all duration-200 hover:scale-105 active:scale-95
         focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--tt-ring)]"

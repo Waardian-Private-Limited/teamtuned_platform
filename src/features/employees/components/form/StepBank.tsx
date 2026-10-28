@@ -6,22 +6,39 @@ import * as employeesApi from '../../api/employees.api';
 import { messageOf } from '@/lib/api/errors';
 import { IFSC } from '../../utils/validators';
 import { Section, TextField } from '@/components/ui/FormControls';
+import { RehireDialog } from '@/features/exits/components/RehireDialog';
 import type { EmployeeFormController } from './types';
 
 const upper = (v: string) => v.replace(/\s+/g, '').toUpperCase();
 
 /** Offered under PAN / UAN when another employee already holds the number. */
 function SaveAnyway({ c, field }: { c: EmployeeFormController; field: 'pan_number' | 'pf_uan' }) {
+  const [rehire, setRehire] = React.useState(false);
   if (c.duplicate?.field !== field) return null;
+  const candidateId = c.duplicate.rehire_candidate_employee_id
+    ?? c.duplicate.matches.find((m) => m.rehire_candidate || m.status === 'Terminated')?.id ?? null;
+  const candidate = c.duplicate.matches.find((m) => m.id === candidateId);
   return (
-    <button
-      type="button"
-      onClick={c.saveAnyway}
-      disabled={c.saving}
-      className="mt-1.5 inline-flex h-7 items-center rounded-md border border-line px-2 text-[11px] font-semibold text-fg transition-colors hover:bg-bg-subtle disabled:opacity-40"
-    >
-      It&apos;s a different person or correct — save anyway
-    </button>
+    <div className="mt-1.5 flex flex-wrap gap-2">
+      {candidateId && (
+        <button
+          type="button"
+          onClick={() => setRehire(true)}
+          className="inline-flex h-7 items-center rounded-md border border-[var(--tt-primary)] px-2 text-[11px] font-semibold text-fg transition-colors hover:bg-bg-subtle"
+        >
+          Former employee{candidate ? ` ${candidate.name}` : ''}: rehire instead
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={c.saveAnyway}
+        disabled={c.saving}
+        className="inline-flex h-7 items-center rounded-md border border-line px-2 text-[11px] font-semibold text-fg transition-colors hover:bg-bg-subtle disabled:opacity-40"
+      >
+        It&apos;s a different person or correct — save anyway
+      </button>
+      {rehire && candidateId && <RehireDialog employee={{ id: candidateId, name: candidate?.name || 'Former employee', employee_code: candidate?.employee_code }} onClose={() => setRehire(false)} />}
+    </div>
   );
 }
 

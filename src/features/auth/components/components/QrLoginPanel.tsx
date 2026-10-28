@@ -16,8 +16,8 @@ export function QrLoginPanel({ token, status, isLoading, onRefresh }: QrLoginPan
   const isLive = Boolean(token) && status !== 'expired';
 
   return (
-    <div className="mt-5 flex w-full flex-col items-center">
-      <div className="relative mb-4 flex w-full items-center justify-center">
+    <div className="flex w-full flex-col items-center">
+      <div className="relative mb-3 flex w-full items-center justify-center">
         <div className="absolute inset-0 flex items-center">
           <div className="w-full border-t border-line" />
         </div>

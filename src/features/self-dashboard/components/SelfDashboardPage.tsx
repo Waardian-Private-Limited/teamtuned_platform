@@ -89,9 +89,8 @@ export function SelfDashboardPage() {
         <TodayCard data={snapshot.data} loading={snapshot.loading} error={snapshot.error} onRetry={() => void snapshot.refetch()} />
         <TeamsCard />
       </div>
-      <CycleCard month={month} period={cycle.data?.period || null} loading={cycle.loading} error={cycle.error} onRetry={() => void cycle.refetch()} />
 
-      {/* Work waiting on me comes before the reference cards below it. */}
+      {/* Work waiting on me comes before the reference cards below it, and the month overview is last. */}
       {workCards > 0 && (
         <div className={workCards === 1 ? 'grid grid-cols-1' : workCards === 2 ? 'grid grid-cols-1 gap-4 sm:gap-5 xl:grid-cols-2' : 'grid grid-cols-1 gap-4 sm:gap-5 xl:grid-cols-2 2xl:grid-cols-3'}>
           {showTasks && <TasksCard today={today} counts={work.data?.tasks ?? null} loading={work.loading} error={work.error} onRetry={() => void work.refetch()} />}
@@ -105,6 +104,8 @@ export function SelfDashboardPage() {
         <RequestsCard today={today} tz={tz} />
         {showPay && <div className="flex lg:col-span-2 xl:col-span-1 [&>section]:flex-1"><PayslipCard year={Number(today.slice(0, 4))} /></div>}
       </div>
+
+      <CycleCard month={month} period={cycle.data?.period || null} loading={cycle.loading} error={cycle.error} onRetry={() => void cycle.refetch()} />
     </div>
   );
 }

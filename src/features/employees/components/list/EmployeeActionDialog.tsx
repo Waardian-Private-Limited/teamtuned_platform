@@ -19,6 +19,8 @@ const COPY: Record<StatusAction, { title: string; body: string; cta: string; dan
   activate: { title: 'Activate employee', body: 'They can sign in and mark attendance again.', cta: 'Activate', danger: false },
   deactivate: { title: 'Deactivate employee', body: 'Sign-in is blocked and active sessions end. Use this for long leave or suspension. You can activate again later.', cta: 'Deactivate', danger: true },
   terminate: { title: 'Terminate employee', body: 'Records the last working day and exit reason. Sign-in is blocked and the site budget is released. This cannot be undone.', cta: 'Terminate', danger: true },
+  start_exit: { title: 'Start exit', body: '', cta: 'Start exit', danger: true },
+  rehire: { title: 'Rehire employee', body: '', cta: 'Rehire', danger: false },
   delete: { title: 'Delete employee', body: 'Removes an employee who never completed onboarding. Use this only for a record added by mistake.', cta: 'Delete', danger: true },
 };
 

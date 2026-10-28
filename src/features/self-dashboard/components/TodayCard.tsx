@@ -6,7 +6,7 @@ import { cx } from '@/theme/tokens';
 import { formatDate, formatTime } from '@/lib/datetime';
 import { minutesText } from '@/features/detailed-attendance/utils/format';
 import type { SnapshotDto } from '../types/selfDashboard.dto';
-import { todayState, type TodayTone } from '../utils/todayState';
+import { todayState, type TodayState, type TodayTone } from '../utils/todayState';
 import { DashCard } from './DashCard';
 
 const DOT: Record<TodayTone, string> = {
@@ -27,7 +27,19 @@ function useNow(live: boolean) {
   return now;
 }
 
-function Ring({ worked, expected }: { worked: number; expected: number }) {
+/** The ring colour, as on the app's shift card: done = green, full-day mark = soft green, half-day mark = amber, closed short = red, otherwise the neutral live colour. */
+function ringColour(s: TodayState): string {
+  if (s.band === 'complete') return 'var(--tt-success)';
+  const verdict = s.verdict?.toLowerCase();
+  if (verdict?.includes('half')) return 'var(--tt-warning)';
+  if (verdict === 'absent') return 'var(--tt-danger)';
+  if (s.band === 'fullDay') return 'color-mix(in srgb, var(--tt-success) 55%, transparent)';
+  if (s.band === 'halfDay') return 'var(--tt-warning)';
+  return s.inProgress ? 'var(--tt-fg)' : 'var(--tt-danger)';
+}
+
+function Ring({ state }: { state: TodayState }) {
+  const { workedMinutes: worked, expectedMinutes: expected, marks } = state;
   const r = 52;
   const c = 2 * Math.PI * r;
   const pct = expected > 0 ? Math.min(1, worked / expected) : 0;
@@ -38,8 +50,17 @@ function Ring({ worked, expected }: { worked: number; expected: number }) {
         <circle
           cx="60" cy="60" r={r} fill="none" strokeWidth="9" strokeLinecap="round"
           strokeDasharray={c} strokeDashoffset={c * (1 - pct)}
-          className="stroke-[var(--tt-fg)] transition-[stroke-dashoffset] duration-700 ease-out"
+          style={{ stroke: ringColour(state) }}
+          className="transition-[stroke-dashoffset,stroke] duration-700 ease-out"
         />
+        {marks.map((f) => {
+          const a = 2 * Math.PI * f;
+          const x1 = 60 + (r - 6) * Math.cos(a);
+          const y1 = 60 + (r - 6) * Math.sin(a);
+          const x2 = 60 + (r + 6) * Math.cos(a);
+          const y2 = 60 + (r + 6) * Math.sin(a);
+          return <line key={f} x1={x1} y1={y1} x2={x2} y2={y2} strokeWidth="2" className="stroke-[var(--tt-surface)]" />;
+        })}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
         <span className="text-base font-extrabold tabular-nums text-fg sm:text-2xl">{minutesText(worked)}</span>
@@ -81,7 +102,7 @@ export function TodayCard({ data, loading, error, onRetry }: { data: SnapshotDto
       {s && (
         <div className="flex flex-col gap-5">
           <div className="flex min-w-0 flex-1 items-center gap-4 sm:gap-6">
-            <Ring worked={s.workedMinutes} expected={s.expectedMinutes} />
+            <Ring state={s} />
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="relative flex h-2.5 w-2.5 shrink-0">

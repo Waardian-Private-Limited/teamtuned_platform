@@ -44,3 +44,31 @@ export const minutesText = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${m
 export const kmText = (meters: number) => `${(meters / 1000).toFixed(meters >= 10000 ? 0 : 1)} km`;
 export const timeText = (iso: string | null | undefined, tz?: string | null) => (iso ? formatTime(iso, tz) : '-');
 export const todayInput = () => orgToday();
+
+// States that claim the phone is reporting right now; a pin older than this in one of them is stale.
+export const NOT_LIVE: TrackingState[] = ['gps_off', 'signal_lost', 'stopped'];
+export const STALE_FIX_MS = 15 * 60_000;
+
+// Two route points further apart than this are not joined by a line (no track in between).
+export const ROUTE_GAP_MS = 10 * 60_000;
+
+export const DEVICE_EVENT_LABEL: Record<string, string> = {
+  gps_off: 'Location switched off', gps_on: 'Location switched on', permission_downgraded: 'Location permission removed', permission_restored: 'Location permission given',
+  offline: 'Internet off (recording continues)', online: 'Internet back', boot: 'Phone restarted', shutdown: 'Phone switched off',
+  recorder_started: 'Recording started', recorder_stopped: 'Recording stopped', mock_detected: 'Fake location app detected', time_tamper: 'Phone clock changed',
+  low_battery: 'Battery low', power_save_on: 'Battery saver on', power_save_off: 'Battery saver off',
+  tracking_stopped: 'Tracking stopped: left the site',
+  app_terminated: 'App closed by the employee', recorder_killed: 'Phone stopped the app (battery or autostart setting)', relaunched: 'Recording resumed after the app was closed',
+  precise_off: 'Precise location turned off', precise_on: 'Precise location turned on',
+  batch_dropped: 'Phone discarded locations the server refused', queue_trimmed: 'Phone storage full: oldest locations deleted',
+};
+
+// Device events worth flagging on the live board; recoveries (gps_on, precise_on, ...) are not.
+const HEALTH_PROBLEMS = new Set(['gps_off', 'permission_downgraded', 'precise_off', 'mock_detected', 'time_tamper', 'low_battery', 'power_save_on', 'shutdown', 'app_terminated', 'recorder_killed', 'recorder_stopped', 'batch_dropped', 'queue_trimmed']);
+
+export function healthText(health: { kind: string; detail: string | null } | null | undefined): string | null {
+  if (!health || !HEALTH_PROBLEMS.has(health.kind)) return null;
+  if (health.kind === 'permission_downgraded') return health.detail === 'when_in_use' ? 'Location allowed only while the app is open' : 'Location permission denied';
+  if (health.kind === 'precise_off') return 'Approximate location only';
+  return DEVICE_EVENT_LABEL[health.kind] ?? health.kind.replaceAll('_', ' ');
+}

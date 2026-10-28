@@ -29,4 +29,6 @@ export const PUBLIC_ROUTES = [
   '/vendor',
   // 360 feedback from people outside the company: /feedback/[token]
   '/feedback',
+  // The ex-employee's document link: /exit-documents/[token]
+  '/exit-documents',
 ];

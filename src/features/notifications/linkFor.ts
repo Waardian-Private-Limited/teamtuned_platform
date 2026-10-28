@@ -34,6 +34,9 @@ const PAGES: Record<string, Record<Area, Page>> = {
     (p) => (p.wallet_id ? `/employee/my-petty-cash/wallets/${p.wallet_id}` : '/employee/my-petty-cash'),
     (p) => (p.wallet_id ? `/org-admin/petty-cash/wallets/${p.wallet_id}` : '/org-admin/petty-cash/wallets')
   ),
+  'exit.mine': both('/employee/my-exit', '/org-admin/exits'),
+  'exit.case': both((p) => (p.id ? `/employee/exits/${p.id}` : '/employee/approvals'), (p) => (p.id ? `/org-admin/exits/${p.id}` : '/org-admin/exits')),
+  'exit.review': both('/employee/approvals', '/org-admin/approvals'),
   'approvals.inbox': both('/employee/approvals', '/org-admin/approvals'),
   // Approver pushes for petty cash expenses and fund requests.
   'petty_cash.approvals': both('/employee/approvals', '/org-admin/approvals'),

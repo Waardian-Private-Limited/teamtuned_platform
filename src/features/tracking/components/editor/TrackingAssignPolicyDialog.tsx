@@ -71,9 +71,9 @@ export function TrackingAssignPolicyDialog({
     setIsSubmitting(true);
     setError(null);
     try {
+      // The policy only: assigning never turns tracking back on for someone it was switched off for.
       await setTracking({
         employeeIds: Array.from(selectedIds),
-        enabled: true,
         policyId,
       });
       onSuccess();

@@ -21,6 +21,9 @@ export type QrStatus = 'pending' | 'scanned' | 'confirmed' | 'expired';
 // card's max height — so it drops off here.
 export const STEPS_WITH_TABS: readonly LoginStep[] = ['email', 'otp'];
 
+// The QR also shows under the saved-accounts picker and once an account is picked: scanning needs no password or code.
+export const STEPS_WITH_QR: readonly LoginStep[] = [...STEPS_WITH_TABS, 'remembered', 'password', 'account-otp'];
+
 export const STORAGE_KEYS = {
   rememberedAccounts: 'tt_remembered_accounts',
   legacyRememberedAccount: 'tt_remembered_account',

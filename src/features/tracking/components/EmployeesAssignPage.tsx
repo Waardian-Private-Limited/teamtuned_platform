@@ -113,11 +113,12 @@ export function EmployeesAssignPage() {
     setNotice(null);
     setError(null);
     try {
-      const res = await setTracking({
-        employeeIds: Array.from(selected),
-        enabled: on,
-        policyId: on ? policyId : null,
-      });
+      // Disabling leaves the policy alone; enabling sets one only when it was picked.
+      const res = await setTracking(
+        on
+          ? { employeeIds: Array.from(selected), enabled: true, ...(policyId !== null ? { policyId } : {}) }
+          : { employeeIds: Array.from(selected), enabled: false }
+      );
       setNotice(
         `${res.updated} employee${res.updated === 1 ? '' : 's'} ${
           on ? 'enabled' : 'disabled'
@@ -137,12 +138,7 @@ export function EmployeesAssignPage() {
     setTogglingId(empId);
     setError(null);
     try {
-      const emp = rows.find((r) => r.employee_id === empId);
-      await setTracking({
-        employeeIds: [empId],
-        enabled: on,
-        policyId: on ? emp?.policy_id : null,
-      });
+      await setTracking({ employeeIds: [empId], enabled: on });
       await load();
     } catch (err) {
       setError(messageOf(err));
@@ -157,9 +153,9 @@ export function EmployeesAssignPage() {
     setIsUpdatingPolicy(true);
     setError(null);
     try {
+      // null moves them to the default policy; tracking on / off is unchanged.
       await setTracking({
         employeeIds: [editEmployee.employee_id],
-        enabled: editEmployee.enabled,
         policyId: newPolicyId,
       });
       setEditEmployee(null);
@@ -172,6 +168,8 @@ export function EmployeesAssignPage() {
   };
 
   const trackedCount = rows.filter((r) => r.enabled).length;
+  // Archived policies cannot be assigned; the full list still names them in the table.
+  const assignable = React.useMemo(() => policies.filter((p) => p.status === 'active'), [policies]);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
@@ -200,7 +198,7 @@ export function EmployeesAssignPage() {
       {canAssign && selected.size > 0 && (
         <TrackingAssignmentsBulkBar
           selectedCount={selected.size}
-          policies={policies}
+          policies={assignable}
           selectedPolicyId={policyId}
           onPolicyChange={setPolicyId}
           onApply={applyBulk}
@@ -289,7 +287,7 @@ export function EmployeesAssignPage() {
       <QuickAssignPolicyModal
         open={Boolean(editEmployee)}
         employee={editEmployee}
-        policies={policies}
+        policies={assignable}
         isSaving={isUpdatingPolicy}
         onClose={() => setEditEmployee(null)}
         onConfirm={handleConfirmSinglePolicy}

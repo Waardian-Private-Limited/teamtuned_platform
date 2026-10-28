@@ -38,7 +38,7 @@ export function TunerPanel({ messages, pending, sending, onSend, onConfirm, onNe
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 12, scale: 0.98 }}
       transition={{ duration: 0.16, ease: 'easeOut' }}
-      className="fixed bottom-24 right-5 z-50 flex h-[520px] w-[380px] max-w-[calc(100vw-2.5rem)]
+      className="fixed bottom-24 right-5 z-40 flex h-[520px] w-[380px] max-w-[calc(100vw-2.5rem)]
         flex-col overflow-hidden rounded-[var(--tt-radius-lg)] border border-line bg-surface
         shadow-[var(--tt-shadow-lg)]"
     >

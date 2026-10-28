@@ -69,6 +69,7 @@ import {
   TrendingUp,
   Gauge,
   Ruler,
+  DoorOpen,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
 import { ANY_LABOUR_PERM, LABOUR_MEAS_PAGE_PERMS, LABOUR_PAYABLE_PERMS, LABOUR_SETTINGS_PAGE_PERMS, LABOUR_VIEW_PERMS, LP } from '@/features/labour/constants/labour.constants';
@@ -167,6 +168,8 @@ export const orgNav: NavNode[] = [
       { kind: 'link', label: 'Roles', href: '/org-admin/roles', icon: UserCog },
       { kind: 'link', label: 'Grades / Bands', href: '/org-admin/grades', icon: Layers },
       { kind: 'link', label: 'Cost Centres', href: '/org-admin/cost-centres', icon: ChartPie },
+      { kind: 'link', label: 'Exits', href: '/org-admin/exits', icon: DoorOpen, activeTest: (p) => (p === '/org-admin/exits' || p.startsWith('/org-admin/exits/')) && !p.startsWith('/org-admin/exits/insights') },
+      { kind: 'link', label: 'Attrition Insights', href: '/org-admin/exits/insights', icon: BarChart3, match: 'prefix' },
       { kind: 'link', label: 'Approval Flows', href: '/org-admin/approval-flows', icon: ListChecks, match: 'prefix' },
     ],
   },

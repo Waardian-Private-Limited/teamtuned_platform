@@ -1,24 +1,32 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Rocket, SquarePen } from 'lucide-react';
 import { Alert } from '@/components/ui/Alert';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { SubOrgBadge } from '@/features/sub-organizations/components/SubOrgBadge';
 import { usePermission } from '@/lib/hooks/usePermission';
-import { messageOf } from '@/lib/api/errors';
+import { ApiError, messageOf } from '@/lib/api/errors';
 import type { SectionNode } from '@/features/policies/components/editor/form/schemaTypes';
 import { getPolicy, getPolicySchema, updatePolicy } from '../api/tracking.api';
 import { TRACKING_PERMISSIONS } from '../constants/tracking.constants';
 import type { TrackingPolicyDto } from '../types/tracking.dto';
-import { TrackingPolicyConfigEditor } from './editor/TrackingPolicyConfigEditor';
+import { TrackingPolicyConfigEditor, sameConfig, type ConfigEditorHandle, type SaveResult } from './editor/TrackingPolicyConfigEditor';
 import { TrackingPolicyAssignments } from './editor/TrackingPolicyAssignments';
 import { TrackingPolicyVersionHistory } from './editor/TrackingPolicyVersionHistory';
 import { TrackingPolicyDetailsDialog } from './editor/TrackingPolicyDetailsDialog';
 import { TrackingPolicyPublishDialog } from './editor/TrackingPolicyPublishDialog';
 import { TrackingPolicyVersionDialog } from './editor/TrackingPolicyVersionDialog';
 import { formatDate, orgDateOf } from '@/lib/datetime';
+
+const LEAVE_PROMPT = 'You have unsaved policy changes. Leave without saving them?';
+
+// The backend's validation lines ("sampling.movingIntervalSeconds: below minimum 5"), if this is one.
+function violationsOf(err: unknown): string[] {
+  const data = err instanceof ApiError ? (err.data as { errors?: unknown } | null) : null;
+  return Array.isArray(data?.errors) ? data.errors.filter((e): e is string => typeof e === 'string') : [];
+}
 
 const secondaryButtonCls =
   'inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-fg transition-colors hover:bg-bg-subtle sm:text-sm';
@@ -40,25 +48,87 @@ export function PolicyEditorPage({ policyId }: { policyId: number }) {
   const [showPublish, setShowPublish] = useState(false);
   const [showVersion, setShowVersion] = useState(false);
 
+  // The editor keeps its own draft. It is replaced only when the page bumps resetToken: after a load,
+  // save or publish, or when the server's config changed while the draft had no edits.
+  const editorRef = useRef<ConfigEditorHandle>(null);
+  const [editorBase, setEditorBase] = useState<Record<string, unknown>>({});
+  const [resetToken, setResetToken] = useState(0);
+  const [dirty, setDirty] = useState(false);
+  const baseRef = useRef<Record<string, unknown> | null>(null);
+  const dirtyRef = useRef(false);
+  dirtyRef.current = dirty;
+
+  const resetEditor = (config: Record<string, unknown>) => {
+    baseRef.current = config;
+    setEditorBase(config);
+    setResetToken((t) => t + 1);
+  };
+
+  // A refreshed policy: take its config only if it changed and nothing is being edited.
+  const syncFromServer = useCallback((p: TrackingPolicyDto) => {
+    setPolicy(p);
+    if (baseRef.current !== null && sameConfig(p.config, baseRef.current)) return;
+    if (baseRef.current === null || !dirtyRef.current) {
+      baseRef.current = p.config;
+      setEditorBase(p.config);
+      setResetToken((t) => t + 1);
+    } else {
+      setSuccessNotice(null);
+      setError('This policy was changed elsewhere while you were editing. Saving or publishing will replace those changes.');
+    }
+  }, []);
+
   const load = useCallback(async () => {
     try {
       const [p, s] = await Promise.all([getPolicy(policyId), getPolicySchema()]);
-      setPolicy(p);
-      setSchema(s.schema as unknown as Record<string, SectionNode>);
       setError(null);
+      syncFromServer(p);
+      setSchema(s.schema as unknown as Record<string, SectionNode>);
     } catch (err) {
       setError(messageOf(err));
     } finally {
       setIsLoading(false);
     }
-  }, [policyId]);
+  }, [policyId, syncFromServer]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const handleSaveConfig = async (nextConfig: Record<string, unknown>): Promise<boolean> => {
-    if (!policy) return false;
+  // Leaving with unsaved edits asks first: closing / reloading the tab, and links inside the app.
+  useEffect(() => {
+    if (!dirty) return undefined;
+    const onUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    // Capture phase, so the prompt runs before Next's <Link> handler and can cancel it.
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = (e.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
+      if (!a || a.target === '_blank' || a.origin !== window.location.origin) return;
+      if (a.pathname === window.location.pathname && a.search === window.location.search) return;
+      if (!window.confirm(LEAVE_PROMPT)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener('beforeunload', onUnload);
+    document.addEventListener('click', onClick, true);
+    return () => {
+      window.removeEventListener('beforeunload', onUnload);
+      document.removeEventListener('click', onClick, true);
+    };
+  }, [dirty]);
+
+  const failWith = (err: unknown): SaveResult => {
+    const errors = violationsOf(err);
+    setError(errors.length ? 'The policy has invalid values. Fix the fields marked below.' : messageOf(err));
+    return { ok: false, errors };
+  };
+
+  const handleSaveConfig = async (nextConfig: Record<string, unknown>, changeNote?: string): Promise<SaveResult> => {
+    if (!policy) return { ok: false, errors: [] };
     setIsSaving(true);
     setError(null);
     setSuccessNotice(null);
@@ -69,13 +139,14 @@ export function PolicyEditorPage({ policyId }: { policyId: number }) {
         config: nextConfig,
         isDefault: policy.is_default,
         subOrganizationId: policy.sub_organization_id,
+        changeNote,
       });
       setPolicy(updated);
+      resetEditor(updated.config);
       setSuccessNotice(`Saved changes. Current revision is now r${updated.revision}.`);
-      return true;
+      return { ok: true, errors: [] };
     } catch (err) {
-      setError(messageOf(err));
-      return false;
+      return failWith(err);
     } finally {
       setIsSaving(false);
     }
@@ -91,6 +162,7 @@ export function PolicyEditorPage({ policyId }: { policyId: number }) {
     setIsSaving(true);
     setError(null);
     try {
+      // Details only: the saved config goes back unchanged and the draft in the editor is kept.
       const updated = await updatePolicy(policyId, {
         name: input.name,
         description: input.description,
@@ -98,7 +170,7 @@ export function PolicyEditorPage({ policyId }: { policyId: number }) {
         subOrganizationId: input.subOrganizationId,
         isDefault: input.isDefault,
       });
-      setPolicy(updated);
+      syncFromServer(updated);
       setShowDetails(false);
       setSuccessNotice('Policy details updated successfully.');
     } catch (err) {
@@ -108,26 +180,45 @@ export function PolicyEditorPage({ policyId }: { policyId: number }) {
     }
   };
 
+  // Publishes what is in the editor now, not the last saved config.
   const handlePublishConfirm = async () => {
     if (!policy) return;
+    const draft = editorRef.current?.current();
+    if (!draft) {
+      setShowPublish(false);
+      setError('Fix the JSON in the editor before publishing.');
+      return;
+    }
     setIsSaving(true);
     setError(null);
+    setSuccessNotice(null);
     try {
       const updated = await updatePolicy(policyId, {
         name: policy.name,
         description: policy.description,
-        config: policy.config,
+        config: draft.config,
         subOrganizationId: policy.sub_organization_id,
         isDefault: policy.is_default,
+        changeNote: draft.changeNote,
       });
       setPolicy(updated);
+      resetEditor(updated.config);
       setShowPublish(false);
       setSuccessNotice(`Published revision r${updated.revision}. Devices will sync these rules.`);
     } catch (err) {
-      setError(messageOf(err));
+      const { errors } = failWith(err);
+      if (errors.length) {
+        setShowPublish(false);
+        editorRef.current?.showErrors(errors);
+      }
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const goBack = () => {
+    if (dirty && !window.confirm(LEAVE_PROMPT)) return;
+    router.push('/org-admin/tracking/policies');
   };
 
   if (isLoading) {
@@ -153,7 +244,7 @@ export function PolicyEditorPage({ policyId }: { policyId: number }) {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => router.push('/org-admin/tracking/policies')}
+            onClick={goBack}
             className="rounded-lg border border-line p-2 text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg"
             aria-label="Back to policies"
           >
@@ -212,10 +303,14 @@ export function PolicyEditorPage({ policyId }: { policyId: number }) {
         <div className="lg:col-span-2">
           <div className="rounded-xl border border-line bg-surface p-3 sm:p-4">
             <TrackingPolicyConfigEditor
-              config={policy.config}
+              config={editorBase}
               schema={schema}
               isSaving={isSaving}
+              readOnly={!canManage || policy.status !== 'active'}
+              resetToken={resetToken}
               onSave={handleSaveConfig}
+              onDirtyChange={setDirty}
+              handleRef={editorRef}
             />
           </div>
         </div>

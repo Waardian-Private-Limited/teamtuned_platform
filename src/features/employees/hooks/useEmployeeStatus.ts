@@ -6,7 +6,7 @@ import type { EmployeeListItemDto, EmployeeStatus } from '../types/employees.dto
 import { showError, showSuccess } from '@/lib/toast';
 import { messageOf } from '@/lib/api/errors';
 
-export type StatusAction = 'activate' | 'deactivate' | 'terminate' | 'delete';
+export type StatusAction = 'activate' | 'deactivate' | 'terminate' | 'start_exit' | 'rehire' | 'delete';
 
 export function useEmployeeStatus(refetch: () => Promise<void>, patchLocally: (id: number, status: EmployeeStatus) => void) {
   const [busyId, setBusyId] = useState<number | null>(null);

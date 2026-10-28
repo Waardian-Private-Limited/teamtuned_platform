@@ -5,6 +5,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { TaxSummaryCard } from '@/features/my-tax/components/TaxSummaryCard';
 import { useMyProfile } from '../hooks/useMyProfile';
 import type { MyProfile, RosterDay } from '../types/myProfile.model';
+import { ResignAction } from '@/features/exits/components/ResignAction';
 import { ProfileAvatar } from './components/ProfileAvatar';
 import { ProfileHeader } from './components/ProfileHeader';
 import { Badge, ProfileRows, ProfileSection } from './components/ProfileSection';
@@ -163,6 +164,7 @@ export function MyProfilePage() {
           <ProfileHeader profile={profile} />
           {/* Mounted only after the profile loads, so the tax lookup never delays it. */}
           <TaxSummaryCard />
+          <ResignAction />
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <LeftColumn p={profile} />
             <RightColumn p={profile} />
