@@ -4,6 +4,7 @@ import { useSearchParams, useParams } from "next/navigation";
 import { Save, Send, X, CheckCircle, XCircle, Upload, Trash2, Plus } from "lucide-react";
 import { showSuccess, showError, showWarning } from "@/lib/toast";
 import { apiClient } from "@/lib/apiClient";
+import { API_BASE_URL } from "@/config/env";
 
 interface RfqItem {
     id: number;
@@ -197,7 +198,7 @@ export default function VendorQuotationForm() {
                 formData.append('files', file);
             });
 
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/files/vendor-upload/${token}`, {
+            const response = await fetch(`${API_BASE_URL}/files/vendor-upload/${token}`, {
                 method: 'POST',
                 body: formData
             });
