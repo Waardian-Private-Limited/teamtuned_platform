@@ -1,3 +1,4 @@
+import { isConsentPending } from '@/lib/consentGate';
 import { toast } from 'react-hot-toast';
 
 export const showSuccess = (message: string) => {
@@ -14,6 +15,8 @@ export const showSuccess = (message: string) => {
 };
 
 export const showError = (message: string) => {
+    // The privacy notice is open over the page: its refused requests are not errors to show.
+    if (isConsentPending()) return;
     toast.error(message, {
         duration: 4000,
         position: 'top-right',

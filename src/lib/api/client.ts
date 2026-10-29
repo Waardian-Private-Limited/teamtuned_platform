@@ -1,6 +1,7 @@
 import { API_BASE_URL, BACKEND_URL } from '@/config/env';
 import { clearClientSideAuth, getToken } from '@/lib/auth/session';
 import { ApiError } from './errors';
+import { markConsentRequired } from '@/lib/consentGate';
 
 export const getBackendUrl = () => BACKEND_URL;
 
@@ -103,6 +104,7 @@ export async function apiClient<T = any>(
     } catch {
       errorMsg = `Request failed with status ${res.status}`;
     }
+    if (res.status === 403 && (errData as { code?: string } | null)?.code === 'AUTH_CONSENT_REQUIRED') markConsentRequired();
     throw new ApiError(errorMsg || `Request failed with status ${res.status}`, res.status, errData);
   }
 

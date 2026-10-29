@@ -6,6 +6,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api/client';
 import { clearClientSideAuth } from '@/lib/auth/session';
+import { CONSENT_REQUIRED_EVENT, setConsentPending } from '@/lib/consentGate';
 
 interface User {
   id: number;
@@ -149,6 +150,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     fetchSession();
   }, [fetchSession]);
+
+  // Any request refused for an unaccepted privacy notice opens the notice, whatever the role or page.
+  useEffect(() => {
+    const onConsentRequired = () => setNextStep('consent');
+    window.addEventListener(CONSENT_REQUIRED_EVENT, onConsentRequired);
+    return () => window.removeEventListener(CONSENT_REQUIRED_EVENT, onConsentRequired);
+  }, []);
+
+  useEffect(() => {
+    setConsentPending(nextStep === 'consent');
+  }, [nextStep]);
 
 
   const setAuthState = useCallback((data: Partial<SessionResponse>) => {

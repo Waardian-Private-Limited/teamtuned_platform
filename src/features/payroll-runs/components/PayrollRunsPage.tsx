@@ -279,7 +279,7 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
           open={settingsOpen}
           onClose={() => {
             setSettingsOpen(false);
-            setItemsVersion((v) => v + 1);
+            reload();
           }}
           companies={companies}
           initialCompany={selected?.subOrganizationId ?? subOrgId ?? companies[0]?.id ?? null}

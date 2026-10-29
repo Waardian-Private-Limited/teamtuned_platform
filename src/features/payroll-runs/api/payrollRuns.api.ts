@@ -5,6 +5,7 @@ import type {
   ItemDto,
   ItemListResponseDto,
   PayrollSettingsDto,
+  PayrollSettingsPatchDto,
   RunDto,
   RunListResponseDto,
 } from '../types/payrollRuns.dto';
@@ -79,12 +80,8 @@ export function getSettings(subOrgId: number | null) {
   return apiClient.get<PayrollSettingsDto>('/payroll-runs/settings', { subOrgId: subOrgId ?? undefined }, auth);
 }
 
-export function saveSettings(subOrgId: number | null, finalizeApproval: boolean) {
-  return apiClient.put<PayrollSettingsDto>(
-    '/payroll-runs/settings',
-    { sub_organization_id: subOrgId, finalize_approval: finalizeApproval },
-    auth
-  );
+export function saveSettings(subOrgId: number | null, patch: PayrollSettingsPatchDto) {
+  return apiClient.put<PayrollSettingsDto>('/payroll-runs/settings', { sub_organization_id: subOrgId, ...patch }, auth);
 }
 
 export function exportPayslips(runId: number, layout: 'zip' | 'combined', employeeIds?: number[], includeHeld?: boolean) {

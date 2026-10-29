@@ -214,6 +214,18 @@ export interface ItemDetailResponseDto {
   other_companies: OtherCompanyDto[];
 }
 
+/** Company named on payslips and letters: the employee's own (or paying) sub-organization, the main organization, or the primary sub-organization. */
+export type DocumentNameDto = 'assigned' | 'organization' | 'primary';
+
 export interface PayrollSettingsDto {
   finalizeApproval: boolean;
+  /** Organization-wide: false runs one payroll for the whole organization instead of one per sub-organization. */
+  payrollBySubOrg: boolean;
+  documentName: DocumentNameDto;
+}
+
+export interface PayrollSettingsPatchDto {
+  finalize_approval?: boolean;
+  payroll_by_sub_org?: boolean;
+  document_name?: DocumentNameDto;
 }
