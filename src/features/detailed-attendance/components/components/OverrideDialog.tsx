@@ -6,9 +6,9 @@ import { Textarea } from '@/components/ui/Textarea';
 import { cx } from '@/theme/tokens';
 import { showSuccess } from '@/lib/toast';
 import { OVERRIDE_OPTIONS } from '../../constants/detailed.constants';
-import { useOverride } from '../../hooks/useOverride';
+import { useOverride, type OverrideMode } from '../../hooks/useOverride';
 import type { DayDetail } from '../../types/detailed.model';
-import { clockText, longDayText, minutesText } from '../../utils/format';
+import { clockText, longDayText, minutesText, punchTimeText } from '../../utils/format';
 import { controlClass } from './controls';
 import { ImpactPanel } from './ImpactPanel';
 
@@ -20,10 +20,20 @@ interface Props {
 
 const FROM_TEXT = { recorded: 'Starting from the recorded times.', shift: 'Starting from the shift this day was rostered for.', empty: 'Nothing was recorded or rostered: enter the start and end time.' } as const;
 const cutText = (p: string | null) => (p === 'full_day' ? 'a full day' : 'half a day');
+const SAVED: Record<OverrideMode, string> = { set: 'Attendance updated', clear: 'Forced status removed', undo: 'Check-out undone', reset: 'Day reset' };
+const ACTION: Record<OverrideMode, string> = { set: 'Apply override', clear: 'Remove forced status', undo: 'Undo check-out', reset: 'Reset day' };
 
 function Form({ day, onClose, onSaved }: Props) {
   const f = useOverride(day.employee.id, day.date, day.form);
   const hasForced = !!day.form.forcedStatus;
+  // The server allows undoing only the employee's latest check-out; offered when this day ends on one.
+  const work = day.punches.filter((p) => p.kind === 'work' && !p.voided);
+  const lastOut = work.length && work[work.length - 1].direction === 'out' ? work[work.length - 1] : null;
+  const hasRecords = day.punches.some((p) => !p.voided) || day.breaks.length > 0 || hasForced;
+  const modes: Array<[OverrideMode, string]> = [['set', 'Set the hours']];
+  if (lastOut) modes.push(['undo', 'Undo check-out']);
+  if (hasRecords) modes.push(['reset', 'Reset day']);
+  if (hasForced) modes.push(['clear', 'Remove forced status']);
 
   const hasLateMark = !!(day.day && (day.day.lateMark || day.day.lateMinutes > 0));
   const hasLatePenalty = !!(day.day && day.day.latePenalty);
@@ -33,7 +43,7 @@ function Form({ day, onClose, onSaved }: Props) {
 
   const submit = async () => {
     if (await f.save()) {
-      showSuccess(f.mode === 'clear' ? 'Forced status removed' : 'Attendance updated');
+      showSuccess(SAVED[f.mode]);
       onSaved();
       onClose();
     }
@@ -49,15 +59,15 @@ function Form({ day, onClose, onSaved }: Props) {
         <>
           <button type="button" onClick={onClose} className={cx(button, 'border border-line bg-surface text-fg hover:bg-bg-subtle')}>Cancel</button>
           <button type="button" disabled={!f.canSave} onClick={submit} className={cx(button, 'bg-[var(--tt-primary)] text-[var(--tt-on-primary)] hover:bg-[var(--tt-primary-hover)] disabled:cursor-not-allowed disabled:opacity-40')}>
-            {f.saving ? 'Saving…' : f.mode === 'clear' ? 'Remove forced status' : 'Apply override'}
+            {f.saving ? 'Saving…' : ACTION[f.mode]}
           </button>
         </>
       }
     >
       <div className="space-y-4">
-        {hasForced && (
-          <div role="tablist" aria-label="What to do" className="grid grid-cols-2 gap-1 rounded-lg border border-line/60 bg-bg-subtle p-0.5">
-            {([['set', 'Set the hours'], ['clear', 'Remove forced status']] as const).map(([value, label]) => (
+        {modes.length > 1 && (
+          <div role="tablist" aria-label="What to do" className="grid grid-cols-2 gap-1 rounded-lg border border-line/60 bg-bg-subtle p-0.5 sm:grid-flow-col sm:auto-cols-fr sm:grid-cols-none">
+            {modes.map(([value, label]) => (
               <button key={value} type="button" role="tab" aria-selected={f.mode === value} onClick={() => f.setMode(value)}
                 className={cx('h-8 rounded-md text-xs font-semibold transition-colors', f.mode === value ? 'border border-line/70 bg-surface font-bold text-fg shadow-xs' : 'text-fg-muted hover:text-fg')}>
                 {label}
@@ -145,11 +155,15 @@ function Form({ day, onClose, onSaved }: Props) {
               </div>
             )}
           </>
+        ) : f.mode === 'undo' && lastOut ? (
+          <p className="rounded-xl border border-line bg-bg-subtle/50 p-3 text-sm text-fg-muted">The check-out at {punchTimeText(lastOut.at, day.date, day.timezone)} is cancelled. The shift is open again: {day.employee.name} carries on and checks out from the app later. The cancelled check-out stays in the history.</p>
+        ) : f.mode === 'reset' ? (
+          <p className="rounded-xl border border-line bg-bg-subtle/50 p-3 text-sm text-fg-muted">Every check-in, check-out and break on this day is cleared{hasForced ? ' and the forced status removed' : ''}, so {day.employee.name} can check in again from the app. Nothing is deleted: the cleared punches stay in the history.</p>
         ) : (
           <p className="rounded-xl border border-line bg-bg-subtle/50 p-3 text-sm text-fg-muted">The forced status is removed and the policy decides from the recorded times.</p>
         )}
 
-        <ImpactPanel impact={f.impact} loading={f.previewing} />
+        {(f.mode === 'set' || f.mode === 'clear') && <ImpactPanel impact={f.impact} loading={f.previewing} />}
         {f.error && <Alert message={f.error} />}
 
         <Textarea label="Reason" required rows={2} value={f.reason} maxLength={255} onChange={(e) => f.setReason(e.target.value)} hint="Saved on the day's history with your name and the time, so anyone can see why." />

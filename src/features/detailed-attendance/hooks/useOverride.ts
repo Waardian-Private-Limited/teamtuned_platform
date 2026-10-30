@@ -14,10 +14,13 @@ const PREVIEW_DELAY_MS = 400;
  * recorded, else the rostered shift), an optional forced status, the reason, and what the
  * engine says applying it would do. The preview follows the times as they are typed; the answer
  * to an older entry never replaces the answer to a newer one. When a status was forced earlier,
- * "remove it" is offered as the other way out.
+ * "remove it" is offered as the other way out. A check-out pressed by mistake can be undone, or the
+ * whole day reset so the employee checks in again; those void punches and have no preview.
  */
+export type OverrideMode = 'set' | 'clear' | 'undo' | 'reset';
+
 export function useOverride(employeeId: number, date: string, form: OverrideForm) {
-  const [mode, setMode] = useState<'set' | 'clear'>('set');
+  const [mode, setMode] = useState<OverrideMode>('set');
   const [inTime, setInTime] = useState(form.inTime ?? '');
   const [outTime, setOutTime] = useState(form.outTime ?? '');
   const [status, setStatus] = useState<OverrideStatus | ''>((['Present', 'Half-Day', 'Absent'] as string[]).includes(form.forcedStatus ?? '') ? (form.forcedStatus as OverrideStatus) : '');
@@ -33,7 +36,8 @@ export function useOverride(employeeId: number, date: string, form: OverrideForm
   const run = useRef(0);
 
   const timesOk = TIME.test(inTime) && TIME.test(outTime);
-  const ready = mode === 'clear' ? !!form.forcedStatus : timesOk;
+  const punchFix = mode === 'undo' || mode === 'reset';
+  const ready = mode === 'clear' ? !!form.forcedStatus : mode === 'set' && timesOk;
   const nextDay = timesOk && outTime <= inTime;
 
   const currentWaivers = {
@@ -66,13 +70,17 @@ export function useOverride(employeeId: number, date: string, form: OverrideForm
     return () => { clearTimeout(timer); controller.abort(); };
   }, [employeeId, date, mode, inTime, outTime, status, ready, waiveLateMark, waiveLatePenalty, waiveEarlyMark, waiveEarlyPenalty]);
 
-  const canSave = ready && reason.trim().length > 0 && !previewing && !saving && !!impact;
+  const canSave = reason.trim().length > 0 && !saving && (punchFix || (ready && !previewing && !!impact));
 
   const save = useCallback(async () => {
     setSaving(true);
     setError(null);
     try {
-      if (mode === 'clear') {
+      if (mode === 'undo') {
+        await api.undoCheckout(employeeId, date, reason.trim());
+      } else if (mode === 'reset') {
+        await api.resetDay(employeeId, date, reason.trim());
+      } else if (mode === 'clear') {
         await api.clearOverride(employeeId, date, reason.trim());
       } else {
         await api.setOverride(employeeId, date, {

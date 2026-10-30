@@ -60,6 +60,16 @@ export function clearOverride(employeeId: number, date: string, reason: string) 
   return apiClient.delete<{ day: unknown }>(`${BASE}/employees/${employeeId}/days/${date}/override`, { ...auth, body: { reason } });
 }
 
+/** A check-out pressed by mistake is voided: the shift is open again and the employee checks out later. */
+export function undoCheckout(employeeId: number, date: string, reason: string) {
+  return apiClient.post<{ day: unknown }>(`${BASE}/employees/${employeeId}/days/${date}/undo-checkout`, { reason }, auth);
+}
+
+/** Every punch and break of the day is voided, so the employee checks in again. */
+export function resetDay(employeeId: number, date: string, reason: string) {
+  return apiClient.post<{ day: unknown }>(`${BASE}/employees/${employeeId}/days/${date}/reset`, { reason }, auth);
+}
+
 export function requestExport(body: ExportRequest) {
   return apiClient.post<ExportJobDto>('/exports/attendance', body, auth);
 }
