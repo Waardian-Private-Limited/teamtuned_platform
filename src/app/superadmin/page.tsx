@@ -2,7 +2,7 @@ import SuperadminView from "@/components/superadmin/SuperadminView";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3002/api/v1";
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL_V2 || "http://localhost:3002/api/v1";
 
 const roleRoutes: Record<string, string> = {
   superadmin: "/superadmin",

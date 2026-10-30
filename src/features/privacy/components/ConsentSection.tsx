@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Building2, Check, ClipboardList, Clock, Eye, FileText, Hourglass, Languages, Lock, MapPin, MessageSquare, Scale, ShieldCheck, Target, UserRound } from 'lucide-react';
+import { Building2, Check, ClipboardList, Clock, Eye, FileText, Hourglass, Languages, Lock, MapPin, MessageSquare, Scale, ShieldCheck, Smartphone, Target, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { CONSENT_LANGUAGES, CONSENT_STRINGS } from '../constants/consentUi';
 import type { useConsent } from '../hooks/useConsent';
@@ -12,6 +12,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   documents_payroll: FileText,
   attendance_face: Clock,
   work: ClipboardList,
+  device: Smartphone,
   tracking: MapPin,
   why: Target,
   who_sees: Eye,
