@@ -72,7 +72,9 @@ export interface PayItem {
   runId: number;
   employee: { id: number; code: string | null; name: string };
   site: string | null;
+  siteId: number | null;
   department: string | null;
+  departmentId: number | null;
   isPrimaryCompany: boolean;
   status: ItemStatus;
   holdReason: string | null;
@@ -191,8 +193,20 @@ export interface OtherCompany {
   isPrimaryCompany: boolean;
 }
 
+export interface Preview {
+  state: 'running' | 'done' | 'failed';
+  done: number;
+  total: number;
+  error: string | null;
+  computedAt: string | null;
+  totals: RunTotals | null;
+  items: PayItem[];
+}
+
 export interface EmployeePay {
   run: Run;
+  /** A preview: calculated for a payroll that is not started, nothing saved. */
+  preview: boolean;
   item: PayDetail;
   otherCompanies: OtherCompany[];
 }

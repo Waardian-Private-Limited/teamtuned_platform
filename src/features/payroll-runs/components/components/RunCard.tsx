@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { AlertCircle, CheckCircle2, Hourglass, Lock, Play, RefreshCw, RotateCcw, Send, Wallet } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Eye, Hourglass, Lock, Play, RefreshCw, RotateCcw, Send, Trash2, Wallet } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { Tooltip } from '@/components/ui/Tooltip';
 import type { RunExportKind } from '../../hooks/useRunActions';
@@ -19,6 +19,11 @@ export interface RunCardProps {
   error?: string;
   onSelect: (run: Run) => void;
   onStart: (run: Run) => void;
+  /** Calculates a not-started payroll without saving it. */
+  onPreview: (run: Run) => void;
+  /** Deletes a draft payroll so the month can be started again. */
+  onDelete: (run: Run) => void;
+  previewing?: boolean;
   onRecompute: (run: Run) => void;
   onFinalize: (run: Run) => void;
   onRelease: (run: Run) => void;
@@ -109,11 +114,25 @@ export function runActions(props: RunCardProps) {
   })();
 
   const secondary: React.ReactNode[] = [];
+  if (planned) {
+    secondary.push(
+      <button key="preview" type="button" className={props.previewing ? actionBtn.primary : actionBtn.secondary} disabled={anyBusy} onClick={() => props.onPreview(run)}>
+        <Eye className="h-3.5 w-3.5" /> Preview
+      </button>
+    );
+  }
   if (canEdit && !planned && !calculating && !waiting) {
     if (run.stage === 'review') {
       secondary.push(
         <button key="re" type="button" className={actionBtn.secondary} disabled={anyBusy} onClick={() => props.onRecompute(run)}>
           {isBusy('recompute') ? <Spinner /> : <RefreshCw className="h-3.5 w-3.5" />} Recalculate
+        </button>
+      );
+    }
+    if ((run.stage === 'review' || run.stage === 'not_calculated' || run.stage === 'failed') && run.source !== 'legacy_import') {
+      secondary.push(
+        <button key="delete" type="button" className={actionBtn.secondary} disabled={anyBusy} onClick={() => props.onDelete(run)}>
+          {isBusy('delete') ? <Spinner /> : <Trash2 className="h-3.5 w-3.5" />} Delete draft
         </button>
       );
     }

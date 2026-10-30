@@ -50,8 +50,10 @@ export function usePayrollSettings(open: boolean, subOrgId: number | null) {
       setSaving(true);
       setError('');
       try {
-        setSettings(fromDto(await api.saveSettings(subOrgId, patch)));
-        showSuccess('Payroll settings saved');
+        const saved = await api.saveSettings(subOrgId, patch);
+        setSettings(fromDto(saved));
+        const dropped = saved?.discardedDrafts ?? 0;
+        showSuccess(dropped ? `Payroll settings saved. ${dropped} draft payroll${dropped === 1 ? '' : 's'} removed and planned again.` : 'Payroll settings saved');
       } catch (err) {
         setSettings(prev);
         setError(messageOf(err));

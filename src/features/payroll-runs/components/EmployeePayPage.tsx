@@ -2,8 +2,8 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, ChevronLeft, ChevronRight, Download, Lock, LockOpen, RefreshCw, Send } from 'lucide-react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { ArrowLeft, ChevronLeft, ChevronRight, Download, Eye, Lock, LockOpen, RefreshCw, Send } from 'lucide-react';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { cx } from '@/theme/tokens';
 import { usePermission } from '@/lib/hooks/usePermission';
@@ -42,11 +42,21 @@ export function EmployeePayPage({ basePath }: { basePath: string }) {
   const router = useRouter();
   const { canAny } = usePermission();
   const canEdit = canAny([PAYROLL_PERMISSIONS.EDIT, PAYROLL_PERMISSIONS.ADD]);
-  const runId = Number(params.runId);
+  const search = useSearchParams();
+  // /payroll/preview/<employee>?month&company&start&end: an entry of a payroll previewed without starting it.
+  const isPreview = params.runId === 'preview';
+  const previewTarget = React.useMemo(
+    () =>
+      isPreview
+        ? { month: search.get('month') || '', subOrganizationId: Number(search.get('company')) || null, periodStart: search.get('start') || '', periodEnd: search.get('end') || '' }
+        : null,
+    [isPreview, search]
+  );
+  const runId = isPreview ? 0 : Number(params.runId);
   const employeeId = Number(params.employeeId);
-  const valid = Number.isFinite(runId) && runId > 0 && Number.isFinite(employeeId) && employeeId > 0;
+  const valid = (isPreview ? Boolean(previewTarget?.month) : Number.isFinite(runId) && runId > 0) && Number.isFinite(employeeId) && employeeId > 0;
 
-  const pay = useEmployeePay(valid ? runId : null, valid ? employeeId : null);
+  const pay = useEmployeePay(valid ? runId : null, valid ? employeeId : null, previewTarget);
   const data = pay.data;
   const [holdOpen, setHoldOpen] = React.useState(false);
   const [openDay, setOpenDay] = React.useState<string | null>(null);
@@ -59,16 +69,20 @@ export function EmployeePayPage({ basePath }: { basePath: string }) {
   const index = order.indexOf(employeeId);
   const prevId = index > 0 ? order[index - 1] : null;
   const nextId = index >= 0 && index < order.length - 1 ? order[index + 1] : null;
-  const go = (id: number | null) => id && router.push(`${basePath}/payroll/${runId}/${id}`);
+  const go = (id: number | null) => id && router.push(isPreview ? `${basePath}/payroll/preview/${id}?${search.toString()}` : `${basePath}/payroll/${runId}/${id}`);
 
-  const backHref = data ? `${basePath}/payroll?month=${data.run.month}&run=${runId}` : `${basePath}/payroll`;
+  const backHref = isPreview
+    ? `${basePath}/payroll?month=${previewTarget?.month || ''}`
+    : data
+      ? `${basePath}/payroll?month=${data.run.month}&run=${runId}`
+      : `${basePath}/payroll`;
   const run = data?.run;
   const item = data?.item;
   const isDraft = run?.status === 'draft';
   const pending = Boolean(run?.pendingAction);
-  const canChange = canEdit && isDraft && !pending && !pay.calculating;
-  const canHold = canEdit && Boolean(run) && run?.status !== 'paid' && !pending && !pay.calculating;
-  const canGenerate = canEdit && item?.payslipState === 'not_generated';
+  const canChange = canEdit && !isPreview && isDraft && !pending && !pay.calculating;
+  const canHold = canEdit && !isPreview && Boolean(run) && run?.status !== 'paid' && !pending && !pay.calculating;
+  const canGenerate = canEdit && !isPreview && item?.payslipState === 'not_generated';
   const held = item?.status === 'held';
 
   return (
@@ -83,8 +97,16 @@ export function EmployeePayPage({ basePath }: { basePath: string }) {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="truncate text-lg font-extrabold text-fg sm:text-xl">{item ? item.employee.name : 'Employee payroll'}</h1>
-              {run && <StagePill stage={run.stage} pending={pending} />}
-              {item && <PayslipStatePill state={item.payslipState} />}
+              {isPreview ? (
+                <span className="inline-flex items-center gap-1 rounded-md border border-line-strong bg-bg-subtle px-2 py-0.5 text-[11px] font-semibold text-fg">
+                  <Eye className="h-3 w-3" /> Preview
+                </span>
+              ) : (
+                <>
+                  {run && <StagePill stage={run.stage} pending={pending} />}
+                  {item && <PayslipStatePill state={item.payslipState} />}
+                </>
+              )}
             </div>
             <p className="truncate text-xs text-fg-muted sm:text-sm">
               {item && run ? [item.employee.code, item.department, run.companyName, run.periodLabel].filter(Boolean).join(' · ') : ' '}
@@ -123,7 +145,7 @@ export function EmployeePayPage({ basePath }: { basePath: string }) {
               {pay.busy === 'recompute' ? <Spinner /> : <RefreshCw className="h-3.5 w-3.5" />} Recalculate run
             </button>
           )}
-          {item && (
+          {item && !isPreview && (
             <button type="button" className={actionBtn.primary} onClick={pay.downloadPayslip} disabled={pay.busy !== null || pay.calculating}>
               {pay.busy === 'payslip' ? <Spinner /> : <Download className="h-3.5 w-3.5" />} Download payslip
             </button>
@@ -131,6 +153,11 @@ export function EmployeePayPage({ basePath }: { basePath: string }) {
         </div>
       </header>
 
+      {isPreview && (
+        <p className="rounded-lg border border-line-strong bg-bg-subtle px-3.5 py-2.5 text-xs font-medium text-fg">
+          Preview of a payroll that is not started. Nothing here is saved; start the payroll to hold, recalculate or download payslips.
+        </p>
+      )}
       {pay.actionError && <p className="-mt-2 px-1 text-xs font-medium text-[var(--tt-danger)]">{pay.actionError}</p>}
 
       {run && pay.calculating && (
@@ -179,7 +206,7 @@ export function EmployeePayPage({ basePath }: { basePath: string }) {
         date={openDay}
         onClose={() => setOpenDay(null)}
         onChanged={() => {
-          if (run?.status === 'draft' && !pending) pay.recompute();
+          if (!isPreview && run?.status === 'draft' && !pending) pay.recompute();
         }}
       />
 

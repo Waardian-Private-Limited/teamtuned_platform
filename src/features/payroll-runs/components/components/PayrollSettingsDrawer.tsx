@@ -32,21 +32,19 @@ export function PayrollSettingsDrawer({
   open,
   onClose,
   companies,
-  initialCompany,
 }: {
   open: boolean;
   onClose: () => void;
   companies: Array<{ id: number | null; name: string }>;
-  initialCompany: number | null;
 }) {
-  const [company, setCompany] = React.useState<number | null>(initialCompany);
+  // Opens on the organization, where the organization-wide settings live; reset only when the drawer opens.
+  const [company, setCompany] = React.useState<number | null>(null);
   React.useEffect(() => {
-    if (open) setCompany(initialCompany);
-  }, [open, initialCompany]);
+    if (open) setCompany(null);
+  }, [open]);
 
-  // Organization-wide settings live on the organization entry, so it is always offered.
   const choices = React.useMemo(
-    () => (companies.some((c) => c.id === null) ? companies : [{ id: null, name: 'Organization' }, ...companies]),
+    () => [{ id: null, name: 'Organization' }, ...companies.filter((c) => c.id !== null)],
     [companies]
   );
   const s = usePayrollSettings(open, company);
@@ -80,7 +78,7 @@ export function PayrollSettingsDrawer({
           <div className="space-y-4 rounded-xl border border-line p-4">
             <SettingRow
               title="Separate payroll for each sub-organization"
-              hint="On: one payroll per sub-organization, each finalized and paid on its own. Off: one payroll for the whole organization with every employee in it. A month already started keeps the way it was started."
+              hint="On: one payroll per sub-organization, each finalized and paid on its own. Off: one payroll for the whole organization with every employee in it. Switching removes draft payrolls of a month and plans it again; a month with a finalized or paid payroll keeps the way it was run."
             >
               {s.loading ? (
                 <Skeleton className="h-5 w-10 rounded-full" />

@@ -6,6 +6,7 @@ import type {
   ItemListResponseDto,
   PayrollSettingsDto,
   PayrollSettingsPatchDto,
+  PreviewDto,
   RunDto,
   RunListResponseDto,
 } from '../types/payrollRuns.dto';
@@ -21,6 +22,37 @@ export function startRuns(month: string, subOrganizationId?: number | null) {
   const body: Record<string, unknown> = { month };
   if (subOrganizationId !== undefined) body.sub_organization_id = subOrganizationId;
   return apiClient.post<{ runs: RunDto[] }>('/payroll-runs/start', body, auth);
+}
+
+/** Which payroll a preview is for: the month, the paying company (null: the organization) and the pay period. */
+export interface PreviewTarget {
+  month: string;
+  subOrganizationId: number | null;
+  periodStart: string;
+  periodEnd: string;
+}
+
+const previewParams = (t: PreviewTarget) => ({
+  month: t.month,
+  sub_organization_id: t.subOrganizationId ?? 0,
+  period_start: t.periodStart,
+  period_end: t.periodEnd,
+});
+
+export function startPreview(target: PreviewTarget, refresh = false) {
+  return apiClient.post<PreviewDto>('/payroll-runs/preview', { ...previewParams(target), refresh }, auth);
+}
+
+export function getPreview(target: PreviewTarget) {
+  return apiClient.get<PreviewDto>('/payroll-runs/preview', previewParams(target), auth);
+}
+
+export function getPreviewItem(target: PreviewTarget, employeeId: number) {
+  return apiClient.get<ItemDetailResponseDto>(`/payroll-runs/preview/items/${employeeId}`, previewParams(target), auth);
+}
+
+export function deleteRun(id: number) {
+  return apiClient.delete<{ deleted: boolean; id: number }>(`/payroll-runs/${id}`, auth);
 }
 
 export function getRun(id: number) {

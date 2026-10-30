@@ -9,7 +9,8 @@ import { POLL_MS } from '../constants/payrollRuns.constants';
 import { toEmployeePay, toRun } from '../types/payrollRuns.mapper';
 import type { EmployeePay } from '../types/payrollRuns.model';
 
-export function useEmployeePay(runId: number | null, employeeId: number | null) {
+/** `preview` names a not-started payroll: the entry is read from its unsaved preview and nothing can be changed. */
+export function useEmployeePay(runId: number | null, employeeId: number | null, preview: api.PreviewTarget | null = null) {
   const { track } = useDownloadCenter();
   const [data, setData] = useState<EmployeePay | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,7 +28,7 @@ export function useEmployeePay(runId: number | null, employeeId: number | null) 
       return;
     }
     const req = ++reqRef.current;
-    const key = `${runId}:${employeeId}`;
+    const key = `${runId}:${employeeId}:${preview ? JSON.stringify(preview) : ''}`;
     if (keyRef.current === key) setRefreshing(true);
     else {
       setLoading(true);
@@ -35,7 +36,7 @@ export function useEmployeePay(runId: number | null, employeeId: number | null) 
     }
     setError('');
     try {
-      const res = toEmployeePay(await api.getItem(runId, employeeId));
+      const res = toEmployeePay(preview ? await api.getPreviewItem(preview, employeeId) : await api.getItem(runId, employeeId));
       if (req !== reqRef.current) return;
       setData(res);
       keyRef.current = key;
@@ -47,7 +48,8 @@ export function useEmployeePay(runId: number | null, employeeId: number | null) 
         setRefreshing(false);
       }
     }
-  }, [runId, employeeId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runId, employeeId, preview?.month, preview?.subOrganizationId, preview?.periodStart, preview?.periodEnd]);
 
   useEffect(() => {
     load();

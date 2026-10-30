@@ -7,12 +7,39 @@ import type {
   LateDeductionDto,
   LineDto,
   LopBreakdownDto,
+  PreviewDto,
   RunDto,
+  RunTotalsDto,
 } from './payrollRuns.dto';
-import type { Attendance, EmployeePay, ItemPage, LateDeduction, LopBreakdown, PayItem, PayLine, Run } from './payrollRuns.model';
+import type { Attendance, EmployeePay, ItemPage, LateDeduction, LopBreakdown, PayItem, PayLine, Preview, Run, RunTotals } from './payrollRuns.model';
 
 const n = (v: unknown) => (v === null || v === undefined || Number.isNaN(Number(v)) ? 0 : Number(v));
 const nOrNull = (v: unknown) => (v === null || v === undefined || Number.isNaN(Number(v)) ? null : Number(v));
+
+function toTotals(t: RunTotalsDto): RunTotals {
+  return {
+    employees: n(t.employees),
+    held: n(t.held),
+    warnings: n(t.warnings),
+    errors: n(t.errors),
+    gross: nOrNull(t.gross),
+    deductions: nOrNull(t.deductions),
+    employer: nOrNull(t.employer),
+    net: nOrNull(t.net),
+  };
+}
+
+export function toPreview(dto: PreviewDto): Preview {
+  return {
+    state: dto.state,
+    done: n(dto.done),
+    total: n(dto.total),
+    error: dto.error ?? null,
+    computedAt: dto.computed_at ?? null,
+    totals: dto.totals ? toTotals(dto.totals) : null,
+    items: (dto.items || []).map(toItem),
+  };
+}
 
 export function toRun(dto: RunDto): Run {
   const t = dto.totals || {};
@@ -40,16 +67,7 @@ export function toRun(dto: RunDto): Run {
       total: n(dto.compute?.total),
     },
     computedAt: dto.computed_at ?? null,
-    totals: {
-      employees: n(t.employees),
-      held: n(t.held),
-      warnings: n(t.warnings),
-      errors: n(t.errors),
-      gross: nOrNull(t.gross),
-      deductions: nOrNull(t.deductions),
-      employer: nOrNull(t.employer),
-      net: nOrNull(t.net),
-    },
+    totals: toTotals(t),
     finalizedAt: dto.finalized_at ?? null,
     releasedAt: dto.released_at ?? null,
     paidOn: dto.paid_on ?? null,
@@ -90,7 +108,9 @@ export function toItem(dto: ItemDto): PayItem {
     runId: dto.run_id,
     employee: { id: dto.employee.id, code: dto.employee.code || null, name: dto.employee.name || '—' },
     site: dto.site,
+    siteId: nOrNull(dto.site_id),
     department: dto.department,
+    departmentId: nOrNull(dto.department_id),
     isPrimaryCompany: Boolean(dto.is_primary_company),
     status: dto.status,
     holdReason: dto.hold_reason,
@@ -206,6 +226,7 @@ export function toEmployeePay(dto: ItemDetailResponseDto): EmployeePay {
   const item = dto.item;
   return {
     run: toRun(dto.run),
+    preview: Boolean(dto.run.preview),
     item: {
       ...toItem(item),
       revisionId: nOrNull(item.revision_id),

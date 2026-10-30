@@ -78,6 +78,16 @@ export function useRunActions({ month, onRun, onReload }: Options) {
     [exec, onRun, onReload]
   );
 
+  const remove = useCallback(
+    (run: Run) =>
+      exec(run.key, `${run.key}:delete`, async () => {
+        await api.deleteRun(run.id as number);
+        showSuccess(`Draft payroll for ${run.companyName} deleted`);
+        onReload();
+      }),
+    [exec, onReload]
+  );
+
   const recompute = useCallback((run: Run) => runCall(run, 'recompute', () => api.recompute(run.id as number), 'Recalculation queued'), [runCall]);
   const finalize = useCallback(
     (run: Run) => runCall(run, 'finalize', () => api.finalize(run.id as number), run.finalizeNeedsApproval ? 'Sent for approval' : 'Payroll finalized'),
@@ -138,5 +148,5 @@ export function useRunActions({ month, onRun, onReload }: Options) {
     [exec, track]
   );
 
-  return { busy, errors, start, startAll, recompute, finalize, release, reopen, markPaid, exportRun };
+  return { busy, errors, start, startAll, remove, recompute, finalize, release, reopen, markPaid, exportRun };
 }

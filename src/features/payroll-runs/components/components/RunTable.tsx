@@ -11,9 +11,10 @@ import { StagePill } from './controls';
 import { ExportsMenu } from './ExportsMenu';
 import { Counter, runActions, type RunCardProps } from './RunCard';
 
-type RunTableProps = Omit<RunCardProps, 'run' | 'selected' | 'error'> & {
+type RunTableProps = Omit<RunCardProps, 'run' | 'selected' | 'error' | 'previewing'> & {
   runs: Run[];
   selectedId: number | null;
+  previewKey?: string | null;
   errors: Record<string, string | undefined>;
 };
 
@@ -111,7 +112,7 @@ function Row(props: RunCardProps) {
         className={cx(
           'transition-colors',
           planned ? 'bg-bg-subtle/30' : 'cursor-pointer hover:bg-bg-subtle/50',
-          selected && 'bg-bg-subtle shadow-[inset_3px_0_0_var(--tt-primary)]'
+          (selected || props.previewing) && 'bg-bg-subtle shadow-[inset_3px_0_0_var(--tt-primary)]'
         )}
       >
         <td className={td}>
@@ -176,7 +177,7 @@ function Row(props: RunCardProps) {
   );
 }
 
-export function RunTable({ runs, selectedId, errors, ...handlers }: RunTableProps) {
+export function RunTable({ runs, selectedId, previewKey, errors, ...handlers }: RunTableProps) {
   return (
     <div className="overflow-x-auto rounded-xl border border-line bg-surface shadow-xs tt-scroll-hidden">
       <table className="w-full border-separate border-spacing-0">
@@ -192,7 +193,7 @@ export function RunTable({ runs, selectedId, errors, ...handlers }: RunTableProp
         </thead>
         <tbody>
           {runs.map((run) => (
-            <Row key={run.key} run={run} selected={run.id !== null && run.id === selectedId} error={errors[run.key]} {...handlers} />
+            <Row key={run.key} run={run} selected={run.id !== null && run.id === selectedId} previewing={run.key === previewKey} error={errors[run.key]} {...handlers} />
           ))}
         </tbody>
       </table>

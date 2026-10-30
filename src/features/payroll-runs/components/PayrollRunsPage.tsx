@@ -4,6 +4,7 @@ import React from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Play, Settings2 } from 'lucide-react';
 import { cx } from '@/theme/tokens';
+import { ConfirmDialog, type ConfirmState } from '@/components/ui/ConfirmDialog';
 import { Pagination } from '@/components/ui/Pagination';
 import { TableSkeleton } from '@/components/ui/TableSkeleton';
 import { usePermission } from '@/lib/hooks/usePermission';
@@ -11,6 +12,7 @@ import { SubOrgFilter } from '@/features/sub-organizations/components/SubOrgFilt
 import * as api from '../api/payrollRuns.api';
 import { PAGE_SIZE_OPTIONS, PAYROLL_PERMISSIONS } from '../constants/payrollRuns.constants';
 import { useFilterOptions } from '../hooks/useFilterOptions';
+import { usePreview } from '../hooks/usePreview';
 import { useRunActions } from '../hooks/useRunActions';
 import { useRunItems } from '../hooks/useRunItems';
 import { useRuns } from '../hooks/useRuns';
@@ -23,6 +25,7 @@ import { ItemsToolbar } from './components/ItemsToolbar';
 import { MonthPicker } from './components/MonthPicker';
 import { PayrollEmptyState } from './components/PayrollEmptyState';
 import { PayrollSettingsDrawer } from './components/PayrollSettingsDrawer';
+import { PreviewPanel } from './components/PreviewPanel';
 import { RunCard } from './components/RunCard';
 import { RunTable } from './components/RunTable';
 import { MarkPaidDialog, ReopenDialog } from './components/RunDialogs';
@@ -44,6 +47,8 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
   const [paidTarget, setPaidTarget] = React.useState<Run | null>(null);
   const [reopenTarget, setReopenTarget] = React.useState<Run | null>(null);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [confirm, setConfirm] = React.useState<ConfirmState | null>(null);
+  const [previewKey, setPreviewKey] = React.useState<string | null>(null);
 
   const runsState = useRuns(month, subOrgId);
   const { runs, patchRun, refresh } = runsState;
@@ -57,6 +62,8 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
   const plannedRuns = runs.filter((r) => r.id === null);
   const selected = realRuns.find((r) => r.id === askedRun) || realRuns[0] || null;
   const selectedId = selected?.id ?? null;
+  const previewRun = plannedRuns.find((r) => r.key === previewKey) || null;
+  const pv = usePreview(previewRun);
 
   const setQuery = React.useCallback(
     (patch: Record<string, string | null>) => {
@@ -81,6 +88,23 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
 
   const list = useRunItems(selectedId, itemsVersion + runsState.settledVersion);
   const options = useFilterOptions(subOrgId);
+
+  const viewPreview = (item: PayItem) => {
+    if (!pv.target) return;
+    rememberOrder(0, pv.all.map((i) => i.employee.id));
+    const t = pv.target;
+    const q = new URLSearchParams({ month: t.month, company: String(t.subOrganizationId ?? 0), start: t.periodStart, end: t.periodEnd });
+    router.push(`${basePath}/payroll/preview/${item.employee.id}?${q.toString()}`);
+  };
+
+  const askDelete = (run: Run) =>
+    setConfirm({
+      title: 'Delete this draft payroll?',
+      body: `The draft for ${run.companyName}, ${run.periodLabel}, and its calculation are removed. Nothing has been paid or settled yet, so you can start it again any time.`,
+      cta: 'Delete draft',
+      danger: true,
+      run: () => actions.remove(run),
+    });
 
   const view = (item: PayItem) => {
     if (selectedId === null) return;
@@ -159,6 +183,9 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
               busy={actions.busy}
               onSelect={(r) => setQuery({ month, run: String(r.id) })}
               onStart={actions.start}
+              onPreview={(r) => setPreviewKey((k) => (k === r.key ? null : r.key))}
+              onDelete={askDelete}
+              previewKey={previewKey}
               onRecompute={actions.recompute}
               onFinalize={actions.finalize}
               onRelease={actions.release}
@@ -178,6 +205,9 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
                 error={actions.errors[run.key]}
                 onSelect={(r) => setQuery({ month, run: String(r.id) })}
                 onStart={actions.start}
+                onPreview={(r) => setPreviewKey((k) => (k === r.key ? null : r.key))}
+                onDelete={askDelete}
+                previewing={run.key === previewKey}
                 onRecompute={actions.recompute}
                 onFinalize={actions.finalize}
                 onRelease={actions.release}
@@ -190,7 +220,23 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
         </div>
       )}
 
-      {!runsState.loading && selected && (
+      {!runsState.loading && previewRun && (
+        <PreviewPanel
+          run={previewRun}
+          pv={pv}
+          canEdit={canEdit}
+          starting={actions.busy === `${previewRun.key}:start`}
+          onStart={async () => {
+            if (await actions.start(previewRun)) setPreviewKey(null);
+          }}
+          onClose={() => setPreviewKey(null)}
+          onView={viewPreview}
+          sites={options.sites}
+          departments={options.departments}
+        />
+      )}
+
+      {!runsState.loading && !previewRun && selected && (
         <section className="relative flex min-h-[560px] flex-1 flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-xs">
           <ItemsToolbar
             title={realRuns.length > 1 ? `Employees · ${selected.companyName}` : 'Employees'}
@@ -274,6 +320,7 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
           return err;
         }}
       />
+      <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
       {canEdit && (
         <PayrollSettingsDrawer
           open={settingsOpen}
@@ -282,7 +329,6 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
             reload();
           }}
           companies={companies}
-          initialCompany={selected?.subOrganizationId ?? subOrgId ?? companies[0]?.id ?? null}
         />
       )}
     </div>

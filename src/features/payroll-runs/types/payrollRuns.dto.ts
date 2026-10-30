@@ -89,7 +89,9 @@ export interface ItemDto {
   run_id: number;
   employee: { id: number; code: string | null; name: string };
   site: string | null;
+  site_id?: number | null;
   department: string | null;
+  department_id?: number | null;
   sub_organization_id: number | null;
   is_primary_company: boolean;
   status: ItemStatusDto;
@@ -208,8 +210,27 @@ export interface OtherCompanyDto {
   is_primary_company: boolean;
 }
 
+/** A payroll calculated without starting it: nothing is saved, it is kept on the server for about 10 minutes. */
+export interface PreviewDto {
+  state: 'running' | 'done' | 'failed';
+  month: string;
+  sub_organization_id: number | null;
+  company_name: string | null;
+  period_start: string;
+  period_end: string;
+  period_label: string;
+  frequency: string | null;
+  started_at: string;
+  computed_at?: string | null;
+  done: number;
+  total: number;
+  error: string | null;
+  totals?: RunTotalsDto;
+  items?: ItemDto[];
+}
+
 export interface ItemDetailResponseDto {
-  run: RunDto;
+  run: RunDto & { preview?: boolean };
   item: ItemDetailDto;
   other_companies: OtherCompanyDto[];
 }
@@ -222,6 +243,8 @@ export interface PayrollSettingsDto {
   /** Organization-wide: false runs one payroll for the whole organization instead of one per sub-organization. */
   payrollBySubOrg: boolean;
   documentName: DocumentNameDto;
+  /** On save: draft payrolls of the other mode that were dropped so the month is planned again. */
+  discardedDrafts?: number;
 }
 
 export interface PayrollSettingsPatchDto {
