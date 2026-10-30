@@ -6,6 +6,7 @@ import { useUserStore } from '@/lib/store/userStore';
 import { fetchSession } from '../api/auth.api';
 import { toSessionSnapshot } from '../types/auth.mapper';
 import { routeAfterLogin } from '@/config/routes';
+import { markSignedIn } from '@/lib/auth/session';
 
 export function useSessionRedirect() {
   const router = useRouter();
@@ -20,6 +21,7 @@ export function useSessionRedirect() {
       if (cancelled) return;
 
       if (session.isAuthenticated && session.user) {
+        markSignedIn();
         setUser({
           id: session.user.id,
           email: session.user.email,
