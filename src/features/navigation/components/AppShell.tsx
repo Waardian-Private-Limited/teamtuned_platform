@@ -51,6 +51,7 @@ export function AppShell({
   const sidebar = useSidebar(storageRole);
   const hamburgerRef = useRef<HTMLButtonElement>(null);
   const fullName = [firstName, lastName].filter(Boolean).join(' ') || undefined;
+  const profileHref = headerRole === 'employee' ? '/employee/my-profile' : undefined;
 
   return (
     <DownloadCenterProvider>
@@ -61,7 +62,7 @@ export function AppShell({
         {!sidebar.isPhone && (
           <div
             className={cx(
-              'relative shrink-0 transition-[width] duration-200',
+              'relative z-20 shrink-0 transition-[width] duration-200',
               sidebar.isCollapsed ? 'w-20' : 'w-64'
             )}
           >
@@ -75,6 +76,7 @@ export function AppShell({
               userName={fullName}
               userRole={userRole}
               onLogout={onLogout}
+              profileHref={profileHref}
               onToggleCollapse={sidebar.toggleCollapsed}
               className="h-full overflow-visible rounded-3xl"
             />
@@ -93,6 +95,7 @@ export function AppShell({
               userName={fullName}
               userRole={userRole}
               onLogout={onLogout}
+              profileHref={profileHref}
               onNavigate={sidebar.closeDrawer}
               className="h-full"
             />

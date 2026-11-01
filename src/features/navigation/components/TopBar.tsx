@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, User, Settings, LogOut } from 'lucide-react';
+import { Menu, User, LogOut } from 'lucide-react';
 import { NotificationBell } from '@/features/notifications/components/NotificationBell';
 import { getPageTitle } from '@/lib/pageTitles';
 import { cx } from '@/theme/tokens';
@@ -35,6 +35,24 @@ export function TopBar({
   const pathname = usePathname();
   const { title, description } = getPageTitle(pathname, role);
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  /* Close on outside click or Escape. */
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
 
   const fullName = [firstName, lastName].filter(Boolean).join(' ') || 'User';
   const hasUser = Boolean(firstName || lastName);
@@ -63,10 +81,12 @@ export function TopBar({
         {hasUser && <NotificationBell area={role} />}
 
         {hasUser && (
-          <div className="relative">
+          <div className="relative" ref={menuRef}>
             <button
               type="button"
               onClick={() => setMenuOpen((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
               className="flex items-center gap-2 rounded-full py-1 pl-2 pr-1 transition-colors hover:bg-bg-subtle"
             >
               <div className="hidden flex-col items-end leading-none md:flex">
@@ -100,13 +120,7 @@ export function TopBar({
                     <User size={16} /> View profile
                   </Link>
                 )}
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 rounded-[var(--tt-radius-sm)] px-3 py-2 text-sm text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg"
-                >
-                  <Settings size={16} /> Settings
-                </button>
-                <div className="mt-1 border-t border-line pt-1">
+                <div className={cx(role === 'employee' && 'mt-1 border-t border-line pt-1')}>
                   <button
                     type="button"
                     onClick={() => { setMenuOpen(false); onLogout?.(); }}

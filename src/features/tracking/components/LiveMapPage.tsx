@@ -77,7 +77,7 @@ export function LiveMapPage() {
   }, [data, search]);
 
   const mapped = useMemo(
-    () => list.filter((e) => e.lat !== null && e.lng !== null).map((e) => ({ id: e.employee_id, name: e.name, lat: e.lat as number, lng: e.lng as number, state: e.state, stale: isStale(e, now) })),
+    () => list.filter((e) => e.lat !== null && e.lng !== null).map((e) => ({ id: e.employee_id, name: e.name, lat: e.lat as number, lng: e.lng as number, state: e.state, stale: isStale(e, now), live: !NOT_LIVE.includes(e.state), code: e.employee_code, siteName: e.site_name, battery: e.battery, recordedAt: e.recorded_at, accuracy: e.accuracy_m })),
     [list, now]
   );
   const toggle = (s: TrackingState) => setStates((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]));

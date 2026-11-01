@@ -1,6 +1,7 @@
 'use client';
 
 import { Search, LogOut, User, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
 import { cx, scroll } from '@/theme/tokens';
 import { NavItem } from './NavItem';
@@ -30,6 +31,7 @@ export function Sidebar({
   userName,
   userRole,
   onLogout,
+  profileHref,
   onNavigate,
   onToggleCollapse,
   className,
@@ -43,6 +45,8 @@ export function Sidebar({
   userName?: string | null;
   userRole?: string | null;
   onLogout: () => void;
+  /** Profile page link; Profile menu item hidden when absent. */
+  profileHref?: string;
   onNavigate?: () => void;
   /** Manual toggle — the arrow button calls this. */
   onToggleCollapse?: () => void;
@@ -199,24 +203,39 @@ export function Sidebar({
 
           {/* User dropdown */}
           {userMenuOpen && (
-            <div className="absolute bottom-full left-0 right-0 z-50 mb-2 animate-[tt-fade-in_120ms_ease-out] rounded-xl border border-line bg-surface p-1.5 shadow-[var(--tt-shadow-md)]">
-              <button
-                type="button"
-                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg"
-              >
-                <User size={15} />
-                <span>Profile</span>
-              </button>
-              <div className="my-1 border-t border-line" />
+            <div
+              className={cx(
+                'absolute z-50 animate-[tt-fade-in_120ms_ease-out] rounded-xl border border-line bg-surface p-1.5 shadow-[var(--tt-shadow-md)]',
+                collapsed
+                  ? 'bottom-0 left-full ml-5 w-44'
+                  : 'bottom-full left-0 right-0 mb-2'
+              )}
+            >
+              {profileHref && (
+                <>
+                  <Link
+                    href={profileHref}
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      onNavigate?.();
+                    }}
+                    className="flex w-full items-center gap-2.5 whitespace-nowrap rounded-lg px-3 py-2 text-[13px] text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg"
+                  >
+                    <User size={15} className="shrink-0" />
+                    <span>Profile</span>
+                  </Link>
+                  <div className="my-1 border-t border-line" />
+                </>
+              )}
               <button
                 type="button"
                 onClick={() => {
                   setUserMenuOpen(false);
                   onLogout();
                 }}
-                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-[var(--tt-danger)] transition-colors hover:bg-[var(--tt-danger-soft)]"
+                className="flex w-full items-center gap-2.5 whitespace-nowrap rounded-lg px-3 py-2 text-[13px] font-medium text-[var(--tt-danger)] transition-colors hover:bg-[var(--tt-danger-soft)]"
               >
-                <LogOut size={15} />
+                <LogOut size={15} className="shrink-0" />
                 <span>Sign Out</span>
               </button>
             </div>
