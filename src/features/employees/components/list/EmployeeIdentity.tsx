@@ -13,9 +13,14 @@ export function EmployeeIdentity({ employee }: { employee: EmployeeListItemDto }
   const routes = useEmployeeRoutes();
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-line bg-bg-subtle text-[11px] font-bold text-fg 2xl:h-10 2xl:w-10 2xl:text-xs">
-        {initials(employee.name)}
-      </span>
+      {employee.photo ? (
+        // eslint-disable-next-line @next/next/no-img-element -- short-lived signed link, not optimisable
+        <img src={employee.photo} alt="" loading="lazy" className="h-8 w-8 shrink-0 rounded-full border border-line object-cover 2xl:h-10 2xl:w-10" />
+      ) : (
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-line bg-bg-subtle text-[11px] font-bold text-fg 2xl:h-10 2xl:w-10 2xl:text-xs">
+          {initials(employee.name)}
+        </span>
+      )}
       <div className="min-w-0">
         <Link href={routes.detail(employee.id)} className="block truncate text-xs font-semibold text-fg hover:underline sm:text-sm 2xl:text-base">{employee.name}</Link>
         <div className="truncate text-[11px] text-fg-muted 2xl:text-xs">

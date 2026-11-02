@@ -92,7 +92,7 @@ export function useExpenseList(mode: ExpenseListMode, defaultTab: ExpenseTab = '
     };
   });
   const [searchInput, setSearchInput] = useState('');
-  const [sort, setSort] = useState<ExpenseSort>({ key: 'date', dir: 'desc' });
+  const [sort, setSort] = useState<ExpenseSort>({ key: 'submitted_at', dir: 'desc' });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSizeState] = useState(DEFAULT_PAGE_SIZE);
   const [rows, setRows] = useState<Expense[]>([]);

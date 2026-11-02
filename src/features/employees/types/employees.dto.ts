@@ -46,6 +46,8 @@ export interface EmployeeListItemDto {
   sub_organization_id: number | null;
   contract_end: string | null;
   status: EmployeeStatus;
+  /** Face photo: a short-lived link, or null (initials are shown). */
+  photo?: string | null;
 }
 
 export interface EmployeeListResponseDto {
@@ -176,6 +178,8 @@ export interface SalaryAllocationDto {
 
 export interface EmployeeDetailDto {
   id: number;
+  /** Face photo: a short-lived link, or null. */
+  photo?: string | null;
   employee_code: string | null;
   name: string;
   first_name: string;

@@ -5,6 +5,9 @@ import * as employeesApi from '../api/employees.api';
 import type { EmployeeListItemDto, EmployeeListResponseDto, EmployeeStatus } from '../types/employees.dto';
 import { messageOf } from '@/lib/api/errors';
 import { DEFAULT_PAGE_SIZE, SEARCH_DEBOUNCE_MS, type StatusFilter } from '../constants/employees.constants';
+
+// The list opens on working employees; "All" and the other tabs are one click away.
+const DEFAULT_STATUS: StatusFilter = 'Active';
 import { CONTRACT_SOON_DAYS } from '../utils/contract';
 import type { LicenseUsageDto } from '@/features/licenses/license';
 
@@ -20,7 +23,7 @@ export function useEmployeeList() {
 
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
-  const [status, setStatusState] = useState<StatusFilter>('all');
+  const [status, setStatusState] = useState<StatusFilter>(DEFAULT_STATUS);
   const [subOrgId, setSubOrgIdState] = useState<number | null>(null);
   const [gradeId, setGradeIdState] = useState<number | null>(null);
   const [costCentreId, setCostCentreIdState] = useState<number | null>(null);
@@ -105,7 +108,7 @@ export function useEmployeeList() {
   const clearFilters = useCallback(() => {
     setSearchInput('');
     setSearch('');
-    setStatusState('all');
+    setStatusState(DEFAULT_STATUS);
     setSubOrgIdState(null);
     setGradeIdState(null);
     setCostCentreIdState(null);
@@ -146,6 +149,6 @@ export function useEmployeeList() {
     refetch: fetchEmployees,
     clearFilters,
     patchLocally,
-    hasActiveFilters: Boolean(search) || status !== 'all' || subOrgId !== null || gradeId !== null || costCentreId !== null || contractsEnding,
+    hasActiveFilters: Boolean(search) || status !== DEFAULT_STATUS || subOrgId !== null || gradeId !== null || costCentreId !== null || contractsEnding,
   };
 }

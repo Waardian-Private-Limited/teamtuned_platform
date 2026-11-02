@@ -33,6 +33,10 @@ export function EmployeeDetailPage({ employeeId }: { employeeId: number }) {
           <Link href={routes.list} aria-label="Back to employees" className="rounded-lg p-1.5 text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg">
             <ArrowLeft className="h-4 w-4" />
           </Link>
+          {d?.photo && (
+            // eslint-disable-next-line @next/next/no-img-element -- short-lived signed link, not optimisable
+            <img src={d.photo} alt="" className="h-10 w-10 shrink-0 rounded-full border border-line object-cover 2xl:h-12 2xl:w-12" />
+          )}
           <div className="min-w-0">
             <h1 className="truncate text-base font-bold tracking-tight text-fg sm:text-lg 2xl:text-xl">{d?.name || 'Employee'}</h1>
             <p className="truncate text-[11px] text-fg-muted sm:text-xs">{d ? [d.employee_code, d.designation].filter(Boolean).join(' · ') || '—' : ''}</p>
