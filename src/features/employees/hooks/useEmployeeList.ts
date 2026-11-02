@@ -6,12 +6,14 @@ import type { EmployeeListItemDto, EmployeeListResponseDto, EmployeeStatus } fro
 import { messageOf } from '@/lib/api/errors';
 import { DEFAULT_PAGE_SIZE, SEARCH_DEBOUNCE_MS, type StatusFilter } from '../constants/employees.constants';
 import { CONTRACT_SOON_DAYS } from '../utils/contract';
+import type { LicenseUsageDto } from '@/features/licenses/license';
 
 const EMPTY_COUNTS: EmployeeListResponseDto['counts'] = { all: 0, Active: 0, Invited: 0, Inactive: 0, Terminated: 0 };
 
 export function useEmployeeList() {
   const [employees, setEmployees] = useState<EmployeeListItemDto[]>([]);
   const [counts, setCounts] = useState(EMPTY_COUNTS);
+  const [license, setLicense] = useState<LicenseUsageDto | null>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState('');
@@ -42,6 +44,7 @@ export function useEmployeeList() {
       if (requestId !== requestRef.current) return;
       setEmployees(dto.employees);
       setCounts(dto.counts || EMPTY_COUNTS);
+      setLicense(dto.license ?? null);
       setTotal(dto.total);
       setTotalPages(dto.pages);
       if (dto.pages > 0 && page > dto.pages) setPage(dto.pages);
@@ -117,6 +120,7 @@ export function useEmployeeList() {
   return {
     employees,
     counts,
+    license,
     isInitialLoading,
     isFetching,
     error,

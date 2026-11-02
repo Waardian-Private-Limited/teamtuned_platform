@@ -1,3 +1,5 @@
+import type { LicenseUsageDto } from '@/features/licenses/license';
+
 export type EmployeeStatus = 'Active' | 'Inactive' | 'Invited' | 'Terminated';
 export type Gender = 'Male' | 'Female' | 'Other';
 export type WeekDay = 'Sun' | 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat';
@@ -53,6 +55,8 @@ export interface EmployeeListResponseDto {
   total: number;
   pages: number;
   counts: Record<'all' | EmployeeStatus, number>;
+  /** Organization-wide Active + Invited against the licence limit. */
+  license?: LicenseUsageDto;
 }
 
 export interface PolicyWeekOffDto {

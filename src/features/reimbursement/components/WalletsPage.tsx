@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { ChevronRight, Download, Plus, Search, X } from 'lucide-react';
-import { cx } from '@/theme/tokens';
+import { alert, cx } from '@/theme/tokens';
 import { usePermission } from '@/lib/hooks/usePermission';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pagination } from '@/components/ui/Pagination';
@@ -29,6 +29,7 @@ import { FundRequestList } from './components/FundRequestList';
 import { Balance, WalletStatusPill } from './components/StatusBadges';
 import { OpenWalletsDrawer } from './components/WalletDialogs';
 import { Block, FeatureOff, NoAccess, primaryBtn, secondaryBtn } from './components/Primitives';
+import { licenseCountLabel, licenseFullMessage } from '@/features/licenses/license';
 
 type View = 'wallets' | 'requests';
 
@@ -229,13 +230,29 @@ function Wallets() {
   const [exporting, setExporting] = React.useState(false);
   const href = React.useCallback((id: number) => `${base}/wallets/${id}`, [base]);
   const f = list.filters;
+  // Every wallet licence is taken: opening is blocked until a wallet is closed (the server enforces it too).
+  const licenseFull = licenseFullMessage('wallets', list.license);
+  const licenseLabel = licenseCountLabel(list.license);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="flex flex-col gap-2.5 rounded-xl border border-line bg-surface p-3 sm:p-3.5 2xl:p-4">
         <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <h1 className="text-base font-bold tracking-tight text-fg sm:text-lg 2xl:text-xl">Expense wallets</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-base font-bold tracking-tight text-fg sm:text-lg 2xl:text-xl">Expense wallets</h1>
+              {licenseLabel && (
+                <span
+                  title="Active and frozen wallets against your licence limit"
+                  className={cx(
+                    'inline-flex items-center whitespace-nowrap rounded-md border px-2 py-0.5 text-xs font-semibold',
+                    licenseFull ? 'border-[var(--tt-danger)]/30 bg-[var(--tt-danger-soft)] text-[var(--tt-danger)]' : 'border-line bg-bg-subtle text-fg-muted'
+                  )}
+                >
+                  {licenseLabel}
+                </span>
+              )}
+            </div>
             <p className="text-xs text-fg-muted sm:text-sm">Money the company gives employees for expenses, and what they have spent.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -247,7 +264,7 @@ function Wallets() {
               </button>
             )}
             {can(REIMB_PERMISSIONS.WALLET_CREATE) && (
-              <button type="button" onClick={() => setOpening(true)} className={primaryBtn}>
+              <button type="button" onClick={() => setOpening(true)} disabled={!!licenseFull} title={licenseFull || undefined} className={cx(primaryBtn, 'disabled:cursor-not-allowed disabled:opacity-50')}>
                 <Plus className="h-3.5 w-3.5" />
                 Open wallets
               </button>
@@ -263,6 +280,7 @@ function Wallets() {
           onChange={setView}
           className="w-full sm:w-auto"
         />
+        {licenseFull && can(REIMB_PERMISSIONS.WALLET_CREATE) && <p role="status" className={alert.info}>{licenseFull}</p>}
       </div>
 
       {view === 'requests' ? (
@@ -313,7 +331,7 @@ function Wallets() {
                     illustration={ILLUSTRATIONS.debits}
                     title="No wallets yet"
                     description="Open wallets for employees who spend company money, then top them up."
-                    action={can(REIMB_PERMISSIONS.WALLET_CREATE) ? { label: 'Open wallets', onClick: () => setOpening(true) } : undefined}
+                    action={can(REIMB_PERMISSIONS.WALLET_CREATE) && !licenseFull ? { label: 'Open wallets', onClick: () => setOpening(true) } : undefined}
                   />
                 )}
               </div>
@@ -331,7 +349,7 @@ function Wallets() {
         </>
       )}
 
-      <OpenWalletsDrawer open={opening} onClose={() => setOpening(false)} onDone={list.refetch} />
+      <OpenWalletsDrawer open={opening} onClose={() => setOpening(false)} onDone={list.refetch} seatsLeft={list.license?.available ?? null} />
       <ExportStatementDialog open={exporting} onClose={() => setExporting(false)} scope="hr" walletCount={list.totals?.wallets} subOrgId={f.subOrgId} />
     </div>
   );

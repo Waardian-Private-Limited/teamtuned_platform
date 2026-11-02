@@ -62,7 +62,17 @@ type OrganizationDetail = {
   database_name?: string | null;
   created_at?: string;
   updated_at?: string;
+  /** Licence limits with current use; limit null = unlimited. */
+  licenses?: Record<LicenseKind, LicenseUsage>;
 };
+
+type LicenseKind = "employees" | "wallets";
+type LicenseUsage = { limit: number | null; used: number; available: number | null };
+
+const LICENSE_FIELDS: Array<{ kind: LicenseKind; label: string; counts: string }> = [
+  { kind: "employees", label: "Employee licences", counts: "active + invited employees" },
+  { kind: "wallets", label: "Reimbursement wallet licences", counts: "active + frozen wallets" },
+];
 
 export default function SuperadminOrganizations() {
   const [showModal, setShowModal] = React.useState(false);
@@ -227,6 +237,8 @@ export default function SuperadminOrganizations() {
   const [selectedOrg, setSelectedOrg] = React.useState<OrganizationDetail | null>(null);
   const [edit, setEdit] = React.useState<Partial<OrganizationDetail>>({});
   const [savingEdit, setSavingEdit] = React.useState(false);
+  // Licence limits as typed; empty means no limit.
+  const [limits, setLimits] = React.useState<Record<LicenseKind, string>>({ employees: "", wallets: "" });
 
   const openDetails = async (orgId: number) => {
     try {
@@ -242,6 +254,10 @@ export default function SuperadminOrganizations() {
         city: detail.city || "",
         state: detail.state || "",
         country: detail.country || "",
+      });
+      setLimits({
+        employees: detail.licenses?.employees.limit != null ? String(detail.licenses.employees.limit) : "",
+        wallets: detail.licenses?.wallets.limit != null ? String(detail.licenses.wallets.limit) : "",
       });
       setShowDetails(true);
     } catch (e) {
@@ -263,6 +279,8 @@ export default function SuperadminOrganizations() {
         city: edit.city,
         state: edit.state,
         country: edit.country,
+        employee_license_limit: limits.employees.trim() === "" ? null : Number(limits.employees),
+        wallet_license_limit: limits.wallets.trim() === "" ? null : Number(limits.wallets),
       };
       await apiClient(`/superadmin/organizations/${selectedOrg.id}`, { method: "PUT", body: payload });
       showToast("success", "Organization updated");
@@ -558,7 +576,7 @@ export default function SuperadminOrganizations() {
       {showDetails && selectedOrg && (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowDetails(false)} />
-          <div className="relative mx-auto mt-20 w-[95%] max-w-2xl rounded bg-white shadow-lg">
+          <div className="relative mx-auto mt-12 max-h-[calc(100vh-6rem)] w-[95%] max-w-2xl overflow-y-auto rounded bg-white shadow-lg">
             <div className="flex items-center justify-between border-b p-4">
               <h2 className="text-lg font-semibold text-black">Organization Details</h2>
               <button className="text-black hover:opacity-80" onClick={() => setShowDetails(false)}>✕</button>
@@ -606,6 +624,34 @@ export default function SuperadminOrganizations() {
                 <label className="block text-sm font-medium text-black">Country</label>
                 <input className="mt-1 w-full rounded border px-3 py-2 text-black" value={edit.country as string} onChange={(e) => setEdit((p) => ({ ...p, country: e.target.value }))} />
               </div>
+              <div className="col-span-2 border-t pt-3">
+                <h3 className="text-sm font-semibold text-black">Licences</h3>
+                <p className="text-xs text-gray-600">Leave empty for no limit. Lowering a limit below what is in use removes nothing; it only blocks new ones.</p>
+              </div>
+              {LICENSE_FIELDS.map(({ kind, label, counts }) => {
+                const usage = selectedOrg.licenses?.[kind];
+                const typed = limits[kind].trim();
+                const over = usage && typed !== "" && Number(typed) < usage.used;
+                return (
+                  <div key={kind}>
+                    <label className="block text-sm font-medium text-black">{label}</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      inputMode="numeric"
+                      placeholder="No limit"
+                      className="mt-1 w-full rounded border px-3 py-2 text-black"
+                      value={limits[kind]}
+                      onChange={(e) => setLimits((p) => ({ ...p, [kind]: e.target.value.replace(/[^0-9]/g, "") }))}
+                    />
+                    <p className={`mt-1 text-xs ${over ? "text-red-600" : "text-gray-600"}`}>
+                      In use: {usage?.used ?? 0} {counts}
+                      {over ? ". Already above this limit." : ""}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
 
             <div className="px-4 pb-4 flex items-center justify-end gap-2">

@@ -5,6 +5,7 @@ import { messageOf } from '@/lib/api/errors';
 import * as api from '../api/reimbursement.api';
 import { toWallet, toWalletTotals } from '../types/reimbursement.mapper';
 import type { Wallet, WalletStatus, WalletTotals } from '../types/reimbursement.model';
+import type { LicenseUsageDto } from '@/features/licenses/license';
 import { DEFAULT_PAGE_SIZE, SEARCH_DEBOUNCE_MS } from '../constants/reimbursement.constants';
 
 export interface WalletFilters {
@@ -24,6 +25,7 @@ export function useWalletList() {
   const [rows, setRows] = useState<Wallet[]>([]);
   const [total, setTotal] = useState(0);
   const [totals, setTotals] = useState<WalletTotals | null>(null);
+  const [license, setLicense] = useState<LicenseUsageDto | null>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState('');
@@ -39,6 +41,7 @@ export function useWalletList() {
       setRows((dto.items || []).map(toWallet));
       setTotal(Number(dto.total) || 0);
       setTotals(toWalletTotals(dto.totals));
+      setLicense(dto.license ?? null);
     } catch (err) {
       if (id !== request.current) return;
       setRows([]);
@@ -88,6 +91,7 @@ export function useWalletList() {
     rows,
     total,
     totals,
+    license,
     page,
     setPage,
     pageSize,

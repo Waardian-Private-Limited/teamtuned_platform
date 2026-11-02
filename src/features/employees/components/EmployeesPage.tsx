@@ -21,6 +21,7 @@ import { StartExitDialog } from '@/features/exits/components/StartExitDialog';
 import { EmployeeActionDialog } from './list/EmployeeActionDialog';
 import { EmployeeTimelineDrawer } from './list/EmployeeTimelineDrawer';
 import { EmployeeSettingsDrawer } from './settings/EmployeeSettingsDrawer';
+import { licenseCountLabel, licenseFullMessage } from '@/features/licenses/license';
 
 export function EmployeesPage() {
   const router = useRouter();
@@ -57,6 +58,8 @@ export function EmployeesPage() {
   };
 
   const fade = list.isFetching ? 'opacity-75' : 'opacity-100';
+  // Every employee licence is taken: adding is blocked until someone is made inactive (the server enforces it too).
+  const licenseFull = licenseFullMessage('employees', list.license);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
@@ -75,6 +78,8 @@ export function EmployeesPage() {
         contractsEnding={list.contractsEnding}
         onContractsEndingChange={list.setContractsEnding}
         canAdd={perms.canAdd}
+        addBlocked={licenseFull}
+        licenseLabel={licenseCountLabel(list.license)}
         onAdd={openCreate}
         onSettings={perms.canEdit ? () => setSettingsOpen(true) : undefined}
       />
@@ -85,6 +90,11 @@ export function EmployeesPage() {
             <Alert message={list.error} tone="error" />
           </div>
         )}
+        {licenseFull && perms.canAdd && (
+          <div className="border-b border-line p-3">
+            <Alert message={licenseFull} tone="info" />
+          </div>
+        )}
 
         {list.isInitialLoading ? (
           <div className="flex-1 overflow-hidden">
@@ -92,7 +102,7 @@ export function EmployeesPage() {
           </div>
         ) : list.employees.length === 0 ? (
           <div className={cx('flex flex-1 flex-col transition-opacity duration-200', fade)}>
-            <EmployeesEmptyState filtered={list.hasActiveFilters} canAdd={perms.canAdd} onAdd={openCreate} onClear={list.clearFilters} />
+            <EmployeesEmptyState filtered={list.hasActiveFilters} canAdd={perms.canAdd && !licenseFull} onAdd={openCreate} onClear={list.clearFilters} />
           </div>
         ) : (
           <>

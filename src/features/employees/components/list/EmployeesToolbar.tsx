@@ -23,6 +23,10 @@ interface EmployeesToolbarProps {
   contractsEnding: boolean;
   onContractsEndingChange: (value: boolean) => void;
   canAdd: boolean;
+  /** Why adding is blocked (no licence left); the add buttons are disabled and show it on hover. */
+  addBlocked?: string;
+  /** "48 / 50 licences" when the organization has a limit. */
+  licenseLabel?: string;
   onAdd: () => void;
   onSettings?: () => void;
 }
@@ -49,7 +53,7 @@ function CatalogFilter({ kind, value, onChange, allLabel }: { kind: CatalogKind;
 
 export function EmployeesToolbar({
   counts, searchValue, onSearchChange, status, onStatusChange, subOrgId, onSubOrgChange,
-  gradeId, onGradeChange, costCentreId, onCostCentreChange, contractsEnding, onContractsEndingChange, canAdd, onAdd, onSettings,
+  gradeId, onGradeChange, costCentreId, onCostCentreChange, contractsEnding, onContractsEndingChange, canAdd, addBlocked = '', licenseLabel = '', onAdd, onSettings,
 }: EmployeesToolbarProps) {
   return (
     <div className="flex flex-col gap-2.5 rounded-xl border border-line bg-surface p-3 sm:p-3.5 2xl:p-4">
@@ -60,12 +64,25 @@ export function EmployeesToolbar({
             <span className="inline-flex items-center rounded-md border border-line bg-bg-subtle px-2 py-0.5 text-xs font-semibold text-fg-muted 2xl:text-sm">
               {counts.all}
             </span>
+            {licenseLabel && (
+              <span
+                title="Active and invited employees against your licence limit"
+                className={cx(
+                  'inline-flex items-center whitespace-nowrap rounded-md border px-2 py-0.5 text-xs font-semibold 2xl:text-sm',
+                  addBlocked ? 'border-[var(--tt-danger)]/30 bg-[var(--tt-danger-soft)] text-[var(--tt-danger)]' : 'border-line bg-bg-subtle text-fg-muted'
+                )}
+              >
+                {licenseLabel}
+              </span>
+            )}
           </div>
           {canAdd && (
             <button
               type="button"
               onClick={onAdd}
-              className="inline-flex h-8.5 items-center justify-center gap-1 rounded-lg bg-[var(--tt-primary)] px-2.5 text-xs font-semibold text-[var(--tt-on-primary)] shadow-xs transition-all hover:bg-[var(--tt-primary-hover)] active:scale-[0.98] sm:hidden"
+              disabled={!!addBlocked}
+              title={addBlocked || undefined}
+              className="inline-flex h-8.5 items-center justify-center gap-1 rounded-lg bg-[var(--tt-primary)] px-2.5 text-xs font-semibold text-[var(--tt-on-primary)] shadow-xs transition-all hover:bg-[var(--tt-primary-hover)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 sm:hidden"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>Add</span>
@@ -96,7 +113,9 @@ export function EmployeesToolbar({
             <button
               type="button"
               onClick={onAdd}
-              className="hidden h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[var(--tt-primary)] px-3 text-xs font-semibold text-[var(--tt-on-primary)] shadow-xs transition-all hover:bg-[var(--tt-primary-hover)] active:scale-[0.98] sm:inline-flex sm:text-sm 2xl:h-10 2xl:px-4 2xl:text-base"
+              disabled={!!addBlocked}
+              title={addBlocked || undefined}
+              className="hidden h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[var(--tt-primary)] px-3 text-xs font-semibold text-[var(--tt-on-primary)] shadow-xs transition-all hover:bg-[var(--tt-primary-hover)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 sm:inline-flex sm:text-sm 2xl:h-10 2xl:px-4 2xl:text-base"
             >
               <Plus className="h-3.5 w-3.5 2xl:h-4 2xl:w-4" />
               <span className="hidden md:inline">New Employee</span>

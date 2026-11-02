@@ -1,3 +1,5 @@
+import type { LicenseUsageDto } from '@/features/licenses/license';
+
 /** Wire shapes of /api/v1/reimbursement (see teamtuned_backend/docs/REIMBURSEMENT_V2_API.md). */
 
 import type {
@@ -432,6 +434,8 @@ export interface WalletTotalsDto {
 
 export interface WalletListResponseDto extends PagedDto<WalletDto> {
   totals: WalletTotalsDto;
+  /** Organization-wide active + frozen wallets against the licence limit. */
+  license?: LicenseUsageDto;
 }
 
 export interface WalletDetailDto {

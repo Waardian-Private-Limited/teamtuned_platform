@@ -3,6 +3,7 @@
 import React from 'react';
 import { Dialog } from '@/components/ui/Dialog';
 import { Drawer } from '@/components/ui/Drawer';
+import { cx } from '@/theme/tokens';
 import { OptionCard, TextField } from '@/components/ui/FormControls';
 import { Textarea } from '@/components/ui/Textarea';
 import { Btn } from '@/features/compensation/components/shared/Buttons';
@@ -152,7 +153,8 @@ export function WalletActionDialog({ action, wallet, onClose, onDone }: { action
   );
 }
 
-export function OpenWalletsDrawer({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: () => void }) {
+/** `seatsLeft`: wallet licences still free, or null when the organization has no limit. */
+export function OpenWalletsDrawer({ open, onClose, onDone, seatsLeft = null }: { open: boolean; onClose: () => void; onDone: () => void; seatsLeft?: number | null }) {
   const [employees, setEmployees] = React.useState<CompEmployeeDto[]>([]);
   const [amount, setAmount] = React.useState('');
   const [reference, setReference] = React.useState('');
@@ -209,6 +211,12 @@ export function OpenWalletsDrawer({ open, onClose, onDone }: { open: boolean; on
     <Drawer open={open} onClose={onClose} title="Open expense wallets" maxWidthClassName="sm:max-w-lg">
       <div className="flex min-h-full flex-col gap-4">
         <p className="text-sm text-fg-muted">Each employee gets a wallet the company funds. Their wallet expenses are taken from it once approved.</p>
+        {seatsLeft !== null && (
+          <p className={cx('text-xs font-semibold', employees.length > seatsLeft ? 'text-[var(--tt-danger)]' : 'text-fg-muted')}>
+            {seatsLeft} wallet {seatsLeft === 1 ? 'licence' : 'licences'} left
+            {employees.length > seatsLeft ? `. Only the first ${seatsLeft} will be opened.` : ''}
+          </p>
+        )}
         <EmployeePicker multiple label="Employees" value={employees} onChange={(v) => { setEmployees(v); setErrors((e) => ({ ...e, employee_ids: '' })); }} error={errors.employee_ids} />
         <TextField label="First top-up" inputMode="decimal" prefix="₹" value={amount} onChange={(v) => { setAmount(parseDecimal(v)); setErrors((e) => ({ ...e, initial_amount: '' })); }} error={errors.initial_amount} hint="Given to each employee" />
         {Number(amount) > 0 && <TextField label="Reference" required value={reference} onChange={(v) => { setReference(v); setErrors((e) => ({ ...e, reference: '' })); }} placeholder="UTR or transfer number" error={errors.reference} />}
