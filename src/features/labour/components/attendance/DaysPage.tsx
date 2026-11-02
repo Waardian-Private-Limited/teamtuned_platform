@@ -11,14 +11,15 @@ import { useCatalog, useContractorOptions, useLabourSettings, useLabourSites } f
 import { useLabourAccess } from '../../hooks/useLabourAccess';
 import { usePagedList } from '../../hooks/usePagedList';
 import type { AttendanceDay } from '../../types/labour.types';
-import { daysAgo, fmtDate, fmtMinutes, fmtTime, titleCase, today } from '../../utils/format';
+import { fmtDate, fmtMinutes, fmtTime, titleCase, today } from '../../utils/format';
 import { DateFilter, FilterBar, FilterGrid, FilterSelect, Gate, ListShell, PageHeader, Pill, SearchBox, secondaryBtn, td, th, trClickCls } from '../shared/Primitives';
 import { DayPay } from './DayPay';
 import { ExportDialog } from './ExportDialog';
 import { PunchDrawer } from './PunchDrawer';
 
 interface Filters extends Record<string, unknown> { search: string; from: string; to: string; siteId: number | null; contractorId: number | null; categoryId: number | null; status: string }
-const INITIAL: Filters = { search: '', from: daysAgo(6), to: today(), siteId: null, contractorId: null, categoryId: null, status: '' };
+// Opens on today's work day; widen From / To to look back.
+const INITIAL: Filters = { search: '', from: today(), to: today(), siteId: null, contractorId: null, categoryId: null, status: '' };
 
 export const DayStatusPill = ({ s }: { s: AttendanceDay['status'] }) => <Pill tone={s === 'incomplete' ? 'warn' : s === 'regularized' ? 'dark' : 'good'}>{titleCase(s)}</Pill>;
 
