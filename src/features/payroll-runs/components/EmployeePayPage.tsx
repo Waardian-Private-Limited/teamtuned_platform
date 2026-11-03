@@ -16,6 +16,7 @@ import { LinesTable } from './components/LinesTable';
 import { OtherCompanies, SalaryUsed } from './components/PayContext';
 import { PaySummaryTiles } from './components/PaySummaryTiles';
 import { HoldDialog } from './components/RunDialogs';
+import { DayAdjustmentsCard } from './components/DayAdjustmentsCard';
 import { WarningsList } from './components/WarningsList';
 import { PayrollEmptyState } from './components/PayrollEmptyState';
 import { DayPopup } from '@/features/detailed-attendance/components/DayPopup';
@@ -191,6 +192,14 @@ export function EmployeePayPage({ basePath }: { basePath: string }) {
           <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
             <AttendanceCalendar cells={item.attendance?.cells || []} onOpenDay={setOpenDay} />
             <div className="space-y-4">
+              {!isPreview && (
+                <DayAdjustmentsCard
+                  employeeId={item.employee.id}
+                  currentPeriod={run ? { start: run.periodStart, end: run.periodEnd } : null}
+                  canEdit={canEdit}
+                  onChanged={() => pay.reload()}
+                />
+              )}
               <LinesTable title="Employer contributions" lines={item.employerLines} total={item.employer} empty="No employer contributions." />
               <SalaryUsed segments={item.segments} revisionsHref={`${basePath}/salary-revisions`} />
               <OtherCompanies companies={data.otherCompanies} />

@@ -127,3 +127,26 @@ export function exportRegister(runId: number) {
 export function exportBankTransfer(runId: number) {
   return apiClient.post<ExportJobDto>('/exports/payroll-bank-transfer', { runId }, auth);
 }
+
+// ---- Payable-day adjustments: +/- day corrections per employee and pay period (a ledger; nothing is locked). ----
+
+export interface DayAdjustmentDto {
+  id: number; employee_id: number; period_start: string; period_end: string; days: number; reason: string; status: 'active' | 'cancelled';
+  created_by: string | null; created_at: string; cancelled_by: string | null; cancelled_at: string | null; cancel_reason: string | null;
+}
+export interface AdjustablePeriodDto {
+  period_start: string; period_end: string; month_key: string; status: 'draft' | 'finalized' | 'paid'; pending_action: string | null; computing: boolean;
+  payable_days: number | null; period_days: number | null; attendance_payable_days: number | null;
+}
+export interface DayAdjustmentListDto { employee: { id: number; code: string | null; name: string }; periods: AdjustablePeriodDto[]; adjustments: DayAdjustmentDto[] }
+export interface DayAdjustmentResultDto { adjustment: DayAdjustmentDto; effect: 'recalculated' | 'arrears' | 'next_payroll'; month_key: string | null; message: string }
+
+export function listDayAdjustments(employeeId: number) {
+  return apiClient.get<DayAdjustmentListDto>('/payroll-runs/day-adjustments', { employee_id: employeeId }, auth);
+}
+export function addDayAdjustment(body: { employee_id: number; period_start: string; period_end: string; days: number; reason: string }) {
+  return apiClient.post<DayAdjustmentResultDto>('/payroll-runs/day-adjustments', body, auth);
+}
+export function cancelDayAdjustment(id: number, reason: string) {
+  return apiClient.post<DayAdjustmentResultDto>(`/payroll-runs/day-adjustments/${id}/cancel`, { reason }, auth);
+}
