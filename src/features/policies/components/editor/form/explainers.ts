@@ -76,10 +76,15 @@ function payoutLine(c: Config, label: string): string[] {
     );
   }
   if (payout === 'comp_off' || payout === 'employee_choice') {
+    const basis = s(c.compOffCreditMode, 'duration');
     lines.push(
-      c.compOffHalfDayMinutes !== undefined
-        ? `${duration(c.compOffHalfDayMinutes)} earns a half-day comp off, ${duration(c.compOffFullDayMinutes)} a full day.`
-        : 'Half-day vs full-day comp off follows the credit rule above.'
+      c.compOffHalfDayMinutes === undefined
+        ? 'Half-day vs full-day comp off follows the credit rule above.'
+        : basis === 'shift_percent'
+          ? `Extra work of ${n(c.compOffHalfDayPercent)}% of the shift earns a half-day comp off, ${n(c.compOffFullDayPercent)}% a full day.`
+          : basis === 'clock_time'
+            ? `Checking out after ${clock(c.compOffHalfDayIfWorkingPast || '21:00:00')} earns a half-day comp off, after ${clock(c.compOffFullDayIfWorkingPast || '00:30:00')} a full day.`
+            : `${duration(c.compOffHalfDayMinutes)} earns a half-day comp off, ${duration(c.compOffFullDayMinutes)} a full day.`
     );
     const expiryMode = s(c.compOffExpiryMode, 'days');
     if (expiryMode === 'same_month') {
