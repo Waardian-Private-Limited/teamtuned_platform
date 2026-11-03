@@ -95,7 +95,7 @@ function Settings() {
         <div className="grid items-start gap-3 lg:grid-cols-2">
           <Section title="Attendance" description="How the work day is cut and how punches are counted.">
             <div className="space-y-4">
-              <TextField label="Work day starts at" type="time" value={draft.dayStartsAt} error={errors.dayStartsAt} disabled={!canEdit} hint="A punch before this time belongs to the previous work day." onChange={(v) => set({ dayStartsAt: v })} />
+              <TextField label="Work day starts at" type="time" value={draft.dayStartsAt} error={errors.dayStartsAt} disabled={!canEdit} hint="Cutoff: a punch before this time closes the previous day only if that day is still open (checked in, not out); otherwise it starts the new day." onChange={(v) => set({ dayStartsAt: v })} />
               <TextField label="Standard hours per day" inputMode="decimal" value={String(draft.standardHours)} error={errors.standardHours} disabled={!canEdit} onChange={(v) => set({ standardHours: nf(v) })} />
               <TextField label="Ignore repeat punches within (seconds)" inputMode="numeric" value={String(draft.duplicatePunchSeconds)} error={errors.duplicatePunchSeconds} disabled={!canEdit} hint="A second punch inside this window is treated as a duplicate." onChange={(v) => set({ duplicatePunchSeconds: nf(v) })} />
               <ToggleRow title="Advanced onboarding" hint="Adds a compliance details step when registering labour." checked={draft.advancedOnboarding} disabled={!canEdit} onChange={(advancedOnboarding) => set({ advancedOnboarding })} />

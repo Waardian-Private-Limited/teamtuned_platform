@@ -11,6 +11,11 @@ import { dayText, timeText } from '../../utils/format';
 // A day ahead opens only when the roster puts something on it.
 const closed = (c: MonthCell) => c.badge.key === 'upcoming' && !c.schedule.length;
 
+/** A week off or holiday the employee worked (overtime or punches on it): shown blue, not grey. */
+const workedOff = (c: MonthCell) => (c.badge.key === 'week_off' || c.badge.key === 'holiday') && (c.overtimeMinutes > 0 || c.workedMinutes > 0);
+const toneOf = (c: MonthCell) => TONE[workedOff(c) ? 'info' : c.badge.tone];
+const labelOf = (c: MonthCell) => (workedOff(c) ? `${c.badge.label} · worked` : c.badge.label);
+
 /** The roster's times for the day ("6:00 AM – 3:00 PM"), shown beside its chip. */
 function rosterTimes(c: MonthCell) {
   const s = c.schedule.find((x) => x.kind === 'shift');
@@ -23,15 +28,15 @@ function times(c: MonthCell) {
 }
 
 function Cell({ c, today, onOpen }: { c: MonthCell; today: string; onOpen: (date: string) => void }) {
-  const tone = TONE[c.badge.tone];
+  const tone = toneOf(c);
   const disabled = closed(c);
   const t = times(c);
   const shown = c.badge.key !== 'upcoming';
   const roster = c.schedule.length > 0;
   return (
-    <button type="button" disabled={disabled} onClick={() => onOpen(c.date)} aria-label={`${dayText(c.date)}: ${c.badge.label}${c.badge.note ? `, ${c.badge.note}` : ''}`}
-      className={cx('group relative flex h-full min-h-[92px] min-w-0 flex-col items-stretch overflow-hidden rounded-lg border bg-surface p-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-[var(--tt-primary)]',
-        c.date === today ? 'border-[var(--tt-primary)]' : 'border-line', disabled ? 'cursor-default opacity-50' : 'hover:bg-bg-subtle')}>
+    <button type="button" disabled={disabled} onClick={() => onOpen(c.date)} aria-label={`${dayText(c.date)}: ${labelOf(c)}${c.badge.note ? `, ${c.badge.note}` : ''}`}
+      className={cx('group relative flex h-full min-h-[92px] min-w-0 flex-col items-stretch overflow-hidden rounded-lg border p-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-[var(--tt-primary)]',
+        workedOff(c) ? cx('bg-[var(--tt-accent-soft)]', c.date === today ? 'border-[var(--tt-primary)]' : 'border-[var(--tt-accent)]') : cx('bg-surface', c.date === today ? 'border-[var(--tt-primary)]' : 'border-line'), disabled ? 'cursor-default opacity-50' : 'hover:bg-bg-subtle')}>
       {shown && <span aria-hidden className={cx('absolute inset-y-0 left-0 w-1', tone.bar)} />}
       <span className="flex items-center justify-between pl-1">
         <span className={cx('text-sm font-bold tabular-nums', c.date === today ? 'text-fg' : 'text-fg-muted')}>{c.day}</span>
@@ -40,7 +45,7 @@ function Cell({ c, today, onOpen }: { c: MonthCell; today: string; onOpen: (date
       </span>
       {shown && (
         <span className="mt-1 flex min-w-0 flex-1 flex-col gap-0.5 pl-1">
-          <span className={cx('truncate text-xs font-bold', tone.text)}>{c.badge.label}</span>
+          <span className={cx('truncate text-xs font-bold', tone.text)}>{labelOf(c)}</span>
           {t && <span className="truncate text-[11px] tabular-nums text-fg-muted">{t}</span>}
           {c.badge.note && <span className="truncate text-[11px] text-fg-muted">{c.badge.note}</span>}
         </span>
@@ -71,7 +76,7 @@ export function MonthCalendar({ cells, today, onOpen }: { cells: MonthCell[]; to
       </div>
       <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line sm:hidden">
         {cells.filter((c) => !closed(c)).map((c) => {
-          const tone = TONE[c.badge.tone];
+          const tone = toneOf(c);
           const ahead = c.badge.key === 'upcoming';
 
           return (
@@ -82,7 +87,7 @@ export function MonthCalendar({ cells, today, onOpen }: { cells: MonthCell[]; to
                 <span className="min-w-0 flex-1">
                   {ahead
                     ? <span className="flex items-center gap-1.5 text-sm font-bold text-fg"><RosterCodeChip slots={c.schedule} />{rosterTimes(c) || null}</span>
-                    : <span className={cx('flex items-center gap-1 text-sm font-bold', tone.text)}>{c.badge.label}{c.badge.overridden && <PencilLine aria-label="Set by HR" className="h-3 w-3" />}{c.regularizationStatus === 'pending' && <Hourglass aria-label="Regularization request waiting for approval" className="h-3 w-3 text-[var(--tt-warning)]" />}</span>}
+                    : <span className={cx('flex items-center gap-1 text-sm font-bold', tone.text)}>{labelOf(c)}{c.badge.overridden && <PencilLine aria-label="Set by HR" className="h-3 w-3" />}{c.regularizationStatus === 'pending' && <Hourglass aria-label="Regularization request waiting for approval" className="h-3 w-3 text-[var(--tt-warning)]" />}</span>}
                   {!ahead && (times(c) || c.badge.note || c.schedule.length > 0) && (
                     <span className="flex min-w-0 items-center gap-1.5 text-xs text-fg-muted">
                       {c.schedule.length > 0 && <RosterCodeChip slots={c.schedule} />}

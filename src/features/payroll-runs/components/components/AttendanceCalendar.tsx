@@ -12,10 +12,28 @@ const TONE: Record<string, { bar: string; text: string }> = {
   muted: { bar: 'bg-line', text: 'text-fg-subtle' },
 };
 
-const tone = (t: string) => TONE[t] || TONE.muted;
+const OFF_KEYS = ['week_off', 'holiday'];
+const NOT_COUNTED = ['week_off', 'holiday', 'not_joined', 'exited', 'upcoming'];
+const LOP = { bar: 'bg-[var(--tt-danger)]', text: 'text-[var(--tt-danger)]', box: 'border-[var(--tt-danger)] bg-[var(--tt-danger-soft)]' };
+const WORKED_OFF = { bar: 'bg-[var(--tt-accent)]', text: 'text-[var(--tt-accent)]', box: 'border-[var(--tt-accent)] bg-[var(--tt-accent-soft)]' };
+
+/** A working day not paid in full: loss of pay. */
+const isLop = (c: DayCell) => c.payableUnits !== null && c.payableUnits < 1 && !NOT_COUNTED.includes(c.key);
+/** A week off or holiday with overtime on it. */
+const workedOff = (c: DayCell) => OFF_KEYS.includes(c.key) && c.overtimeMinutes > 0;
+
+function look(c: DayCell) {
+  if (isLop(c)) return LOP;
+  if (workedOff(c)) return WORKED_OFF;
+  return { ...(TONE[c.tone] || TONE.muted), box: 'border-line bg-surface' };
+}
+
+const hours = (minutes: number) => `${Math.floor(minutes / 60)}h${minutes % 60 ? ` ${minutes % 60}m` : ''}`;
 
 function unitsNote(c: DayCell) {
+  if (workedOff(c)) return `Worked ${hours(c.overtimeMinutes)}`;
   if (c.payableUnits === null) return null;
+  if (isLop(c)) return c.payableUnits === 0 ? 'LOP 1 day' : `LOP ${Math.round((1 - c.payableUnits) * 100) / 100} day`;
   if (c.payableUnits === 1) return null;
   if (c.payableUnits === 0) return 'No pay';
   return `${c.payableUnits} paid`;
@@ -25,7 +43,9 @@ export function AttendanceCalendar({ cells, onOpenDay }: { cells: DayCell[]; onO
   if (!cells.length) return null;
   const weekday = (date: string) => (new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7;
   const lead = weekday(cells[0].date);
-  const legend = Array.from(new Map(cells.filter((c) => c.key !== 'upcoming').map((c) => [c.label, c.tone])).entries()).slice(0, 8);
+  const legend = Array.from(new Map(cells.filter((c) => c.key !== 'upcoming' && !isLop(c) && !workedOff(c)).map((c) => [c.label, look(c).bar])).entries()).slice(0, 8);
+  if (cells.some(isLop)) legend.unshift(['Loss of pay', LOP.bar]);
+  if (cells.some(workedOff)) legend.push(['Worked on week off / holiday', WORKED_OFF.bar]);
 
   return (
     <SectionCard title="Attendance in this period">
@@ -44,7 +64,7 @@ export function AttendanceCalendar({ cells, onOpenDay }: { cells: DayCell[]; onO
               <div key={`pad${i}`} aria-hidden />
             ))}
             {cells.map((c) => {
-              const t = tone(c.tone);
+              const t = look(c);
               const note = unitsNote(c);
               return (
                 <button
@@ -53,12 +73,12 @@ export function AttendanceCalendar({ cells, onOpenDay }: { cells: DayCell[]; onO
                   disabled={!onOpenDay || c.key === 'upcoming'}
                   onClick={() => onOpenDay?.(c.date)}
                   title={`${formatDate(c.date, 'weekday')}: ${c.label}${c.leaveName ? ` · ${c.leaveName}` : ''}${note ? ` · ${note}` : ''}`}
-                  className="relative flex min-h-[58px] min-w-0 flex-col overflow-hidden rounded-md border border-line bg-surface px-1.5 py-1 pl-2.5 text-left transition-colors enabled:cursor-pointer enabled:hover:border-line-strong enabled:hover:bg-bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-fg/30 disabled:cursor-default"
+                  className={cx('relative flex min-h-[58px] min-w-0 flex-col overflow-hidden rounded-md border px-1.5 py-1 pl-2.5 text-left transition-colors enabled:cursor-pointer enabled:hover:border-line-strong enabled:hover:bg-bg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-fg/30 disabled:cursor-default', t.box)}
                 >
                   <span aria-hidden className={cx('absolute inset-y-0 left-0 w-[3px]', t.bar)} />
                   <span className="text-[11px] font-bold tabular-nums text-fg-muted">{Number(c.date.slice(8, 10))}</span>
                   <span className={cx('truncate text-[10px] font-semibold leading-tight', t.text)}>{c.label}</span>
-                  {note && <span className="truncate text-[10px] text-fg-muted">{note}</span>}
+                  {note && <span className={cx('truncate text-[10px]', isLop(c) || workedOff(c) ? cx('font-semibold', t.text) : 'text-fg-muted')}>{note}</span>}
                 </button>
               );
             })}
@@ -66,7 +86,7 @@ export function AttendanceCalendar({ cells, onOpenDay }: { cells: DayCell[]; onO
         </div>
         <ul className="divide-y divide-line overflow-hidden rounded-lg border border-line sm:hidden">
           {cells.map((c) => {
-            const t = tone(c.tone);
+            const t = look(c);
             const note = unitsNote(c);
             return (
               <li
@@ -77,16 +97,16 @@ export function AttendanceCalendar({ cells, onOpenDay }: { cells: DayCell[]; onO
                 <span aria-hidden className={cx('h-6 w-1 shrink-0 rounded-full', t.bar)} />
                 <span className="w-24 shrink-0 text-xs font-semibold text-fg">{formatDate(c.date, 'weekday')}</span>
                 <span className={cx('min-w-0 flex-1 truncate text-xs font-semibold', t.text)}>{c.label}</span>
-                {note && <span className="shrink-0 text-[11px] text-fg-muted">{note}</span>}
+                {note && <span className={cx('shrink-0 text-[11px]', isLop(c) || workedOff(c) ? cx('font-semibold', t.text) : 'text-fg-muted')}>{note}</span>}
               </li>
             );
           })}
         </ul>
         {legend.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1">
-            {legend.map(([label, tn]) => (
+            {legend.map(([label, bar]) => (
               <span key={label} className="inline-flex items-center gap-1.5 text-[11px] text-fg-muted">
-                <span aria-hidden className={cx('h-2 w-2 rounded-sm', tone(tn).bar)} />
+                <span aria-hidden className={cx('h-2 w-2 rounded-sm', bar)} />
                 {label}
               </span>
             ))}
