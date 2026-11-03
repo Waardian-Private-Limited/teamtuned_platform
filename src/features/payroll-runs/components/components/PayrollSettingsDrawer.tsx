@@ -8,7 +8,7 @@ import type { DocumentNameDto } from '../../types/payrollRuns.dto';
 import { Skeleton } from './controls';
 
 const DOCUMENT_NAMES: Array<{ value: DocumentNameDto; label: string }> = [
-  { value: 'assigned', label: "Employee's own sub-organization" },
+  { value: 'assigned', label: 'The paying company (main organization when payroll is not separate)' },
   { value: 'organization', label: 'Main organization' },
   { value: 'primary', label: 'Primary sub-organization' },
 ];
@@ -95,7 +95,7 @@ export function PayrollSettingsDrawer({
             <label className="block border-t border-line pt-4">
               <span className="block text-sm font-bold text-fg">Company name on payslips and letters</span>
               <span className="mb-2 mt-1 block text-xs leading-relaxed text-fg-muted">
-                The name, address and logo printed on payslips, letters and documents. Payslips already finalized keep the name they were issued with.
+                The name, address and logo printed on payslips, letters and documents. With one payroll for the whole organization (not separate per company), the paying company is the main organization, so every payslip shows it. Payslips already finalized keep the name they were issued with.
               </span>
               {s.loading ? (
                 <Skeleton className="h-10 w-full rounded-lg" />

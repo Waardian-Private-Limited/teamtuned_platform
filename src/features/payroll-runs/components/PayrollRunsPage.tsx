@@ -57,9 +57,34 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
     setItemsVersion((v) => v + 1);
   }, [refresh]);
   const actions = useRunActions({ month, onRun: patchRun, onReload: reload });
+  // Employees whose pay could not be calculated do not block the payroll: after a warning they are put on hold
+  // (not paid in this payroll, kept to fix and release later) and everyone else is finalized.
+  const finalizeRun = React.useCallback((run: Run) => {
+    const n = run.totals.errors;
+    if (!n) return actions.finalize(run);
+    setConfirm({
+      title: 'Finalize with errors?',
+      body: (
+        <div className="space-y-2 text-sm text-fg-muted">
+          <p>{n} employee{n === 1 ? '' : 's'} could not be calculated. They will be <span className="font-semibold text-fg">put on hold and not paid</span> in this payroll, with the error as the reason.</p>
+          <p>Everyone else is finalized. Fix the held employees and release their hold later, or pay them in a later payroll.</p>
+        </div>
+      ),
+      cta: `Hold ${n} and finalize`,
+      danger: true,
+      run: () => actions.finalize(run, true),
+    });
+    return undefined;
+  }, [actions]);
 
   const realRuns = runs.filter((r) => r.id !== null);
   const plannedRuns = runs.filter((r) => r.id === null);
+  // Payroll not separate per company (organization-wide runs): one payroll for every company and site, so there is no
+  // company to pick, and the site / department filters list everything under the organization.
+  const combined = runs.length > 0 && runs.every((r) => r.subOrganizationId === null);
+  React.useEffect(() => {
+    if (combined && subOrgId !== null) setSubOrgId(null);
+  }, [combined, subOrgId]);
   const selected = realRuns.find((r) => r.id === askedRun) || realRuns[0] || null;
   const selectedId = selected?.id ?? null;
   const previewRun = plannedRuns.find((r) => r.key === previewKey) || null;
@@ -138,7 +163,7 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <MonthPicker month={month} current={current} onChange={(m) => setQuery({ month: m, run: null })} />
-          <SubOrgFilter value={subOrgId} onChange={setSubOrgId} allLabel="All companies" />
+          {!combined && <SubOrgFilter value={subOrgId} onChange={setSubOrgId} allLabel="All companies" />}
           {canEdit && plannedRuns.length > 1 && (
             <button type="button" className={actionBtn.primary} disabled={actions.busy === 'all:start'} onClick={() => actions.startAll()}>
               {actions.busy === 'all:start' ? <Spinner /> : <Play className="h-3.5 w-3.5" />}
@@ -187,7 +212,7 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
               onDelete={askDelete}
               previewKey={previewKey}
               onRecompute={actions.recompute}
-              onFinalize={actions.finalize}
+              onFinalize={finalizeRun}
               onRelease={actions.release}
               onMarkPaid={setPaidTarget}
               onReopen={setReopenTarget}
@@ -209,7 +234,7 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
                 onDelete={askDelete}
                 previewing={run.key === previewKey}
                 onRecompute={actions.recompute}
-                onFinalize={actions.finalize}
+                onFinalize={finalizeRun}
                 onRelease={actions.release}
                 onMarkPaid={setPaidTarget}
                 onReopen={setReopenTarget}

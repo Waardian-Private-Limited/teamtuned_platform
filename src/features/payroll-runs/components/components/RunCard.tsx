@@ -82,14 +82,15 @@ export function runActions(props: RunCardProps) {
       );
     }
     if (run.stage === 'review') {
-      const blocked = run.totals.errors > 0;
+      // With errors the page asks to confirm: those employees are put on hold and the rest is finalized.
+      const withErrors = run.totals.errors > 0;
       const button = (
-        <button type="button" className={actionBtn.primary} disabled={anyBusy || blocked} onClick={() => props.onFinalize(run)}>
+        <button type="button" className={actionBtn.primary} disabled={anyBusy} onClick={() => props.onFinalize(run)}>
           {isBusy('finalize') ? <Spinner /> : <Lock className="h-3.5 w-3.5" />} {run.finalizeNeedsApproval ? 'Send to finalize' : 'Finalize'}
         </button>
       );
-      return blocked ? (
-        <Tooltip content={`Fix ${run.totals.errors} employee error${run.totals.errors === 1 ? '' : 's'} first`} align="start">
+      return withErrors ? (
+        <Tooltip content={`${run.totals.errors} employee${run.totals.errors === 1 ? '' : 's'} could not be calculated: finalizing puts them on hold`} align="start">
           {button}
         </Tooltip>
       ) : (

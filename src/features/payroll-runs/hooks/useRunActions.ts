@@ -90,7 +90,7 @@ export function useRunActions({ month, onRun, onReload }: Options) {
 
   const recompute = useCallback((run: Run) => runCall(run, 'recompute', () => api.recompute(run.id as number), 'Recalculation queued'), [runCall]);
   const finalize = useCallback(
-    (run: Run) => runCall(run, 'finalize', () => api.finalize(run.id as number), run.finalizeNeedsApproval ? 'Sent for approval' : 'Payroll finalized'),
+    (run: Run, holdErrors = false) => runCall(run, 'finalize', () => api.finalize(run.id as number, holdErrors), run.finalizeNeedsApproval ? 'Sent for approval' : 'Payroll finalized'),
     [runCall]
   );
   const release = useCallback((run: Run) => runCall(run, 'release', () => api.release(run.id as number), 'Payslips generated for all employees except held ones'), [runCall]);

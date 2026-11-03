@@ -88,8 +88,9 @@ export function setHold(id: number, employeeId: number, hold: boolean, reason?: 
   return apiClient.post<ItemDto>(`/payroll-runs/${id}/items/${employeeId}/hold`, { hold, reason: reason || undefined }, auth);
 }
 
-export function finalize(id: number) {
-  return apiClient.post<RunDto>(`/payroll-runs/${id}/finalize`, {}, auth);
+/** `holdErrors`: employees whose pay could not be calculated are put on hold (not paid) and the rest is finalized. */
+export function finalize(id: number, holdErrors = false) {
+  return apiClient.post<RunDto>(`/payroll-runs/${id}/finalize`, holdErrors ? { hold_errors: true } : {}, auth);
 }
 
 export function reopen(id: number, reason: string) {
