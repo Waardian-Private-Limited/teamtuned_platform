@@ -190,7 +190,21 @@ function Kinds({ row }: { row: RequestRow }) {
  * regularization shows what is asked for and the times; an attendance review shows its punches; a
  * leave shows its type, dates and days; comp-off shows the extra work and what it earns.
  */
-export function RequestTable({ type, rows, onOpen }: { type: RequestType; rows: RequestRow[]; onOpen: (row: RequestRow) => void }) {
+/** A row an admin may pick for a bulk decision: still waiting, and behind an approval request. */
+export const selectable = (r: RequestRow) => r.status === 'pending' && r.approvalId !== null;
+
+interface Selection { ids: Set<number>; toggle: (approvalId: number) => void; toggleAll: (on: boolean) => void }
+
+export function RequestTable({ type, rows, onOpen, selection }: { type: RequestType; rows: RequestRow[]; onOpen: (row: RequestRow) => void; selection?: Selection | null }) {
+  const pickable = rows.filter(selectable);
+  const allPicked = !!selection && pickable.length > 0 && pickable.every((r) => selection.ids.has(r.approvalId as number));
+  const box = (r: RequestRow) => (selection ? (
+    <td className={cx(cell, 'w-10')} onClick={(e) => e.stopPropagation()}>
+      {selectable(r) && (
+        <input type="checkbox" aria-label={`Select ${r.employee.name}`} checked={selection.ids.has(r.approvalId as number)} onChange={() => selection.toggle(r.approvalId as number)} className="h-4 w-4 cursor-pointer accent-[var(--tt-primary)]" />
+      )}
+    </td>
+  ) : null);
   const regularize = type === 'regularize';
   const leave = type === 'leave';
   const compoff = type === 'compoff';
@@ -209,6 +223,11 @@ export function RequestTable({ type, rows, onOpen }: { type: RequestType; rows: 
         <table className="w-full border-separate border-spacing-0 text-sm">
           <thead className="sticky top-0 z-10">
             <tr>
+              {selection && (
+                <th className={cx(head, 'w-10')}>
+                  <input type="checkbox" aria-label="Select all waiting requests on this page" disabled={pickable.length === 0} checked={allPicked} onChange={(e) => selection.toggleAll(e.target.checked)} className="h-4 w-4 cursor-pointer accent-[var(--tt-primary)]" />
+                </th>
+              )}
               <th className={head}>Employee</th>
               <th className={head}>{leave ? 'Dates' : compoff ? 'Worked on' : cover ? 'Absent on' : holiday ? 'Holiday on' : 'Attendance date'}</th>
               {columns.map((c) => <th key={c} className={head}>{c}</th>)}
@@ -221,6 +240,7 @@ export function RequestTable({ type, rows, onOpen }: { type: RequestType; rows: 
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} onClick={r.approvalId ? () => onOpen(r) : undefined} className={cx('transition-colors', !!r.approvalId && 'cursor-pointer hover:bg-bg-subtle/60', r.waitingForMe && 'bg-[var(--tt-primary)]/[0.03]')}>
+                {box(r)}
                 <td className={cell}>
                   <p className="font-semibold text-fg">{r.employee.name}</p>
                   <p className="text-xs text-fg-muted">{[r.employee.code, r.employee.department, r.employee.role].filter(Boolean).join(' · ')}</p>
@@ -241,8 +261,11 @@ export function RequestTable({ type, rows, onOpen }: { type: RequestType; rows: 
 
       <ul className="min-h-0 flex-1 divide-y divide-line overflow-y-auto tt-scroll-hidden md:hidden">
         {rows.map((r) => (
-          <li key={r.id}>
-            <button type="button" disabled={!r.approvalId} onClick={() => onOpen(r)} className="flex w-full flex-col gap-2 p-3.5 text-left hover:bg-bg-subtle/60 disabled:hover:bg-transparent">
+          <li key={r.id} className="flex items-start">
+            {selection && selectable(r) && (
+              <input type="checkbox" aria-label={`Select ${r.employee.name}`} checked={selection.ids.has(r.approvalId as number)} onChange={() => selection.toggle(r.approvalId as number)} className="ml-3.5 mt-4 h-4 w-4 shrink-0 cursor-pointer accent-[var(--tt-primary)]" />
+            )}
+            <button type="button" disabled={!r.approvalId} onClick={() => onOpen(r)} className="flex w-full min-w-0 flex-col gap-2 p-3.5 text-left hover:bg-bg-subtle/60 disabled:hover:bg-transparent">
               <span className="flex items-start justify-between gap-2">
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-semibold text-fg">{r.employee.name}</span>

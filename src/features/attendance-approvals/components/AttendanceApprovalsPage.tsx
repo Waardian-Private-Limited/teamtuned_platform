@@ -15,7 +15,12 @@ import { useRequestList } from '../hooks/useRequestList';
 import { ApprovalsEmptyState } from './ApprovalsEmptyState';
 import { RequestFilters } from './RequestFilters';
 import { ExitApprovalsQueue } from '@/features/exits/components/ExitApprovalsQueue';
-import { RequestTable } from './RequestTable';
+import { RequestTable, selectable } from './RequestTable';
+import { useAuth } from '@/providers/auth-provider';
+import { ConfirmDialog, type ConfirmState } from '@/components/ui/ConfirmDialog';
+import { bulkDecide } from '@/features/approvals/api/approvals.api';
+import { showError, showSuccess } from '@/lib/toast';
+import { messageOf } from '@/lib/api/errors';
 import { ROW_STATUS } from '../constants/review.constants';
 import type { RequestType, ReviewScope, RowStatus } from '../types/review.model';
 import type { FilterOptionsDto } from '@/features/attendance-dashboard/types/dashboard.dto';
@@ -86,6 +91,32 @@ interface QueueProps {
 function RequestQueue({ type, noun, options, tabs, headerAction }: QueueProps) {
   const [openId, setOpenId] = React.useState<number | null>(null);
   const list = useRequestList(type);
+  // Bulk approval: organization admin only for now (approves on everyone's behalf, as an admin override).
+  const { role } = useAuth();
+  const canBulk = role === 'OrgAdmin';
+  const [picked, setPicked] = React.useState<Set<number>>(new Set());
+  const [confirm, setConfirm] = React.useState<ConfirmState | null>(null);
+  React.useEffect(() => { setPicked(new Set()); }, [list.rows]);
+  const selection = canBulk ? {
+    ids: picked,
+    toggle: (id: number) => setPicked((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; }),
+    toggleAll: (on: boolean) => setPicked(on ? new Set(list.rows.filter(selectable).map((r) => r.approvalId as number)) : new Set()),
+  } : null;
+  const approvePicked = () => setConfirm({
+    title: `Approve ${picked.size} request${picked.size === 1 ? '' : 's'}?`,
+    body: <p className="text-sm text-fg-muted">Each is approved as an admin decision, whatever step it is waiting on. The employees are told as usual.</p>,
+    cta: 'Approve',
+    run: async () => {
+      try {
+        const res = await bulkDecide([...picked], 'approve');
+        if (res.failed) showError(`${res.succeeded} approved, ${res.failed} not: ${res.results.filter((r) => !r.ok).map((r) => r.message).filter(Boolean)[0] || 'try them one by one'}`);
+        else showSuccess(`${res.succeeded} approved`);
+      } catch (e) {
+        showError(messageOf(e));
+      }
+      list.reload();
+    },
+  });
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
@@ -128,7 +159,16 @@ function RequestQueue({ type, noun, options, tabs, headerAction }: QueueProps) {
         ) : (
           <>
             <div className={cx('flex min-h-0 flex-1 flex-col transition-opacity duration-200', list.fetching ? 'opacity-70' : 'opacity-100')}>
-              <RequestTable type={type} rows={list.rows} onOpen={(r) => setOpenId(r.approvalId)} />
+              {selection && picked.size > 0 && (
+                <div className="flex items-center justify-between gap-3 border-b border-line bg-bg-subtle px-4 py-2">
+                  <span className="text-sm font-semibold text-fg">{picked.size} selected</span>
+                  <span className="flex gap-2">
+                    <button type="button" onClick={() => setPicked(new Set())} className="inline-flex h-8 items-center rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-fg hover:bg-bg-subtle">Clear</button>
+                    <button type="button" onClick={approvePicked} className="inline-flex h-8 items-center rounded-lg bg-[var(--tt-primary)] px-3 text-xs font-semibold text-[var(--tt-on-primary)]">Approve selected</button>
+                  </span>
+                </div>
+              )}
+              <RequestTable type={type} rows={list.rows} onOpen={(r) => setOpenId(r.approvalId)} selection={selection} />
             </div>
             <div className="border-t border-line bg-surface px-4 py-2.5">
               <Pagination currentPage={list.page} totalPages={list.totalPages} totalItems={list.total} pageSize={list.pageSize} onPageChange={list.setPage} onPageSizeChange={list.setPageSize} />
@@ -138,6 +178,7 @@ function RequestQueue({ type, noun, options, tabs, headerAction }: QueueProps) {
       </div>
 
       <RequestDrawer id={openId} onClose={() => setOpenId(null)} onChanged={list.reload} />
+      <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
     </div>
   );
 }
