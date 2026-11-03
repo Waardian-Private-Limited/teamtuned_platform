@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Heart, Trash2 } from 'lucide-react';
 import { messageOf } from '@/lib/api/errors';
 import { showError } from '@/lib/toast';
+import { ConfirmDialog, type ConfirmState } from '@/components/ui/ConfirmDialog';
 import { cx } from '@/theme/tokens';
 import * as api from '../api/birthdays.api';
 
@@ -66,6 +67,7 @@ function Wall({ employeeId, onBack }: { employeeId: number; onBack: () => void }
   const [text, setText] = React.useState('');
   const [replyTo, setReplyTo] = React.useState<api.WishDto | null>(null);
   const [busy, setBusy] = React.useState(false);
+  const [confirm, setConfirm] = React.useState<ConfirmState | null>(null);
 
   const load = React.useCallback(() => api.getWall(employeeId).then(setWall).catch((e) => setError(messageOf(e))), [employeeId]);
   React.useEffect(() => { void load(); }, [load]);
@@ -120,6 +122,20 @@ function Wall({ employeeId, onBack }: { employeeId: number; onBack: () => void }
   const remove = async (id: number) => {
     try { await api.removeWish(id); await load(); } catch (e) { showError(messageOf(e)); }
   };
+  // Removing someone else's message (an admin moderating) asks first: it disappears for everyone, with its replies.
+  const ask = (w: api.WishDto, reply: boolean) => (w.mine ? remove(w.id) : setConfirm({
+    title: 'Remove this message?',
+    body: (
+      <div className="space-y-2 text-sm">
+        <p className="text-fg-muted">From {w.author.name}:</p>
+        <p className="whitespace-pre-wrap rounded-lg border border-line bg-bg-subtle p-2.5 text-fg">{w.message}</p>
+        <p className="text-fg-muted">It disappears for everyone{reply ? '' : ', with its replies'}. This cannot be undone.</p>
+      </div>
+    ),
+    cta: 'Remove',
+    danger: true,
+    run: () => remove(w.id),
+  }));
 
   const bubble = (w: api.WishDto, reply: boolean) => (
     <div key={w.id} className={cx('flex gap-2.5', reply && 'ml-10 mt-2')}>
@@ -127,7 +143,7 @@ function Wall({ employeeId, onBack }: { employeeId: number; onBack: () => void }
       <div className="min-w-0 flex-1 rounded-2xl border border-line bg-surface p-3">
         <div className="flex items-center justify-between gap-2">
           <p className="truncate text-sm font-semibold text-fg">{w.author.name}</p>
-          {w.mine && <button type="button" aria-label="Remove" onClick={() => remove(w.id)} className="text-fg-muted hover:text-fg"><Trash2 size={14} /></button>}
+          {(w.mine || wall.can_moderate) && <button type="button" aria-label="Remove" title={w.mine ? 'Remove' : 'Remove an inappropriate message'} onClick={() => ask(w, reply)} className="text-fg-muted hover:text-[var(--tt-danger)]"><Trash2 size={14} /></button>}
         </div>
         <p className="mt-1 whitespace-pre-wrap text-sm text-fg">{w.message}</p>
         <div className="mt-1.5 flex items-center gap-4">
@@ -170,6 +186,8 @@ function Wall({ employeeId, onBack }: { employeeId: number; onBack: () => void }
           ))}
         </div>
       )}
+
+      <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
 
       {canWrite && (
         <div className="sticky bottom-0 space-y-2 border-t border-line bg-surface pt-3">

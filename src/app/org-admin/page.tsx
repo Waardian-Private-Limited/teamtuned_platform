@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 
-// The org portal account is not an employee, so its home is the attendance dashboard.
+// The org portal account's home: birthdays, meetings and tasks at a glance.
 export default function OrgAdminPage() {
-  redirect('/org-admin/attendance/dashboard');
+  redirect('/org-admin/dashboard');
 }

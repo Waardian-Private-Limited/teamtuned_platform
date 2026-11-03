@@ -2,6 +2,7 @@ const PAGE_TITLES: Record<string, { title: string; category: string }> = {
     // Self
     '/employee': { title: 'Dashboard', category: 'Self' },
     '/org-admin': { title: 'Dashboard', category: 'Self' },
+    '/org-admin/dashboard': { title: 'Dashboard', category: 'Self' },
     '/employee/approvals': { title: 'Approvals', category: 'Self' },
     '/org-admin/approvals': { title: 'Approvals', category: 'Self' },
     '/employee/my-exit': { title: 'My exit', category: 'Self' },

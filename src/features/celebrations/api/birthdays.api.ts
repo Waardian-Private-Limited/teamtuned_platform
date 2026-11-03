@@ -30,6 +30,8 @@ export interface WallDto {
   year: number;
   is_today: boolean;
   features: { likes: boolean; wishes: boolean };
+  /** An organization admin may remove any wish or reply. */
+  can_moderate?: boolean;
   likes: { count: number; liked: boolean };
   wishes: WishDto[];
   next_before: number | null;

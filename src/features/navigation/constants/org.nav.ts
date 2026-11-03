@@ -92,6 +92,8 @@ import { ANY_LABOUR_PERM, LABOUR_MEAS_PAGE_PERMS, LABOUR_PAYABLE_PERMS, LABOUR_S
  *    group here.
  */
 export const orgNav: NavNode[] = [
+  { kind: 'link', label: 'Dashboard', href: '/org-admin/dashboard', icon: LayoutDashboard },
+  { kind: 'link', label: 'Birthdays', href: '/org-admin/birthdays', icon: Gift },
   { kind: 'link', label: 'Approvals', href: '/org-admin/approvals', icon: Inbox, match: 'prefix' },
   {
     kind: 'group', id: 'attendance', label: 'Attendance',
