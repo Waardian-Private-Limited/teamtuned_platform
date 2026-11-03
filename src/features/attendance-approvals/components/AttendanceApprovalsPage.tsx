@@ -29,7 +29,7 @@ const SCOPES: ReadonlyArray<{ value: ReviewScope; label: string }> = [
   { value: 'assigned', label: 'Assigned to me' },
   { value: 'all', label: 'All requests' },
 ];
-const COUNTED: RowStatus[] = ['pending', 'approved', 'rejected', 'cancelled'];
+const COUNTED: RowStatus[] = ['pending', 'approved', 'rejected', 'cancelled', 'payroll_closed'];
 
 /** Request types this page covers, each its own tab. */
 type TabValue = RequestType | 'exit';

@@ -21,7 +21,7 @@ export const STATUS_LABEL: Record<string, string> = {
 export const EVENT_LABEL: Record<string, string> = {
   submitted: 'Submitted', resubmitted: 'Resubmitted', step_started: 'Sent for approval', approved: 'Approved', rejected: 'Rejected',
   sent_back: 'Sent back', withdrawn: 'Withdrawn', override_approved: 'Approved by admin', override_rejected: 'Rejected by admin',
-  condition_skipped: 'Step skipped (condition not met)', no_approver_skipped: 'Step skipped (nobody found)',
+  condition_skipped: 'Step skipped (condition not met)', no_approver_skipped: 'Step skipped (nobody found)', own_step_skipped: 'Step skipped (the requester was its only approver)',
   no_approver_found: 'Nobody found, sent to admins', auto_skipped_duplicate: 'Step skipped (already approved)',
   escalated: 'Escalated', reassigned: 'Reassigned',
   approvers_updated: 'Approvers updated (people or flow changed)', flow_updated: 'Flow updated, request follows the new flow',

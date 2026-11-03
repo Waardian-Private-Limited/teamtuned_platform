@@ -9,6 +9,7 @@ export const REVIEW_STATUS_OPTIONS: ReadonlyArray<{ value: ReviewStatusFilter; l
   { value: 'approved', label: 'Approved' },
   { value: 'rejected', label: 'Rejected' },
   { value: 'cancelled', label: 'Withdrawn' },
+  { value: 'payroll_closed', label: 'Payroll closed' },
   { value: 'all', label: 'All statuses' },
 ];
 
@@ -20,6 +21,8 @@ export const ROW_STATUS: Record<RowStatus, { label: string; className: string }>
   approved: { label: 'Approved', className: 'border-[var(--tt-success)]/25 bg-[var(--tt-success-soft)] text-[var(--tt-success)]' },
   rejected: { label: 'Rejected', className: 'border-[var(--tt-danger)]/25 bg-[var(--tt-danger-soft)] text-[var(--tt-danger)]' },
   cancelled: { label: 'Withdrawn', className: 'border-line bg-bg-subtle text-fg-muted' },
+  // Still pending when the payroll for its date was paid: kept, but no longer decided.
+  payroll_closed: { label: 'Payroll closed', className: 'border-line bg-bg-subtle text-fg-muted' },
 };
 
 /** What about a punch needed a look, as a reviewer reads it. */

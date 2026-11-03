@@ -2,10 +2,11 @@ import type { RegularizationKind } from '@/features/my-attendance/types/regulari
 
 /** Assigned: what the approval flows put on me. All: everything in my reach, to follow. */
 export type ReviewScope = 'assigned' | 'all';
-export type ReviewStatusFilter = 'waiting' | 'pending' | 'approved' | 'rejected' | 'cancelled' | 'all';
+// payroll_closed: still pending when the payroll for its date was paid; parked out of every other status.
+export type ReviewStatusFilter = 'waiting' | 'pending' | 'approved' | 'rejected' | 'cancelled' | 'payroll_closed' | 'all';
 /** The kinds of request a reviewer works through here, each its own tab. */
 export type RequestType = 'regularize' | 'verification' | 'leave' | 'compoff' | 'absence_cover' | 'optional_holiday';
-export type RowStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+export type RowStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'payroll_closed';
 
 /** Where a recorded punch was made; outside means beyond the site's boundary. */
 export interface Place {

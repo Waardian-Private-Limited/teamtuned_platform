@@ -3,7 +3,7 @@ import type { Place, RequestRow, ReviewedPunch, ReviewStatusFilter, RowPage, Row
 import type { RegularizationKind } from '@/features/my-attendance/types/regularization.model';
 
 const KINDS: readonly string[] = ['missed_checkout', 'missed_checkin', 'missed_both', 'wrong_time', 'night_ot_missed_both', 'night_ot_missed_end', 'night_ot_wrong_time', 'remove_late_mark', 'remove_late_penalty', 'remove_early_mark', 'remove_early_penalty'];
-const STATUSES: readonly string[] = ['pending', 'approved', 'rejected', 'cancelled'];
+const STATUSES: readonly string[] = ['pending', 'approved', 'rejected', 'cancelled', 'payroll_closed'];
 const kindsOf = (list: string[] | undefined) => (list || []).filter((k): k is RegularizationKind => KINDS.includes(k));
 const statusOf = (s: string): RowStatus => (STATUSES.includes(s) ? (s as RowStatus) : 'pending');
 
