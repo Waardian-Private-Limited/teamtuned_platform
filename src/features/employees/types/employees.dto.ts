@@ -220,6 +220,8 @@ export interface EmployeeDetailDto {
   shift_break_minutes: number | null;
   week_off_config: WeekOffConfig | null;
   location_access: string;
+  hide_in_attendance?: boolean;
+  hide_in_payroll?: boolean;
   ctc: number | null;
   monthly_gross: number | null;
   salary_breakdown: { component_id: number; name: string; amount: number }[];

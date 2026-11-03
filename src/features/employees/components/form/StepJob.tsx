@@ -3,6 +3,7 @@
 import React from 'react';
 import { useManageableSubOrgs } from '@/features/sub-organizations/hooks/useManageableSubOrgs';
 import { FieldLabel, FieldMessage, OptionCard, Section, SelectField, TextField } from '@/components/ui/FormControls';
+import { Switch } from '@/components/ui/Switch';
 import { ManagerPicker } from './ManagerPicker';
 import { SitePicker } from './SitePicker';
 import type { EmployeeFormController } from './types';
@@ -208,6 +209,21 @@ export function StepJob({ c, employeeId }: { c: EmployeeFormController; employee
             ))}
           </div>
           <FieldMessage error={errors.location_access} />
+        </div>
+        <div className="mt-5 space-y-2">
+          <FieldLabel label="Visibility" />
+          {([
+            ['hideInAttendance', 'Hide in attendance', 'Left out of attendance lists, the dashboard and attendance reports. Attendance is still recorded, and the employee still sees their own.'],
+            ['hideInPayroll', 'Hide in payroll', 'Not included in payroll at all: no pay run, payslip, register or bank sheet. For people paid outside the system.'],
+          ] as const).map(([key, title, help]) => (
+            <div key={key} className="flex items-start justify-between gap-4 rounded-lg border border-line px-3 py-2.5">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-fg">{title}</p>
+                <p className="text-xs text-fg-muted">{help}</p>
+              </div>
+              <Switch checked={form[key]} onChange={(v) => set(key, v)} label={title} />
+            </div>
+          ))}
         </div>
       </Section>
     </div>

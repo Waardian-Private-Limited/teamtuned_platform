@@ -37,6 +37,10 @@ export interface EmployeeFormState {
   workState: string;
   policyId: number | null;
   locationAccess: string;
+  /** Left out of attendance lists, dashboard and reports. */
+  hideInAttendance: boolean;
+  /** Not in payroll at all (paid outside the system). */
+  hideInPayroll: boolean;
   shiftSource: ShiftSource;
   shiftTemplateId: number | null;
   customShiftStart: string;
@@ -94,6 +98,8 @@ export function emptyForm(): EmployeeFormState {
     workState: '',
     policyId: null,
     locationAccess: 'assigned',
+    hideInAttendance: false,
+    hideInPayroll: false,
     shiftSource: 'policy',
     shiftTemplateId: null,
     customShiftStart: '09:00',
@@ -153,6 +159,8 @@ export function formFromDetail(d: EmployeeDetailDto): EmployeeFormState {
     workState: d.work_state || '',
     policyId: d.policy_overridden ? d.policy_id : null,
     locationAccess: d.location_access || 'assigned',
+    hideInAttendance: !!d.hide_in_attendance,
+    hideInPayroll: !!d.hide_in_payroll,
     shiftSource: d.shift_source || 'policy',
     shiftTemplateId: d.shift_template_id,
     customShiftStart: d.shift_source === 'custom' && d.shift_start ? d.shift_start : '09:00',
@@ -225,6 +233,8 @@ export function toPayload(f: EmployeeFormState, timingMode: string | null, salar
     work_state: f.workState || null,
     policy_id: f.policyId,
     location_access: f.locationAccess,
+    hide_in_attendance: f.hideInAttendance,
+    hide_in_payroll: f.hideInPayroll,
     shift_source: timingMode === 'fixed_time' ? f.shiftSource : 'policy',
     shift_template_id: timingMode === 'fixed_time' && f.shiftSource === 'template' ? f.shiftTemplateId : null,
     shift_start: timingMode === 'fixed_time' && f.shiftSource === 'custom' ? f.customShiftStart : null,
