@@ -195,3 +195,10 @@ export function getContractHistory(id: number) {
 export function renewContract(id: number, body: { end_date?: string; months?: number; reason?: string }) {
   return apiClient.post<ContractRenewalDto>(`/employees/${id}/contract/renew`, body, auth);
 }
+
+export interface LoginPasswordResult { success: boolean; password: string | null; login: string | null; signed_out: boolean; message: string }
+
+/** Org admin: a new sign-in password, typed or generated. A generated one is returned once and is not kept readable. */
+export function setLoginPassword(id: number, body: { generate?: boolean; password?: string; signOut: boolean }) {
+  return apiClient.post<LoginPasswordResult>(`/employees/${id}/login-password`, body, auth);
+}

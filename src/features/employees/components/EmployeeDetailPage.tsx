@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, SquarePen, UserPlus } from 'lucide-react';
+import { ArrowLeft, KeyRound, SquarePen, UserPlus } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { CareerTab } from '@/features/exits/components/CareerTab';
 import { RehireDialog } from '@/features/exits/components/RehireDialog';
@@ -14,6 +14,8 @@ import { EMPLOYEE_PERMISSIONS, STATUS_TONE } from '../constants/employees.consta
 import { useEmployeeDetail } from '../hooks/useEmployeeDetail';
 import { useEmployeeRoutes } from '../hooks/useEmployeeRoutes';
 import { ContractCard } from './detail/ContractCard';
+import { LoginPasswordDialog } from './detail/LoginPasswordDialog';
+import { useAuth } from '@/providers/auth-provider';
 
 /** One employee at a glance: job placement and, for fixed-term staff, the contract. Editing stays on the form. */
 export function EmployeeDetailPage({ employeeId }: { employeeId: number }) {
@@ -23,6 +25,9 @@ export function EmployeeDetailPage({ employeeId }: { employeeId: number }) {
   const { detail: d, error, setContract } = useEmployeeDetail(employeeId);
   const [tab, setTab] = React.useState<'overview' | 'career'>('overview');
   const [rehire, setRehire] = React.useState(false);
+  const [passwordOpen, setPasswordOpen] = React.useState(false);
+  // Org admin only: set or generate the employee's sign-in password.
+  const canSetPassword = useAuth().role === 'OrgAdmin' && !!d && !['Deleted', 'Terminated'].includes(d.status);
   const canRehire = can(EMPLOYEE_PERMISSIONS.ADD) && d?.status === 'Terminated';
   const primarySite = d?.sites?.find((s) => s.is_primary)?.name || null;
 
@@ -48,6 +53,12 @@ export function EmployeeDetailPage({ employeeId }: { employeeId: number }) {
             <button type="button" onClick={() => setRehire(true)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-fg transition-colors hover:bg-bg-subtle sm:text-sm">
               <UserPlus className="h-3.5 w-3.5" />
               Rehire
+            </button>
+          )}
+          {canSetPassword && (
+            <button type="button" onClick={() => setPasswordOpen(true)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-fg transition-colors hover:bg-bg-subtle sm:text-sm">
+              <KeyRound className="h-3.5 w-3.5" />
+              Login password
             </button>
           )}
           {canEdit && d && (
@@ -99,6 +110,7 @@ export function EmployeeDetailPage({ employeeId }: { employeeId: number }) {
           </div>
         )}
       </div>
+      {passwordOpen && d && <LoginPasswordDialog employeeId={employeeId} name={d.name} onClose={() => setPasswordOpen(false)} />}
       {rehire && d && <RehireDialog employee={{ id: employeeId, name: d.name, employee_code: d.employee_code }} onClose={() => setRehire(false)} />}
     </div>
   );
