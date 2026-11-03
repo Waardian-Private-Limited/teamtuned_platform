@@ -235,6 +235,15 @@ export interface DayDetailDto {
   holiday: { name: string; half: boolean } | null;
   leave: { code: string; name: string; units: number; is_paid: boolean; session?: LeaveSession | null } | null;
   night_ot_yesterday_minutes: number;
+  night_ot_yesterday?: {
+    date: string;
+    minutes: number;
+    level: string;
+    source: 'night_ot_session' | 'work_session';
+    sessions: Array<{ in_at: string | null; out_at: string | null }>;
+    shift_end_at: string | null;
+    window: { start: string; end: string } | null;
+  } | null;
   override: { status: string | null; units: number | null; reason: string | null; by: string | null; at: string | null; in_time: string | null; out_time: string | null } | null;
   punches: Array<{
     id: number;

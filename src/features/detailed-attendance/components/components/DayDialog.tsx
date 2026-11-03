@@ -7,7 +7,7 @@ import { Alert } from '@/components/ui/Alert';
 import { COMP_OFF_REASON, COMP_OFF_STATE, FLAG_TEXT, SCHEDULE_TEXT } from '../../constants/detailed.constants';
 import { useDay } from '../../hooks/useDay';
 import type { DayDetail } from '../../types/detailed.model';
-import { clockText, dateTimeText, daysText, leaveText, longDayText, minutesText, punchTimeText, timeText } from '../../utils/format';
+import { clockText, dateTimeText, dayText, daysText, leaveText, longDayText, minutesText, punchTimeText, timeText } from '../../utils/format';
 import { Avatar, Skeleton } from './controls';
 import { CompOffGrantsList } from './CompOffGrantsList';
 import { PunchCard } from './PunchCard';
@@ -106,6 +106,36 @@ function expectation(d: DayDetail): { value: string; hint?: string } {
   if (sch && sch.flexible) return { value: 'Flexible', hint: 'no fixed shift' };
   if (sch && sch.kind !== 'working' && sch.kind !== 'absent') return { value: SCHEDULE_TEXT[sch.kind], hint: sch.roster ? 'from the roster' : undefined };
   return { value: '—' };
+}
+
+/** Last night's overtime and what it was worked out from, so HR can check it against the check-ins. */
+function NightOtLine({ d }: { d: DayDetail }) {
+  const n = d.nightOtYesterday;
+  const tz = d.timezone;
+  const level = n && n.level === 'full' ? ' · counts as a full day' : n && n.level === 'half' ? ' · counts as a half day' : '';
+  const span = (inAt: string | null, outAt: string | null, workDate: string) =>
+    `${inAt ? timeText(inAt, tz) : '—'} – ${outAt ? punchTimeText(outAt, workDate, tz) : 'not ended'}`;
+  return (
+    <li className="flex items-start gap-2 text-fg">
+      <Moon className="mt-0.5 h-4 w-4 shrink-0 text-fg-muted" />
+      <span className="min-w-0">
+        <span className="block">Worked night overtime last night, {minutesText(d.nightOtYesterdayMinutes)}{level}</span>
+        {n && n.source === 'night_ot_session' && (
+          <span className="block text-xs text-fg-muted">
+            Night overtime check-in {n.sessions.map((x) => span(x.inAt, x.outAt, n.date)).join(', ')}
+            {n.sessions.some((x) => !x.outAt) ? ' (not ended: counted up to the end of the night window)' : ''}
+          </span>
+        )}
+        {n && n.source === 'work_session' && (
+          <span className="block text-xs text-fg-muted">
+            From {dayText(n.date)}&apos;s work session {span(n.sessions[0]?.inAt ?? null, n.sessions[0]?.outAt ?? null, n.date)}: the time after the shift
+            {n.shiftEndAt ? ` ended at ${timeText(n.shiftEndAt, tz)}` : ''}
+            {n.window ? `, inside the night window ${clockText(n.window.start)} – ${clockText(n.window.end)}` : ''}.
+          </span>
+        )}
+      </span>
+    </li>
+  );
 }
 
 /** The day's regularization request: why the day reads the way it does when an approval decided it. */
@@ -244,7 +274,7 @@ function Body({ d, actions }: { d: DayDetail; actions?: DayViewProps['actions'] 
         <ul className="space-y-1.5 text-sm">
           {d.holiday && <li className="flex items-center gap-2 text-fg"><CalendarDays className="h-4 w-4 shrink-0 text-fg-muted" /> {d.holiday.name}{d.holiday.half ? ' (half day)' : ''}</li>}
           {d.leave && <li className="flex items-center gap-2 text-fg"><CalendarDays className="h-4 w-4 shrink-0 text-fg-muted" /> {leaveText(d.leave)}</li>}
-          {d.nightOtYesterdayMinutes > 0 && <li className="flex items-center gap-2 text-fg"><Moon className="h-4 w-4 shrink-0 text-fg-muted" /> Worked night overtime last night, {minutesText(d.nightOtYesterdayMinutes)}</li>}
+          {d.nightOtYesterdayMinutes > 0 && <NightOtLine d={d} />}
           {d.locked && <li className="flex items-center gap-2 text-fg"><Lock className="h-4 w-4 shrink-0 text-fg-muted" /> Locked for payroll, no changes</li>}
         </ul>
       )}

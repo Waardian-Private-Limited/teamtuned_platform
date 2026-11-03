@@ -284,6 +284,16 @@ export interface DayDetail {
   holiday: { name: string; half: boolean } | null;
   leave: Leave | null;
   nightOtYesterdayMinutes: number;
+  /** Where last night's overtime came from: its own night check-ins, or the previous day's session past the shift. */
+  nightOtYesterday: {
+    date: string;
+    minutes: number;
+    level: string;
+    source: 'night_ot_session' | 'work_session';
+    sessions: Array<{ inAt: string | null; outAt: string | null }>;
+    shiftEndAt: string | null;
+    window: { start: string; end: string } | null;
+  } | null;
   override: DayOverride | null;
   punches: Punch[];
   breaks: Array<{ id: number; startedAt: string; endedAt: string | null }>;

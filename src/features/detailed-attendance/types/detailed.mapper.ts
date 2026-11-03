@@ -207,6 +207,17 @@ export function toDay(dto: DayDetailDto): DayDetail {
     holiday: dto.holiday,
     leave: dto.leave ? { code: dto.leave.code, name: dto.leave.name, units: dto.leave.units, isPaid: dto.leave.is_paid, session: dto.leave.session ?? null } : null,
     nightOtYesterdayMinutes: dto.night_ot_yesterday_minutes,
+    nightOtYesterday: dto.night_ot_yesterday
+      ? {
+          date: dto.night_ot_yesterday.date,
+          minutes: dto.night_ot_yesterday.minutes,
+          level: dto.night_ot_yesterday.level,
+          source: dto.night_ot_yesterday.source,
+          sessions: dto.night_ot_yesterday.sessions.map((x) => ({ inAt: x.in_at, outAt: x.out_at })),
+          shiftEndAt: dto.night_ot_yesterday.shift_end_at,
+          window: dto.night_ot_yesterday.window,
+        }
+      : null,
     override: dto.override ? { status: dto.override.status, units: dto.override.units, reason: dto.override.reason, by: dto.override.by, at: dto.override.at, inTime: dto.override.in_time, outTime: dto.override.out_time } : null,
     punches: dto.punches.map((p) => ({ id: p.id, direction: p.direction, kind: p.kind, at: p.at, source: p.source, place: p.place, location: p.location, distanceM: p.distance_m, lat: p.lat, lng: p.lng, accuracyM: p.accuracy_m, hasImage: p.has_image, face: p.face, voided: p.voided, voidReason: p.void_reason })),
     breaks: dto.breaks.map((b) => ({ id: b.id, startedAt: b.started_at, endedAt: b.ended_at })),
