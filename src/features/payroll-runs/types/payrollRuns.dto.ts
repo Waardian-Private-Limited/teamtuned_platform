@@ -144,6 +144,8 @@ export interface CellDto {
   leave: string | { code: string | null; name: string | null; units: number | null; is_paid: boolean | null } | null;
   late_minutes: number | null;
   overtime_minutes: number | null;
+  note?: string | null;
+  covered?: boolean;
 }
 
 export interface LeaveTypeDaysDto {

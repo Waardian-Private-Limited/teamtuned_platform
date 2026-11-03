@@ -32,9 +32,10 @@ const hours = (minutes: number) => `${Math.floor(minutes / 60)}h${minutes % 60 ?
 
 function unitsNote(c: DayCell) {
   if (workedOff(c)) return `Worked ${hours(c.overtimeMinutes)}`;
-  if (c.payableUnits === null) return null;
+  if (c.payableUnits === null) return c.note;
   if (isLop(c)) return c.payableUnits === 0 ? 'LOP 1 day' : `LOP ${Math.round((1 - c.payableUnits) * 100) / 100} day`;
-  if (c.payableUnits === 1) return null;
+  if (c.covered) return `Absent · paid by ${c.leaveName || 'leave'}`;
+  if (c.payableUnits === 1) return c.note && c.note !== c.leaveName ? `${c.note} · paid` : null;
   if (c.payableUnits === 0) return 'No pay';
   return `${c.payableUnits} paid`;
 }

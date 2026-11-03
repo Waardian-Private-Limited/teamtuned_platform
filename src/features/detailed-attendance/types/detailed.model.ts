@@ -291,7 +291,18 @@ export interface DayDetail {
   history: Array<{ id: number; at: string; kind: string; summary: string | null; reason: string | null; by: string | null }>;
   canOverride: boolean;
   locked: boolean;
-  regularization: { id: number; status: string; kinds: string[]; submittedAt: string | null } | null;
+  regularization: {
+    id: number;
+    status: string;
+    kinds: string[];
+    submittedAt: string | null;
+    reason: string | null;
+    requestedInAt: string | null;
+    requestedOutAt: string | null;
+    rejectionReason: string | null;
+    /** The day keeps the old system's status: its approval decided the day. */
+    fromOldSystem: boolean;
+  } | null;
 }
 
 export interface Change<T> {

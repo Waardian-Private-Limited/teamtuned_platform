@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { AlertTriangle, CalendarDays, ChevronDown, ChevronUp, Coffee, Lock, Moon, PencilLine } from 'lucide-react';
+import { AlertTriangle, CalendarDays, CheckCircle2, ChevronDown, ChevronUp, Coffee, Hourglass, Lock, Moon, PencilLine, XCircle } from 'lucide-react';
 import { Dialog } from '@/components/ui/Dialog';
 import { Alert } from '@/components/ui/Alert';
 import { COMP_OFF_REASON, COMP_OFF_STATE, FLAG_TEXT, SCHEDULE_TEXT } from '../../constants/detailed.constants';
@@ -108,9 +108,67 @@ function expectation(d: DayDetail): { value: string; hint?: string } {
   return { value: '—' };
 }
 
+/** The day's regularization request: why the day reads the way it does when an approval decided it. */
+function RegularizationNote({ d }: { d: DayDetail }) {
+  const r = d.regularization;
+  if (!r) return null;
+  const asked = r.requestedInAt || r.requestedOutAt
+    ? `Asked for ${r.requestedInAt ? timeText(r.requestedInAt, d.timezone) : '—'} – ${r.requestedOutAt ? punchTimeText(r.requestedOutAt, d.date, d.timezone) : '—'}`
+    : null;
+  if (r.status === 'approved') {
+    return (
+      <div className="rounded-xl border border-[var(--tt-success)] bg-[var(--tt-success-soft)] p-3">
+        <p className="flex items-center gap-2 text-sm font-bold text-[var(--tt-success)]"><CheckCircle2 className="h-4 w-4 shrink-0" /> Regularized: request approved</p>
+        <p className="mt-1 text-sm text-fg">
+          {r.fromOldSystem
+            ? 'Approved in the old system. The day keeps the status it gave, so it is paid as shown even without a check-out.'
+            : 'The day is worked out again from the approved times.'}
+        </p>
+        {asked && <p className="mt-0.5 text-sm text-fg-muted">{asked}</p>}
+        {r.reason && <p className="mt-0.5 text-sm text-fg-muted">Reason: {r.reason}</p>}
+      </div>
+    );
+  }
+  if (r.status === 'pending') {
+    return (
+      <div className="rounded-xl border border-[var(--tt-warning)] bg-bg-subtle/60 p-3">
+        <p className="flex items-center gap-2 text-sm font-bold text-fg"><Hourglass className="h-4 w-4 shrink-0 text-[var(--tt-warning)]" /> Regularization waiting for approval</p>
+        {asked && <p className="mt-0.5 text-sm text-fg-muted">{asked}</p>}
+        {r.reason && <p className="mt-0.5 text-sm text-fg-muted">Reason: {r.reason}</p>}
+      </div>
+    );
+  }
+  if (r.status === 'rejected') {
+    return (
+      <div className="rounded-xl border border-line bg-bg-subtle/60 p-3">
+        <p className="flex items-center gap-2 text-sm font-bold text-fg"><XCircle className="h-4 w-4 shrink-0 text-[var(--tt-danger)]" /> Regularization rejected</p>
+        {r.rejectionReason && <p className="mt-0.5 text-sm text-fg-muted">Why: {r.rejectionReason}</p>}
+      </div>
+    );
+  }
+  return null;
+}
+
 function OverrideNote({ d }: { d: DayDetail }) {
   const o = d.override;
   if (!o) return null;
+  // A status copied from the old system is not an HR change made here.
+  if (o.reason === 'legacy_import') {
+    if (d.regularization?.status === 'approved') return null;
+    return (
+      <div className="rounded-xl border border-line bg-bg-subtle/60 p-3">
+        <p className="flex items-center gap-2 text-sm font-bold text-fg"><PencilLine className="h-4 w-4 shrink-0 text-fg-muted" /> Status from the old system{o.status ? `: ${statusText(o.status)}` : ''}</p>
+        <p className="mt-0.5 text-sm text-fg-muted">Copied at the move to the new system. Set the day again here if it needs to change.</p>
+      </div>
+    );
+  }
+  if (o.reason === 'legacy_override') {
+    return (
+      <div className="rounded-xl border border-line bg-bg-subtle/60 p-3">
+        <p className="flex items-center gap-2 text-sm font-bold text-fg"><PencilLine className="h-4 w-4 shrink-0 text-fg-muted" /> Set by HR in the old system{o.status ? `: ${statusText(o.status)}` : ''}</p>
+      </div>
+    );
+  }
   const hours = o.inTime && o.outTime ? `Hours set to ${clockText(o.inTime)} – ${clockText(o.outTime)}` : null;
   const forced = o.status ? `marked ${statusText(o.status)}` : null;
   return (
@@ -191,6 +249,7 @@ function Body({ d, actions }: { d: DayDetail; actions?: DayViewProps['actions'] 
         </ul>
       )}
 
+      <RegularizationNote d={d} />
       <OverrideNote d={d} />
 
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-[1.25fr_0.9fr_0.95fr_0.9fr]">

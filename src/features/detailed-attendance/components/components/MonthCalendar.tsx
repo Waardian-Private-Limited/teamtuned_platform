@@ -1,6 +1,6 @@
 'use client';
 
-import { Hourglass, PencilLine } from 'lucide-react';
+import { CheckCircle2, Hourglass, PencilLine } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { TONE, WEEKDAYS } from '../../constants/detailed.constants';
 import type { MonthCell } from '../../types/detailed.model';
@@ -40,8 +40,9 @@ function Cell({ c, today, onOpen }: { c: MonthCell; today: string; onOpen: (date
       {shown && <span aria-hidden className={cx('absolute inset-y-0 left-0 w-1', tone.bar)} />}
       <span className="flex items-center justify-between pl-1">
         <span className={cx('text-sm font-bold tabular-nums', c.date === today ? 'text-fg' : 'text-fg-muted')}>{c.day}</span>
-        {c.badge.overridden && <span title="Set by HR" className="inline-flex"><PencilLine aria-hidden className="h-3 w-3 text-fg-muted" /></span>}
+        {c.badge.overridden && c.regularizationStatus !== 'approved' && <span title="Set by HR" className="inline-flex"><PencilLine aria-hidden className="h-3 w-3 text-fg-muted" /></span>}
         {c.regularizationStatus === 'pending' && <span title="Regularization request waiting for approval" className="inline-flex"><Hourglass aria-hidden className="h-3 w-3 text-[var(--tt-warning)]" /></span>}
+        {c.regularizationStatus === 'approved' && <span title="Regularized: request approved" className="inline-flex"><CheckCircle2 aria-hidden className="h-3 w-3 text-[var(--tt-success)]" /></span>}
       </span>
       {shown && (
         <span className="mt-1 flex min-w-0 flex-1 flex-col gap-0.5 pl-1">
@@ -87,7 +88,7 @@ export function MonthCalendar({ cells, today, onOpen }: { cells: MonthCell[]; to
                 <span className="min-w-0 flex-1">
                   {ahead
                     ? <span className="flex items-center gap-1.5 text-sm font-bold text-fg"><RosterCodeChip slots={c.schedule} />{rosterTimes(c) || null}</span>
-                    : <span className={cx('flex items-center gap-1 text-sm font-bold', tone.text)}>{labelOf(c)}{c.badge.overridden && <PencilLine aria-label="Set by HR" className="h-3 w-3" />}{c.regularizationStatus === 'pending' && <Hourglass aria-label="Regularization request waiting for approval" className="h-3 w-3 text-[var(--tt-warning)]" />}</span>}
+                    : <span className={cx('flex items-center gap-1 text-sm font-bold', tone.text)}>{labelOf(c)}{c.badge.overridden && c.regularizationStatus !== 'approved' && <PencilLine aria-label="Set by HR" className="h-3 w-3" />}{c.regularizationStatus === 'pending' && <Hourglass aria-label="Regularization request waiting for approval" className="h-3 w-3 text-[var(--tt-warning)]" />}{c.regularizationStatus === 'approved' && <CheckCircle2 aria-label="Regularized: request approved" className="h-3 w-3 text-[var(--tt-success)]" />}</span>}
                   {!ahead && (times(c) || c.badge.note || c.schedule.length > 0) && (
                     <span className="flex min-w-0 items-center gap-1.5 text-xs text-fg-muted">
                       {c.schedule.length > 0 && <RosterCodeChip slots={c.schedule} />}

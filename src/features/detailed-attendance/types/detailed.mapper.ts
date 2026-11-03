@@ -214,7 +214,19 @@ export function toDay(dto: DayDetailDto): DayDetail {
     history: dto.history,
     canOverride: dto.can_override,
     locked: dto.locked,
-    regularization: dto.regularization ? { id: dto.regularization.id, status: dto.regularization.status, kinds: dto.regularization.kinds, submittedAt: dto.regularization.submitted_at } : null,
+    regularization: dto.regularization
+      ? {
+          id: dto.regularization.id,
+          status: dto.regularization.status,
+          kinds: dto.regularization.kinds,
+          submittedAt: dto.regularization.submitted_at,
+          reason: dto.regularization.reason ?? null,
+          requestedInAt: dto.regularization.requested_in_at ?? null,
+          requestedOutAt: dto.regularization.requested_out_at ?? null,
+          rejectionReason: dto.regularization.rejection_reason ?? null,
+          fromOldSystem: dto.regularization.from_old_system === true,
+        }
+      : null,
   };
 }
 

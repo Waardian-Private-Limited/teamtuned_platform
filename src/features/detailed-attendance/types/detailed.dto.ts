@@ -258,7 +258,17 @@ export interface DayDetailDto {
   breaks: Array<{ id: number; started_at: string; ended_at: string | null; source: string }>;
   comp_off: CompOffGrantDto[];
   history: Array<{ id: number; at: string; kind: string; summary: string | null; reason: string | null; by: string | null }>;
-  regularization?: { id: number; status: string; kinds: string[]; submitted_at: string | null } | null;
+  regularization?: {
+    id: number;
+    status: string;
+    kinds: string[];
+    submitted_at: string | null;
+    reason?: string | null;
+    requested_in_at?: string | null;
+    requested_out_at?: string | null;
+    rejection_reason?: string | null;
+    from_old_system?: boolean;
+  } | null;
   can_override: boolean;
   locked: boolean;
 }

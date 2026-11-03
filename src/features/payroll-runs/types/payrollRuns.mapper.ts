@@ -218,6 +218,8 @@ function toAttendance(dto: AttendanceDto | null): Attendance | null {
       leaveName: typeof c.leave === 'string' ? c.leave : c.leave?.name ?? c.leave?.code ?? null,
       lateMinutes: n(c.late_minutes),
       overtimeMinutes: n(c.overtime_minutes),
+      note: c.note || null,
+      covered: c.covered === true,
     })),
   };
 }

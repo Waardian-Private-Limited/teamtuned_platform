@@ -126,6 +126,10 @@ export interface DayCell {
   leaveName: string | null;
   lateMinutes: number;
   overtimeMinutes: number;
+  /** What else matters about the day ("No check-out", "Covered by Comp-off", a holiday's name). */
+  note: string | null;
+  /** An absence the leave balance pays. */
+  covered: boolean;
 }
 
 export interface LopBreakdown {
