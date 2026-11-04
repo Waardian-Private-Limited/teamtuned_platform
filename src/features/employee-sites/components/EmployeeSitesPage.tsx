@@ -15,6 +15,7 @@ import { EmployeeSiteTable } from './components/EmployeeSiteTable';
 import { EmployeeSiteCardList } from './components/EmployeeSiteCardList';
 import { EmployeeSiteTableSkeleton } from './components/EmployeeSiteTableSkeleton';
 import { EmployeeSitesEmptyState } from './components/EmployeeSitesEmptyState';
+import { BulkAssignDialog } from './components/BulkAssignDialog';
 import { EmployeeSiteDrawer } from './components/EmployeeSiteDrawer';
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100];
@@ -44,6 +45,7 @@ export function EmployeeSitesPage() {
   const list = useEmployeeSiteList();
   const filters = useFilterOptions();
 
+  const [bulkOpen, setBulkOpen] = React.useState(false);
   const [openId, setOpenId] = React.useState<number | null>(null);
   const editor = useEmployeeSiteEditor(openId, list.refetch);
 
@@ -64,6 +66,7 @@ export function EmployeeSitesPage() {
         onSiteChange={list.setSiteId}
         subOrgId={list.subOrgId}
         onSubOrgChange={list.setSubOrgId}
+        onBulkAssign={canAssign ? () => setBulkOpen(true) : undefined}
       />
 
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-xs">
@@ -112,6 +115,14 @@ export function EmployeeSitesPage() {
           </>
         )}
       </div>
+
+      <BulkAssignDialog
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        onDone={list.refetch}
+        departments={filters.departments}
+        sites={filters.sites}
+      />
 
       <EmployeeSiteDrawer open={openId !== null} editor={editor} canAssign={canAssign} onClose={() => setOpenId(null)} />
     </div>

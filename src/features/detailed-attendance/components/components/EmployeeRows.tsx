@@ -83,7 +83,7 @@ export function EmployeeTable({ rows, onDay, onMonth, busy }: RowProps) {
             <tr key={r.employeeId} className="align-top transition-colors hover:bg-bg-subtle/50">
               <td className="px-4 py-3">
                 <div className="flex min-w-0 items-center gap-3">
-                  <Avatar name={r.name} />
+                  <Avatar name={r.name} photo={r.photoUrl} />
                   <div className="min-w-0">
                     <p className="truncate font-bold text-fg">{r.name}</p>
                     <p className="truncate text-xs text-fg-muted">{subline(r) || '—'}</p>
@@ -107,7 +107,7 @@ export function EmployeeCards({ rows, onDay, onMonth, busy }: RowProps) {
       {rows.map((r) => (
         <li key={r.employeeId} className="rounded-xl border border-line bg-surface p-3.5">
           <div className="flex items-start gap-3">
-            <Avatar name={r.name} />
+            <Avatar name={r.name} photo={r.photoUrl} />
             <div className="min-w-0 flex-1">
               <p className="truncate font-bold text-fg">{r.name}</p>
               <p className="truncate text-xs text-fg-muted">{subline(r) || '—'}</p>

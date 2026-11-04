@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { cx } from '@/theme/tokens';
 
 export const controlClass = 'h-9 w-full min-w-0 rounded-[var(--tt-radius-control)] border border-line bg-surface px-3 text-sm font-semibold text-fg outline-none transition-colors hover:border-line-strong focus:border-[var(--tt-primary)] disabled:opacity-50';
@@ -45,8 +46,14 @@ export function Skeleton({ className }: { className?: string }) {
   return <div aria-hidden className={cx('animate-pulse rounded-lg bg-bg-subtle', className)} />;
 }
 
-export function Avatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' | 'lg' }) {
+export function Avatar({ name, photo, size = 'md' }: { name: string; photo?: string | null; size?: 'sm' | 'md' | 'lg' }) {
   const box = size === 'lg' ? 'h-11 w-11 text-sm' : size === 'sm' ? 'h-7 w-7 text-[10px]' : 'h-9 w-9 text-xs';
   const letters = name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
+  // The photo link is short-lived; once it fails (or is missing) the initials stand in.
+  const [failed, setFailed] = React.useState<string | null>(null);
+  if (photo && failed !== photo) {
+    // eslint-disable-next-line @next/next/no-img-element -- a short-lived signed link, not an optimisable asset
+    return <img src={photo} alt="" onError={() => setFailed(photo)} className={cx('shrink-0 rounded-full border border-line bg-bg-subtle object-cover', box)} />;
+  }
   return <span aria-hidden className={cx('flex shrink-0 items-center justify-center rounded-full border border-line bg-bg-subtle font-bold text-fg-muted', box)}>{letters}</span>;
 }

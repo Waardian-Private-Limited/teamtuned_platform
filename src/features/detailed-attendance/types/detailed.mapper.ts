@@ -3,7 +3,7 @@ import { toSlot } from '@/features/my-roster/types/roster.mapper';
 import type { AttendanceList, CompOffGrant, DayDetail, DayRecord, EmployeeHeader, Impact, Month } from './detailed.model';
 
 const header = (e: EmployeeHeaderDto): EmployeeHeader => ({
-  id: e.id, code: e.code, name: e.name, department: e.department, role: e.role, status: e.status, joiningDate: e.joining_date, exitDate: e.exit_date,
+  id: e.id, code: e.code, name: e.name, department: e.department, role: e.role, photoUrl: e.photo_url ?? null, status: e.status, joiningDate: e.joining_date, exitDate: e.exit_date,
 });
 
 export function toList(dto: ListResponseDto): AttendanceList {
@@ -18,6 +18,7 @@ export function toList(dto: ListResponseDto): AttendanceList {
       name: e.name,
       department: e.department,
       role: e.role,
+      photoUrl: e.photo_url ?? null,
       badge: e.day.badge,
       inAt: e.day.in_at,
       outAt: e.day.out_at,
@@ -44,6 +45,9 @@ export const toCompOffGrant = (g: CompOffGrantDto): CompOffGrant => ({
   state: g.state,
   expiresOn: g.expires_on || null,
   description: g.description || '',
+  source: g.source ?? 'policy',
+  adjustment: g.adjustment ?? null,
+  manual: g.manual ?? null,
   details: g.details ? {
     workDate: g.details.work_date,
     reason: g.details.reason,
@@ -213,14 +217,14 @@ export function toDay(dto: DayDetailDto): DayDetail {
           minutes: dto.night_ot_yesterday.minutes,
           level: dto.night_ot_yesterday.level,
           source: dto.night_ot_yesterday.source,
-          sessions: dto.night_ot_yesterday.sessions.map((x) => ({ inAt: x.in_at, outAt: x.out_at })),
+          sessions: (dto.night_ot_yesterday.sessions ?? []).map((x) => ({ inAt: x.in_at, outAt: x.out_at })),
           shiftEndAt: dto.night_ot_yesterday.shift_end_at,
           window: dto.night_ot_yesterday.window,
         }
       : null,
     override: dto.override ? { status: dto.override.status, units: dto.override.units, reason: dto.override.reason, by: dto.override.by, at: dto.override.at, inTime: dto.override.in_time, outTime: dto.override.out_time } : null,
-    punches: dto.punches.map((p) => ({ id: p.id, direction: p.direction, kind: p.kind, at: p.at, source: p.source, place: p.place, location: p.location, distanceM: p.distance_m, lat: p.lat, lng: p.lng, accuracyM: p.accuracy_m, hasImage: p.has_image, face: p.face, voided: p.voided, voidReason: p.void_reason })),
-    breaks: dto.breaks.map((b) => ({ id: b.id, startedAt: b.started_at, endedAt: b.ended_at })),
+    punches: (dto.punches ?? []).map((p) => ({ id: p.id, direction: p.direction, kind: p.kind, at: p.at, source: p.source, place: p.place, location: p.location, distanceM: p.distance_m, lat: p.lat, lng: p.lng, accuracyM: p.accuracy_m, hasImage: p.has_image, face: p.face, voided: p.voided, voidReason: p.void_reason })),
+    breaks: (dto.breaks ?? []).map((b) => ({ id: b.id, startedAt: b.started_at, endedAt: b.ended_at })),
     compOff: (dto.comp_off || []).map(toCompOffGrant),
     history: dto.history,
     canOverride: dto.can_override,

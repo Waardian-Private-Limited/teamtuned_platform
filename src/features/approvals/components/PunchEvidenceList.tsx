@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { ArrowDownToLine, ArrowUpFromLine, Camera, ImageOff, MapPinOff, Moon } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { mapSrc } from '@/features/detailed-attendance/components/components/PunchCard';
+import { useSignedImage } from '@/features/detailed-attendance/hooks/useSignedImage';
 import * as api from '../api/approvals.api';
 import type { PunchEvidence } from '../types/approvals';
 
@@ -13,17 +13,7 @@ const STATE_TEXT: Record<string, string> = { approved: 'Accepted', rejected: 'No
 const label = (p: PunchEvidence) => (p.kind === 'night_ot' ? (p.direction === 'in' ? 'Night OT start' : 'Night OT end') : p.direction === 'in' ? 'Check-in' : 'Check-out');
 
 function Selfie({ requestId, punch }: { requestId: number; punch: PunchEvidence }) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [state, setState] = useState<'loading' | 'ready' | 'failed'>('loading');
-  useEffect(() => {
-    if (punch.id === null) return undefined;
-    const controller = new AbortController();
-    setState('loading');
-    api.getPunchImage(requestId, punch.id, controller.signal)
-      .then((res) => { setUrl(res.url); setState('ready'); })
-      .catch(() => { if (!controller.signal.aborted) setState('failed'); });
-    return () => controller.abort();
-  }, [requestId, punch.id]);
+  const { url, state, onImageError } = useSignedImage((signal) => api.getPunchImage(requestId, punch.id as number, signal), `${requestId}:${punch.id}`, punch.id !== null);
   return (
     <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-lg border border-line bg-bg-subtle">
       {state === 'loading' && <div className="absolute inset-0 animate-pulse bg-bg-subtle" />}
@@ -31,7 +21,7 @@ function Selfie({ requestId, punch }: { requestId: number; punch: PunchEvidence 
       {state === 'ready' && url && (
         <a href={url} target="_blank" rel="noopener noreferrer" aria-label={`Open the ${label(punch).toLowerCase()} photo`} className="block h-full">
           {/* eslint-disable-next-line @next/next/no-img-element -- a short-lived signed link, not an optimisable asset */}
-          <img src={url} alt={`${label(punch)} photo`} className="h-full w-full object-cover" loading="lazy" />
+          <img src={url} alt={`${label(punch)} photo`} className="h-full w-full object-cover" onError={onImageError} />
         </a>
       )}
       <span className="pointer-events-none absolute left-1 top-1 inline-flex items-center gap-1 rounded bg-[var(--tt-overlay)] px-1.5 py-0.5 text-[9px] font-semibold text-white"><Camera className="h-2.5 w-2.5" aria-hidden /> Selfie</span>

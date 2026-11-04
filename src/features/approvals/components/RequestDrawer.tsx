@@ -25,7 +25,8 @@ import { ExpenseClaimReviewSection, type ClaimReviewValue } from '@/features/rei
 import { WalletFundAmountSection } from '@/features/reimbursement/components/WalletFundAmountSection';
 import { PettyExpenseReviewSection, type PettyApproveExtra } from '@/features/petty-cash/components/PettyExpenseReviewSection';
 import { PettyFundAmountSection } from '@/features/petty-cash/components/PettyFundAmountSection';
-import { RegularizationTimesSection, RegularizationTimesTable, RegularizationTrail, TIME_LINE_KEYS } from '@/features/attendance-approvals/components/RegularizationTimes';
+import { CompOffUnitsSection } from './CompOffUnitsSection';
+import { RegularizationTimesSection, RegularizationWaiversSection, RegularizationTimesTable, RegularizationTrail, TIME_LINE_KEYS } from '@/features/attendance-approvals/components/RegularizationTimes';
 
 type Action = 'approve' | 'reject' | 'send_back' | 'reassign';
 
@@ -63,6 +64,9 @@ export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; o
   const [amountError, setAmountError] = React.useState('');
   React.useEffect(() => { setAmountError(''); setItemsError(''); }, [action]);
   const onExitAccept = React.useCallback((value: Record<string, unknown> | null, valid: boolean) => setFormExtra({ value, valid }), []);
+  const [waiveExtra, setWaiveExtra] = React.useState<Record<string, boolean> | null>(null);
+  const onWaivers = React.useCallback((value: Record<string, boolean> | null) => setWaiveExtra(value), []);
+  const onCompOffUnits = React.useCallback((value: Record<string, unknown> | null) => setFormExtra({ value, valid: true }), []);
   const onTimes = React.useCallback((value: { in_time?: string; out_time?: string } | null, valid: boolean) => setFormExtra({ value, valid }), []);
 
   const load = React.useCallback(async () => {
@@ -70,7 +74,7 @@ export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; o
     try { setRequest(await api.getRequest(id)); setError(null); } catch (e) { setError(messageOf(e)); }
   }, [id]);
 
-  React.useEffect(() => { setRequest(null); setAction(null); setPlan({ value: null, valid: true }); setFormExtra({ value: null, valid: true }); setPaperBlocked(false); setGoodsBlocked(false); setAmountError(''); setItemsError(''); load(); }, [load]);
+  React.useEffect(() => { setRequest(null); setAction(null); setPlan({ value: null, valid: true }); setFormExtra({ value: null, valid: true }); setWaiveExtra(null); setPaperBlocked(false); setGoodsBlocked(false); setAmountError(''); setItemsError(''); load(); }, [load]);
 
   const run = async (fn: () => Promise<unknown>, ok: string) => {
     setBusy(true);
@@ -95,7 +99,7 @@ export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; o
     }
     if (action === 'send_back') return run(() => api.sendBack(request.id, note.trim()), 'Sent back');
     if (action === 'approve' && (!plan.valid || !formExtra.valid)) return;
-    const merged = action === 'approve' ? { ...(plan.value ? { plan: plan.value } : {}), ...(formExtra.value ?? {}) } : {};
+    const merged = action === 'approve' ? { ...(plan.value ? { plan: plan.value } : {}), ...(formExtra.value ?? {}), ...(waiveExtra ?? {}) } : {};
     const extra = Object.keys(merged).length ? merged : undefined;
     return run(() => api.decide(request.id, action, note.trim() || undefined, extra), action === 'approve' ? 'Approved' : 'Rejected');
   };
@@ -216,7 +220,17 @@ export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; o
         )}
         {action === 'approve' && correctTimes && (
           <div className="mb-4 border-b border-line pb-4">
-            <RegularizationTimesSection times={correctTimes} onChange={onTimes} />
+            <RegularizationTimesSection key={`${request?.id}:${correctTimes.in.current}:${correctTimes.out.current}`} times={correctTimes} onChange={onTimes} />
+          </div>
+        )}
+        {action === 'approve' && request?.requestType === 'regularize' && request.detail?.day_now && (
+          <div className="mb-4 border-b border-line pb-4">
+            <RegularizationWaiversSection day={request.detail.day_now} onChange={onWaivers} />
+          </div>
+        )}
+        {action === 'approve' && form?.kind === 'compoff_units' && typeof form.units === 'number' && (
+          <div className="mb-4 border-b border-line pb-4">
+            <CompOffUnitsSection units={form.units} requested={form.requested_units ?? form.units} onChange={onCompOffUnits} />
           </div>
         )}
         {action === 'approve' && exitCaseId !== null && (

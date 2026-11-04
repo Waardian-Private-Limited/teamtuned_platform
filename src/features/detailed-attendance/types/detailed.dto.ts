@@ -19,6 +19,7 @@ export interface ListEmployeeDto {
   name: string;
   department: string | null;
   role: string | null;
+  photo_url?: string | null;
   day: {
     badge: BadgeDto;
     in_at: string | null;
@@ -46,6 +47,7 @@ export interface EmployeeHeaderDto {
   name: string;
   department: string | null;
   role: string | null;
+  photo_url?: string | null;
   status: string;
   joining_date: string | null;
   exit_date: string | null;
@@ -138,6 +140,9 @@ export interface CompOffGrantDto {
   state: string;
   expires_on?: string | null;
   description?: string;
+  source?: 'policy' | 'manual';
+  adjustment?: { from: number | null; to: number; by: string | null; at: string | null; note: string | null } | null;
+  manual?: { by: string | null; note: string | null } | null;
   details?: {
     work_date: string;
     reason: string;

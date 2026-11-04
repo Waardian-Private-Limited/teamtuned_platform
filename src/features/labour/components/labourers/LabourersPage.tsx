@@ -13,6 +13,7 @@ import { usePagedList } from '../../hooks/usePagedList';
 import type { Labourer } from '../../types/labour.types';
 import { fullName, titleCase } from '../../utils/format';
 import { FilterBar, FilterGrid, FilterSelect, Gate, ListShell, PageHeader, Pill, SearchBox, primaryBtn, secondaryBtn, td, th, trClickCls } from '../shared/Primitives';
+import { FaceAvatar } from '../shared/FaceAvatar';
 import { LabourerDrawer } from './LabourerDrawer';
 import { LabourerWizard } from './LabourerWizard';
 import type { StepId } from './wizard/wizard.types';
@@ -97,7 +98,7 @@ function Labourers() {
             {list.rows.map((l) => (
               <tr key={l.id} tabIndex={0} onClick={() => setOpenId(l.id)} onKeyDown={(e) => e.key === 'Enter' && setOpenId(l.id)} className={trClickCls}>
                 {canForms && <td className={td} onClick={(e) => e.stopPropagation()}><input type="checkbox" aria-label={`Select ${fullName(l)}`} checked={picked.includes(l.id)} onChange={() => toggle(l.id)} className="h-4 w-4 accent-[var(--tt-primary)]" /></td>}
-                <td className={td}><div className="font-semibold text-fg">{fullName(l)}</div><div className="text-[11px] text-fg-muted">{l.code}{l.phone ? ` · ${l.phone}` : ''}{l.complianceGapCount ? ` · ${l.complianceGapCount} form details missing` : ''}{l.machinePending ? ' · not on all machines yet' : ''}</div></td>
+                <td className={td}><div className="flex items-center gap-3"><FaceAvatar name={fullName(l)} url={l.photoUrl} /><div className="min-w-0"><div className="font-semibold text-fg">{fullName(l)}</div><div className="text-[11px] text-fg-muted">{l.code}{l.phone ? ` · ${l.phone}` : ''}{l.complianceGapCount ? ` · ${l.complianceGapCount} form details missing` : ''}{l.machinePending ? ' · not on all machines yet' : ''}</div></div></div></td>
                 <td className={td}>{l.contractorName || '—'}</td>
                 <td className={td}>{l.siteName || '—'}</td>
                 <td className={cx(td, 'hidden lg:table-cell')}>{[l.categoryName, l.subcategoryName].filter(Boolean).join(' / ') || '—'}</td>
@@ -110,7 +111,7 @@ function Labourers() {
         <div className="grid gap-2 p-3 md:hidden">
           {list.rows.map((l) => (
             <button key={l.id} type="button" onClick={() => setOpenId(l.id)} className="rounded-xl border border-line p-3 text-left active:bg-bg-subtle">
-              <div className="flex items-start justify-between gap-2"><span className="font-semibold text-fg">{fullName(l)}</span><Pill tone={l.status === 'active' ? 'good' : 'neutral'}>{titleCase(l.status)}</Pill></div>
+              <div className="flex items-start justify-between gap-2"><span className="flex min-w-0 items-center gap-2.5"><FaceAvatar name={fullName(l)} url={l.photoUrl} /><span className="truncate font-semibold text-fg">{fullName(l)}</span></span><Pill tone={l.status === 'active' ? 'good' : 'neutral'}>{titleCase(l.status)}</Pill></div>
               <div className="mt-0.5 text-xs text-fg-muted">{l.code} · {l.contractorName || 'No contractor'} · {l.siteName || 'No site'}</div>
               <div className="mt-2"><FaceBadge l={l} /></div>
             </button>

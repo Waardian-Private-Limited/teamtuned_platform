@@ -97,7 +97,8 @@ function Form({ day, onClose, onSaved }: Props) {
 
             {showWaivers && (
               <div className="rounded-xl border border-line bg-bg-subtle/40 p-3 space-y-2">
-                <p className="text-xs font-bold uppercase tracking-wide text-fg-muted">Policy Waivers</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-fg-muted">Marks and penalties on this day</p>
+                <p className="text-xs text-fg-muted">Keep the times above as they are and tick what to remove, then apply.</p>
                 <div className="space-y-2 text-xs text-fg">
                   {hasLateMark && (
                     <label className="flex items-center gap-2.5 cursor-pointer select-none">
@@ -108,7 +109,7 @@ function Form({ day, onClose, onSaved }: Props) {
                         className="h-4 w-4 rounded border-line text-[var(--tt-primary)] focus:ring-[var(--tt-ring)]"
                       />
                       <span className="font-medium">
-                        Waive late mark <span className="text-fg-muted">({minutesText(day.day?.lateMinutes || 0)} late)</span>
+                        Remove late mark <span className="text-fg-muted">({minutesText(day.day?.lateMinutes || 0)} late)</span>
                       </span>
                     </label>
                   )}
@@ -121,7 +122,7 @@ function Form({ day, onClose, onSaved }: Props) {
                         className="h-4 w-4 rounded border-line text-[var(--tt-primary)] focus:ring-[var(--tt-ring)]"
                       />
                       <span className="font-medium">
-                        Waive late-mark penalty <span className="text-fg-muted">({cutText(day.day?.latePenalty || null)} cut)</span>
+                        Remove late-mark penalty <span className="text-fg-muted">({cutText(day.day?.latePenalty || null)} cut)</span>
                       </span>
                     </label>
                   )}
@@ -134,7 +135,7 @@ function Form({ day, onClose, onSaved }: Props) {
                         className="h-4 w-4 rounded border-line text-[var(--tt-primary)] focus:ring-[var(--tt-ring)]"
                       />
                       <span className="font-medium">
-                        Waive early-exit mark <span className="text-fg-muted">({minutesText(day.day?.earlyMinutes || 0)} early)</span>
+                        Remove early-exit mark <span className="text-fg-muted">({minutesText(day.day?.earlyMinutes || 0)} early)</span>
                       </span>
                     </label>
                   )}
@@ -147,7 +148,7 @@ function Form({ day, onClose, onSaved }: Props) {
                         className="h-4 w-4 rounded border-line text-[var(--tt-primary)] focus:ring-[var(--tt-ring)]"
                       />
                       <span className="font-medium">
-                        Waive early-exit penalty <span className="text-fg-muted">({cutText(day.day?.earlyPenalty || null)} cut)</span>
+                        Remove early-exit penalty <span className="text-fg-muted">({cutText(day.day?.earlyPenalty || null)} cut)</span>
                       </span>
                     </label>
                   )}

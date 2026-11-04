@@ -35,6 +35,11 @@ export function useOverride(employeeId: number, date: string, form: OverrideForm
   const [error, setError] = useState<string | null>(null);
   const run = useRef(0);
 
+  // The day can be read again while the form is open (a save, a recalculation): the start and end follow
+  // what the day now says, instead of keeping the values from the first read.
+  useEffect(() => { setInTime(form.inTime ?? ''); }, [form.inTime]);
+  useEffect(() => { setOutTime(form.outTime ?? ''); }, [form.outTime]);
+
   const timesOk = TIME.test(inTime) && TIME.test(outTime);
   const punchFix = mode === 'undo' || mode === 'reset';
   const ready = mode === 'clear' ? !!form.forcedStatus : mode === 'set' && timesOk;

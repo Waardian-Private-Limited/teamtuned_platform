@@ -4,6 +4,7 @@ import React from 'react';
 import type { RosterSlot } from '@/features/my-roster/types/roster.model';
 import type { DayDetail } from '../types/detailed.model';
 import { DayDialog } from './components/DayDialog';
+import { CompOffDialog } from './components/CompOffDialog';
 import { OverrideDialog } from './components/OverrideDialog';
 
 interface Props {
@@ -26,10 +27,12 @@ interface Props {
  */
 export function DayPopup({ employeeId, date, reloadKey = 0, onClose, onMonth, onChanged, roster }: Props) {
   const [override, setOverride] = React.useState<DayDetail | null>(null);
+  const [compOff, setCompOff] = React.useState<DayDetail | null>(null);
   const [saved, setSaved] = React.useState(0);
   return (
     <>
-      <DayDialog employeeId={employeeId} date={date} reloadKey={reloadKey + saved} childOpen={!!override} onClose={onClose} onMonth={onMonth} onOverride={setOverride} roster={roster} />
+      <DayDialog employeeId={employeeId} date={date} reloadKey={reloadKey + saved} childOpen={!!override || !!compOff} onClose={onClose} onMonth={onMonth} onOverride={setOverride} onCompOff={setCompOff} roster={roster} />
+      {compOff && <CompOffDialog open day={compOff} onClose={() => setCompOff(null)} onSaved={() => { setSaved((v) => v + 1); onChanged?.(); }} />}
       {override && <OverrideDialog open day={override} onClose={() => setOverride(null)} onSaved={() => { setSaved((v) => v + 1); onChanged?.(); }} />}
     </>
   );

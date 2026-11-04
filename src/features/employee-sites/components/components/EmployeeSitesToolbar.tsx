@@ -1,6 +1,7 @@
 'use client';
 
 import { Search } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { SearchableFilterDropdown, type FilterOption } from '@/components/ui/SearchableFilterDropdown';
 import { SubOrgFilter } from '@/features/sub-organizations/components/SubOrgFilter';
@@ -22,6 +23,7 @@ interface EmployeeSitesToolbarProps {
   onSiteChange: (id: number | null) => void;
   subOrgId: number | null;
   onSubOrgChange: (id: number | null) => void;
+  onBulkAssign?: () => void;
 }
 
 function SummaryChip({ label, value }: { label: string; value: number }) {
@@ -48,6 +50,7 @@ export function EmployeeSitesToolbar({
   onSiteChange,
   subOrgId,
   onSubOrgChange,
+  onBulkAssign,
 }: EmployeeSitesToolbarProps) {
   return (
     <div className="flex flex-col gap-2.5 rounded-xl border border-line bg-surface p-3 sm:p-3.5 xl:flex-row xl:items-center xl:justify-between xl:gap-4 2xl:p-4">
@@ -98,6 +101,10 @@ export function EmployeeSitesToolbar({
         </div>
 
         <SubOrgFilter value={subOrgId} onChange={onSubOrgChange} />
+
+        {onBulkAssign && (
+          <Button variant="secondary" onClick={onBulkAssign}>Bulk assign</Button>
+        )}
       </div>
     </div>
   );

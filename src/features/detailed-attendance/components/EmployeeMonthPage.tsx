@@ -39,7 +39,7 @@ export function EmployeeMonthPage({ listPath }: { listPath: string }) {
 
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <Avatar name={data?.employee.name || ' '} size="lg" />
+          <Avatar name={data?.employee.name || ' '} photo={data?.employee.photoUrl} size="lg" />
           <div className="min-w-0">
             <h1 className="truncate text-xl font-extrabold text-fg sm:text-2xl">{data ? data.employee.name : 'Monthly attendance'}</h1>
             <p className="truncate text-sm text-fg-muted">{data ? [data.employee.code, data.employee.department, data.employee.role].filter(Boolean).join(' · ') : ' '}</p>

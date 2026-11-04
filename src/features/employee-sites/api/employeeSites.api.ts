@@ -43,6 +43,34 @@ export function updateEmployeeSites(employeeId: number, body: UpdateEmployeeSite
   return apiClient.put<EmployeeSiteDetailDto>(`/employee-sites/${employeeId}/sites`, body, { withAuth: true });
 }
 
+export interface BulkAssignBody {
+  site_ids: number[];
+  primary_site_id?: number | null;
+  mode: 'add' | 'replace';
+  department_ids?: number[];
+  role_ids?: number[];
+  current_site_ids?: number[];
+  unassigned_only?: boolean;
+}
+
+export interface BulkAssignResultDto {
+  matched: number;
+  updated: number;
+  failed: Array<{ employee_id: number; name: string; message: string }>;
+}
+
+export function bulkAssignSites(body: BulkAssignBody) {
+  return apiClient.post<BulkAssignResultDto>('/employee-sites/bulk', body, { withAuth: true });
+}
+
+export function listRoleOptions() {
+  return apiClient.get<{ roles: Array<{ id: number; name: string }> }>(
+    '/roles',
+    { pageSize: 100 },
+    { withAuth: true }
+  );
+}
+
 export function searchSiteOptions(params: { search?: string; employeeId?: number | null; limit?: number } = {}) {
   return apiClient.get<SiteOptionsResponseDto>(
     '/employee-sites/options/sites',

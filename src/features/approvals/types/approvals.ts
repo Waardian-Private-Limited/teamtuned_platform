@@ -121,10 +121,12 @@ export interface RequestDetail {
     times?: { in: RegularizationTime; out: RegularizationTime };
     /** Regularization: who set the times, oldest first (the employee's ask, then each approver's correction). */
     trail?: RegularizationTrailStep[];
+    /** Regularization: the marks and penalties the day carries now, which the approver may remove. */
+    day_now?: { status: string | null; late_mark: boolean; late_penalty: string | null; early_mark: boolean; early_penalty: string | null } | null;
     /** Attendance requests: the day's punches with place, map point and selfie, as in the attendance popup. */
     punches?: PunchEvidence[];
     /** A type-specific form the approver fills in; its values go back as `extra` when approving. */
-    decision_form?: { kind: string; case_id?: number; advance_id?: number; claim_id?: number; fund_request_id?: number; expense_id?: number; amount?: number; physical?: { status: string; required: boolean; blocks_decision: boolean; step?: { name: string | null; current: boolean } | null }; inward?: { required: boolean; status: string; blocks_decision: boolean; step?: { name: string | null; current: boolean } | null; numbering?: 'auto' | 'typed'; numbers: string[]; lines?: Array<{ line: number; name: string; unit: string | null; ordered: number; received: number; pending: number; numbers?: Array<{ inward_no: string; qty: number }> }> }; files?: Array<{ index: number; name?: string | null }> };
+    decision_form?: { kind: string; units?: number; requested_units?: number; case_id?: number; advance_id?: number; claim_id?: number; fund_request_id?: number; expense_id?: number; amount?: number; physical?: { status: string; required: boolean; blocks_decision: boolean; step?: { name: string | null; current: boolean } | null }; inward?: { required: boolean; status: string; blocks_decision: boolean; step?: { name: string | null; current: boolean } | null; numbering?: 'auto' | 'typed'; numbers: string[]; lines?: Array<{ line: number; name: string; unit: string | null; ordered: number; received: number; pending: number; numbers?: Array<{ inward_no: string; qty: number }> }> }; files?: Array<{ index: number; name?: string | null }> };
   } | null;
   createdAt: string; decidedAt: string | null;
   actions: { decide: boolean; sendBack: boolean; withdraw: boolean; resubmit: boolean; override: boolean; reassign: boolean };

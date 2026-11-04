@@ -132,6 +132,8 @@ export interface Labourer {
   complianceGapCount?: number | null;
   /** Some active site machine has not taken this labourer's latest change yet (list only). */
   machinePending?: boolean;
+  /** The registered face as a short-lived link (the list's avatar). */
+  photoUrl?: string | null;
 }
 
 /** Whether one site machine has taken a labourer's latest change. */

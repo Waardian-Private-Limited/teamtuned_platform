@@ -85,6 +85,11 @@ export function RegularizationTimesSection({ times, onChange }: { times: { in: R
   const [inTime, setIn] = React.useState(times.in.current ?? '');
   const [outTime, setOut] = React.useState(times.out.current ?? '');
 
+  // The request can be read again (another approver corrected it, or a new request opens in the same drawer):
+  // the fields follow the times as they now stand.
+  React.useEffect(() => { setIn(times.in.current ?? ''); }, [times.in.current]);
+  React.useEffect(() => { setOut(times.out.current ?? ''); }, [times.out.current]);
+
   const inError = times.in.editable && !CLOCK.test(inTime) ? 'Pick a check-in time' : '';
   const outError = times.out.editable && !CLOCK.test(outTime) ? 'Pick a check-out time' : '';
 
@@ -119,5 +124,42 @@ export function RegularizationTimesSection({ times, onChange }: { times: { in: R
         {times.out.editable && field('Check-out', times.out, outTime, setOut, outError)}
       </div>
     </div>
+  );
+}
+
+const penaltyText = (p: string | null) => (p === 'full_day' ? 'a full day' : 'half a day');
+
+export type RegularizationDay = { late_mark: boolean; late_penalty: string | null; early_mark: boolean; early_penalty: string | null };
+
+/**
+ * In the approve dialog: the late / early marks and penalties the day carries, each with a switch to remove it
+ * when approving. Removing a mark also removes its penalty. Reports the flags to send (null when none chosen).
+ */
+export function RegularizationWaiversSection({ day, onChange }: { day: RegularizationDay; onChange: (value: Record<string, boolean> | null) => void }) {
+  const [on, setOn] = React.useState<Record<string, boolean>>({});
+  React.useEffect(() => { setOn({}); }, [day.late_mark, day.late_penalty, day.early_mark, day.early_penalty]);
+  React.useEffect(() => {
+    const picked = Object.fromEntries(Object.entries(on).filter(([, v]) => v));
+    onChange(Object.keys(picked).length ? picked : null);
+  }, [on, onChange]);
+
+  const items = [
+    day.late_mark ? { key: 'remove_late_mark', label: 'Remove late mark', note: day.late_penalty ? `also removes the ${penaltyText(day.late_penalty)} cut` : null } : null,
+    !day.late_mark && day.late_penalty ? { key: 'remove_late_penalty', label: 'Remove late-mark penalty', note: `${penaltyText(day.late_penalty)} cut` } : null,
+    day.early_mark ? { key: 'remove_early_mark', label: 'Remove early-exit mark', note: day.early_penalty ? `also removes the ${penaltyText(day.early_penalty)} cut` : null } : null,
+    !day.early_mark && day.early_penalty ? { key: 'remove_early_penalty', label: 'Remove early-exit penalty', note: `${penaltyText(day.early_penalty)} cut` } : null,
+  ].filter((x): x is { key: string; label: string; note: string | null } => x !== null);
+  if (!items.length) return null;
+  return (
+    <fieldset className="space-y-2">
+      <legend className="text-xs font-semibold text-fg">Marks and penalties on this day</legend>
+      <p className="text-sm text-fg-muted">Tick what to remove when approving. Leave them unticked to keep the day as the policy marks it.</p>
+      {items.map((i) => (
+        <label key={i.key} className="flex cursor-pointer select-none items-center gap-2.5 text-sm text-fg">
+          <input type="checkbox" checked={Boolean(on[i.key])} onChange={(e) => setOn((m) => ({ ...m, [i.key]: e.target.checked }))} className="h-4 w-4 rounded border-line" />
+          <span className="font-medium">{i.label}{i.note && <span className="font-normal text-fg-muted"> ({i.note})</span>}</span>
+        </label>
+      ))}
+    </fieldset>
   );
 }

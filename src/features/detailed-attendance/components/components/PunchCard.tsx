@@ -14,7 +14,7 @@ const label = (p: Punch) => (p.kind === 'night_ot' ? (p.direction === 'in' ? 'Ni
 export const mapSrc = (lat: number, lng: number) => `https://www.google.com/maps?q=${lat},${lng}&output=embed&z=15`;
 
 function Selfie({ punch }: { punch: Punch }) {
-  const { url, state } = usePunchImage(punch.id, punch.hasImage && !punch.voided);
+  const { url, state, onImageError } = usePunchImage(punch.id, punch.hasImage && !punch.voided);
   if (!punch.hasImage) return null;
   return (
     <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-lg border border-line bg-bg-subtle">
@@ -23,7 +23,7 @@ function Selfie({ punch }: { punch: Punch }) {
       {state === 'ready' && url && (
         <a href={url} target="_blank" rel="noopener noreferrer" aria-label={`Open the ${label(punch).toLowerCase()} photo`} className="block h-full">
           {/* eslint-disable-next-line @next/next/no-img-element -- a short-lived signed link, not an optimisable asset */}
-          <img src={url} alt={`${label(punch)} photo`} className="h-full w-full object-cover" loading="lazy" />
+          <img src={url} alt={`${label(punch)} photo`} className="h-full w-full object-cover" onError={onImageError} />
         </a>
       )}
       <span className="pointer-events-none absolute left-1 top-1 inline-flex items-center gap-1 rounded bg-[var(--tt-overlay)] px-1.5 py-0.5 text-[9px] font-semibold text-white"><Camera className="h-2.5 w-2.5" aria-hidden /> Selfie</span>

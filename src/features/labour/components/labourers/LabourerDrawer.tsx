@@ -11,6 +11,7 @@ import * as api from '../../api/labour.api';
 import type { AttendanceDay, LabourerDetail, MachineSyncState } from '../../types/labour.types';
 import { daysAgo, fmtDate, fmtDateTime, fmtMinutes, fmtTime, fullName, titleCase, today } from '../../utils/format';
 import { FormError, Pill, Tabs, secondaryBtn } from '../shared/Primitives';
+import { FaceAvatar } from '../shared/FaceAvatar';
 import { FaceBadge } from './LabourersPage';
 import { FormsPdfDialog } from './FormsPdfDialog';
 import { PayPanel } from './PayPanel';
@@ -57,10 +58,7 @@ function Body({ id, canManage, canForms, onEdit, onChanged, onClose }: { id: num
   return (
     <div className="space-y-4">
       <div className="flex items-start gap-3">
-        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-bg-subtle">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          {d.photoUrl && <img src={d.photoUrl} alt="" className="h-full w-full object-cover" />}
-        </div>
+        <FaceAvatar name={fullName(d)} url={d.photoUrl} size="lg" />
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-base font-bold text-fg">{fullName(d)}</h3>
           <p className="text-xs text-fg-muted">{d.code} · {d.contractorName || 'No contractor'}</p>
@@ -155,6 +153,7 @@ function FacePanel({ d }: { d: LabourerDetail }) {
   }[d.faceStatus];
   return (
     <div className="space-y-3">
+      <FaceAvatar name={fullName(d)} url={d.photoUrl} size="xl" className="mx-auto" />
       <p className="rounded-xl bg-bg-subtle p-3 text-sm text-fg">{copy}</p>
       {d.needsReregistration && <p className="text-xs font-medium text-fg">The face model changed. New photos are needed to keep punching working.</p>}
       <dl className="grid grid-cols-2 gap-3">

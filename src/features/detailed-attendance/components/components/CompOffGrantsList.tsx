@@ -28,6 +28,7 @@ const REASON_CONFIG: Record<string, { label: string; icon: React.ElementType; to
   week_off_work: { label: 'Week-off Work', icon: CalendarDays, tone: 'text-[var(--tt-accent)] bg-[var(--tt-accent-soft)]' },
   holiday_work: { label: 'Holiday Work', icon: CalendarDays, tone: 'text-[var(--tt-accent)] bg-[var(--tt-accent-soft)]' },
   overtime: { label: 'Overtime', icon: Clock, tone: 'text-[var(--tt-accent)] bg-[var(--tt-accent-soft)]' },
+  other: { label: 'Comp-off', icon: Clock, tone: 'text-[var(--tt-accent)] bg-[var(--tt-accent-soft)]' },
 };
 
 function stateBadge(state: string) {
@@ -210,6 +211,19 @@ export function CompOffGrantsList({
                       </span>
                     )}
 
+                    {grant.source === 'manual' && (
+                      <span className="inline-flex items-center gap-1 rounded border border-line bg-bg-subtle px-1.5 py-0.5 text-[11px] text-fg-muted">
+                        Granted by HR{grant.manual?.by ? <> · <strong className="font-semibold text-fg">{grant.manual.by}</strong></> : null}
+                      </span>
+                    )}
+
+                    {grant.adjustment && (
+                      <span className="inline-flex items-center gap-1 rounded border border-line bg-bg-subtle px-1.5 py-0.5 text-[11px] text-fg-muted">
+                        Changed {grant.adjustment.from !== null ? `${daysText(grant.adjustment.from)} → ` : ''}{daysText(grant.adjustment.to)}
+                        {grant.adjustment.by ? <> by <strong className="font-semibold text-fg">{grant.adjustment.by}</strong></> : null}
+                      </span>
+                    )}
+
                     {grant.expiresOn && (
                       <span className="text-[10px] text-fg-subtle">
                         Expires {formatDate(grant.expiresOn)}
@@ -251,6 +265,21 @@ export function CompOffGrantsList({
                       )}
                     </div>
                   </div>
+
+                  {(grant.adjustment || grant.manual) && (
+                    <div className="rounded-lg border border-line bg-surface/60 p-3 text-xs space-y-1">
+                      <p className="font-bold text-fg">{grant.manual ? 'Granted by hand' : 'Amount changed'}</p>
+                      {grant.manual && <p className="text-fg-muted">By <span className="font-medium text-fg">{grant.manual.by || 'HR'}</span>{grant.manual.note ? <> — {grant.manual.note}</> : null}</p>}
+                      {grant.adjustment && (
+                        <p className="text-fg-muted">
+                          {grant.adjustment.from !== null ? `${daysText(grant.adjustment.from)} → ` : ''}<span className="font-medium text-fg">{daysText(grant.adjustment.to)} day(s)</span>
+                          {grant.adjustment.by ? <> by <span className="font-medium text-fg">{grant.adjustment.by}</span></> : null}
+                          {grant.adjustment.at ? <> on {formatDate(grant.adjustment.at)} at {formatTime(grant.adjustment.at)}</> : null}
+                          {grant.adjustment.note ? <> — &ldquo;{grant.adjustment.note}&rdquo;</> : <span className="text-fg-subtle"> (no reason given)</span>}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   {/* Approval Timeline */}
                   <div>

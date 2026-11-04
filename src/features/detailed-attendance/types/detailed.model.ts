@@ -17,6 +17,7 @@ export interface AttendanceRow {
   name: string;
   department: string | null;
   role: string | null;
+  photoUrl: string | null;
   badge: Badge;
   inAt: string | null;
   outAt: string | null;
@@ -42,6 +43,7 @@ export interface EmployeeHeader {
   name: string;
   department: string | null;
   role: string | null;
+  photoUrl: string | null;
   status: string;
   joiningDate: string | null;
   exitDate: string | null;
@@ -143,6 +145,11 @@ export interface CompOffGrant {
   state: string;
   expiresOn: string | null;
   description: string;
+  source: 'policy' | 'manual';
+  /** An approver resized the days earned: from what, to what, who, when and (optionally) why. */
+  adjustment: { from: number | null; to: number; by: string | null; at: string | null; note: string | null } | null;
+  /** HR granted it by hand: who and why. */
+  manual: { by: string | null; note: string | null } | null;
   details?: {
     workDate: string;
     reason: string;

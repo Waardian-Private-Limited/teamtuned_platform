@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { AlertTriangle, CalendarDays, CheckCircle2, ChevronDown, ChevronUp, Coffee, Hourglass, Lock, Moon, PencilLine, XCircle } from 'lucide-react';
+import { AlertTriangle, CalendarDays, CheckCircle2, ChevronDown, ChevronUp, Coffee, Hourglass, Lock, Moon, PencilLine, XCircle, Gift } from 'lucide-react';
 import { Dialog } from '@/components/ui/Dialog';
 import { Alert } from '@/components/ui/Alert';
 import { COMP_OFF_REASON, COMP_OFF_STATE, FLAG_TEXT, SCHEDULE_TEXT } from '../../constants/detailed.constants';
@@ -24,6 +24,8 @@ interface Props {
   onClose: () => void;
   onMonth?: (employeeId: number, month: string) => void;
   onOverride: (day: DayDetail) => void;
+  /** Opens the comp-off grant form (asked before the override). */
+  onCompOff?: (day: DayDetail) => void;
   /** What the roster planned for the day, when the employee is rostered. */
   roster?: RosterSlot[];
 }
@@ -393,7 +395,7 @@ export function DayView({ date, data, loading, error, childOpen, onClose, action
       maxWidthClassName="max-w-3xl"
       title={
         <div className="flex min-w-0 items-center gap-3">
-          <Avatar name={data?.employee.name || ' '} size="lg" />
+          <Avatar name={data?.employee.name || ' '} photo={data?.employee.photoUrl} size="lg" />
           <div className="min-w-0">
             <h2 className="truncate text-base font-bold text-fg">{data ? data.employee.name : 'Attendance'}</h2>
             <p className="truncate text-xs text-fg-muted">{data ? [data.employee.code, data.employee.department, data.employee.role].filter(Boolean).join(' · ') : ' '}</p>
@@ -410,12 +412,15 @@ export function DayView({ date, data, loading, error, childOpen, onClose, action
 }
 
 /** One employee's day for someone who may look at any employee: with a link to the month and the override. */
-export function DayDialog({ employeeId, date, reloadKey, childOpen, onClose, onMonth, onOverride, roster }: Props) {
+export function DayDialog({ employeeId, date, reloadKey, childOpen, onClose, onMonth, onOverride, onCompOff, roster }: Props) {
   const { data, loading, error } = useDay(employeeId, date, reloadKey);
   if (employeeId === null || !date) return null;
   const actions = (d: DayDetail) => (
     <>
       {onMonth && <button type="button" onClick={() => onMonth(d.employee.id, d.date.slice(0, 7))} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-4 text-xs font-semibold text-fg hover:bg-bg-subtle sm:text-sm"><CalendarDays className="h-4 w-4" /> Monthly attendance</button>}
+      {d.canOverride && onCompOff && (
+        <button type="button" onClick={() => onCompOff(d)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-4 text-xs font-semibold text-fg hover:bg-bg-subtle sm:text-sm"><Gift className="h-4 w-4" /> Grant comp-off</button>
+      )}
       {d.canOverride && (
         <button type="button" onClick={() => onOverride(d)} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--tt-primary)] px-4 text-xs font-semibold text-[var(--tt-on-primary)] hover:bg-[var(--tt-primary-hover)] sm:text-sm"><PencilLine className="h-4 w-4" /> Override attendance</button>
       )}

@@ -70,6 +70,11 @@ export function resetDay(employeeId: number, date: string, reason: string) {
   return apiClient.post<{ day: unknown }>(`${BASE}/employees/${employeeId}/days/${date}/reset`, { reason }, auth);
 }
 
+/** HR grants comp-off for a day by hand: what the extra work was, half a day or a full day, and why. */
+export function grantCompOff(employeeId: number, date: string, body: { reason: string; units: number; note: string }) {
+  return apiClient.post<{ id: number }>(`${BASE}/employees/${employeeId}/days/${date}/comp-off`, body, auth);
+}
+
 export function requestExport(body: ExportRequest) {
   return apiClient.post<ExportJobDto>('/exports/attendance', body, auth);
 }
