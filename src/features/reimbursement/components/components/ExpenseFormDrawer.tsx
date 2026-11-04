@@ -383,7 +383,7 @@ export function ExpenseFormDrawer(props: ExpenseFormDrawerProps) {
   // ── Steps ─────────────────────────────────────────────────────────────────
   const stepOne = active && (
     <div className="space-y-4">
-      {mode === 'hr' && lines.length <= 1 && <EmployeePicker value={employee} onChange={(v) => { setEmployee(v); clearError('employee_id'); }} error={errors.employee_id} />}
+      {mode === 'hr' && lines.length <= 1 && <EmployeePicker search={api.searchEmployees} value={employee} onChange={(v) => { setEmployee(v); clearError('employee_id'); }} error={errors.employee_id} />}
       {showScan ? (
         <ReceiptScanZone
           pages={pages}

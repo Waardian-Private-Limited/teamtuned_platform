@@ -336,3 +336,14 @@ export function exportClaims(scope: 'me' | 'hr', body: ClaimsExportRequestDto) {
 export function exportWalletStatement(scope: 'me' | 'hr', body: WalletStatementExportRequestDto) {
   return apiClient.post<ExportJobDto>(scope === 'me' ? '/exports/my-expense-wallet' : '/exports/expense-wallet-statement', body, auth);
 }
+
+type EmployeeHit = { id: number; name: string; employee_code: string | null; designation: string | null; department: string | null };
+
+/** Employee search for the shared picker, from a module's own `/employees` route (its permissions, no salary needed). */
+export const employeeSearch = (base: string) => (search: string) =>
+  apiClient
+    .get<{ employees: EmployeeHit[] }>(`${base}/employees`, { search: search || undefined }, auth)
+    .then((dto) => dto.employees.map((e) => ({ id: e.id, name: e.name, employee_code: e.employee_code, designation: [e.designation, e.department].filter(Boolean).join(' · ') || null, sub_organization_id: null, ctc: null, monthly_gross: null })));
+
+/** Employees HR can file, export or open wallets for. */
+export const searchEmployees = employeeSearch(BASE);

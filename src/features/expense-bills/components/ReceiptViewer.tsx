@@ -3,7 +3,7 @@
 import React from 'react';
 import { FileText, ImageOff, Maximize2, Receipt } from 'lucide-react';
 import { cx } from '@/theme/tokens';
-import { isPdfFile, useFileLink, useInView, type FileLink, type ReceiptFile } from '../hooks/useFileLink';
+import { isPdfFile, useFileLink, type FileLink, type ReceiptFile } from '../hooks/useFileLink';
 import type { Bill, Flag, LineAttachment } from '../types/bill.model';
 import { BillCheckStatus } from './BillPanel';
 import { BillItemsView } from './BillItems';
@@ -152,43 +152,55 @@ export function ReceiptViewer({ bills, proofs = [], title, subtitle, bill, check
   );
 }
 
-/** First page of a receipt, loaded once it scrolls into view. */
+/**
+ * First page of a receipt. It loads as soon as it is shown (a bill is opened to be looked at: no waiting for a scroll
+ * observer that can stay silent inside a sticky or scrolled container), and a failed load can be tried again.
+ */
 function Thumb({ file, page, count, tall, onOpen }: { file: ReceiptFile; page: number; count: number; tall: boolean; onOpen: () => void }) {
-  const [ref, seen] = useInView<HTMLButtonElement>();
   const pdf = isPdfFile(file);
-  const link = useFileLink(pdf ? null : file.source, seen);
+  const link = useFileLink(pdf ? null : file.source, true);
   const [failed, setFailed] = React.useState<string | null>(null);
   const broken = failed !== null && failed === link.url;
   const label = `Enlarge ${pdf ? 'PDF' : 'photo'} ${file.name}${count > 1 ? `, page ${page + 1} of ${count}` : ''}`;
+  const box = cx(
+    'group relative flex w-full items-center justify-center overflow-hidden rounded-lg border border-line bg-bg-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg',
+    tall ? 'h-48 @2xl:h-[26rem]' : 'h-48 @md:h-56'
+  );
+
+  if (!pdf && file.source && (broken || link.error)) {
+    return (
+      <div className={box}>
+        <span className="flex flex-col items-center gap-2 px-3 text-center text-[11px] text-fg-muted">
+          <ImageOff className="h-6 w-6" aria-hidden />
+          Could not load the photo
+          <button
+            type="button"
+            onClick={() => {
+              setFailed(null);
+              link.reload();
+            }}
+            className="inline-flex h-7 items-center rounded-md border border-line bg-surface px-2.5 text-xs font-semibold text-fg hover:bg-bg-subtle"
+          >
+            Try again
+          </button>
+        </span>
+      </div>
+    );
+  }
 
   return (
-    <button
-      ref={ref}
-      type="button"
-      onClick={onOpen}
-      aria-label={label}
-      className={cx(
-        'group relative flex w-full items-center justify-center overflow-hidden rounded-lg border border-line bg-bg-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg',
-        tall ? 'h-48 @2xl:h-[26rem]' : 'h-48 @md:h-56'
-      )}
-    >
+    <button type="button" onClick={onOpen} aria-label={label} className={box}>
       {pdf || !file.source ? (
         <span className="flex flex-col items-center gap-1.5 px-3 text-center">
           <FileText className="h-7 w-7 text-fg-muted" aria-hidden />
           <span className="line-clamp-2 break-all text-[11px] font-semibold text-fg">{file.name}</span>
           <span className="text-[11px] text-fg-muted">{file.source ? 'PDF · open to view' : 'Not kept'}</span>
         </span>
-      ) : broken || link.error ? (
-        <span className="flex flex-col items-center gap-1.5 px-3 text-center text-[11px] text-fg-muted">
-          <ImageOff className="h-6 w-6" aria-hidden />
-          Could not load the photo
-        </span>
       ) : link.url ? (
         <img
           key={link.url}
           src={link.url}
           alt=""
-          loading="lazy"
           decoding="async"
           draggable={false}
           onError={() => {

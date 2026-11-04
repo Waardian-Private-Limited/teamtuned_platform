@@ -8,8 +8,10 @@ import * as api from '../../api/compensation.api';
 import type { CompEmployeeDto } from '../../types/compensation.dto';
 import { inr } from '../../utils/format';
 
-export function EmployeePicker({ multiple = false, value, onChange, error, label = 'Employee', required = true }: {
+export function EmployeePicker({ multiple = false, value, onChange, error, label = 'Employee', required = true, search }: {
   multiple?: boolean;
+  /** Where to look people up. Defaults to compensation search (employees with a salary, shows CTC). */
+  search?: (term: string) => Promise<CompEmployeeDto[]>;
   /** Marks the label as required (default); filters pass false. */
   required?: boolean;
   value: CompEmployeeDto[];
@@ -29,12 +31,13 @@ export function EmployeePicker({ multiple = false, value, onChange, error, label
     const id = ++request.current;
     setLoading(true);
     const t = setTimeout(() => {
-      api.searchEmployees(term.trim())
-        .then((dto) => id === request.current && setResults(dto.employees))
+      (search ? search(term.trim()) : api.searchEmployees(term.trim()).then((dto) => dto.employees))
+        .then((list) => id === request.current && setResults(list))
         .catch(() => id === request.current && setResults([]))
         .finally(() => id === request.current && setLoading(false));
     }, 250);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [term, open]);
 
   React.useEffect(() => {
@@ -89,7 +92,7 @@ export function EmployeePicker({ multiple = false, value, onChange, error, label
       {open && (
         <ul className="absolute z-30 mt-1.5 max-h-64 w-full overflow-y-auto rounded-lg border border-line bg-surface p-1 shadow-[var(--tt-shadow-md)] tt-scroll-hidden">
           {loading && <li className="px-3 py-2.5 text-xs text-fg-muted">Searching…</li>}
-          {!loading && !results.length && <li className="px-3 py-2.5 text-xs text-fg-muted">No employees with a salary match</li>}
+          {!loading && !results.length && <li className="px-3 py-2.5 text-xs text-fg-muted">{search ? 'No employees match' : 'No employees with a salary match'}</li>}
           {!loading && results.map((e) => (
             <li key={e.id}>
               <button type="button" onClick={() => pick(e)} className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-bg-subtle">

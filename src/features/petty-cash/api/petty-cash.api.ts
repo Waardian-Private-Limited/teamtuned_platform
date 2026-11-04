@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/apiClient';
+import { employeeSearch } from '@/features/reimbursement/api/reimbursement.api';
 import type { CategoryDto as ManagedCategoryDto, CategoryListResponseDto as ManagedCategoryListDto } from '@/features/reimbursement/types/reimbursement.dto';
 import type { ExportJobDto } from '@/features/downloads/types/downloads.dto';
 import type { PagedDto, UploadedFileDto } from '@/features/expense-bills/types/bill.dto';
@@ -34,6 +35,9 @@ import type {
 
 const auth = { withAuth: true };
 const BASE = '/petty-cash';
+
+/** People HR can enter an expense for ("Spent by"). */
+export const searchEmployees = employeeSearch(BASE);
 
 /** Filters read the same way by `GET /expenses`, `GET /inward`, `GET /me/expenses` and the exports. */
 export interface ExpenseQuery {

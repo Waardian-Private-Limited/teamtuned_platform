@@ -371,7 +371,7 @@ export function ExportClaimsDialog({ open, onClose, scope, initial, subOrgId = n
                   <ComboField label="Department" value={f.departmentId} onChange={(departmentId) => set({ departmentId }, 'department_id')} options={orgOptions.departments} allLabel="All departments" error={err('department_id')} />
                   <ComboField label="Site" value={f.siteId} onChange={(siteId) => set({ siteId }, 'site_id')} options={orgOptions.sites} allLabel="All sites" error={err('site_id')} />
                   <div className="sm:col-span-2">
-                    <EmployeePicker label="Employee" required={false} value={f.employee ? [f.employee] : []} onChange={(v) => set({ employee: v[v.length - 1] ?? null }, 'employee_id')} error={err('employee_id')} />
+                    <EmployeePicker search={api.searchEmployees} label="Employee" required={false} value={f.employee ? [f.employee] : []} onChange={(v) => set({ employee: v[v.length - 1] ?? null }, 'employee_id')} error={err('employee_id')} />
                   </div>
                 </>
               )}

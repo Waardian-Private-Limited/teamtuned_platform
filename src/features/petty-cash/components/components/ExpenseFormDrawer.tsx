@@ -285,6 +285,7 @@ export function ExpenseFormDrawer({ open, onClose, onSaved, mode, walletId = nul
     <div className="space-y-4">
       {mode === 'hr' && (
         <EmployeePicker
+          search={api.searchEmployees}
           value={employee}
           onChange={(v) => {
             // Files already stored are in the previous employee's folder: they cannot go on this one's expense.

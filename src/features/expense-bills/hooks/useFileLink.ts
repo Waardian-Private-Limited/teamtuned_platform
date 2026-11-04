@@ -100,10 +100,19 @@ export function useFileLink(source: ReceiptSource | null, enabled: boolean) {
     return true;
   }, [key, source?.kind]);
 
-  if (!source) return { url: null, error: '', loading: false, retry };
-  if (source.kind === 'local') return { url: source.url, error: '', loading: false, retry };
+  // The person pressed "Try again": always a fresh link, however often.
+  const reload = useCallback(() => {
+    if (!key || source?.kind !== 'remote') return;
+    retried.current = null;
+    forceNext.current = key;
+    setState({ key: null, url: null, error: '' });
+    setAttempt((n) => n + 1);
+  }, [key, source?.kind]);
+
+  if (!source) return { url: null, error: '', loading: false, retry, reload };
+  if (source.kind === 'local') return { url: source.url, error: '', loading: false, retry, reload };
   const current = state.key === key;
-  return { url: current ? state.url : null, error: current ? state.error : '', loading: enabled && !current, retry };
+  return { url: current ? state.url : null, error: current ? state.error : '', loading: enabled && !current, retry, reload };
 }
 
 /** True once the element has come near the viewport (stays true). */

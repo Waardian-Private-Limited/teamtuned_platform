@@ -7,7 +7,7 @@ import { FlagCount } from '@/features/expense-bills/components/Flags';
 import type { Expense, ExpenseSortKey } from '../../types/petty-cash.model';
 import type { ExpenseSort } from '../../hooks/useExpenseList';
 import { dateText, money } from '../../utils/format';
-import { ExpenseStatusPill, InwardNos, InwardPill, PhysicalCopyPill } from './StatusBadges';
+import { ExpenseStatusPill, InwardNos, InwardPill } from './StatusBadges';
 
 const checkbox = 'h-4 w-4 cursor-pointer rounded border-line-strong accent-[var(--tt-primary)]';
 const th = 'border-b border-line bg-bg-subtle px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-fg-muted select-none sm:px-4 sm:py-3 2xl:px-6 2xl:text-xs';
@@ -77,8 +77,8 @@ export function ExpenseTable({ rows, sort, onSort, href, selection, showSpender 
             <th className={cx(th, 'hidden lg:table-cell')}>{showSpender ? 'Spent by' : 'Wallet'}</th>
             <SortHead label="Amount" k="amount" sort={sort} onSort={onSort} className="text-right" />
             <th className={th}>Status</th>
-            {showInward ? <SortHead label="Goods inward" k="inward" sort={sort} onSort={onSort} /> : <th className={cx(th, 'hidden xl:table-cell')}>Paper bill</th>}
-            <th className={cx(th, 'text-right')}>
+            {showInward && <SortHead label="Goods inward" k="inward" sort={sort} onSort={onSort} />}
+            <th className={cx(th, 'sticky right-0 z-[1] text-right')}>
               <span className="sr-only">View</span>
             </th>
           </tr>
@@ -118,19 +118,16 @@ export function ExpenseTable({ rows, sort, onSort, href, selection, showSpender 
               <td className={td}>
                 <ExpenseStatusPill status={r.status} />
               </td>
-              {showInward ? (
+              {showInward && (
                 <td className={td}>
                   <div className="flex flex-wrap items-center gap-1.5">
                     {r.inward.status !== 'received' && <InwardPill inward={r.inward} />}
                     <InwardNos numbers={r.inward.numbers} />
                   </div>
                 </td>
-              ) : (
-                <td className={cx(td, 'hidden xl:table-cell')}>
-                  <PhysicalCopyPill copy={r.physicalCopy} />
-                </td>
               )}
-              <td className={cx(td, 'text-right')}>
+              {/* Pinned to the right edge so View is always in reach, however wide the table gets. */}
+              <td className={cx(td, 'sticky right-0 z-[1] bg-surface text-right group-hover:bg-bg-subtle')}>
                 <Link href={href(r.id)} className="inline-flex h-8 items-center gap-1 rounded-lg border border-line bg-surface px-2.5 text-xs font-semibold text-fg transition-colors hover:bg-bg-subtle">
                   View
                   <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden />

@@ -217,7 +217,7 @@ export function OpenWalletsDrawer({ open, onClose, onDone, seatsLeft = null }: {
             {employees.length > seatsLeft ? `. Only the first ${seatsLeft} will be opened.` : ''}
           </p>
         )}
-        <EmployeePicker multiple label="Employees" value={employees} onChange={(v) => { setEmployees(v); setErrors((e) => ({ ...e, employee_ids: '' })); }} error={errors.employee_ids} />
+        <EmployeePicker search={api.searchEmployees} multiple label="Employees" value={employees} onChange={(v) => { setEmployees(v); setErrors((e) => ({ ...e, employee_ids: '' })); }} error={errors.employee_ids} />
         <TextField label="First top-up" inputMode="decimal" prefix="₹" value={amount} onChange={(v) => { setAmount(parseDecimal(v)); setErrors((e) => ({ ...e, initial_amount: '' })); }} error={errors.initial_amount} hint="Given to each employee" />
         {Number(amount) > 0 && <TextField label="Reference" required value={reference} onChange={(v) => { setReference(v); setErrors((e) => ({ ...e, reference: '' })); }} placeholder="UTR or transfer number" error={errors.reference} />}
         {skipped.length > 0 && (
