@@ -17,6 +17,7 @@ import { ContractCard } from './detail/ContractCard';
 import { LoginPasswordDialog } from './detail/LoginPasswordDialog';
 import { useAuth } from '@/providers/auth-provider';
 import { useFeatures } from '@/lib/hooks/useFeatures';
+import { SubmissionReviewPage } from '@/features/onboarding-review/components/SubmissionReviewPage';
 
 /** One employee at a glance: job placement and, for fixed-term staff, the contract. Editing stays on the form. */
 export function EmployeeDetailPage({ employeeId }: { employeeId: number }) {
@@ -24,7 +25,11 @@ export function EmployeeDetailPage({ employeeId }: { employeeId: number }) {
   const { can } = usePermission();
   const canEdit = can(EMPLOYEE_PERMISSIONS.EDIT);
   const { detail: d, error, setContract } = useEmployeeDetail(employeeId);
-  const [tab, setTab] = React.useState<'overview' | 'career'>('overview');
+  const [tab, setTab] = React.useState<'overview' | 'career' | 'onboarding'>('overview');
+  // What the employee filled in during onboarding, their documents and the profile PDF.
+  const canReviewOnboarding = can('ONBOARDING_REVIEW');
+  const canSeeOnboarding = canReviewOnboarding || can('EMP_PII_VIEW') || can('EMP_DOCS_VIEW');
+  const tabs = [['overview', 'Overview'], ['career', 'Career'], ...(canSeeOnboarding ? [['onboarding', 'Onboarding']] : [])] as const;
   const [rehire, setRehire] = React.useState(false);
   const [passwordOpen, setPasswordOpen] = React.useState(false);
   // Org admin only: set or generate the employee's sign-in password.
@@ -80,8 +85,8 @@ export function EmployeeDetailPage({ employeeId }: { employeeId: number }) {
       </div>
 
       <div role="tablist" aria-label="Employee sections" className="flex gap-1 border-b border-line">
-        {([['overview', 'Overview'], ['career', 'Career']] as const).map(([k, l]) => (
-          <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
+        {tabs.map(([k, l]) => (
+          <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k as typeof tab)}
             className={cx('-mb-px border-b-2 px-3 py-2 text-sm font-semibold transition-colors', tab === k ? 'border-[var(--tt-primary)] text-fg' : 'border-transparent text-fg-muted hover:text-fg')}>{l}</button>
         ))}
       </div>
@@ -91,6 +96,8 @@ export function EmployeeDetailPage({ employeeId }: { employeeId: number }) {
           <p className="rounded-xl border border-line bg-surface p-5 text-sm text-[var(--tt-danger)]">{error}</p>
         ) : tab === 'career' ? (
           <CareerTab employeeId={employeeId} detailHref={routes.detail} />
+        ) : tab === 'onboarding' ? (
+          <SubmissionReviewPage employeeId={employeeId} embedded canReview={canReviewOnboarding} />
         ) : !d ? (
           <div className="h-48 animate-pulse rounded-xl border border-line bg-bg-subtle" />
         ) : (

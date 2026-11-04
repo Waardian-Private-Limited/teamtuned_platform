@@ -20,6 +20,7 @@ const STATUS_LABEL: Record<string, string> = {
   submitted: 'Waiting for review',
   changes_requested: 'Changes requested',
   approved: 'Approved',
+  skipped: 'Skipped by HR',
 };
 
 const DOC_STATUS_CLASS: Record<string, string> = {
@@ -34,7 +35,12 @@ function displayValue(value: unknown) {
   return String(value);
 }
 
-export function SubmissionReviewPage({ employeeId, backHref }: { employeeId: number; backHref: string }) {
+/**
+ * One employee's onboarding: what they filled in, their documents and the profile PDF. `embedded` shows it inside
+ * the employee's page (no back link or title); `canReview` false keeps it read-only (verify / approve / request changes
+ * are for onboarding reviewers).
+ */
+export function SubmissionReviewPage({ employeeId, backHref = '', embedded = false, canReview = true }: { employeeId: number; backHref?: string; embedded?: boolean; canReview?: boolean }) {
   const vm = useSubmissionReview(employeeId);
   const [flagOpen, setFlagOpen] = useState<string | null>(null);
   const [changesOpen, setChangesOpen] = useState(false);
@@ -47,13 +53,23 @@ export function SubmissionReviewPage({ employeeId, backHref }: { employeeId: num
   if (!vm.detail) {
     return (
       <div className="rounded-xl border border-line bg-surface p-6 text-sm text-fg-muted">
-        Submission not found. <Link href={backHref} className="font-semibold text-fg underline">Back to list</Link>
+        {embedded ? 'Onboarding details could not be loaded.' : <>Submission not found. <Link href={backHref} className="font-semibold text-fg underline">Back to list</Link></>}
       </div>
     );
   }
 
   const detail = vm.detail;
-  const canDecide = detail.status === 'submitted';
+  const nothingFilled = !detail.documents.length && detail.config.steps.every((s) => s.fields.every((f) => f.value === null || f.value === undefined || f.value === ''));
+  if (embedded && nothingFilled) {
+    return (
+      <div className="rounded-xl border border-line bg-surface p-6 text-sm text-fg-muted">
+        {detail.status === 'skipped'
+          ? 'Onboarding was skipped, so nothing was collected through the onboarding form. Add details from Edit.'
+          : 'Nothing filled in the onboarding form yet.'}
+      </div>
+    );
+  }
+  const canDecide = canReview && detail.status === 'submitted';
   const resubmission = canDecide ? detail.last_review ?? null : null;
   const wasFlagged = (key: string) => Boolean(resubmission && `field:${key}` in resubmission.remarks);
   const wasRejected = (doc: ReviewDocumentDto) =>
@@ -66,11 +82,15 @@ export function SubmissionReviewPage({ employeeId, backHref }: { employeeId: num
     <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface p-3 sm:p-3.5 2xl:p-4">
         <div className="flex min-w-0 items-center gap-3">
-          <Link href={backHref} className="rounded-lg border border-line p-2 text-fg-muted hover:bg-bg-subtle" aria-label="Back">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
+          {!embedded && (
+            <Link href={backHref} className="rounded-lg border border-line p-2 text-fg-muted hover:bg-bg-subtle" aria-label="Back">
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          )}
           <div className="min-w-0">
-            <h1 className="truncate text-base font-bold tracking-tight text-fg sm:text-lg">{detail.name || detail.employee_code}</h1>
+            {embedded
+              ? <h2 className="text-sm font-bold text-fg">Onboarding · {STATUS_LABEL[detail.status] ?? detail.status}</h2>
+              : <h1 className="truncate text-base font-bold tracking-tight text-fg sm:text-lg">{detail.name || detail.employee_code}</h1>}
             <p className="text-xs text-fg-muted">
               {detail.employee_code} · {STATUS_LABEL[detail.status] ?? detail.status}
               {detail.submitted_at && ` · submitted ${formatDate(orgDateOf(detail.submitted_at))}`}

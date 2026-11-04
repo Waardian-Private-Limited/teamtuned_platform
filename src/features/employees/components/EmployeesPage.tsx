@@ -51,7 +51,7 @@ export function EmployeesPage() {
   const onAction = (employee: EmployeeListItemDto, action: StatusAction) =>
     action === 'start_exit' ? setExitFor(employee) : action === 'rehire' ? setRehireFor(employee) : setTarget({ employee, action });
 
-  const confirm = async (exit?: { exitDate: string; reason: string }) => {
+  const confirm = async (exit?: { exitDate?: string; reason?: string }) => {
     if (!target) return;
     const ok = await status.run(target.employee, target.action, exit);
     if (ok) setTarget(null);

@@ -12,11 +12,17 @@ interface EmployeeActionDialogProps {
   target: { employee: EmployeeListItemDto; action: StatusAction } | null;
   busy: boolean;
   onClose: () => void;
-  onConfirm: (exit?: { exitDate: string; reason: string }) => void;
+  onConfirm: (details?: { exitDate?: string; reason?: string }) => void;
 }
 
 const COPY: Record<StatusAction, { title: string; body: string; cta: string; danger: boolean }> = {
   activate: { title: 'Activate employee', body: 'They can sign in and mark attendance again.', cta: 'Activate', danger: false },
+  skip_onboarding: {
+    title: 'Skip onboarding & activate',
+    body: 'They become active now and can use the app fully. The onboarding form closes: personal, bank and document details they have not filled are not collected, so add them from Edit employee. A pending onboarding review is withdrawn.',
+    cta: 'Skip & activate',
+    danger: false,
+  },
   deactivate: { title: 'Deactivate employee', body: 'Sign-in is blocked and active sessions end. Use this for long leave or suspension. You can activate again later.', cta: 'Deactivate', danger: true },
   terminate: { title: 'Terminate employee', body: 'Records the last working day and exit reason. Sign-in is blocked and the site budget is released. This cannot be undone.', cta: 'Terminate', danger: true },
   start_exit: { title: 'Start exit', body: '', cta: 'Start exit', danger: true },
@@ -39,8 +45,10 @@ export function EmployeeActionDialog({ target, busy, onClose, onConfirm }: Emplo
   if (!target) return null;
   const copy = COPY[target.action];
   const terminating = target.action === 'terminate';
+  const skipping = target.action === 'skip_onboarding';
 
   const confirm = () => {
+    if (skipping) return onConfirm({ reason: reason.trim() || undefined });
     if (!terminating) return onConfirm();
     const next = { exitDate: exitDate ? undefined : 'Last working day is required', reason: reason.trim() ? undefined : 'Reason is required' };
     setErrors(next);
@@ -78,6 +86,22 @@ export function EmployeeActionDialog({ target, busy, onClose, onConfirm }: Emplo
           <span className="font-semibold text-fg">{target.employee.name}</span>
           {target.employee.employee_code ? ` (${target.employee.employee_code})` : ''}. {copy.body}
         </p>
+        {skipping && (
+          <div>
+            <span className={labelClass}>Reason</span>
+            <div className={cx(shellClass(false), 'h-auto py-2')}>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={2}
+                maxLength={500}
+                placeholder="Joined before the app rollout, details collected on paper…"
+                className="w-full resize-none border-none bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle focus:ring-0"
+              />
+            </div>
+            <p className="mt-1 text-[11px] text-fg-muted">Optional. Shown in the employee's history.</p>
+          </div>
+        )}
         {terminating && (
           <>
             <TextField label="Last working day" required type="date" value={exitDate} onChange={setExitDate} error={errors.exitDate} />

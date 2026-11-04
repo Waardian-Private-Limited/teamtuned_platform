@@ -45,7 +45,7 @@ export interface OnboardingConfigDto {
   documents: OnboardingDocumentDto[];
 }
 
-export type OnboardingStatus = 'draft' | 'submitted' | 'changes_requested' | 'approved';
+export type OnboardingStatus = 'draft' | 'submitted' | 'changes_requested' | 'approved' | 'skipped';
 
 export interface OnboardingStateResponseDto {
   status: OnboardingStatus;

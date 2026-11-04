@@ -1,6 +1,6 @@
 'use client';
 
-import { History, Power, UserPlus, SquarePen, Trash2, UserX } from 'lucide-react';
+import { History, Power, UserCheck, UserPlus, SquarePen, Trash2, UserX } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { usePermission } from '@/lib/hooks/usePermission';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -43,7 +43,14 @@ export function EmployeeRowActions({ employee, canEdit, canDelete, busy, onEdit,
           </button>
         </Tooltip>
       )}
-      {canEdit && !terminated && (
+      {canEdit && invited && (
+        <Tooltip content="Skip onboarding & activate" align="end">
+          <button type="button" disabled={busy} onClick={() => onAction(employee, 'skip_onboarding')} aria-label={`Skip onboarding and activate ${employee.name}`} className={iconButtonClass}>
+            {busy ? <span className={cx(iconClass, 'inline-block animate-spin rounded-full border-2 border-current border-t-transparent')} /> : <UserCheck className={iconClass} />}
+          </button>
+        </Tooltip>
+      )}
+      {canEdit && !terminated && !invited && (
         <Tooltip content={active ? 'Deactivate' : 'Activate'} align="end">
           <button
             type="button"

@@ -23,6 +23,7 @@ const STATUS_LABEL: Record<string, string> = {
   submitted: 'Submitted',
   changes_requested: 'Changes requested',
   approved: 'Approved',
+  skipped: 'Skipped by HR',
 };
 
 /** `basePath`: where the list and a submission live (org admin or the employee area, for HR with the review permission). */
