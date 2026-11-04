@@ -85,6 +85,8 @@ export function EmployeePayPage({ basePath }: { basePath: string }) {
   const canHold = canEdit && !isPreview && Boolean(run) && run?.status !== 'paid' && !pending && !pay.calculating;
   const canGenerate = canEdit && !isPreview && item?.payslipState === 'not_generated';
   const held = item?.status === 'held';
+  // Hand edits of the lines: only in a draft payroll that is not busy.
+  const lineEdit = canChange && run && run.id && item ? { runId: Number(run.id), employeeId: item.employee.id, onSaved: () => void pay.reload() } : undefined;
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 pb-8">
@@ -185,8 +187,8 @@ export function EmployeePayPage({ basePath }: { basePath: string }) {
           <WarningsList warnings={item.warnings} />
 
           <div className="grid items-start gap-4 lg:grid-cols-2">
-            <LinesTable title="Earnings" lines={item.earningLines} total={item.earnings} empty="No earnings in this period." />
-            <LinesTable title="Deductions" lines={item.deductionLines} total={item.deductions} empty="No deductions in this period." />
+            <LinesTable title="Earnings" lines={item.earningLines} total={item.earnings} empty="No earnings in this period." edit={lineEdit} />
+            <LinesTable title="Deductions" lines={item.deductionLines} total={item.deductions} empty="No deductions in this period." edit={lineEdit} />
           </div>
 
           <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">

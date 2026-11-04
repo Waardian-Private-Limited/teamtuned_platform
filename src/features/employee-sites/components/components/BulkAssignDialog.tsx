@@ -133,8 +133,8 @@ export function BulkAssignDialog({ open, onClose, onDone, departments, sites }: 
       maxWidthClassName="max-w-2xl"
       footer={
         <>
-          <Button variant="secondary" onClick={close} disabled={saving}>Close</Button>
-          <Button onClick={submit} loading={saving} loadingLabel="Assigning…" disabled={!canSubmit}>Assign</Button>
+          <Button variant="secondary" className="!h-9 !w-auto !px-4 !text-[13px]" onClick={close} disabled={saving}>Close</Button>
+          <Button className="!h-9 !w-auto !px-4 !text-[13px]" onClick={submit} loading={saving} loadingLabel="Assigning…" disabled={!canSubmit}>Assign</Button>
         </>
       }
     >

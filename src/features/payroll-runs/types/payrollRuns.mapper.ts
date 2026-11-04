@@ -177,6 +177,7 @@ export function toLine(dto: LineDto): PayLine {
     source: dto.source?.type ?? null,
     badge: lineBadge(dto),
     steps,
+    edited: Boolean(dto.edited),
   };
 }
 

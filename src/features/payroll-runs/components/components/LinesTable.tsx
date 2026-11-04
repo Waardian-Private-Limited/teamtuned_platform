@@ -5,7 +5,8 @@ import { ChevronDown } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import type { PayLine } from '../../types/payrollRuns.model';
 import { money } from '../../utils/format';
-import { SectionCard } from './controls';
+import { SectionCard, actionBtn } from './controls';
+import { LinesEditor } from './LinesEditor';
 
 function Line({ line }: { line: PayLine }) {
   const [open, setOpen] = React.useState(false);
@@ -45,10 +46,34 @@ function Line({ line }: { line: PayLine }) {
   );
 }
 
-export function LinesTable({ title, lines, total, empty }: { title: string; lines: PayLine[]; total: number; empty: string }) {
+export interface LinesEdit { runId: number; employeeId: number; onSaved: () => void }
+
+export function LinesTable({ title, lines, total, empty, edit }: { title: string; lines: PayLine[]; total: number; empty: string; edit?: LinesEdit }) {
+  const [editing, setEditing] = React.useState(false);
+  const canEdit = Boolean(edit) && lines.length > 0;
   return (
-    <SectionCard title={title} aside={<span className="text-sm font-bold tabular-nums text-fg">{money(total, true)}</span>}>
-      {lines.length === 0 ? (
+    <SectionCard
+      title={title}
+      aside={
+        <span className="flex items-center gap-3">
+          {canEdit && !editing && (
+            <button type="button" className={`${actionBtn.secondary} !h-7 !px-2.5 !text-xs`} onClick={() => setEditing(true)}>Edit</button>
+          )}
+          <span className="text-sm font-bold tabular-nums text-fg">{money(total, true)}</span>
+        </span>
+      }
+    >
+      {editing && edit ? (
+        <LinesEditor
+          lines={lines}
+          runId={edit.runId}
+          employeeId={edit.employeeId}
+          onDone={(changed) => {
+            setEditing(false);
+            if (changed) edit.onSaved();
+          }}
+        />
+      ) : lines.length === 0 ? (
         <p className="px-4 py-5 text-center text-xs text-fg-muted">{empty}</p>
       ) : (
         <ul className="divide-y divide-line/70">

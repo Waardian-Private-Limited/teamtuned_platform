@@ -18,6 +18,7 @@ import { PayPanel } from './PayPanel';
 import { ComplianceGapsList } from './ComplianceGapsList';
 import type { StepId } from './wizard/wizard.types';
 import { hajriLabel } from '../../utils/pay';
+import { splitLegacyProfile } from '../../utils/legacyProfile';
 
 type Tab = 'profile' | 'pay' | 'documents' | 'face' | 'attendance';
 const addrLine = (a?: Record<string, string | null | undefined> | null) => (a ? [a.line1, a.line2, a.city, a.state, a.pincode].filter(Boolean).join(', ') : '') || '—';
@@ -42,6 +43,8 @@ function Body({ id, canManage, canForms, onEdit, onChanged, onClose }: { id: num
 
   if (error) return <FormError message={error} />;
   if (!d) return <div className="h-40 animate-pulse rounded-xl bg-bg-subtle" />;
+  const legacy = splitLegacyProfile(d.profile);
+  const legacyLinks = d.profileHidden ? [] : legacy.links;
 
   const open = async (docId: number) => {
     try { window.open((await api.labourerDocLink(id, docId)).url, '_blank', 'noopener'); } catch (e) { showError(messageOf(e)); }
@@ -95,12 +98,13 @@ function Body({ id, canManage, canForms, onEdit, onChanged, onClose }: { id: num
           <Fact label="Present address" wide value={addrLine(d.addresses?.present as never)} />
           <Fact label="Permanent address" wide value={addrLine(d.addresses?.permanent as never)} />
           {d.profileHidden && <p className="col-span-2 rounded-xl bg-bg-subtle p-3 text-xs text-fg-muted">Compliance details hidden — needs Manage labour or Compliance permission.</p>}
-          {!d.profileHidden && Object.entries(d.profile || {}).filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '').map(([k, v]) => <Fact key={k} label={titleCase(k)} value={v === 'true' ? 'Yes' : v === 'false' ? 'No' : v} />)}
+          {!d.profileHidden && Object.entries(legacy.rest).map(([k, v]) => <Fact key={k} label={titleCase(k)} value={v === 'true' ? 'Yes' : v === 'false' ? 'No' : v} />)}
+          {!d.profileHidden && legacy.facts.map((f) => <Fact key={f.label} label={f.label} value={f.value} />)}
         </dl>
       )}
       {tab === 'documents' && (
         <ul className="divide-y divide-line rounded-xl border border-line">
-          {d.documents.length === 0 && <li className="p-4 text-sm text-fg-muted">No documents uploaded.</li>}
+          {d.documents.length === 0 && legacyLinks.length === 0 && <li className="p-4 text-sm text-fg-muted">No documents uploaded.</li>}
           {d.documents.map((doc) => (
             <li key={doc.id} className="flex items-center justify-between gap-2 px-3 py-2.5">
               <div className="min-w-0"><p className="truncate text-sm font-semibold text-fg">{titleCase(doc.docType)}{doc.side && doc.side !== 'single' ? ` (${doc.side})` : ''}</p><p className="text-[11px] text-fg-muted">{[doc.number, doc.expiryOn ? `Expires ${fmtDate(doc.expiryOn)}` : ''].filter(Boolean).join(' · ') || 'No number'}</p></div>
@@ -108,6 +112,13 @@ function Body({ id, canManage, canForms, onEdit, onChanged, onClose }: { id: num
                 <button type="button" className={secondaryBtn} onClick={() => open(doc.id)}><ExternalLink className="h-3.5 w-3.5" aria-hidden />View</button>
                 {canManage && <button type="button" aria-label="Remove document" className={secondaryBtn} onClick={() => removeDoc(doc.id)}><Trash2 className="h-3.5 w-3.5" aria-hidden /></button>}
               </div>
+            </li>
+          ))}
+          {legacyLinks.length > 0 && <li className="bg-bg-subtle px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-fg-muted">From the old system</li>}
+          {legacyLinks.map((l) => (
+            <li key={l.url} className="flex items-center justify-between gap-2 px-3 py-2.5">
+              <p className="min-w-0 truncate text-sm font-semibold text-fg">{titleCase(l.label)}</p>
+              <a className={secondaryBtn} href={l.url} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-3.5 w-3.5" aria-hidden />View</a>
             </li>
           ))}
         </ul>

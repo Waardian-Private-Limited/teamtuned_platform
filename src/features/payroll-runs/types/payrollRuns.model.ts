@@ -114,6 +114,7 @@ export interface PayLine {
   source: LineSource | null;
   badge: string | null;
   steps: Array<{ step: string; value: string }>;
+  edited: boolean;
 }
 
 export interface DayCell {

@@ -151,3 +151,11 @@ export function addDayAdjustment(body: { employee_id: number; period_start: stri
 export function cancelDayAdjustment(id: number, reason: string) {
   return apiClient.post<DayAdjustmentResultDto>(`/payroll-runs/day-adjustments/${id}/cancel`, { reason }, auth);
 }
+
+export interface LineEditDto { key: string; amount: number; steps?: Array<{ step: string; value: string }> }
+export function saveLineOverrides(body: { run_id: number; employee_id: number; edits: LineEditDto[] }) {
+  return apiClient.put<{ ok: boolean; message: string }>('/payroll-runs/line-overrides', body, auth);
+}
+export function resetLineOverrides(body: { run_id: number; employee_id: number; keys?: string[] }) {
+  return apiClient.post<{ ok: boolean; removed: number; message: string }>('/payroll-runs/line-overrides/reset', body, auth);
+}

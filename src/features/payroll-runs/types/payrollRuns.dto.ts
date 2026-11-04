@@ -133,6 +133,8 @@ export interface LineDto {
   employer_share?: number;
   source?: { type: 'component' | 'grant' | 'payout' | 'rule' | 'advance' | 'rounding' | 'legacy'; id: number | null } | null;
   steps?: Array<{ step: string; value: number | string | null }>;
+  /** Set by hand in the entry (payroll_line_overrides). */
+  edited?: boolean;
 }
 
 export interface CellDto {
