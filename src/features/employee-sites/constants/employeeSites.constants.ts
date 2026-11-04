@@ -18,7 +18,7 @@ export const EMPLOYEE_SITE_PERMISSIONS = {
 
 // Location rules whose punch pool includes the employee's other locations
 // (mirrors the attendance LocationGate pools on the backend).
-export const MODES_USING_OTHER_LOCATIONS = new Set(['other_locations', 'exception', 'flagged']);
+export const MODES_USING_OTHER_LOCATIONS = new Set(['all_sites', 'other_locations', 'exception', 'flagged']);
 
 export type EmployeeSiteFieldName = 'sites' | 'primary' | 'locationAccess' | 'otherLocations';
 

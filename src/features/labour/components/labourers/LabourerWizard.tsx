@@ -72,8 +72,11 @@ function Body({ onClose, onSaved, editId = null, onOpenExisting, startAt }: Omit
   }, [startAt, steps, editing, detail]);
   const set = (p: Partial<WizardForm>) => setForm((f) => ({ ...f, ...p }));
 
+  // A subcategory is required when the chosen category has active ones.
+  const subRequired = (categories.find((c) => c.id === form.categoryId)?.subcategories || []).some((s) => s.isActive);
+
   const goNext = () => {
-    const errs = validate(form);
+    const errs = validate(form, subRequired);
     const first = Object.keys(errs).find((k) => steps.indexOf(stepOfField(k)) <= idx);
     if (first) {
       submit.setErrors(errs);
@@ -88,7 +91,7 @@ function Body({ onClose, onSaved, editId = null, onOpenExisting, startAt }: Omit
   };
 
   const save = async () => {
-    const errs = { ...validate(form), ...validatePack(pack, form.profile) };
+    const errs = { ...validate(form, subRequired), ...validatePack(pack, form.profile) };
     const photos = Object.values(shots).filter(Boolean).length;
     if (Object.keys(errs).length) {
       submit.setErrors(errs);

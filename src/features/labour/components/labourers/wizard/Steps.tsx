@@ -42,8 +42,8 @@ export function BasicStep({ form, set, errors, clear, sites, contractors, catego
         {text('workStartDate', 'Work start date', { type: 'date' })}
         {text('phone', 'Mobile number', { inputMode: 'numeric', maxLength: 10 })}
         {text('emergencyPhone', 'Emergency number', { inputMode: 'numeric', maxLength: 10 })}
-        <SelectField label="Category" numeric value={form.categoryId} options={categories.filter((c) => c.isActive || c.id === form.categoryId).map((c) => ({ value: c.id, label: c.name }))} error={errors.categoryId} onChange={(v) => set({ categoryId: v, subcategoryId: null })} />
-        <SelectField label="Subcategory" numeric value={form.subcategoryId} disabled={!form.categoryId} options={subs.map((s) => ({ value: s.id, label: s.name }))} error={errors.subcategoryId} onChange={(v) => set({ subcategoryId: v })} />
+        <SelectField label="Category" required numeric value={form.categoryId} options={categories.filter((c) => c.isActive || c.id === form.categoryId).map((c) => ({ value: c.id, label: c.name }))} error={errors.categoryId} onChange={(v) => set({ categoryId: v, subcategoryId: null })} />
+        <SelectField label="Subcategory" required={subs.length > 0} numeric value={form.subcategoryId} disabled={!form.categoryId} options={subs.map((s) => ({ value: s.id, label: s.name }))} error={errors.subcategoryId} onChange={(v) => set({ subcategoryId: v })} />
       </div>
       {payHint}
       {move && (

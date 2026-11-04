@@ -89,11 +89,13 @@ export const stepOfField = (field: string): StepId =>
   field.startsWith('addresses') ? 'address' : field === 'aadhaar' ? 'identity' : field.startsWith('profile') ? 'compliance' : 'basic';
 
 /** Client-side checks per field; the server stays the authority. */
-export function validate(f: WizardForm): Record<string, string> {
+export function validate(f: WizardForm, subcategoryRequired = false): Record<string, string> {
   const e: Record<string, string> = {};
   if (!f.firstName.trim()) e.firstName = 'Enter the first name';
   if (!f.contractorId) e.contractorId = 'Choose the contractor';
   if (!f.siteId) e.siteId = 'Choose the site';
+  if (!f.categoryId) e.categoryId = 'Choose the category';
+  else if (subcategoryRequired && !f.subcategoryId) e.subcategoryId = 'Choose the subcategory';
   if (f.phone && !/^\d{10}$/.test(f.phone)) e.phone = 'Enter a 10 digit mobile number';
   if (f.emergencyPhone && !/^\d{10}$/.test(f.emergencyPhone)) e.emergencyPhone = 'Enter a 10 digit mobile number';
   if (f.aadhaar && !/^\d{12}$/.test(f.aadhaar.replace(/\s/g, ''))) e.aadhaar = 'Aadhaar must be exactly 12 digits';

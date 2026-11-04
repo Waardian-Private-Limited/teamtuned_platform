@@ -103,7 +103,7 @@ export function EmployeeSitesToolbar({
         <SubOrgFilter value={subOrgId} onChange={onSubOrgChange} />
 
         {onBulkAssign && (
-          <Button variant="secondary" onClick={onBulkAssign}>Bulk assign</Button>
+          <Button variant="secondary" className="!h-9 !w-auto shrink-0 !px-3 !text-[13px] 2xl:!h-10" onClick={onBulkAssign}>Bulk assign</Button>
         )}
       </div>
     </div>
