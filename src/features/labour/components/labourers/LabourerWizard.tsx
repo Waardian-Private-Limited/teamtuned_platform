@@ -39,10 +39,13 @@ function Body({ onClose, onSaved, editId = null, onOpenExisting, startAt }: Omit
   const editing = Boolean(editId);
   const settings = useLabourSettings();
   const { sites } = useLabourSites();
-  const contractors = useContractorOptions();
-  const { categories } = useCatalog();
+  const listedContractors = useContractorOptions();
+  // Inactive categories are loaded too, so an edit still shows the one the labourer already has.
+  const { categories } = useCatalog(true);
   const [form, setForm] = useState<WizardForm>(blankForm);
   const [detail, setDetail] = useState<LabourerDetail | null>(null);
+  // The labourer's own contractor stays pickable when it is no longer in the active list.
+  const contractors = useMemo(() => (detail?.contractorId && !listedContractors.some((c) => c.value === detail.contractorId) ? [...listedContractors, { value: detail.contractorId, label: detail.contractorName || `Contractor #${detail.contractorId}` }] : listedContractors), [listedContractors, detail]);
   const [loadError, setLoadError] = useState('');
   const [shots, setShots] = useState<Shots>(EMPTY_SHOTS);
   const [docs, setDocs] = useState<PendingDoc[]>([]);

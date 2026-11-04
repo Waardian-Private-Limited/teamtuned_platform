@@ -23,7 +23,7 @@ const grid = 'grid gap-4 sm:grid-cols-2';
 /** `move`: editing changed the site / contractor / category; offers to move recent attendance along (within maxBackDays). */
 /** `payHint`: the pay rate suggestion card, shown under the fields once contractor and site are chosen. */
 export function BasicStep({ form, set, errors, clear, sites, contractors, categories, lockContractor, move, payHint }: StepProps & { sites: Opt[]; contractors: Opt[]; categories: Category[]; lockContractor?: boolean; move?: { maxBackDays: number } | null; payHint?: React.ReactNode }) {
-  const subs = (categories.find((c) => c.id === form.categoryId)?.subcategories || []).filter((s) => s.isActive);
+  const subs = (categories.find((c) => c.id === form.categoryId)?.subcategories || []).filter((s) => s.isActive || s.id === form.subcategoryId);
   const text = (k: keyof WizardForm, label: string, extra: Partial<React.ComponentProps<typeof TextField>> = {}) => (
     <TextField label={label} value={String(form[k] ?? '')} error={errors[k as string]} onChange={(v) => { set({ [k]: v } as Partial<WizardForm>); clear(k as string); }} {...extra} />
   );
@@ -42,7 +42,7 @@ export function BasicStep({ form, set, errors, clear, sites, contractors, catego
         {text('workStartDate', 'Work start date', { type: 'date' })}
         {text('phone', 'Mobile number', { inputMode: 'numeric', maxLength: 10 })}
         {text('emergencyPhone', 'Emergency number', { inputMode: 'numeric', maxLength: 10 })}
-        <SelectField label="Category" numeric value={form.categoryId} options={categories.filter((c) => c.isActive).map((c) => ({ value: c.id, label: c.name }))} error={errors.categoryId} onChange={(v) => set({ categoryId: v, subcategoryId: null })} />
+        <SelectField label="Category" numeric value={form.categoryId} options={categories.filter((c) => c.isActive || c.id === form.categoryId).map((c) => ({ value: c.id, label: c.name }))} error={errors.categoryId} onChange={(v) => set({ categoryId: v, subcategoryId: null })} />
         <SelectField label="Subcategory" numeric value={form.subcategoryId} disabled={!form.categoryId} options={subs.map((s) => ({ value: s.id, label: s.name }))} error={errors.subcategoryId} onChange={(v) => set({ subcategoryId: v })} />
       </div>
       {payHint}
