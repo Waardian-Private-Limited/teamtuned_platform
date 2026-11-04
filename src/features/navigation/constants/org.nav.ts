@@ -244,6 +244,7 @@ export const orgNav: NavNode[] = [
       { kind: 'link', label: 'Team goals', href: '/org-admin/performance/team-goals', icon: Users, match: 'prefix' },
       { kind: 'link', label: 'Feedback to give', href: '/org-admin/performance/feedback', icon: MessageSquare, match: 'prefix' },
       { kind: 'link', label: 'One-on-ones', href: '/org-admin/performance/one-on-ones', icon: CalendarCheck, match: 'prefix' },
+      { kind: 'link', label: 'People', href: '/org-admin/performance/people', icon: UserSearch, match: 'prefix' },
       { kind: 'link', label: 'Kudos', href: '/org-admin/performance/kudos', icon: Heart, match: 'prefix' },
       { kind: 'link', label: 'Improvement plans', href: '/org-admin/performance/improvement-plans', icon: ClipboardList, match: 'prefix' },
       { kind: 'link', label: 'Talent', href: '/org-admin/performance/talent', icon: Grid3x3, match: 'prefix' },

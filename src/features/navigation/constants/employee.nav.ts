@@ -326,6 +326,7 @@ export const employeeNav: NavNode[] = [
       { kind: 'link', label: 'Team goals', href: '/employee/performance/team-goals', icon: Users, match: 'prefix' },
       { kind: 'link', label: 'Feedback to give', href: '/employee/performance/feedback', icon: MessageSquare, match: 'prefix' },
       { kind: 'link', label: 'One-on-ones', href: '/employee/performance/one-on-ones', icon: CalendarCheck, match: 'prefix' },
+      { kind: 'link', label: 'People', href: '/employee/performance/people', icon: UserSearch, match: 'prefix' },
       { kind: 'link', label: 'Kudos', href: '/employee/performance/kudos', icon: Heart, match: 'prefix' },
       { kind: 'link', label: 'Improvement plans', href: '/employee/performance/improvement-plans', icon: ClipboardList, match: 'prefix' },
       { kind: 'link', label: 'Talent', href: '/employee/performance/talent', icon: Grid3x3, match: 'prefix', gate: { anyPerm: ['PERF_TALENT_MANAGE'] } },

@@ -71,6 +71,17 @@ export const HELP: Record<string, PageHelp> = {
     steps: ['Book one with your manager or someone on your team.', 'Both add agenda points before the meeting; a reminder comes a day ahead.', 'During it, keep shared notes and action items with an owner and a due date.', 'Mark it done, then "Book the next one": open actions carry over.'],
     terms: [['Shared notes', 'Both of you see them.'], ['Private notes', 'Only the person who wrote them ever sees them.']],
   },
+  people: {
+    title: 'People',
+    intro: 'Open anyone you look after and see their whole picture on one page.',
+    steps: ['HR, compensation and admins see everyone in their company; a manager sees everyone below them in the reporting line (a director sees the whole branch).', 'Pick a person to open their profile.'],
+  },
+  person: {
+    title: 'Person profile',
+    intro: 'Everything about one person\'s work on one page, for a 1:1, an increment round or a review.',
+    steps: ['Top row: this cycle so far, the last released rating, attendance, tasks on time, app reports, meeting actions and kudos.', 'This cycle: every KPI per quarter with target, actual and score, and where the number comes from.', 'Below: ratings over the years, attendance and leave, the forms they fill, tasks, MOM actions, OKRs, 1:1s, kudos, improvement plans, learning and (with compensation access) pay history.', 'Change the period at the top right. Sections appear only for what your organization uses.'],
+    terms: [['Private notes', '1:1 private notes are never shown; you see only meetings you were part of.'], ['Own page', 'People see their own page without potential, talent and pay, and without ratings that are not released.']],
+  },
   kudos: {
     title: 'Kudos',
     intro: 'Thanks from one colleague to another.',

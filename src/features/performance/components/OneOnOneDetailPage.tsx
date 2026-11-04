@@ -15,7 +15,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import * as api from '../api/perf.api';
 import type { OneOnOne, OneOnOneItem } from '../types/perf.types';
 import { MEETING_LABEL, meetingTone, ScheduleDialog } from './OneOnOnesPage';
-import { Btn, Card, IconBtn, PageHead } from './ui';
+import { Btn, Card, IconBtn, PageHead, btnClass } from './ui';
 
 /** One meeting: agenda, shared notes, action items, and private notes that only the viewer ever reads. */
 export function OneOnOneDetailPage({ id, basePath }: { id: number; basePath: string }) {
@@ -64,6 +64,7 @@ export function OneOnOneDetailPage({ id, basePath }: { id: number; basePath: str
         title={<><Link href={`${basePath}/one-on-ones`} aria-label="All one-on-ones" className="rounded-[var(--tt-radius-sm)] p-1 text-fg-muted hover:bg-bg-subtle hover:text-fg"><ArrowLeft className="h-4 w-4" /></Link>One-on-one with {m.with.name}<StatusPill label={MEETING_LABEL[m.status]} tone={meetingTone(m.status)} /></>}
         subtitle={`${formatDayTime(m.scheduled_at)} · ${m.manager_name} (manager) and ${m.employee_name}`}
         actions={<>
+          {m.i_am === 'manager' && <Link href={`${basePath}/people/${m.employee_id}`} className={btnClass('secondary', 'md')}>Their profile</Link>}
           {m.status !== 'cancelled' && <Btn variant="secondary" icon={CalendarPlus} onClick={() => setBooking(true)}>Book the next one</Btn>}
           {m.status === 'scheduled' && <Btn icon={Check} loading={busy === 'done'} onClick={() => run('done', () => api.updateOneOnOne(m.id, { status: 'done' }), 'Marked as done')}>Mark done</Btn>}
           {m.status === 'scheduled' && <Btn variant="ghost" icon={X} onClick={() => setConfirm({ title: 'Cancel this one-on-one?', body: <p className="text-sm text-fg">{m.with.name} is not told separately; the meeting shows as cancelled.</p>, cta: 'Cancel meeting', danger: true, run: () => run('cancel', () => api.updateOneOnOne(m.id, { status: 'cancelled' }), 'Cancelled') })}>Cancel</Btn>}

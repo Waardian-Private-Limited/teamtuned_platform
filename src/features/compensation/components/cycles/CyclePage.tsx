@@ -1,5 +1,8 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
+import { useFeatures } from '@/lib/hooks/useFeatures';
+
 import React from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Check, Lock, RefreshCw, Save, Sparkles, Upload, UserPlus, Send } from 'lucide-react';
@@ -103,6 +106,10 @@ function BudgetMeter({ used }: { used: number | null }) {
 }
 
 export function CyclePage({ cycleId, basePath }: { cycleId: number; basePath: string }) {
+  // A row can open the person's whole performance picture (ratings, goals, tasks, reports, attendance) in a new tab.
+  const { hasFeature } = useFeatures();
+  const perfOn = hasFeature('PERFORMANCE_FEATURE');
+  const profileBase = usePathname().startsWith('/employee') ? '/employee/performance' : '/org-admin/performance';
   const { can: canCode, hasPerm } = usePermission();
   const can = (code: string) => canCode(code) || hasPerm('HR_MODE');
   const perms = { add: can(COMP_PERMISSIONS.ADD), edit: can(COMP_PERMISSIONS.EDIT), approve: can(COMP_PERMISSIONS.APPROVE) };
@@ -333,6 +340,7 @@ export function CyclePage({ cycleId, basePath }: { cycleId: number; basePath: st
                           <span className="block font-semibold hover:underline">{r.employee.name}</span>
                           <span className="block text-[11px] text-fg-muted">{[r.employee.employee_code, r.previous_designation].filter(Boolean).join(' · ')}</span>
                         </button>
+                        {perfOn && <a href={`${profileBase}/people/${r.employee.id}`} target="_blank" rel="noopener noreferrer" className="mt-0.5 block text-[11px] font-semibold text-fg-muted hover:text-fg hover:underline">Full profile ↗</a>}
                       </td>
                       <td className={td}>{inr(r.previous_ctc)}{r.market && <span className="block text-[11px] text-fg-muted" title={`Market median ${inr(r.market.p50)}`}>Compa {r.market.compa_before?.toFixed(2) ?? '—'}</span>}</td>
                       <td className={td}>

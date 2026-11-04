@@ -339,3 +339,32 @@ export interface PerformanceDashboard {
   };
   pay?: DashPayCycle[];
 }
+
+// ---- person profile (one person's whole picture) ----
+export interface PersonRow { id: number; employee_code: string | null; name: string; designation: string | null; department: string | null; manager: string | null }
+export interface ProfileKpi {
+  name: string; kra: string | null; unit: string | null; direction: string | null; source: string | null; weight: number; target: number | null; actual: number | null; score: number | null;
+  breaks: { label: string; actual: number | null; target: number | null; score: number | null }[];
+}
+export interface PersonProfile {
+  person: { id: number; employee_code: string | null; name: string; designation: string | null; status: string; joined_on: string | null; department: string | null; role: string | null; manager: string | null; site: string | null; photo_url: string | null };
+  viewer: { self: boolean; manager: boolean; hr: boolean; can_see_pay: boolean };
+  window: { from: string; to: string };
+  features: { tasks: boolean; reports: boolean; meetings: boolean; learning: boolean };
+  performance: {
+    history: { cycle_id: number; cycle: string; period_start: string; period_end: string; cycle_status: string; sheet_id: number; goals: string; released: boolean; reviewer: string | null; score: number | null; band: string | null; kpi_score: number | null; competency_score: number | null; potential: string | null; acknowledged: string | null }[];
+    live: { cycle: string; sheet_id: number; basis: string; score: number | null; band: string | null; partial: boolean; breaks: { label: string; score: number | null; closed: boolean }[]; kpis: ProfileKpi[] } | null;
+  };
+  attendance: { attendance_rate: number | null; punctuality_rate: number | null; consistency: number | null; present_days: number; absent_days: number; late_days: number; leave_days: number; worked_hours: number; overtime_hours: number };
+  leave: { type: string; days: number; lop_days: number; unplanned_days: number }[];
+  tasks: null | { done: number; on_time: number; late: number; open: number; overdue: number; on_time_rate: number | null; avg_review_rating: number | null; hours: number; open_list: { title: string; priority: string; status: string; due_on: string | null; overdue: boolean }[]; recent: { title: string; on_time: boolean | null; done_on: string; review_rating: number | null }[] };
+  reports: null | { form: string; asked: number | null; missed: number | null; pending: number | null; submitted: number; late: number; approved?: number; returned?: number; last_on?: string | null; on_time_rate: number | null; fill_rate: number | null }[];
+  meetings: null | { actions_done: number; actions_done_on_time: number; actions_open: number; actions_overdue: number; meetings_invited: number; meetings_attended: number; open_list: { text: string; status: string; due_on: string | null; meeting: string; overdue: boolean }[] };
+  okrs: { title: string; progress: number | null; key_results: { title: string; progress: number | null; current: number | null; target: number; source: string }[] }[];
+  kudos: { count: number; latest: { message: string; on_date: string; from_name: string | null; competency: string | null }[] };
+  one_on_ones: { id: number; scheduled_at: string; status: string; shared_notes: string | null; manager_name: string | null; open_actions: number }[];
+  improvement_plans: { id: number; title: string; status: string; outcome: string | null; start_date: string; end_date: string; owner_name: string | null; objectives: number; met: number }[];
+  learning: null | { title: string; status: string; due_date: string | null; completed_on: string | null; competency: string | null }[];
+  talent: null | { potential: string | null; successor_for: { title: string; readiness: string }[] };
+  pay: null | { revision_type: string; effective_from: string; change_percent: number | null; previous_ctc: number | null; new_ctc: number | null; rating: string | null; performance_rating: string | null; previous_designation: string | null; new_designation: string | null; status: string }[];
+}

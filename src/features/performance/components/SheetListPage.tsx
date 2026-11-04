@@ -90,7 +90,7 @@ export function SheetListPage({ mode, basePath }: { mode: 'mine' | 'team'; baseP
               ]}>
                 {shown.map((s) => (
                   <tr key={s.id} onClick={() => router.push(open(s))} className="cursor-pointer transition-colors hover:bg-bg-subtle/50">
-                    {mode === 'team' && <td className={td}><span className="font-semibold">{s.employee_name}</span>{s.employee_code && <span className="ml-2 text-[11px] text-fg-muted">{s.employee_code}</span>}</td>}
+                    {mode === 'team' && <td className={td} onClick={(e) => e.stopPropagation()}><Link href={`${basePath}/people/${s.employee_id}`} className="font-semibold hover:underline" title="Open their profile">{s.employee_name}</Link>{s.employee_code && <span className="ml-2 text-[11px] text-fg-muted">{s.employee_code}</span>}</td>}
                     <td className={td}><span className={mode === 'mine' ? 'font-semibold' : ''}>{s.cycle_name}</span></td>
                     <td className={`${td} text-fg-muted`}>{s.period_start} to {s.period_end}</td>
                     <td className={`${td} text-fg-muted`}>{CYCLE_STATUS_LABEL[s.cycle_status]}</td>

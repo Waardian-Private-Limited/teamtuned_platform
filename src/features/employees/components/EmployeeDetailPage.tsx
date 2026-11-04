@@ -16,6 +16,7 @@ import { useEmployeeRoutes } from '../hooks/useEmployeeRoutes';
 import { ContractCard } from './detail/ContractCard';
 import { LoginPasswordDialog } from './detail/LoginPasswordDialog';
 import { useAuth } from '@/providers/auth-provider';
+import { useFeatures } from '@/lib/hooks/useFeatures';
 
 /** One employee at a glance: job placement and, for fixed-term staff, the contract. Editing stays on the form. */
 export function EmployeeDetailPage({ employeeId }: { employeeId: number }) {
@@ -29,6 +30,9 @@ export function EmployeeDetailPage({ employeeId }: { employeeId: number }) {
   // Org admin only: set or generate the employee's sign-in password.
   const canSetPassword = useAuth().role === 'OrgAdmin' && !!d && !['Deleted', 'Terminated'].includes(d.status);
   const canRehire = can(EMPLOYEE_PERMISSIONS.ADD) && d?.status === 'Terminated';
+  // The person's whole performance picture (the profile page decides who may see what).
+  const perfOn = useFeatures().hasFeature('PERFORMANCE_FEATURE');
+  const profileHref = `${routes.list.startsWith('/employee') ? '/employee' : '/org-admin'}/performance/people/${employeeId}`;
   const primarySite = d?.sites?.find((s) => s.is_primary)?.name || null;
 
   return (
@@ -49,6 +53,11 @@ export function EmployeeDetailPage({ employeeId }: { employeeId: number }) {
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {d && d.status !== 'Deleted' && <StatusPill label={d.status} tone={STATUS_TONE[d.status]} />}
+          {perfOn && d && d.status !== 'Deleted' && (
+            <Link href={profileHref} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-fg transition-colors hover:bg-bg-subtle sm:text-sm">
+              Performance profile
+            </Link>
+          )}
           {canRehire && d && (
             <button type="button" onClick={() => setRehire(true)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-fg transition-colors hover:bg-bg-subtle sm:text-sm">
               <UserPlus className="h-3.5 w-3.5" />

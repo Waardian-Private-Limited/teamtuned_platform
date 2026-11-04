@@ -136,3 +136,7 @@ export const createKeyPosition = (body: unknown) => apiClient.post<KeyPosition>(
 export const updateKeyPosition = (id: number, body: unknown) => apiClient.put<KeyPosition>(`${B}/key-positions/${id}`, body, auth);
 export const setSuccessor = (id: number, employeeId: number, body: { readiness: Readiness; notes?: string }) => apiClient.put<{ items: KeyPosition[] }>(`${B}/key-positions/${id}/successors/${employeeId}`, body, auth);
 export const removeSuccessor = (id: number, employeeId: number) => apiClient.delete<{ items: KeyPosition[] }>(`${B}/key-positions/${id}/successors/${employeeId}`, auth);
+
+// ---- person profile ----
+export const listPeople = (search: string) => apiClient.get<{ items: import('../types/perf.types').PersonRow[]; scope: 'all' | 'team' | 'none' }>(`${B}/people`, search ? { search } : undefined, auth);
+export const personProfile = (id: number, window?: { from?: string; to?: string }) => apiClient.get<import('../types/perf.types').PersonProfile>(`${B}/people/${id}/profile`, window && (window.from || window.to) ? window : undefined, auth);
