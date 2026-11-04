@@ -91,50 +91,61 @@ export function LinesEditor({ lines, runId, employeeId, stage, onDone }: { lines
                   />
                 </div>
               </div>
-              <div className="rounded-lg border border-line bg-bg-subtle/60 p-2.5">
-                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-fg-subtle">How it was calculated</p>
-                <div className="space-y-1.5">
-                  {d.steps.map((s, i) => (
-                    <div key={i} className="flex items-center gap-1.5">
-                      <input
-                        aria-label="Step"
-                        value={s.step}
-                        maxLength={80}
-                        disabled={busy !== null}
-                        onChange={(e) => patch(l.key, { steps: d.steps.map((x, j) => (j === i ? { ...x, step: e.target.value } : x)) })}
-                        className={field}
-                      />
-                      <input
-                        aria-label="Value"
-                        value={s.value}
-                        maxLength={120}
-                        disabled={busy !== null}
-                        onChange={(e) => patch(l.key, { steps: d.steps.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)) })}
-                        className={`${field} max-w-[9rem] text-right tabular-nums`}
-                      />
-                      <button
-                        type="button"
-                        aria-label="Remove row"
-                        disabled={busy !== null}
-                        onClick={() => patch(l.key, { steps: d.steps.filter((_, j) => j !== i) })}
-                        className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-fg-muted hover:bg-bg-subtle hover:text-fg disabled:opacity-40"
-                      >
-                        <X className="h-3.5 w-3.5" aria-hidden />
-                      </button>
-                    </div>
-                  ))}
+              {d.steps.length === 0 ? (
+                <button
+                  type="button"
+                  disabled={busy !== null}
+                  onClick={() => patch(l.key, { steps: [{ step: '', value: '' }] })}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-fg-muted hover:text-fg disabled:opacity-40"
+                >
+                  <Plus className="h-3 w-3" aria-hidden /> Add breakdown (optional)
+                </button>
+              ) : (
+                <div className="rounded-lg border border-line bg-bg-subtle/60 p-2.5">
+                  <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-fg-subtle">How it was calculated (optional)</p>
+                  <div className="space-y-1.5">
+                    {d.steps.map((s, i) => (
+                      <div key={i} className="flex items-center gap-1.5">
+                        <input
+                          aria-label="Step"
+                          value={s.step}
+                          maxLength={80}
+                          disabled={busy !== null}
+                          onChange={(e) => patch(l.key, { steps: d.steps.map((x, j) => (j === i ? { ...x, step: e.target.value } : x)) })}
+                          className={field}
+                        />
+                        <input
+                          aria-label="Value"
+                          value={s.value}
+                          maxLength={120}
+                          disabled={busy !== null}
+                          onChange={(e) => patch(l.key, { steps: d.steps.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)) })}
+                          className={`${field} max-w-[9rem] text-right tabular-nums`}
+                        />
+                        <button
+                          type="button"
+                          aria-label="Remove row"
+                          disabled={busy !== null}
+                          onClick={() => patch(l.key, { steps: d.steps.filter((_, j) => j !== i) })}
+                          className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-fg-muted hover:bg-bg-subtle hover:text-fg disabled:opacity-40"
+                        >
+                          <X className="h-3.5 w-3.5" aria-hidden />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  {d.steps.length < 12 && (
+                    <button
+                      type="button"
+                      disabled={busy !== null}
+                      onClick={() => patch(l.key, { steps: [...d.steps, { step: '', value: '' }] })}
+                      className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-fg-muted hover:text-fg disabled:opacity-40"
+                    >
+                      <Plus className="h-3 w-3" aria-hidden /> Add row
+                    </button>
+                  )}
                 </div>
-                {d.steps.length < 12 && (
-                  <button
-                    type="button"
-                    disabled={busy !== null}
-                    onClick={() => patch(l.key, { steps: [...d.steps, { step: '', value: '' }] })}
-                    className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-fg-muted hover:text-fg disabled:opacity-40"
-                  >
-                    <Plus className="h-3 w-3" aria-hidden /> Add row
-                  </button>
-                )}
-              </div>
+              )}
             </li>
           );
         })}
