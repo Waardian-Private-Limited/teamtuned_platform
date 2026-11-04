@@ -132,7 +132,7 @@ export function exportBankTransfer(runId: number) {
 // ---- Payable-day adjustments: +/- day corrections per employee and pay period (a ledger; nothing is locked). ----
 
 export interface DayAdjustmentDto {
-  id: number; employee_id: number; period_start: string; period_end: string; days: number; reason: string; status: 'active' | 'cancelled';
+  id: number; employee_id: number; period_start: string; period_end: string; kind?: 'days' | 'amount'; days: number; amount?: number | null; reason: string; status: 'active' | 'cancelled';
   created_by: string | null; created_at: string; cancelled_by: string | null; cancelled_at: string | null; cancel_reason: string | null;
 }
 export interface AdjustablePeriodDto {
@@ -145,7 +145,7 @@ export interface DayAdjustmentResultDto { adjustment: DayAdjustmentDto; effect: 
 export function listDayAdjustments(employeeId: number) {
   return apiClient.get<DayAdjustmentListDto>('/payroll-runs/day-adjustments', { employee_id: employeeId }, auth);
 }
-export function addDayAdjustment(body: { employee_id: number; period_start: string; period_end: string; days: number; reason: string }) {
+export function addDayAdjustment(body: { employee_id: number; period_start: string; period_end: string; reason: string; kind?: 'days' | 'amount'; days?: number; amount?: number }) {
   return apiClient.post<DayAdjustmentResultDto>('/payroll-runs/day-adjustments', body, auth);
 }
 export function cancelDayAdjustment(id: number, reason: string) {

@@ -25,6 +25,7 @@ import { ItemsToolbar } from './components/ItemsToolbar';
 import { MonthPicker } from './components/MonthPicker';
 import { PayrollEmptyState } from './components/PayrollEmptyState';
 import { PayrollSettingsDrawer } from './components/PayrollSettingsDrawer';
+import { useRunSearchHits } from '../hooks/useRunSearchHits';
 import { PreviewPanel } from './components/PreviewPanel';
 import { RunCard } from './components/RunCard';
 import { RunTable } from './components/RunTable';
@@ -113,6 +114,14 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
 
   const list = useRunItems(selectedId, itemsVersion + runsState.settledVersion);
   const options = useFilterOptions(subOrgId);
+  // The searched name may sit in another company's run: ask every run, jump to one that has them.
+  const found = useRunSearchHits(runs, list.filters.search, itemsVersion + runsState.settledVersion);
+  const hitsHere = found.hits.get(selectedId ?? -1) ?? 0;
+  const firstOther = realRuns.find((r) => r.id !== selectedId && (found.hits.get(r.id as number) ?? 0) > 0) || null;
+  React.useEffect(() => {
+    if (!found.searching && selectedId !== null && found.hits.size > 0 && hitsHere === 0 && firstOther) setQuery({ month, run: String(firstOther.id) });
+  }, [found.searching, found.hits, selectedId, hitsHere, firstOther, month, setQuery]);
+  const otherHits = realRuns.filter((r) => r.id !== selectedId && (found.hits.get(r.id as number) ?? 0) > 0);
 
   const viewPreview = (item: PayItem) => {
     if (!pv.target) return;
@@ -274,6 +283,16 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
             departments={options.departments}
             counts={counts}
           />
+          {otherHits.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 border-b border-line bg-bg-subtle/50 px-4 py-2 text-xs text-fg-muted">
+              <span>Also found in:</span>
+              {otherHits.map((r) => (
+                <button key={r.key} type="button" onClick={() => setQuery({ month, run: String(r.id) })} className="inline-flex items-center gap-1 rounded-md border border-line bg-surface px-2 py-1 font-semibold text-fg hover:bg-bg-subtle">
+                  {r.companyName}<span className="font-medium text-fg-muted">({found.hits.get(r.id as number)})</span>
+                </button>
+              ))}
+            </div>
+          )}
           {list.error && <p className="border-b border-line px-4 py-2.5 text-xs font-medium text-[var(--tt-danger)]">{list.error}</p>}
 
           {list.loading ? (
