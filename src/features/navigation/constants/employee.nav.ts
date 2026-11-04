@@ -185,6 +185,7 @@ export const employeeNav: NavNode[] = [
       { kind: 'link', label: 'Exits', href: '/employee/exits', icon: DoorOpen, activeTest: (p) => (p === '/employee/exits' || p.startsWith('/employee/exits/')) && !p.startsWith('/employee/exits/insights'), gate: { anyPerm: ['EXIT_VIEW', 'EXIT_MANAGE', 'HR_MODE'] } },
       { kind: 'link', label: 'Attrition Insights', href: '/employee/exits/insights', icon: BarChart3, match: 'prefix', gate: { anyPerm: ['EXIT_VIEW', 'EXIT_MANAGE', 'HR_MODE'] } },
       { kind: 'link', label: 'Employees', href: '/employee/employee-management', icon: Users, match: 'prefix', gate: { anyPerm: ['EMP_VIEW', 'EMP_ADD', 'EMP_EDIT', 'EMP_DELETE'] } },
+      { kind: 'link', label: 'Employee Onboarding', href: '/employee/employee-onboarding', icon: UserPlus, match: 'prefix', gate: { perm: 'ONBOARDING_REVIEW' } },
       { kind: 'link', label: 'Policies', href: '/employee/policies', icon: Shield, match: 'prefix', gate: { anyPerm: ['POLICY_VIEW', 'POLICY_ADD', 'POLICY_EDIT', 'POLICY_DELETE'] } },
       { kind: 'link', label: 'Shifts', href: '/employee/shift-templates', icon: Clock, match: 'prefix', gate: { anyPerm: ['ATTENDCONFIG_VIEW', 'ATTENDCONFIG_ADD', 'ATTENDCONFIG_EDIT', 'ATTENDCONFIG_DELETE'] } },
       { kind: 'link', label: 'Sites', href: '/employee/sites', icon: MapPin, gate: { anyPerm: ['SITE_VIEW', 'SITE_ADD', 'SITE_EDIT', 'SITE_DELETE'] } },

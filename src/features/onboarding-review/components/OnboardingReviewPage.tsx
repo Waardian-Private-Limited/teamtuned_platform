@@ -25,10 +25,11 @@ const STATUS_LABEL: Record<string, string> = {
   approved: 'Approved',
 };
 
-export function OnboardingReviewPage() {
+/** `basePath`: where the list and a submission live (org admin or the employee area, for HR with the review permission). */
+export function OnboardingReviewPage({ basePath = '/org-admin/employee-onboarding' }: { basePath?: string }) {
   const list = useSubmissionList('submitted');
   const router = useRouter();
-  const open = (employeeId: number) => router.push(`/org-admin/employee-onboarding/${employeeId}`);
+  const open = (employeeId: number) => router.push(`${basePath}/${employeeId}`);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [downloadIds, setDownloadIds] = useState<number[] | null>(null);
   const pageIds = list.rows.map((r) => r.employee_id);
