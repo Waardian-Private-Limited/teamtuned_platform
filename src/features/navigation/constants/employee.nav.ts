@@ -15,6 +15,8 @@ import {
   BarChart3,
   ClipboardList,
   Cog,
+  Navigation,
+  Route,
   Shield,
   Calendar,
   Settings,
@@ -104,6 +106,7 @@ export const employeeNav: NavNode[] = [
       { kind: 'link', label: 'My Attendance', href: '/employee/my-attendance', icon: CalendarCheck },
       { kind: 'link', label: 'My Leave', href: '/employee/leave', icon: TreePalm, match: 'prefix' },
       { kind: 'link', label: 'My Holidays', href: '/employee/my-holidays', icon: Calendar },
+      { kind: 'link', label: 'Birthdays', href: '/employee/birthdays', icon: Gift },
       { kind: 'link', label: 'Teams', href: '/employee/teams', icon: UsersRound, match: 'prefix' },
       // Managers HR asked to rate their people for an appraisal (no compensation permission needed).
       { kind: 'link', label: 'Team appraisals', href: '/employee/team-appraisals', icon: ClipboardCheck, gate: { appraisalReviewer: true } },
@@ -180,12 +183,24 @@ export const employeeNav: NavNode[] = [
   },
 
   {
+    kind: 'group', id: 'live-tracking', label: 'Live Tracking', gate: { feature: 'LIVE_TRACKING_FEATURE' },
+    children: [
+      { kind: 'link', label: 'Live Map', href: '/employee/tracking/live', icon: Navigation, match: 'prefix', gate: { perm: 'TRACKING_VIEW' } },
+      { kind: 'link', label: 'Timeline', href: '/employee/tracking/timeline', icon: Route, match: 'prefix', gate: { perm: 'TRACKING_VIEW' } },
+      { kind: 'link', label: 'Day Summary', href: '/employee/tracking/days', icon: BarChart3, match: 'prefix', gate: { perm: 'TRACKING_VIEW' } },
+      { kind: 'link', label: 'Field Visits', href: '/employee/tracking/visits', icon: Route, match: 'prefix', gate: { anyPerm: ['TRACKING_TRIP_REVIEW', 'TRACKING_VIEW'] } },
+      { kind: 'link', label: 'Employees', href: '/employee/tracking/employees', icon: Users, match: 'prefix', gate: { anyPerm: ['TRACKING_ASSIGN', 'TRACKING_VIEW'] } },
+      { kind: 'link', label: 'Policies', href: '/employee/tracking/policies', icon: Shield, match: 'prefix', gate: { anyPerm: ['TRACKING_POLICY_MANAGE', 'TRACKING_ASSIGN'] } },
+    ],
+  },
+  {
     kind: 'group', id: 'management', label: 'Management', gate: { feature: 'PAYROLL_FEATURE' },
     children: [
       { kind: 'link', label: 'Exits', href: '/employee/exits', icon: DoorOpen, activeTest: (p) => (p === '/employee/exits' || p.startsWith('/employee/exits/')) && !p.startsWith('/employee/exits/insights'), gate: { anyPerm: ['EXIT_VIEW', 'EXIT_MANAGE', 'HR_MODE'] } },
       { kind: 'link', label: 'Attrition Insights', href: '/employee/exits/insights', icon: BarChart3, match: 'prefix', gate: { anyPerm: ['EXIT_VIEW', 'EXIT_MANAGE', 'HR_MODE'] } },
       { kind: 'link', label: 'Employees', href: '/employee/employee-management', icon: Users, match: 'prefix', gate: { anyPerm: ['EMP_VIEW', 'EMP_ADD', 'EMP_EDIT', 'EMP_DELETE'] } },
       { kind: 'link', label: 'Employee Onboarding', href: '/employee/employee-onboarding', icon: UserPlus, match: 'prefix', gate: { perm: 'ONBOARDING_REVIEW' } },
+      { kind: 'link', label: 'Onboarding Settings', href: '/employee/onboarding-settings', icon: Cog, match: 'prefix', gate: { perm: 'ONBOARDING_SETTINGS' } },
       { kind: 'link', label: 'Policies', href: '/employee/policies', icon: Shield, match: 'prefix', gate: { anyPerm: ['POLICY_VIEW', 'POLICY_ADD', 'POLICY_EDIT', 'POLICY_DELETE'] } },
       { kind: 'link', label: 'Shifts', href: '/employee/shift-templates', icon: Clock, match: 'prefix', gate: { anyPerm: ['ATTENDCONFIG_VIEW', 'ATTENDCONFIG_ADD', 'ATTENDCONFIG_EDIT', 'ATTENDCONFIG_DELETE'] } },
       { kind: 'link', label: 'Sites', href: '/employee/sites', icon: MapPin, gate: { anyPerm: ['SITE_VIEW', 'SITE_ADD', 'SITE_EDIT', 'SITE_DELETE'] } },

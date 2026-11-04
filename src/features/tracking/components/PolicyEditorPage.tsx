@@ -19,6 +19,7 @@ import { TrackingPolicyDetailsDialog } from './editor/TrackingPolicyDetailsDialo
 import { TrackingPolicyPublishDialog } from './editor/TrackingPolicyPublishDialog';
 import { TrackingPolicyVersionDialog } from './editor/TrackingPolicyVersionDialog';
 import { formatDate, orgDateOf } from '@/lib/datetime';
+import { useTrackingBase } from '../hooks/useTrackingBase';
 
 const LEAVE_PROMPT = 'You have unsaved policy changes. Leave without saving them?';
 
@@ -32,6 +33,7 @@ const secondaryButtonCls =
   'inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-fg transition-colors hover:bg-bg-subtle sm:text-sm';
 
 export function PolicyEditorPage({ policyId }: { policyId: number }) {
+  const trackingBase = useTrackingBase();
   const router = useRouter();
   const { can } = usePermission();
   const canManage = can(TRACKING_PERMISSIONS.POLICY);
@@ -218,7 +220,7 @@ export function PolicyEditorPage({ policyId }: { policyId: number }) {
 
   const goBack = () => {
     if (dirty && !window.confirm(LEAVE_PROMPT)) return;
-    router.push('/org-admin/tracking/policies');
+    router.push(`${trackingBase}/policies`);
   };
 
   if (isLoading) {

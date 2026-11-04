@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
 import { kmText, minutesText } from '../../constants/tracking.constants';
 import type { DayRowDto } from '../../types/tracking.dto';
+import { useTrackingBase } from '../../hooks/useTrackingBase';
 
 interface DaySummariesTableProps {
   rows: DayRowDto[];
@@ -14,6 +15,7 @@ const th =
   'px-3.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-fg-muted whitespace-nowrap';
 
 export function DaySummariesTable({ rows, date }: DaySummariesTableProps) {
+  const trackingBase = useTrackingBase();
   return (
     <div className="h-full overflow-auto tt-scrollbar">
       <table className="w-full min-w-[1050px] border-collapse text-xs sm:text-sm">
@@ -46,7 +48,7 @@ export function DaySummariesTable({ rows, date }: DaySummariesTableProps) {
                 {/* Employee Name & Code */}
                 <td className="px-3.5 py-2.5">
                   <Link
-                    href={`/org-admin/tracking/timeline?employee=${r.employee_id}&date=${date}`}
+                    href={`${trackingBase}/timeline?employee=${r.employee_id}&date=${date}`}
                     className="group inline-flex items-center gap-1.5 font-semibold text-fg hover:text-[var(--tt-primary)]"
                   >
                     <span>{r.name}</span>

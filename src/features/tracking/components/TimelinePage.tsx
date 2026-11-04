@@ -13,6 +13,7 @@ import { routeBreaks } from '../utils/routeGaps';
 import { TrackingMapLazy } from './map/TrackingMapLazy';
 import { TimelineEmployeePicker } from './TimelineEmployeePicker';
 import { TimelinePlayerSlider, indexAt } from './TimelinePlayerSlider';
+import { useTrackingBase } from '../hooks/useTrackingBase';
 
 const SEGMENT_LABEL = { site: 'At site', stay: 'Away, standing', move: 'Moving', gap: 'No signal' } as const;
 const GAP_LABEL = { gps_off: 'Location switched off', phone_off: 'Phone switched off', app_closed: 'App closed by the employee', no_signal: 'No signal' } as const;
@@ -20,6 +21,7 @@ const segmentLabel = (s: SegmentDto) => s.site_name || (s.kind === 'gap' && s.re
 const EMPTY_ROUTE: TimelineDto['route'] = [];
 
 export function TimelinePage() {
+  const trackingBase = useTrackingBase();
   const router = useRouter();
   const params = useSearchParams();
   const employeeId = Number(params.get('employee')) || null;
@@ -42,7 +44,7 @@ export function TimelinePage() {
       else q.delete('employee');
     }
     if (next.date) q.set('date', next.date);
-    router.replace(`/org-admin/tracking/timeline?${q.toString()}`);
+    router.replace(`${trackingBase}/timeline?${q.toString()}`);
   };
 
   const shiftDate = (days: number) => {

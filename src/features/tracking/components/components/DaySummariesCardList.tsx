@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import { kmText, minutesText } from '../../constants/tracking.constants';
 import type { DayRowDto } from '../../types/tracking.dto';
+import { useTrackingBase } from '../../hooks/useTrackingBase';
 
 interface DaySummariesCardListProps {
   rows: DayRowDto[];
@@ -11,6 +12,7 @@ interface DaySummariesCardListProps {
 }
 
 export function DaySummariesCardList({ rows, date }: DaySummariesCardListProps) {
+  const trackingBase = useTrackingBase();
   return (
     <div className="divide-y divide-line/70">
       {rows.map((r) => {
@@ -21,7 +23,7 @@ export function DaySummariesCardList({ rows, date }: DaySummariesCardListProps) 
             <div className="flex items-start justify-between gap-2">
               <div>
                 <Link
-                  href={`/org-admin/tracking/timeline?employee=${r.employee_id}&date=${date}`}
+                  href={`${trackingBase}/timeline?employee=${r.employee_id}&date=${date}`}
                   className="font-semibold text-sm text-fg hover:text-[var(--tt-primary)] flex items-center gap-1"
                 >
                   <span>{r.name}</span>

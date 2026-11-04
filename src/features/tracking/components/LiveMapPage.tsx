@@ -12,6 +12,7 @@ import { ATTENTION, LIVE_POLL_MS, NOT_LIVE, STALE_FIX_MS, STATE_COLOR, STATE_LAB
 import type { LiveBoardDto, LiveEmployeeDto, TrackingFilters as Filters, TrackingState } from '../types/tracking.dto';
 import { TrackingFilters } from './TrackingFilters';
 import { TrackingMapLazy } from './map/TrackingMapLazy';
+import { useTrackingBase } from '../hooks/useTrackingBase';
 
 // The board is "stale" once two polls in a row have failed to refresh it.
 const STALE_BOARD_MS = 2 * LIVE_POLL_MS + 5_000;
@@ -30,6 +31,7 @@ function StateDot({ state }: { state: TrackingState }) {
 }
 
 export function LiveMapPage() {
+  const trackingBase = useTrackingBase();
   const [filters, setFilters] = useState<Filters>({});
   const [states, setStates] = useState<TrackingState[]>([]);
   const [search, setSearch] = useState('');
@@ -156,7 +158,7 @@ export function LiveMapPage() {
                     )}
                     {selected === e.employee_id && (
                       <span className="mt-1 flex items-center gap-3 text-xs">
-                        <Link href={`/org-admin/tracking/timeline?employee=${e.employee_id}`} className="font-semibold text-fg underline">Open timeline</Link>
+                        <Link href={`${trackingBase}/timeline?employee=${e.employee_id}`} className="font-semibold text-fg underline">Open timeline</Link>
                         {e.lat === null && <span className="inline-flex items-center gap-1 text-fg-muted"><Crosshair className="h-3 w-3" />No position to show on the map</span>}
                       </span>
                     )}

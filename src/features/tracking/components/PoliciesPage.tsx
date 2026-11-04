@@ -26,8 +26,10 @@ import { TrackingPolicyTableSkeleton } from './components/TrackingPolicyTableSke
 import { TrackingPolicyDeleteDialog } from './components/TrackingPolicyDeleteDialog';
 import { CloneTrackingPolicyDialog } from './components/CloneTrackingPolicyDialog';
 import { TrackingPolicyCreateWizard } from './components/TrackingPolicyCreateWizard';
+import { useTrackingBase } from '../hooks/useTrackingBase';
 
 export function PoliciesPage() {
+  const trackingBase = useTrackingBase();
   const router = useRouter();
   const { can } = usePermission();
   const canManage = can(TRACKING_PERMISSIONS.POLICY);
@@ -99,7 +101,7 @@ export function PoliciesPage() {
 
   // Actions
   const openEditor = (policy: TrackingPolicyDto) => {
-    router.push(`/org-admin/tracking/policies/${policy.id}`);
+    router.push(`${trackingBase}/policies/${policy.id}`);
   };
 
   const handleCreate = async (input: {
@@ -119,7 +121,7 @@ export function PoliciesPage() {
         config: input.config,
       });
       setShowCreate(false);
-      router.push(`/org-admin/tracking/policies/${p.id}`);
+      router.push(`${trackingBase}/policies/${p.id}`);
     } catch (err) {
       setError(messageOf(err));
       setIsSaving(false);
