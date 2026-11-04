@@ -255,6 +255,8 @@ export interface ClaimListResponseDto extends PagedDto<ClaimDto> {
   amount?: number;
   /** Status counts plus `bills_to_collect` and `bills_collected`. */
   counts?: Partial<Record<string, number>>;
+  /** Any expense (of the org, or the employee's own) asks for a paper bill; false hides paper-bill filters. */
+  paper_bills?: boolean;
 }
 
 

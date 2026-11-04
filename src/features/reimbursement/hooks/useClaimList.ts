@@ -55,6 +55,7 @@ export function useClaimList() {
   const [total, setTotal] = useState(0);
   const [amount, setAmount] = useState(0);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [paperBills, setPaperBills] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState('');
@@ -86,6 +87,7 @@ export function useClaimList() {
       setTotal(Number(dto.total) || 0);
       setAmount(Number(dto.amount) || 0);
       setCounts(Object.fromEntries(Object.entries(dto.counts || {}).map(([k, v]) => [k, Number(v) || 0])));
+      setPaperBills(Boolean(dto.paper_bills));
     } catch (err) {
       if (id !== request.current) return;
       setRows([]);
@@ -146,6 +148,7 @@ export function useClaimList() {
     total,
     amount,
     counts,
+    paperBills,
     page,
     setPage,
     pageSize,

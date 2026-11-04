@@ -7,7 +7,6 @@ import { PAYOUT_MODE_LABEL } from '../../constants/reimbursement.constants';
 import type { Claim, ClaimSort, ClaimSortKey } from '../../types/reimbursement.model';
 import { dateText, money } from '../../utils/format';
 import { ChannelBadge, ClaimStatusPill, FlagCount } from './StatusBadges';
-import { PhysicalCopyPill } from './PaperBill';
 
 const checkbox = 'h-4 w-4 cursor-pointer rounded border-line-strong accent-[var(--tt-primary)]';
 
@@ -66,7 +65,6 @@ export function ClaimTable({ rows, sort, onSort, href, showChannel, selection }:
             <SortHead label="Submitted" k="submitted_at" sort={sort} onSort={onSort} className="hidden lg:table-cell" />
             <th className={cx(th, 'hidden xl:table-cell')}>Paid back</th>
             <th className={th}>Status</th>
-            <th className={th}>Paper bill</th>
             <th className={cx(th, 'text-right')}>
               <span className="sr-only">View</span>
             </th>
@@ -106,9 +104,6 @@ export function ClaimTable({ rows, sort, onSort, href, showChannel, selection }:
                   <ClaimStatusPill status={r.status} channel={r.channel} />
                   {showChannel && <ChannelBadge channel={r.channel} />}
                 </div>
-              </td>
-              <td className={td}>
-                <PhysicalCopyPill copy={r.physicalCopy} />
               </td>
               <td className={cx(td, 'text-right')}>
                 <Link href={href(r.id)} className="inline-flex h-8 items-center gap-1 rounded-lg border border-line bg-surface px-2.5 text-xs font-semibold text-fg transition-colors hover:bg-bg-subtle">

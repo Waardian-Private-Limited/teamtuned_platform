@@ -17,6 +17,7 @@ export function useMyExpenses() {
   const [page, setPage] = useState(1);
   const [rows, setRows] = useState<Claim[]>([]);
   const [total, setTotal] = useState(0);
+  const [paperBills, setPaperBills] = useState(false);
   const [listLoading, setListLoading] = useState(true);
   const [listFetching, setListFetching] = useState(false);
   const [listError, setListError] = useState('');
@@ -45,6 +46,7 @@ export function useMyExpenses() {
       if (id !== listReq.current) return;
       setRows((dto.items || []).map(toClaim));
       setTotal(Number(dto.total) || 0);
+      setPaperBills(Boolean(dto.paper_bills));
     } catch (err) {
       if (id !== listReq.current) return;
       setRows([]);
@@ -88,6 +90,7 @@ export function useMyExpenses() {
     totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
     rows,
     total,
+    paperBills,
     listLoading,
     listFetching,
     listError,

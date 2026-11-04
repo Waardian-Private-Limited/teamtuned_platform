@@ -207,9 +207,11 @@ interface ExportClaimsDialogProps {
   initialFormat?: ExportFormatDto;
   /** Open with the email field showing. */
   startWithEmail?: boolean;
+  /** The org (or the employee) has expenses asking for a paper bill: shows the Paper bill filter. */
+  paperBills?: boolean;
 }
 
-export function ExportClaimsDialog({ open, onClose, scope, initial, subOrgId = null, categories = [], selectedIds = [], claim, initialFormat, startWithEmail = false }: ExportClaimsDialogProps) {
+export function ExportClaimsDialog({ open, onClose, scope, initial, subOrgId = null, categories = [], selectedIds = [], claim, initialFormat, startWithEmail = false, paperBills = true }: ExportClaimsDialogProps) {
   const features = useExpenseFeatures();
   const job = useExportJob(PLACED_CLAIM_FIELDS);
   const { reset, clearField } = job;
@@ -358,14 +360,16 @@ export function ExportClaimsDialog({ open, onClose, scope, initial, subOrgId = n
               )}
               <SelectField<PaymentMode> label="Payment mode" value={f.paymentMode} onChange={(paymentMode) => set({ paymentMode }, 'payment_mode')} options={[...PAYMENT_MODES]} placeholder="All" error={err('payment_mode')} />
               <ComboField label="Category" value={f.categoryId} onChange={(categoryId) => set({ categoryId }, 'category_id')} options={catOptions} allLabel="All categories" error={err('category_id')} />
-              <SelectField<'pending' | 'collected' | 'optional'>
-                label="Paper bill"
-                value={f.physical}
-                onChange={(physical) => set({ physical }, 'physical')}
-                options={[...EXPORT_PHYSICAL_OPTIONS]}
-                placeholder="All"
-                error={err('physical')}
-              />
+              {(paperBills || f.physical) && (
+                <SelectField<'pending' | 'collected' | 'optional'>
+                  label="Paper bill"
+                  value={f.physical}
+                  onChange={(physical) => set({ physical }, 'physical')}
+                  options={[...EXPORT_PHYSICAL_OPTIONS]}
+                  placeholder="All"
+                  error={err('physical')}
+                />
+              )}
               {hr && (
                 <>
                   <ComboField label="Department" value={f.departmentId} onChange={(departmentId) => set({ departmentId }, 'department_id')} options={orgOptions.departments} allLabel="All departments" error={err('department_id')} />

@@ -272,7 +272,7 @@ function MyExpenses() {
           receiptScan={o.policy.receiptScan}
         />
       )}
-      <ExportClaimsDialog open={downloading} onClose={() => setDownloading(false)} scope="me" initial={{ status: m.tab === 'all' ? '' : m.tab }} categories={o?.categories} />
+      <ExportClaimsDialog open={downloading} onClose={() => setDownloading(false)} scope="me" initial={{ status: m.tab === 'all' ? '' : m.tab }} categories={o?.categories} paperBills={m.paperBills} />
       {o?.wallet && <AskFundsDialog open={asking} balance={o.wallet.balance} onClose={() => setAsking(false)} onDone={refresh} />}
     </div>
   );

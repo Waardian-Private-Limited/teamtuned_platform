@@ -209,18 +209,20 @@ function Claims() {
               <option value="payroll">With payroll</option>
             </select>
           )}
-          <select
-            aria-label="Paper bill"
-            value={f.physical ?? ''}
-            onChange={(e) => list.update({ physical: (e.target.value || null) as PhysicalFilter | null })}
-            className="h-9 rounded-lg border border-line bg-surface px-2.5 text-xs font-semibold text-fg sm:text-sm md:w-40"
-          >
-            {PHYSICAL_FILTERS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+          {(list.paperBills || f.physical) && (
+            <select
+              aria-label="Paper bill"
+              value={f.physical ?? ''}
+              onChange={(e) => list.update({ physical: (e.target.value || null) as PhysicalFilter | null })}
+              className="h-9 rounded-lg border border-line bg-surface px-2.5 text-xs font-semibold text-fg sm:text-sm md:w-40"
+            >
+              {PHYSICAL_FILTERS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          )}
           <SearchableFilterDropdown label="Category" allLabel="All categories" value={f.categoryId} options={categoryOptions} onChange={(categoryId) => list.update({ categoryId })} className="md:w-44" />
           <SearchableFilterDropdown label="Department" allLabel="All departments" value={f.departmentId} options={departments} onChange={(departmentId) => list.update({ departmentId })} className="md:w-44" />
           <div className="col-span-2 flex items-center gap-1.5 md:col-span-1">
@@ -293,7 +295,7 @@ function Claims() {
       </div>
 
       {canSubmit && <ExpenseFormDrawer mode="hr" open={creating} onClose={() => setCreating(false)} onSaved={onSaved} categories={categories} channels={channels} receiptScan={receiptScan} />}
-      {canExport && <ExportClaimsDialog open={exporting} onClose={() => setExporting(false)} scope="hr" initial={exportInitial} subOrgId={f.subOrgId} categories={categories} selectedIds={selectedIds} />}
+      {canExport && <ExportClaimsDialog open={exporting} onClose={() => setExporting(false)} scope="hr" initial={exportInitial} subOrgId={f.subOrgId} categories={categories} selectedIds={selectedIds} paperBills={list.paperBills} />}
       {canCollect && (
         <BulkCollectDialog
           open={collecting}
