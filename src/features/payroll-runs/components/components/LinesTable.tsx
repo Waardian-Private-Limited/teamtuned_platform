@@ -46,7 +46,7 @@ function Line({ line }: { line: PayLine }) {
   );
 }
 
-export interface LinesEdit { runId: number; employeeId: number; onSaved: () => void }
+export interface LinesEdit { runId: number; employeeId: number; stage: string; onSaved: () => void }
 
 export function LinesTable({ title, lines, total, empty, edit }: { title: string; lines: PayLine[]; total: number; empty: string; edit?: LinesEdit }) {
   const [editing, setEditing] = React.useState(false);
@@ -68,6 +68,7 @@ export function LinesTable({ title, lines, total, empty, edit }: { title: string
           lines={lines}
           runId={edit.runId}
           employeeId={edit.employeeId}
+          stage={edit.stage}
           onDone={(changed) => {
             setEditing(false);
             if (changed) edit.onSaved();

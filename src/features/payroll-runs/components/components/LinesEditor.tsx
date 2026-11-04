@@ -19,7 +19,7 @@ const sameSteps = (a: Step[], b: Step[]) => a.length === b.length && a.every((s,
  * rows added or removed. Save sends only the lines that changed; the entry is recalculated and the lines then read like
  * any calculated line. Reset puts the edited lines of this card back to the calculated amounts.
  */
-export function LinesEditor({ lines, runId, employeeId, onDone }: { lines: PayLine[]; runId: number; employeeId: number; onDone: (changed: boolean) => void }) {
+export function LinesEditor({ lines, runId, employeeId, stage, onDone }: { lines: PayLine[]; runId: number; employeeId: number; stage: string; onDone: (changed: boolean) => void }) {
   const [drafts, setDrafts] = React.useState<Record<string, Draft>>(() =>
     Object.fromEntries(lines.map((l) => [l.key, { amount: String(l.amount), steps: l.steps.map((s) => ({ ...s })) }]))
   );
@@ -142,6 +142,12 @@ export function LinesEditor({ lines, runId, employeeId, onDone }: { lines: PayLi
       <div className="border-t border-line px-4 py-3">
         {error && <p className="mb-2 text-xs font-medium text-[var(--tt-danger,#b42318)]">{error}</p>}
         <p className="mb-2.5 text-[11px] text-fg-muted">Other lines are not recalculated from these changes: edit them too if they should change.</p>
+        {stage !== 'draft' && (
+          <p className="mb-2.5 text-[11px] font-medium text-fg">
+            This payroll is {stage}. Saving changes this employee&apos;s lines and net pay now; the payslip shows them the next time it is opened or downloaded.
+            {stage === 'paid' ? ' The salary was already paid: the difference is flagged on the entry.' : ''}
+          </p>
+        )}
         <div className="flex flex-wrap items-center justify-end gap-2">
           {edited.length > 0 && (
             <button type="button" className={`${actionBtn.secondary} mr-auto`} disabled={busy !== null} onClick={reset}>
