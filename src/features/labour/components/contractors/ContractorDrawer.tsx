@@ -7,11 +7,14 @@ import { messageOf } from '@/lib/api/errors';
 import * as api from '../../api/labour.api';
 import type { Contractor } from '../../types/labour.types';
 import { FormError, Pill, Tabs, secondaryBtn } from '../shared/Primitives';
+import { useLabourAccess } from '../../hooks/useLabourAccess';
+import { LP } from '../../constants/labour.constants';
 import { ContractorDocuments } from './ContractorDocuments';
+import { ContractorLabour } from './ContractorLabour';
 import { ContractorForm } from './ContractorForm';
 import { ContractorRates } from './ContractorRates';
 
-type Tab = 'details' | 'documents' | 'rates';
+type Tab = 'details' | 'labour' | 'documents' | 'rates';
 
 interface Props { open: boolean; id: number | 'new' | null; onClose: () => void; canManage: boolean; onChanged: () => void; onMerge: (c: { id: number; name: string }) => void; onCreated: (id: number) => void }
 
@@ -27,6 +30,7 @@ function Body({ id, canManage, onChanged, onMerge, onCreated }: Omit<Props, 'ope
   const [c, setC] = useState<Contractor | null>(null);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<Tab>('details');
+  const { can } = useLabourAccess();
   const load = useCallback(() => { if (id !== 'new') api.getContractor(id).then(setC).catch((e) => setError(messageOf(e))); }, [id]);
   useEffect(() => { load(); }, [load]);
 
@@ -45,8 +49,9 @@ function Body({ id, canManage, onChanged, onMerge, onCreated }: Omit<Props, 'ope
         </div>
         {canManage && c.status === 'active' && <button type="button" className={secondaryBtn} onClick={() => onMerge({ id: c.id, name })}><GitMerge className="h-3.5 w-3.5" aria-hidden />Merge</button>}
       </div>
-      <Tabs<Tab> value={tab} onChange={setTab} tabs={[{ value: 'details', label: 'Details' }, { value: 'documents', label: `Documents (${c.documents?.length || 0})` }, { value: 'rates', label: 'Rates' }]} />
+      <Tabs<Tab> value={tab} onChange={setTab} tabs={[{ value: 'details', label: 'Details' }, { value: 'labour', label: `Labour (${c.labourCount})` }, { value: 'documents', label: `Documents (${c.documents?.length || 0})` }, { value: 'rates', label: 'Rates' }]} />
       {tab === 'details' && (canManage ? <ContractorForm contractor={c} onSaved={() => { onChanged(); load(); }} /> : <p className="text-sm text-fg-muted">You can view contractors but not edit them.</p>)}
+      {tab === 'labour' && <ContractorLabour contractor={c} canImport={can(LP.MANAGE)} onChanged={() => { onChanged(); load(); }} />}
       {tab === 'documents' && <ContractorDocuments contractorId={c.id} documents={c.documents || []} canManage={canManage} onChanged={() => { load(); }} />}
       {tab === 'rates' && <ContractorRates contractorId={c.id} siteIds={c.siteIds || []} trades={c.trades || []} canManage={canManage} />}
     </div>

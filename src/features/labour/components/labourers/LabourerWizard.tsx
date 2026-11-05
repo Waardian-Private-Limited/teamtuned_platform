@@ -17,6 +17,7 @@ import { useWizardSubmit, type SubmitResult } from './wizard/useWizardSubmit';
 import { useCompliancePack } from '../../hooks/useCompliancePack';
 import type { LabourerDetail } from '../../types/labour.types';
 import { PaySuggestion } from './wizard/PaySuggestion';
+import { ImportLabourerDialog } from './ImportLabourerDialog';
 import { supplies, suppliedCategories } from '../../utils/trades';
 import type { Category } from '../../types/labour.types';
 
@@ -73,6 +74,7 @@ function Body({ onClose, onSaved, editId = null, onOpenExisting, startAt }: Omit
   const [docs, setDocs] = useState<PendingDoc[]>([]);
   const [step, setStep] = useState<StepId>('basic');
   const [done, setDone] = useState<SubmitResult | null>(null);
+  const [importing, setImporting] = useState(false);
   const submit = useWizardSubmit();
   // Filling what a site's forms need works even with advanced onboarding off.
   const pack = useCompliancePack(settings?.advancedOnboarding === true || startAt === 'compliance' || Boolean(detail?.complianceGaps), form.siteId);
@@ -209,7 +211,7 @@ function Body({ onClose, onSaved, editId = null, onOpenExisting, startAt }: Omit
       <div className="flex-1">
         {step === 'basic' && <BasicStep {...common} sites={sites} contractors={contractorOptions} categories={tradeOptions} lockContractor={false} move={moving ? { maxBackDays: settings?.regularization.maxBackDays ?? 31 } : null} payHint={payHint} />}
         {step === 'address' && <AddressStep {...common} />}
-        {step === 'identity' && <IdentityStep {...common} editing={editing} masked={detail?.aadhaarMasked} existingId={submit.existingId} onOpenExisting={onOpenExisting} />}
+        {step === 'identity' && <IdentityStep {...common} editing={editing} masked={detail?.aadhaarMasked} existingId={submit.existingId} existingSites={submit.existingSites} onOpenExisting={onOpenExisting} onImport={form.contractorId !== null && form.siteId !== null ? () => setImporting(true) : undefined} />}
         {step === 'face' && <FaceStep shots={shots} onChange={(p, f) => { setShots((s) => ({ ...s, [p]: f })); }} issues={submit.faceIssues} existing={faceExisting} />}
         {step === 'documents' && <DocumentsStep docs={docs} setDocs={setDocs} errors={errors} />}
         {step === 'compliance' && pack && <CompliancePackStep pack={pack} profile={form.profile} onChange={(profile) => set({ profile })} errors={errors} clear={submit.clear} />}
@@ -225,6 +227,17 @@ function Body({ onClose, onSaved, editId = null, onOpenExisting, startAt }: Omit
           <button type="button" className={primaryBtn} onClick={goNext}>Next</button>
         )}
       </div>
+      {importing && form.contractorId !== null && (() => {
+        const c = contractors.find((x) => x.value === form.contractorId);
+        return c ? (
+          <ImportLabourerDialog
+            contractor={{ id: c.value, name: c.label, siteIds: c.siteIds || [], trades: c.trades || [] }}
+            preset={{ query: form.aadhaar.replace(/\D/g, '').slice(-4), siteId: form.siteId, categoryId: form.categoryId, subcategoryId: form.subcategoryId }}
+            onClose={() => setImporting(false)}
+            onImported={(r) => { setImporting(false); onSaved(r.id); }}
+          />
+        ) : null;
+      })()}
     </div>
   );
 }

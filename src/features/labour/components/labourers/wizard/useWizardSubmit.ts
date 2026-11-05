@@ -33,6 +33,8 @@ export function useWizardSubmit() {
   const [faceIssues, setFaceIssues] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
   const [existingId, setExistingId] = useState<number | null>(null);
+  // Where the person who owns this Aadhaar already works (the screen offers to import them to the chosen site).
+  const [existingSites, setExistingSites] = useState<Array<{ siteName: string | null }>>([]);
   const [savedCode, setSavedCode] = useState<string | null>(null);
 
   const clear = (k: string) => setErrors((e) => (e[k] ? { ...e, [k]: '' } : e));
@@ -49,6 +51,7 @@ export function useWizardSubmit() {
     setFaceIssues({});
     setFormError('');
     setExistingId(null);
+    setExistingSites([]);
     try {
       const id0 = editId ?? created.current?.id ?? null;
       if (!created.current && !editId) {
@@ -63,6 +66,8 @@ export function useWizardSubmit() {
           setFormError(p.form);
           const labourerId = p.error.details?.labourerId;
           if (p.error.status === 409 && typeof labourerId === 'number') setExistingId(labourerId);
+          const where = p.error.details?.sites;
+          if (p.error.status === 409 && Array.isArray(where)) setExistingSites(where as Array<{ siteName: string | null }>);
           return { jumpTo: p.error.field ? stepOfField(p.error.field) : 'basic' };
         }
       } else if (editId) {
@@ -115,5 +120,5 @@ export function useWizardSubmit() {
     }
   }
 
-  return { run, busy, errors, setErrors, clear, faceIssues, formError, existingId, savedCode };
+  return { run, busy, errors, setErrors, clear, faceIssues, formError, existingId, existingSites, savedCode };
 }

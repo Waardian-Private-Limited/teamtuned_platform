@@ -100,7 +100,7 @@ export function AddressStep({ form, set, errors, clear }: StepProps) {
   );
 }
 
-export function IdentityStep({ form, set, errors, clear, editing, masked, onOpenExisting, existingId }: StepProps & { editing: boolean; masked?: string | null; onOpenExisting?: (id: number) => void; existingId?: number | null }) {
+export function IdentityStep({ form, set, errors, clear, editing, masked, onOpenExisting, existingId, existingSites, onImport }: StepProps & { editing: boolean; masked?: string | null; onOpenExisting?: (id: number) => void; existingId?: number | null; existingSites?: Array<{ siteName: string | null }>; onImport?: () => void }) {
   return (
     <div className="max-w-md space-y-3">
       <TextField
@@ -113,9 +113,13 @@ export function IdentityStep({ form, set, errors, clear, editing, masked, onOpen
         hint={editing ? 'Leave blank to keep the number on file.' : 'Used to stop the same person being registered twice. Stored encrypted.'}
         onChange={(v) => { set({ aadhaar: v.replace(/[^\d ]/g, '') }); clear('aadhaar'); }}
       />
-      {existingId && onOpenExisting && (
-        <button type="button" onClick={() => onOpenExisting(existingId)} className={secondaryBtn}>Open the existing labourer</button>
-      )}
+      {existingId && existingSites && existingSites.length > 0 && <p className="text-xs text-fg-muted">Already works at: {existingSites.map((s) => s.siteName || 'another site').join(', ')}.</p>}
+      <div className="flex flex-wrap gap-2">
+        {existingId && onImport && <button type="button" onClick={onImport} className={secondaryBtn}>Import to this site</button>}
+        {existingId && onOpenExisting && (
+          <button type="button" onClick={() => onOpenExisting(existingId)} className={secondaryBtn}>Open the existing labourer</button>
+        )}
+      </div>
     </div>
   );
 }

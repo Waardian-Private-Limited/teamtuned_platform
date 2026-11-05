@@ -144,6 +144,8 @@ export interface Labourer {
   faceStatus: FaceStatus;
   needsReregistration: boolean;
   packId: number | null;
+  /** The person's first record when this one was imported to another site (same code, own contractor, rates and days). */
+  linkedFromId?: number | null;
   /** Details the forms of the labourer's site still print blank; null when the site follows no pack. */
   complianceGapCount?: number | null;
   /** Some active site machine has not taken this labourer's latest change yet (list only). */
@@ -151,6 +153,20 @@ export interface Labourer {
   /** The registered face as a short-lived link (the list's avatar). */
   photoUrl?: string | null;
 }
+
+/** A person found for import, with every site they already work at. `importFrom` = the record to import from (null: inactive or no registered face). */
+export interface LookupPerson {
+  rootId: number;
+  code: string;
+  name: string;
+  phone: string | null;
+  aadhaarLast4: string | null;
+  photoUrl: string | null;
+  importFrom: number | null;
+  sites: Array<{ labourerId: number; siteId: number; siteName: string | null; contractorName: string | null; status: 'active' | 'inactive' | 'left' }>;
+}
+
+export interface ImportBody { contractorId: number; siteId: number; categoryId: number | null; subcategoryId: number | null }
 
 /** Whether one site machine has taken a labourer's latest change. */
 export interface MachineSyncState { id: number; name: string; siteId: number; siteName: string | null; online: boolean; lastSeenAt: string | null; state: 'synced' | 'pending' | 'failed' }
@@ -168,6 +184,8 @@ export interface LabourerDocument {
 }
 
 export interface LabourerDetail extends Labourer {
+  /** The same person's records at other sites (own contractor, rates and days). */
+  alsoWorksAt?: Array<{ labourerId: number; siteId: number; siteName: string | null; contractorName: string | null; status: 'active' | 'inactive' | 'left' }>;
   aadhaarMasked?: string | null;
   profile: Record<string, string>;
   complianceGaps?: ComplianceGaps | null;

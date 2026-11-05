@@ -87,6 +87,7 @@ function Body({ id, canManage, canForms, onEdit, onChanged, onClose }: { id: num
       {tab === 'profile' && (
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
           <Fact label="Site" value={d.siteName || '—'} />
+          {d.alsoWorksAt && d.alsoWorksAt.length > 0 && <Fact label="Also works at" wide value={d.alsoWorksAt.map((s) => [s.siteName, s.contractorName].filter(Boolean).join(' · ')).join('; ')} />}
           <Fact label="Category" value={[d.categoryName, d.subcategoryName].filter(Boolean).join(' / ') || '—'} />
           <Fact label="Mobile" value={d.phone || '—'} />
           <Fact label="Emergency" value={d.emergencyPhone || '—'} />
