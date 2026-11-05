@@ -35,11 +35,13 @@ interface Props {
   open: boolean;
   defaults: RatingLevel[];
   prefill?: CyclePrefill;
+  /** Edit this draft cycle instead of creating one. */
+  cycle?: CycleDto | null;
   onClose: () => void;
   onSaved: (cycle: CycleDto) => void;
 }
 
-export function CycleDialog({ open, defaults, prefill, onClose, onSaved }: Props) {
+export function CycleDialog({ open, defaults, prefill, cycle, onClose, onSaved }: Props) {
   const fy = currentFyStart();
   const { subOrgs } = useManageableSubOrgs();
   const { isOrgAdmin } = usePermission();
@@ -62,6 +64,21 @@ export function CycleDialog({ open, defaults, prefill, onClose, onSaved }: Props
 
   React.useEffect(() => {
     if (!open) return;
+    setErrors({});
+    if (cycle) {
+      setName(cycle.name);
+      setSubOrgId(cycle.sub_organization_id);
+      setPeriodStart(cycle.period_start);
+      setPeriodEnd(cycle.period_end);
+      setEffectiveFrom(cycle.effective_from);
+      setBudget(cycle.budget_percent === null ? '' : String(cycle.budget_percent));
+      setMinService(String(cycle.eligibility?.minServiceMonths ?? 0));
+      setIncludeProbation(cycle.eligibility?.includeProbation !== false);
+      setScale(cycle.rating_scale?.length ? cycle.rating_scale : defaults);
+      setSource(cycle.rating_source);
+      setPerfIds(cycle.performance_cycle_ids || []);
+      return;
+    }
     setName(prefill?.name || `FY ${fy - 1}-${String(fy % 100).padStart(2, '0')} annual appraisal`);
     if (prefill) {
       setPeriodStart(prefill.periodStart);
@@ -72,7 +89,7 @@ export function CycleDialog({ open, defaults, prefill, onClose, onSaved }: Props
     setSubOrgId(subOrgs.length === 1 && !isOrgAdmin ? subOrgs[0].id : null);
     setScale(defaults);
     setErrors({});
-  }, [open, defaults, prefill, fy, subOrgs, isOrgAdmin, perfOn]);
+  }, [open, defaults, prefill, cycle, fy, subOrgs, isOrgAdmin, perfOn]);
 
   React.useEffect(() => {
     if (open && perfOn) api.performanceCycles().then((r) => setPerfCycles(r.cycles)).catch(() => setPerfCycles([]));
@@ -82,7 +99,7 @@ export function CycleDialog({ open, defaults, prefill, onClose, onSaved }: Props
     setSaving(true);
     setErrors({});
     try {
-      const cycle = await api.createCycle({
+      const body = {
         name,
         sub_organization_id: subOrgId,
         period_start: periodStart,
@@ -92,10 +109,13 @@ export function CycleDialog({ open, defaults, prefill, onClose, onSaved }: Props
         rating_scale: scale,
         rating_source: source,
         performance_cycle_ids: source === 'performance' ? perfIds : [],
-        eligibility: { joinedOnOrBefore: periodEnd, minServiceMonths: Number(minService) || 0, includeProbation },
-      });
-      showSuccess(cycle.rating_sync?.changed ? 'Appraisal cycle created. The guide now uses Performance’s ratings: set the increment % for each.' : 'Appraisal cycle created');
-      onSaved(cycle);
+        // On edit, filters this dialog does not show (departments, employment types) are kept.
+        eligibility: { ...(cycle?.eligibility || {}), joinedOnOrBefore: periodEnd, minServiceMonths: Number(minService) || 0, includeProbation },
+      };
+      const saved = cycle ? await api.updateCycle(cycle.id, body) : await api.createCycle(body);
+      const synced = saved.rating_sync?.changed ? ' The guide now uses Performance’s ratings: set the increment % for each.' : '';
+      showSuccess(`${cycle ? 'Appraisal cycle updated.' : 'Appraisal cycle created.'}${synced}`);
+      onSaved(saved);
       onClose();
     } catch (err) {
       const field = err instanceof ApiError ? (err.data as { field?: string } | null)?.field : undefined;
@@ -110,15 +130,15 @@ export function CycleDialog({ open, defaults, prefill, onClose, onSaved }: Props
       open={open}
       onClose={onClose}
       maxWidthClassName="max-w-2xl"
-      title={<h2 className="text-sm font-bold text-fg sm:text-base">New appraisal cycle</h2>}
-      footer={<><Btn onClick={onClose}>Cancel</Btn><Btn variant="primary" busy={saving} onClick={save}>Create cycle</Btn></>}
+      title={<h2 className="text-sm font-bold text-fg sm:text-base">{cycle ? 'Edit appraisal cycle' : 'New appraisal cycle'}</h2>}
+      footer={<><Btn onClick={onClose}>Cancel</Btn><Btn variant="primary" busy={saving} onClick={save}>{cycle ? 'Save changes' : 'Create cycle'}</Btn></>}
     >
       <div className="space-y-4">
         <TextField label="Name" required value={name} onChange={setName} error={errors.name} maxLength={150} />
         {subOrgs.length > 0 && (
           <div>
             <FieldLabel label="Sub-organization" />
-            <select value={subOrgId ?? ''} onChange={(e) => setSubOrgId(e.target.value ? Number(e.target.value) : null)} className="h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm text-fg">
+            <select value={subOrgId ?? ''} disabled={Boolean(cycle)} title={cycle ? 'The company of a cycle cannot change' : undefined} onChange={(e) => setSubOrgId(e.target.value ? Number(e.target.value) : null)} className="h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm text-fg">
               {isOrgAdmin && <option value="">All sub-organizations</option>}
               {subOrgs.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>

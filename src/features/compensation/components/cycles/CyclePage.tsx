@@ -5,7 +5,7 @@ import { useFeatures } from '@/lib/hooks/useFeatures';
 
 import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Check, Lock, RefreshCw, Save, Sparkles, Upload, UserPlus, Send } from 'lucide-react';
+import { ArrowLeft, Check, Lock, Pencil, RefreshCw, Save, Sparkles, Upload, UserPlus, Send } from 'lucide-react';
 import { Pagination } from '@/components/ui/Pagination';
 import { TableSkeleton } from '@/components/ui/TableSkeleton';
 import { Alert } from '@/components/ui/Alert';
@@ -26,6 +26,7 @@ import { FilterTabs } from '../shared/FilterTabs';
 import { StatusBadge } from '../shared/StatusBadge';
 import { SalaryHistoryDrawer } from '../SalaryHistoryDrawer';
 import { BonusPanel } from './BonusPanel';
+import { CycleDialog } from './CycleDialog';
 import { PerformanceCyclePicker, type PickableCycle } from './PerformanceCyclePicker';
 import { SubmitCycleDialog } from './SubmitCycleDialog';
 import { ManagerReviewPanel } from './ManagerReviewPanel';
@@ -127,6 +128,7 @@ export function CyclePage({ cycleId, basePath }: { cycleId: number; basePath: st
   const [submitOpen, setSubmitOpen] = React.useState(false);
   const [uploadOpen, setUploadOpen] = React.useState(false);
   const [rateRow, setRateRow] = React.useState<RevisionDto | null>(null);
+  const [editOpen, setEditOpen] = React.useState(false);
 
   const loadCycle = React.useCallback(() => api.getCycle(cycleId).then(setCycle).catch((e) => setError(messageOf(e))), [cycleId]);
   React.useEffect(() => { loadCycle(); }, [loadCycle]);
@@ -211,6 +213,7 @@ export function CyclePage({ cycleId, basePath }: { cycleId: number; basePath: st
         </div>
         {cycle && (
           <div className="flex flex-wrap gap-2">
+            {perms.edit && cycle.status === 'draft' && <Btn icon={<Pencil className="h-3.5 w-3.5" />} onClick={() => setEditOpen(true)}>Edit</Btn>}
             {perms.add && editable && <Btn icon={<UserPlus className="h-3.5 w-3.5" />} busy={busy === 'gen'} onClick={() => run('gen', () => api.generateProposals(cycleId), 'Eligible employees added')}>Add eligible</Btn>}
             {canUpload && <Btn icon={<Upload className="h-3.5 w-3.5" />} onClick={() => setUploadOpen(true)}>Upload ratings</Btn>}
             {editable && <Btn icon={<Sparkles className="h-3.5 w-3.5" />} busy={busy === 'rate'} onClick={() => run('rate', () => api.applyRatings(cycleId), 'Guide % applied to rated rows')}>Apply rating guide</Btn>}
@@ -388,6 +391,7 @@ export function CyclePage({ cycleId, basePath }: { cycleId: number; basePath: st
         )}
       </Panel>
       <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
+      {cycle && <CycleDialog open={editOpen} cycle={cycle} defaults={cycle.rating_scale} onClose={() => setEditOpen(false)} onSaved={() => { loadCycle(); q.reload(); }} />}
       <SubmitCycleDialog open={submitOpen} check={source === 'performance' ? check : undefined} managers={source === 'manager' ? cycle?.manager_review?.totals : undefined} onClose={() => setSubmitOpen(false)} onSubmit={(ack) => run('submit', () => api.submitCycle(cycleId, ack), 'Submitted for approval')} />
       <SalaryHistoryDrawer employeeId={historyId} onClose={() => setHistoryId(null)} />
       {uploadOpen && <RatingUploadDialog cycleId={cycleId} scale={scale} onClose={() => setUploadOpen(false)} onDone={reload} />}
