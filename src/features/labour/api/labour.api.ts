@@ -23,7 +23,7 @@ export interface AttendanceExportRequest {
   contractorId?: number | null;
   categoryId?: number | null;
   subcategoryId?: number | null;
-  status?: 'present' | 'active' | 'completed' | 'absent' | null;
+  status?: 'present' | 'absent' | 'missed_out' | 'active' | 'completed' | null;
   search?: string | null;
 }
 

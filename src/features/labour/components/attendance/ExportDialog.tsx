@@ -24,16 +24,18 @@ const TYPES = [
   { value: 'month' as const, label: 'Monthly report' },
   { value: 'date_range' as const, label: 'Date range' },
 ];
-const STATUSES: Array<{ value: Status; label: string }> = [
-  { value: 'present', label: 'Present' },
-  { value: 'active', label: 'Currently active' },
-  { value: 'completed', label: 'Completed shift' },
-  { value: 'absent', label: 'Absent' },
+/** Present = any punch (missed OUT included); absent = no punch; missed OUT = OUT still pending. Month / range keep whole labourers. */
+const STATUSES: Array<{ value: Status; label: string; daily?: boolean }> = [
+  { value: 'present', label: 'Present (all who punched)' },
+  { value: 'absent', label: 'Absent (no punch)' },
+  { value: 'missed_out', label: 'Missed OUT (OUT pending)' },
+  { value: 'active', label: 'Currently inside', daily: true },
+  { value: 'completed', label: 'Completed shift', daily: true },
 ];
 
 /**
  * The v1 "Export labour attendance" dialog: daily / monthly / date range, site, contractor, category, subcategory,
- * status (daily) and Excel or PDF. The file is built in the background and lands in the Download Centre.
+ * status and Excel or PDF. The file is built in the background and lands in the Download Centre.
  */
 export function ExportDialog({ defaults, sites, singleSite = false, contractors, categoryOptions, subcategoryOptions, onClose }: {
   defaults: ExportDefaults; sites: FilterOption[]; /** Scoped user: one site is required (the server refuses none when they have several). */ singleSite?: boolean; contractors: ContractorOpt[]; categoryOptions: Opt[]; subcategoryOptions: (categoryId: number | null) => Opt[]; onClose: () => void;
@@ -66,7 +68,8 @@ export function ExportDialog({ defaults, sites, singleSite = false, contractors,
     try {
       const body: api.AttendanceExportRequest = {
         exportType: type, format, siteId, contractorId, categoryId, subcategoryId, search: defaults.search || null,
-        ...(type === 'daily' ? { date, status } : type === 'month' ? { month } : { from, to }),
+        status,
+        ...(type === 'daily' ? { date } : type === 'month' ? { month } : { from, to }),
       };
       track(await api.exportAttendance(body));
       showSuccess('The attendance report is being prepared. Find it in Downloads.');
@@ -85,7 +88,7 @@ export function ExportDialog({ defaults, sites, singleSite = false, contractors,
     <Dialog open onClose={onClose} title="Export labour attendance" maxWidthClassName="max-w-2xl"
       footer={<><button type="button" className={secondaryBtn} onClick={onClose}>Cancel</button><button type="button" disabled={busy} className={primaryBtn} onClick={submit}>{busy ? 'Queuing…' : 'Export'}</button></>}>
       <div className="space-y-4">
-        <SegmentedControl options={TYPES} value={type} onChange={(v) => { setType(v); setErrors({}); }} fitText />
+        <SegmentedControl options={TYPES} value={type} onChange={(v) => { setType(v); setErrors({}); if (v !== 'daily' && STATUSES.find((x) => x.value === status)?.daily) setStatus(null); }} fitText />
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <FieldLabel label="Site" />
@@ -103,7 +106,8 @@ export function ExportDialog({ defaults, sites, singleSite = false, contractors,
             <FieldLabel label="Contractor" />
             <SearchableFilterDropdown label="Contractor" allLabel="All contractors" value={contractorId} options={contractorsAtSite(contractors, siteId)} onChange={(v) => choose({ contractorId: v })} className="w-full" />
           </div>
-          {type === 'daily' && <SelectField<Status> label="Status" value={status} placeholder="All status" options={STATUSES} onChange={setStatus} />}
+          <SelectField<Status> label="Status" value={status} placeholder="All status" options={STATUSES.filter((x) => type === 'daily' || !x.daily).map(({ value, label }) => ({ value, label }))} onChange={setStatus}
+            hint={type === 'daily' || !status ? undefined : status === 'absent' ? 'Labour with no punch on any day of the period.' : status === 'present' ? 'Labour who punched on at least one day; every day is shown.' : 'Labour with a day whose OUT is pending; every day is shown.'} />
           <SelectField<number> label="Category" numeric value={categoryId} placeholder="All categories" options={categoryOptionsFor(categoryOptions, contractor)} onChange={(v) => choose({ categoryId: v, subcategoryId: null })} />
           <SelectField<number> label="Subcategory" numeric value={subcategoryId} placeholder="All subcategories" options={subs} disabled={!categoryId} onChange={(v) => choose({ subcategoryId: v })} />
           <div>

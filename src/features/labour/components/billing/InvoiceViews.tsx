@@ -79,3 +79,24 @@ export function InvoiceDrawer({ id, load, onClose }: { id: number | null; load: 
     </Drawer>
   );
 }
+
+/** Invoices that already cover days of the chosen period, so nothing is billed twice. */
+export function CoveringInvoices({ rows }: { rows: Invoice[] }) {
+  if (!rows.length) return null;
+  return (
+    <section className="rounded-xl border border-line bg-surface p-4">
+      <h2 className="text-sm font-bold text-fg">Already invoiced in this period</h2>
+      <p className="text-[11px] text-fg-muted">These invoices cover some of these days. Imported ones come from the old labour system.</p>
+      <ul className="mt-2 divide-y divide-line/60">
+        {rows.map((i) => (
+          <li key={i.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+            <span className="font-semibold text-fg">{invoiceNo(i)}{i.imported && <span className="ml-1.5 text-[11px] font-normal text-fg-muted">imported</span>}</span>
+            <span className="text-xs text-fg-muted">{invoicePeriod(i)}</span>
+            <Pill tone={statusTone(i.status)}>{titleCase(i.status || 'draft')}</Pill>
+            <span className="tabular-nums">{money(i.total)}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}

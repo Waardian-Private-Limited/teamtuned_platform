@@ -361,6 +361,10 @@ export interface BillingUsage {
   start: string;
   end: string;
   noPlan: boolean;
+  /** Period totals whatever the plan charges for: new_labour, labour_day, licence, active_labour, device. */
+  quantities?: Record<string, number>;
+  /** Invoices that already cover some of these days (imported legacy ones too). */
+  invoices?: Invoice[];
   windows: BillingWindow[];
   subtotal: number;
   gst: number;
@@ -383,6 +387,8 @@ export interface Invoice {
   issuedAt?: string | null;
   paidAt?: string | null;
   paymentRef?: string | null;
+  /** Brought over from the old labour system. */
+  imported?: boolean;
   lines?: BillingLine[];
   windows?: BillingWindow[];
 }

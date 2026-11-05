@@ -7,6 +7,7 @@ import type { BillingLine, BillingUsage } from '../../types/labour.types';
 import type { BillingPeriod } from '../../api/labour.api';
 import { fmtDate, money, thisMonth } from '../../utils/format';
 import { Block, FormError, Stat, td, th, trCls } from '../shared/Primitives';
+import { CoveringInvoices } from './InvoiceViews';
 import { PeriodPicker, monthPeriod, periodParams, periodProblem, type Period } from './PeriodPicker';
 
 const FLOW = ['new_labour', 'labour_day'];
@@ -47,7 +48,8 @@ export function UsagePanel({ load, outstandingNote }: { load: (period: BillingPe
   }, [period.mode, period.month, period.from, period.to]);
 
   const t = useMemo(() => (u ? totals(u) : null), [u]);
-  const unit = (m: string, noun: string) => `${t?.[m].quantity ?? 0} ${noun}`;
+  // Counts come from the period's facts (registrations, attendance days…), even for a meter the plan does not charge.
+  const unit = (m: string, noun: string) => `${u?.quantities?.[m] ?? t?.[m].quantity ?? 0} ${noun}`;
 
   return (
     <div className="space-y-3">
@@ -61,8 +63,8 @@ export function UsagePanel({ load, outstandingNote }: { load: (period: BillingPe
         <>
           {u.noPlan && <p className="rounded-xl border border-line bg-surface px-4 py-3 text-sm text-fg-muted">No billing plan applies to this period, so nothing is charged.</p>}
           <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-            <Stat label={METER_LABEL.new_labour} value={money(t.new_labour.amount)} note={unit('new_labour', 'registered')} />
-            <Stat label={METER_LABEL.labour_day} value={money(t.labour_day.amount)} note={unit('labour_day', 'labour-days')} />
+            <Stat label={METER_LABEL.new_labour} value={money(t.new_labour.amount)} note={unit('new_labour', 'newly registered')} />
+            <Stat label={METER_LABEL.labour_day} value={money(t.labour_day.amount)} note={unit('labour_day', 'attendance days')} />
             <Stat label={METER_LABEL.active_labour} value={money(t.active_labour.amount)} note={unit('active_labour', 'active')} />
             <Stat label={METER_LABEL.licence} value={money(t.licence.amount)} note={unit('licence', 'licences')} />
             <Stat label={METER_LABEL.device} value={money(t.device.amount)} note={unit('device', 'machines')} />
@@ -97,6 +99,8 @@ export function UsagePanel({ load, outstandingNote }: { load: (period: BillingPe
               <dt className="font-bold text-fg">Total</dt><dd className="text-right text-base font-extrabold tabular-nums">{money(u.total)}</dd>
             </dl>
           </section>
+
+          <CoveringInvoices rows={u.invoices || []} />
 
           <section className="rounded-xl border border-line bg-surface p-4">
             <h2 className="text-sm font-bold text-fg">Outstanding</h2>
