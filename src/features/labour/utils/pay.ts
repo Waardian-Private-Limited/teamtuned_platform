@@ -1,6 +1,12 @@
 import { PAY_BASIS_LABEL } from '../constants/labour.constants';
 import type { HajriSlab, PayBasis } from '../types/labour.types';
-import { money } from './format';
+import { fmtDate, money } from './format';
+
+/** The start date the server gives a scope's first contractor rate: it covers every earlier day. */
+export const RATE_START = '2000-01-01';
+
+/** A rate's start for display: "the start" for a first rate (it covers earlier days), else the date. */
+export const rateFrom = (d: string | null | undefined) => (d && d <= RATE_START ? 'the start' : fmtDate(d));
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 

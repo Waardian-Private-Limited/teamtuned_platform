@@ -9,7 +9,7 @@ import { useLabourAccess, useLabourBasePath } from '../../../hooks/useLabourAcce
 import type { PaySuggestion as Suggestion } from '../../../types/labour.types';
 import { parseLabourError } from '../../../utils/errors';
 import { fmtDate } from '../../../utils/format';
-import { rateLine, slabSummary } from '../../../utils/pay';
+import { rateFrom, rateLine, slabSummary } from '../../../utils/pay';
 
 interface Props {
   contractorId: number | null;
@@ -66,7 +66,7 @@ export function PaySuggestion({ contractorId, siteId, categoryId, subcategoryId,
             <p className="mt-0.5 text-[11px] text-fg-muted">
               {eff.source === 'personal'
                 ? `Personal rate from ${fmtDate(eff.effectiveFrom)}${data.contractorRate ? ` (contractor rate: ${rateLine(data.contractorRate)})` : ''}.`
-                : `Contractor rate${eff.scope && (eff.scope.siteId || eff.scope.categoryId) ? ' for this site / category' : ' for all sites and categories'}, from ${fmtDate(eff.effectiveFrom)}.`}
+                : `Contractor rate${eff.scope && (eff.scope.siteId || eff.scope.categoryId) ? ' for this site / category' : ' for all sites and categories'}, from ${rateFrom(eff.effectiveFrom)}.`}
               {eff.payBasis === 'measurement' && ' Attendance earns nothing by itself; approved measurement entries are paid.'}
             </p>
           </>

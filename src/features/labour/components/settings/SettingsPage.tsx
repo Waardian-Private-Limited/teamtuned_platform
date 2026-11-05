@@ -17,6 +17,9 @@ import { HajriSlabs } from './HajriSlabs';
 import { Block, FormError, Gate, PageHeader, primaryBtn, secondaryBtn } from '../shared/Primitives';
 import { Section } from '@/components/ui/FormControls';
 
+/** 'HH:MM' + 12 hours. */
+const plus12 = (t: string) => { const [h, m] = (t || '08:00').split(':').map(Number); return `${String(((h || 0) + 12) % 24).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}`; };
+
 export function SettingsPage() {
   const { enabled, canAny } = useLabourAccess();
   return <Gate enabled={enabled} allowed={canAny(LABOUR_SETTINGS_PAGE_PERMS)} what="labour settings"><Settings /></Gate>;
@@ -57,6 +60,7 @@ function Settings() {
     if (!draft) return;
     const errs: Record<string, string> = {};
     if (!/^\d{2}:\d{2}$/.test(draft.dayStartsAt)) errs.dayStartsAt = 'Enter a time';
+    if (!/^\d{2}:\d{2}$/.test(draft.attendanceCutoff || draft.dayStartsAt)) errs.attendanceCutoff = 'Enter a time';
     if (!(draft.standardHours > 0 && draft.standardHours <= 24)) errs.standardHours = 'Enter hours between 1 and 24';
     if (!(draft.duplicatePunchSeconds >= 0)) errs.duplicatePunchSeconds = 'Enter seconds, 0 or more';
     if (!(draft.regularization.maxBackDays >= 0)) errs['regularization.maxBackDays'] = 'Enter days, 0 or more';
@@ -95,7 +99,10 @@ function Settings() {
         <div className="grid items-start gap-3 lg:grid-cols-2">
           <Section title="Attendance" description="How the work day is cut and how punches are counted.">
             <div className="space-y-4">
-              <TextField label="Work day starts at" type="time" value={draft.dayStartsAt} error={errors.dayStartsAt} disabled={!canEdit} hint="Cutoff: a punch before this time closes the previous day only if that day is still open (checked in, not out); otherwise it starts the new day." onChange={(v) => set({ dayStartsAt: v })} />
+              <TextField label="Attendance cutoff" type="time" value={draft.attendanceCutoff || draft.dayStartsAt} error={errors.attendanceCutoff} disabled={!canEdit}
+                hint="A punch before this time closes the previous day only while that day is still open (checked in, not out); otherwise it starts a new session of its own date. From this time on, every punch belongs to the new day. E.g. 05:00: IN 10:00, next punch 06:00 = a new session." onChange={(v) => set({ attendanceCutoff: v })} />
+              <TextField label="Day rate starts at" type="time" value={draft.dayStartsAt} error={errors.dayStartsAt} disabled={!canEdit}
+                hint={`Hourly pay: day rate for 12 hours from this time (${draft.dayStartsAt || '08:00'} to ${plus12(draft.dayStartsAt)}), night rate after it until the cutoff. Time of a day before this (an early or fresh session) is day time.`} onChange={(v) => set({ dayStartsAt: v })} />
               <TextField label="Standard hours per day" inputMode="decimal" value={String(draft.standardHours)} error={errors.standardHours} disabled={!canEdit} onChange={(v) => set({ standardHours: nf(v) })} />
               <TextField label="Ignore repeat punches within (seconds)" inputMode="numeric" value={String(draft.duplicatePunchSeconds)} error={errors.duplicatePunchSeconds} disabled={!canEdit} hint="A second punch inside this window is treated as a duplicate." onChange={(v) => set({ duplicatePunchSeconds: nf(v) })} />
               <ToggleRow title="Advanced onboarding" hint="Adds a compliance details step when registering labour." checked={draft.advancedOnboarding} disabled={!canEdit} onChange={(advancedOnboarding) => set({ advancedOnboarding })} />

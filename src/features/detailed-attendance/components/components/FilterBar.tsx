@@ -18,6 +18,9 @@ const STATUS_OPTIONS: Array<{ id: string; name: string }> = [
   { id: 'week_off', name: 'Week Off' },
   { id: 'holiday', name: 'Holiday' },
   { id: 'no_checkout', name: 'No Check-out' },
+  // Employment status: every inactive / terminated employee, to open their attendance history.
+  { id: 'inactive', name: 'Inactive employees' },
+  { id: 'terminated', name: 'Terminated employees' },
 ];
 
 /**

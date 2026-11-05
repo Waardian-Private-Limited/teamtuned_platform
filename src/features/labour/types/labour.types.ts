@@ -16,7 +16,10 @@ export interface Address { line1: string; line2: string; city: string; state: st
 export type FaceStatus = 'none' | 'pending' | 'enrolled' | 'failed';
 
 export interface LabourSettings {
+  /** Pay: the day rate runs from this time for 12 hours, the night rate after. */
   dayStartsAt: string;
+  /** Attendance: which work day a punch is filed on (missing in older settings = dayStartsAt). */
+  attendanceCutoff?: string;
   standardHours: number;
   duplicatePunchSeconds: number;
   advancedOnboarding: boolean;

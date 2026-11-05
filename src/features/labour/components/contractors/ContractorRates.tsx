@@ -10,7 +10,7 @@ import * as api from '../../api/labour.api';
 import { useCatalog, useLabourSites } from '../../hooks/useLabourLists';
 import type { ContractorRate, ContractorTrade } from '../../types/labour.types';
 import { fmtDate, money } from '../../utils/format';
-import { basisLabel } from '../../utils/pay';
+import { basisLabel, RATE_START } from '../../utils/pay';
 import { EmptyPanel, FormError, Pill, primaryBtn, td, th, trCls } from '../shared/Primitives';
 import { SetRatesDialog } from './SetRatesDialog';
 
@@ -56,7 +56,7 @@ export function ContractorRates({ contractorId, siteIds, trades, canManage }: { 
                   <td className={td}><div className="font-semibold">{siteName(r.siteId)}</div><div className="text-[11px] text-fg-muted">{catName(r.categoryId, r.subcategoryId)}</div>{r.note && <div className="text-[11px] text-fg-muted">{r.note}</div>}</td>
                   <td className={td}><Pill tone={(r.payBasis || 'hourly') === 'hourly' ? 'neutral' : 'dark'}>{basisLabel(r.payBasis || 'hourly')}</Pill></td>
                   <td className={`${td} tabular-nums`}><RateCell r={r} /></td>
-                  <td className={td}>{fmtDate(r.effectiveFrom)}</td>
+                  <td className={td}>{r.effectiveFrom && r.effectiveFrom <= RATE_START ? 'From the start' : fmtDate(r.effectiveFrom)}</td>
                   {history && <td className={td}>{r.effectiveTo ? fmtDate(r.effectiveTo) : <Pill tone="good">Open</Pill>}</td>}
                 </tr>
               ))}

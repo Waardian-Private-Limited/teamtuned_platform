@@ -176,7 +176,7 @@ export function SetRatesDialog({ contractorId, contractorSiteIds, current, sites
           <SelectField label="Rates for" numeric value={siteId} options={siteOptions} placeholder="All sites" onChange={(v) => setSiteId(v)}
             hint={siteId === null ? 'Used at every site that has no rate of its own.' : 'Used at this site before the all-sites rates.'} />
         </div>
-        <p className="text-xs text-fg-muted">Leave a trade empty to use the standard rate. A subcategory rate comes before its category and the standard rate.</p>
+        <p className="text-xs text-fg-muted">Leave a trade empty to use the standard rate. A subcategory rate comes before its category and the standard rate. The first rate of a trade also pays every earlier day (from the start); a later change starts on the effective date.</p>
         {shown.map((l) => {
           const err = (f: string) => errors[`${l.key}.${f}`];
           return (

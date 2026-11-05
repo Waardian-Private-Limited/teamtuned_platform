@@ -14,7 +14,7 @@ import { useLabourAccess } from '../../hooks/useLabourAccess';
 import type { LabourerDetail, PayBasis, PaySuggestion, PersonalRate } from '../../types/labour.types';
 import { parseLabourError, placeError } from '../../utils/errors';
 import { fmtDate, fmtDateTime, fullName, today } from '../../utils/format';
-import { basisLabel, slabSummary } from '../../utils/pay';
+import { basisLabel, rateFrom, slabSummary } from '../../utils/pay';
 import { RateCell } from '../contractors/ContractorRates';
 import { FormError, Pill, primaryBtn, secondaryBtn, td, th, trCls } from '../shared/Primitives';
 
@@ -55,7 +55,7 @@ export function PayPanel({ labourer, onChanged }: { labourer: LabourerDetail; on
                   <div className="flex flex-wrap items-center gap-1.5"><Pill tone="dark">{basisLabel(eff.payBasis)}</Pill><Pill>{eff.source === 'personal' ? 'Personal rate' : 'Contractor rate'}</Pill></div>
                   <div className="text-sm"><RateCell r={eff} /></div>
                   {eff.payBasis === 'hajri' && suggest?.hajriSlabs?.length ? <p className="text-[11px] text-fg-muted">{slabSummary(suggest.hajriSlabs)}</p> : null}
-                  <p className="text-[11px] text-fg-muted">Since {fmtDate(eff.effectiveFrom)}{eff.source === 'personal' && contractorRate ? ` · contractor rate would be ${basisLabel(contractorRate.payBasis).toLowerCase()}` : ''}</p>
+                  <p className="text-[11px] text-fg-muted">Since {rateFrom(eff.effectiveFrom)}{eff.source === 'personal' && contractorRate ? ` · contractor rate would be ${basisLabel(contractorRate.payBasis).toLowerCase()}` : ''}</p>
                 </div>
               ) : suggest ? (
                 <p className="mt-1 text-sm text-fg">No rate: {labourer.contractorName || 'the contractor'} has no rate for this site and trade, so attendance earns nothing.</p>

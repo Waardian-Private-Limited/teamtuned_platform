@@ -38,7 +38,7 @@ export type ListQuery = Params & { page?: number; pageSize?: number };
 // sites the signed-in user may pick: every site (`all`) for org admin / HR mode, else only their own
 export interface LabourSite { id: number; name: string; code: string | null; isHeadOffice: boolean }
 export const getOfficers = (search: string) => get<{ items: Officer[] }>('/officers', { search: search || undefined });
-export const getLabourSites = () => get<{ all: boolean; sites: LabourSite[] }>('/sites');
+export const getLabourSites = () => get<{ all: boolean; primarySiteId?: number | null; sites: LabourSite[] }>('/sites');
 
 // settings
 export const getSettings = (subOrganizationId?: number | null) => get<SettingsResponse>('/settings', { subOrganizationId });

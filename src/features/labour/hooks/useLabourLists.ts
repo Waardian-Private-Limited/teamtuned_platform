@@ -57,13 +57,14 @@ export function useContractorOptions(excludeId?: number | null) {
 /**
  * The sites to pick from on every labour screen (`GET /labour/sites`): every site for org admin / HR mode (`all`), else
  * only the signed-in person's own. Screens that need exactly one site hide "All sites" and default to `first` when `!all`.
+ * `primary` = the person's primary site (Add labourer starts on it).
  */
 export function useLabourSites() {
-  const [state, setState] = useState<{ sites: FilterOption[]; all: boolean; loaded: boolean }>({ sites: [], all: true, loaded: false });
+  const [state, setState] = useState<{ sites: FilterOption[]; all: boolean; loaded: boolean; primary: number | null }>({ sites: [], all: true, loaded: false, primary: null });
   useEffect(() => {
     let off = false;
     api.getLabourSites()
-      .then((r) => { if (!off) setState({ sites: (r.sites || []).map((s) => ({ value: s.id, label: s.name })), all: !!r.all, loaded: true }); })
+      .then((r) => { if (!off) setState({ sites: (r.sites || []).map((s) => ({ value: s.id, label: s.name })), all: !!r.all, loaded: true, primary: r.primarySiteId ?? null }); })
       .catch(() => { if (!off) setState((x) => ({ ...x, loaded: true })); });
     return () => { off = true; };
   }, []);

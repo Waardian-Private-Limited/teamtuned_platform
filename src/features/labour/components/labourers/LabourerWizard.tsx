@@ -6,7 +6,7 @@ import { Check } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { Drawer } from '@/components/ui/Drawer';
 import * as api from '../../api/labour.api';
-import { useCatalog, useContractorOptions, useLabourSettings, useLabourSites, type ContractorOpt, type Opt } from '../../hooks/useLabourLists';
+import { useCatalog, useContractorOptions, useLabourSettings, useLabourSites, type ContractorOpt } from '../../hooks/useLabourLists';
 import { messageOf } from '@/lib/api/errors';
 import { FormError, primaryBtn, secondaryBtn } from '../shared/Primitives';
 import { EMPTY_SHOTS, type Shots } from './wizard/FaceCapture';
@@ -20,11 +20,10 @@ import { PaySuggestion } from './wizard/PaySuggestion';
 import { supplies, suppliedCategories } from '../../utils/trades';
 import type { Category } from '../../types/labour.types';
 
-/** The sites the chosen contractor works at (all when it has none linked, or its sites are not known). `keep` stays listed (an edit's saved site). */
-function sitesOf(contractors: ContractorOpt[], contractorId: number | null, sites: Opt[], keep: number | null | undefined): Opt[] {
-  const own = contractors.find((c) => c.value === contractorId)?.siteIds;
-  if (!own?.length) return sites;
-  return sites.filter((s) => own.includes(s.value) || s.value === keep);
+/** The contractors working at the chosen site (linked to it, or to no site = every site). `keep` stays listed (an edit's saved contractor). */
+function contractorsAt(contractors: ContractorOpt[], siteId: number | null, keep: number | null | undefined): ContractorOpt[] {
+  if (siteId === null) return contractors;
+  return contractors.filter((c) => !c.siteIds?.length || c.siteIds.includes(siteId) || c.value === keep);
 }
 
 /** The categories the chosen contractor supplies; an edit's saved category / subcategory stays listed. */
@@ -61,7 +60,7 @@ export function LabourerWizard({ open, onClose, onSaved, editId = null, onOpenEx
 function Body({ onClose, onSaved, editId = null, onOpenExisting, startAt }: Omit<Props, 'open'>) {
   const editing = Boolean(editId);
   const settings = useLabourSettings();
-  const { sites } = useLabourSites();
+  const { sites, primary: primarySite } = useLabourSites();
   const listedContractors = useContractorOptions();
   // Inactive categories are loaded too, so an edit still shows the one the labourer already has.
   const { categories } = useCatalog(true);
@@ -95,12 +94,14 @@ function Body({ onClose, onSaved, editId = null, onOpenExisting, startAt }: Omit
   }, [startAt, steps, editing, detail]);
   const set = (p: Partial<WizardForm>) => setForm((f) => {
     const next = { ...f, ...p };
-    // A new contractor only works at its own sites: a site it does not work at is dropped, and its only site is picked.
-    if (p.contractorId !== undefined && p.contractorId !== f.contractorId) {
-      const allowed = sitesOf(contractors, next.contractorId, sites, null);
-      if (next.siteId !== null && !allowed.some((s) => s.value === next.siteId)) next.siteId = null;
-      if (next.siteId === null && allowed.length === 1) next.siteId = allowed[0].value;
-      // ... and supplies only its own trades: a trade it does not supply is dropped.
+    // A new site lists only its contractors: a contractor that does not work there is dropped, and its only one is picked.
+    if (p.siteId !== undefined && p.siteId !== f.siteId) {
+      const here = contractorsAt(contractors, next.siteId, null);
+      if (next.contractorId !== null && !here.some((c) => c.value === next.contractorId)) next.contractorId = null;
+      if (next.contractorId === null && here.length === 1) next.contractorId = here[0].value;
+    }
+    // A contractor supplies only its own trades: a trade it does not supply is dropped.
+    if (next.contractorId !== f.contractorId) {
       const trades = contractors.find((c) => c.value === next.contractorId)?.trades;
       if (next.categoryId !== null && !supplies(trades, next.categoryId, next.subcategoryId)) {
         if (supplies(trades, next.categoryId, null) || trades?.some((t) => t.categoryId === next.categoryId)) next.subcategoryId = null;
@@ -109,6 +110,20 @@ function Body({ onClose, onSaved, editId = null, onOpenExisting, startAt }: Omit
     }
     return next;
   });
+
+  // A new labourer starts on the adder's primary site (else their only site), as v1 did.
+  useEffect(() => {
+    if (editId || form.siteId !== null) return;
+    const start = primarySite ?? (sites.length === 1 ? sites[0].value : null);
+    if (start !== null) set({ siteId: start });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editId, primarySite, sites]);
+  // Once contractors arrive, the site's only contractor is picked.
+  useEffect(() => {
+    if (editId || form.siteId === null || form.contractorId !== null) return;
+    const here = contractorsAt(contractors, form.siteId, null);
+    if (here.length === 1) setForm((f) => (f.contractorId === null ? { ...f, contractorId: here[0].value } : f));
+  }, [editId, contractors, form.siteId, form.contractorId]);
 
   // A subcategory is required when the chosen category has active ones.
   const subRequired = (categories.find((c) => c.id === form.categoryId)?.subcategories || []).some((s) => s.isActive);
@@ -165,7 +180,7 @@ function Body({ onClose, onSaved, editId = null, onOpenExisting, startAt }: Omit
   }
 
   const errors = submit.errors;
-  const siteOptions = sitesOf(contractors, form.contractorId, sites, form.contractorId === detail?.contractorId ? detail?.siteId : null);
+  const contractorOptions = contractorsAt(contractors, form.siteId, detail?.contractorId);
   const sameContractor = !!detail && form.contractorId === detail.contractorId;
   const tradeOptions = categoriesOf(contractors, form.contractorId, categories, sameContractor ? { categoryId: detail.categoryId, subcategoryId: detail.subcategoryId } : null);
   const moving = editing && isMove(form, detail);
@@ -192,7 +207,7 @@ function Body({ onClose, onSaved, editId = null, onOpenExisting, startAt }: Omit
       {submit.savedCode && !editing && <p className="text-xs text-fg-muted">Saved as {submit.savedCode}. Fix what is marked and save again to finish the rest.</p>}
 
       <div className="flex-1">
-        {step === 'basic' && <BasicStep {...common} sites={siteOptions} contractors={contractors} categories={tradeOptions} lockContractor={false} move={moving ? { maxBackDays: settings?.regularization.maxBackDays ?? 31 } : null} payHint={payHint} />}
+        {step === 'basic' && <BasicStep {...common} sites={sites} contractors={contractorOptions} categories={tradeOptions} lockContractor={false} move={moving ? { maxBackDays: settings?.regularization.maxBackDays ?? 31 } : null} payHint={payHint} />}
         {step === 'address' && <AddressStep {...common} />}
         {step === 'identity' && <IdentityStep {...common} editing={editing} masked={detail?.aadhaarMasked} existingId={submit.existingId} onOpenExisting={onOpenExisting} />}
         {step === 'face' && <FaceStep shots={shots} onChange={(p, f) => { setShots((s) => ({ ...s, [p]: f })); }} issues={submit.faceIssues} existing={faceExisting} />}

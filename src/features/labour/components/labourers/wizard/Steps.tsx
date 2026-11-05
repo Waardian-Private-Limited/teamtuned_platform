@@ -30,8 +30,9 @@ export function BasicStep({ form, set, errors, clear, sites, contractors, catego
   return (
     <div className="space-y-4">
       <div className={grid}>
-        <SelectField label="Contractor" required numeric value={form.contractorId} options={contractors} error={errors.contractorId} disabled={lockContractor} onChange={(v) => { set({ contractorId: v }); clear('contractorId'); }} />
         <SelectField label="Site" required numeric value={form.siteId} options={sites} error={errors.siteId} onChange={(v) => { set({ siteId: v }); clear('siteId'); }} />
+        <SelectField label="Contractor" required numeric value={form.contractorId} options={contractors} error={errors.contractorId} disabled={lockContractor || !form.siteId}
+          placeholder={form.siteId ? (contractors.length ? 'Select…' : 'No contractor works at this site') : 'Pick the site first'} onChange={(v) => { set({ contractorId: v }); clear('contractorId'); }} />
       </div>
       <div className={grid}>
         {text('firstName', 'First name', { required: true, autoComplete: 'off' })}

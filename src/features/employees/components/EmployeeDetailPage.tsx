@@ -9,7 +9,7 @@ import { RehireDialog } from '@/features/exits/components/RehireDialog';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { InfoRow, Section } from '@/components/ui/FormControls';
 import { usePermission } from '@/lib/hooks/usePermission';
-import { formatDate } from '@/lib/datetime';
+import { formatDate, formatDateTime } from '@/lib/datetime';
 import { EMPLOYEE_PERMISSIONS, STATUS_TONE } from '../constants/employees.constants';
 import { useEmployeeDetail } from '../hooks/useEmployeeDetail';
 import { useEmployeeRoutes } from '../hooks/useEmployeeRoutes';
@@ -112,6 +112,7 @@ export function EmployeeDetailPage({ employeeId }: { employeeId: number }) {
                 <InfoRow label="Grade / band" value={d.grade_name || '—'} />
                 <InfoRow label="Cost centre" value={d.cost_centre_name || '—'} />
                 {d.exit_date && <InfoRow label="Exit date" value={formatDate(d.exit_date)} />}
+                <InfoRow label="Last punch" value={d.last_punch ? `${formatDateTime(d.last_punch.at)} · ${d.last_punch.direction === 'in' ? 'Check-in' : 'Check-out'}${d.last_punch.site ? ` · ${d.last_punch.site}` : ''}` : 'Never punched'} />
               </div>
             </Section>
             {d.contract_end && (

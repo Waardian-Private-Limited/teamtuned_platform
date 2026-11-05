@@ -201,6 +201,8 @@ export interface EmployeeDetailDto {
   notice_period_days: number | null;
   confirmation_date: string | null;
   exit_date: string | null;
+  /** Latest attendance punch (UTC instant), null when they never punched. */
+  last_punch?: { at: string; work_date: string; direction: 'in' | 'out'; kind: string; site: string | null } | null;
   contract_start: string | null;
   contract_end: string | null;
   work_state: string | null;
