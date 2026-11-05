@@ -87,9 +87,14 @@ export interface Contractor {
   status: 'active' | 'inactive' | 'merged';
   labourCount: number;
   siteIds?: number[];
+  /** The trades it supplies; empty = every trade. */
+  trades?: ContractorTrade[];
   rates?: ContractorRate[];
   documents?: ContractorDocument[];
 }
+
+/** A trade a contractor supplies; `subcategoryId` null = the whole category. */
+export interface ContractorTrade { categoryId: number; subcategoryId: number | null }
 
 export interface MergePreview {
   source: { id: number; legalName?: string; name?: string } | number | string;

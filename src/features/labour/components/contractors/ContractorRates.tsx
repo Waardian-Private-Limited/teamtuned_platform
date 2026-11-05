@@ -8,14 +8,14 @@ import { Switch } from '@/components/ui/Switch';
 import { messageOf } from '@/lib/api/errors';
 import * as api from '../../api/labour.api';
 import { useCatalog, useLabourSites } from '../../hooks/useLabourLists';
-import type { ContractorRate } from '../../types/labour.types';
+import type { ContractorRate, ContractorTrade } from '../../types/labour.types';
 import { fmtDate, money } from '../../utils/format';
 import { basisLabel } from '../../utils/pay';
 import { EmptyPanel, FormError, Pill, primaryBtn, td, th, trCls } from '../shared/Primitives';
 import { SetRatesDialog } from './SetRatesDialog';
 
-/** `siteIds`: the sites the contractor is registered at (empty = every site); Set rates lists them. */
-export function ContractorRates({ contractorId, siteIds, canManage }: { contractorId: number; siteIds: number[]; canManage: boolean }) {
+/** `siteIds` / `trades`: the sites and trades the contractor is registered for (empty = every one); Set rates lists them. */
+export function ContractorRates({ contractorId, siteIds, trades, canManage }: { contractorId: number; siteIds: number[]; trades: ContractorTrade[]; canManage: boolean }) {
   const [history, setHistory] = useState(false);
   const [rates, setRates] = useState<ContractorRate[] | null>(null);
   const [error, setError] = useState('');
@@ -64,7 +64,7 @@ export function ContractorRates({ contractorId, siteIds, canManage }: { contract
           </table>
         </div>
       )}
-      {editing && <SetRatesDialog contractorId={contractorId} contractorSiteIds={siteIds} current={rates?.filter((r) => !r.effectiveTo) || []} sites={sites} categories={categories} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
+      {editing && <SetRatesDialog contractorId={contractorId} contractorSiteIds={siteIds} current={rates?.filter((r) => !r.effectiveTo) || []} sites={sites} categories={categories} trades={trades} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
     </div>
   );
 }

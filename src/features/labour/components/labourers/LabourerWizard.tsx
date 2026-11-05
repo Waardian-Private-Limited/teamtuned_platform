@@ -17,12 +17,28 @@ import { useWizardSubmit, type SubmitResult } from './wizard/useWizardSubmit';
 import { useCompliancePack } from '../../hooks/useCompliancePack';
 import type { LabourerDetail } from '../../types/labour.types';
 import { PaySuggestion } from './wizard/PaySuggestion';
+import { supplies, suppliedCategories } from '../../utils/trades';
+import type { Category } from '../../types/labour.types';
 
 /** The sites the chosen contractor works at (all when it has none linked, or its sites are not known). `keep` stays listed (an edit's saved site). */
 function sitesOf(contractors: ContractorOpt[], contractorId: number | null, sites: Opt[], keep: number | null | undefined): Opt[] {
   const own = contractors.find((c) => c.value === contractorId)?.siteIds;
   if (!own?.length) return sites;
   return sites.filter((s) => own.includes(s.value) || s.value === keep);
+}
+
+/** The categories the chosen contractor supplies; an edit's saved category / subcategory stays listed. */
+function categoriesOf(contractors: ContractorOpt[], contractorId: number | null, categories: Category[], keep: { categoryId: number | null; subcategoryId: number | null } | null): Category[] {
+  const trades = contractors.find((c) => c.value === contractorId)?.trades;
+  if (!trades?.length) return categories;
+  const out = suppliedCategories(categories, trades);
+  if (!keep?.categoryId) return out;
+  const own = categories.find((c) => c.id === keep.categoryId);
+  if (!own) return out;
+  const listed = out.find((c) => c.id === own.id);
+  const sub = own.subcategories.find((s) => s.id === keep.subcategoryId);
+  if (!listed) return [...out, { ...own, subcategories: sub ? [sub] : [] }];
+  return sub && !listed.subcategories.some((s) => s.id === sub.id) ? out.map((c) => (c.id === own.id ? { ...c, subcategories: [...c.subcategories, sub] } : c)) : out;
 }
 
 const LABEL: Record<StepId, string> = { basic: 'Basic', address: 'Address', identity: 'Identity', face: 'Face', documents: 'Documents', compliance: 'Compliance details', review: 'Review' };
@@ -84,6 +100,12 @@ function Body({ onClose, onSaved, editId = null, onOpenExisting, startAt }: Omit
       const allowed = sitesOf(contractors, next.contractorId, sites, null);
       if (next.siteId !== null && !allowed.some((s) => s.value === next.siteId)) next.siteId = null;
       if (next.siteId === null && allowed.length === 1) next.siteId = allowed[0].value;
+      // ... and supplies only its own trades: a trade it does not supply is dropped.
+      const trades = contractors.find((c) => c.value === next.contractorId)?.trades;
+      if (next.categoryId !== null && !supplies(trades, next.categoryId, next.subcategoryId)) {
+        if (supplies(trades, next.categoryId, null) || trades?.some((t) => t.categoryId === next.categoryId)) next.subcategoryId = null;
+        else { next.categoryId = null; next.subcategoryId = null; }
+      }
     }
     return next;
   });
@@ -144,6 +166,8 @@ function Body({ onClose, onSaved, editId = null, onOpenExisting, startAt }: Omit
 
   const errors = submit.errors;
   const siteOptions = sitesOf(contractors, form.contractorId, sites, form.contractorId === detail?.contractorId ? detail?.siteId : null);
+  const sameContractor = !!detail && form.contractorId === detail.contractorId;
+  const tradeOptions = categoriesOf(contractors, form.contractorId, categories, sameContractor ? { categoryId: detail.categoryId, subcategoryId: detail.subcategoryId } : null);
   const moving = editing && isMove(form, detail);
   const common = { form, set, errors, clear: submit.clear };
   const cat = categories.find((c) => c.id === form.categoryId);
@@ -168,7 +192,7 @@ function Body({ onClose, onSaved, editId = null, onOpenExisting, startAt }: Omit
       {submit.savedCode && !editing && <p className="text-xs text-fg-muted">Saved as {submit.savedCode}. Fix what is marked and save again to finish the rest.</p>}
 
       <div className="flex-1">
-        {step === 'basic' && <BasicStep {...common} sites={siteOptions} contractors={contractors} categories={categories} lockContractor={false} move={moving ? { maxBackDays: settings?.regularization.maxBackDays ?? 31 } : null} payHint={payHint} />}
+        {step === 'basic' && <BasicStep {...common} sites={siteOptions} contractors={contractors} categories={tradeOptions} lockContractor={false} move={moving ? { maxBackDays: settings?.regularization.maxBackDays ?? 31 } : null} payHint={payHint} />}
         {step === 'address' && <AddressStep {...common} />}
         {step === 'identity' && <IdentityStep {...common} editing={editing} masked={detail?.aadhaarMasked} existingId={submit.existingId} onOpenExisting={onOpenExisting} />}
         {step === 'face' && <FaceStep shots={shots} onChange={(p, f) => { setShots((s) => ({ ...s, [p]: f })); }} issues={submit.faceIssues} existing={faceExisting} />}

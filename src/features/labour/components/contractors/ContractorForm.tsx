@@ -2,16 +2,17 @@
 
 import React, { useState } from 'react';
 
-import { useLabourSites } from '../../hooks/useLabourLists';
+import { useCatalog, useLabourSites } from '../../hooks/useLabourLists';
 import { Textarea } from '@/components/ui/Textarea';
 import { showSuccess } from '@/lib/toast';
 import * as api from '../../api/labour.api';
-import type { Contractor } from '../../types/labour.types';
+import type { Contractor, ContractorTrade } from '../../types/labour.types';
 import { placeError } from '../../utils/errors';
 import { FormError } from '../shared/Primitives';
 import { Section, TextField } from '@/components/ui/FormControls';
 import { SiteMultiSelect } from '../shared/FormBits';
 import { primaryBtn } from '../shared/Primitives';
+import { TradePicker } from './TradePicker';
 
 const TEXT_KEYS = ['legalName', 'tradeName', 'code', 'contactPerson', 'phone', 'email', 'gstin', 'pan', 'clraLicenceNo', 'clraValidFrom', 'clraValidTo', 'clraMaxWorkers', 'pfCode', 'esicCode', 'bocwRegNo', 'notes'] as const;
 const ADDR_KEYS = ['line1', 'line2', 'city', 'state', 'pincode'] as const;
@@ -41,13 +42,14 @@ function validate(s: FormState): Record<string, string> {
   return e;
 }
 
-function body(s: FormState, siteIds: number[]) {
+function body(s: FormState, siteIds: number[], trades: ContractorTrade[]) {
   const o: Record<string, unknown> = {};
   TEXT_KEYS.forEach((k) => { o[k] = s[k].trim() === '' ? null : k === 'clraMaxWorkers' ? Number(s[k]) : s[k].trim(); });
   o.legalName = s.legalName.trim();
   o.address = Object.fromEntries(ADDR_KEYS.map((k) => [k, s[`address.${k}`].trim() || null]));
   if (BANK_KEYS.some((k) => s[`bank.${k}`].trim())) o.bank = Object.fromEntries(BANK_KEYS.map((k) => [k, s[`bank.${k}`].trim()]));
   o.siteIds = siteIds;
+  o.trades = trades;
   return o;
 }
 
@@ -55,6 +57,8 @@ export function ContractorForm({ contractor, onSaved }: { contractor: Contractor
   const { sites } = useLabourSites();
   const [s, setS] = useState<FormState>(() => initial(contractor));
   const [siteIds, setSiteIds] = useState<number[]>(contractor?.siteIds || []);
+  const { categories } = useCatalog(true);
+  const [trades, setTrades] = useState<ContractorTrade[]>(contractor?.trades || []);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -70,11 +74,11 @@ export function ContractorForm({ contractor, onSaved }: { contractor: Contractor
     if (Object.keys(errs).length) return;
     setBusy(true);
     try {
-      const r = await api.saveContractor(contractor?.id ?? null, body(s, siteIds));
+      const r = await api.saveContractor(contractor?.id ?? null, body(s, siteIds, trades));
       showSuccess(contractor ? 'Contractor saved' : 'Contractor added');
       onSaved(contractor?.id ?? r.id);
     } catch (err) {
-      const p = placeError(err, (k) => k in s || k === 'siteIds');
+      const p = placeError(err, (k) => k in s || k === 'siteIds' || k === 'trades');
       setErrors(p.fields);
       setFormError(p.form);
     } finally {
@@ -121,6 +125,9 @@ export function ContractorForm({ contractor, onSaved }: { contractor: Contractor
       </Section>
       <Section title="Sites" description="Sites this contractor works at.">
         <SiteMultiSelect options={sites} value={siteIds} onChange={setSiteIds} error={errors.siteIds} />
+      </Section>
+      <Section title="Trades" description="Categories and subcategories this contractor supplies labour for. Set rates and new labour use only these.">
+        <TradePicker categories={categories} value={trades} onChange={setTrades} error={errors.trades} />
       </Section>
       <Textarea label="Notes" value={s.notes} error={errors.notes} onChange={(e) => setS((p) => ({ ...p, notes: e.target.value }))} />
       <FormError message={formError} />

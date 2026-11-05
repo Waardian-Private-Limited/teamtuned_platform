@@ -9,7 +9,8 @@ import { showSuccess } from '@/lib/toast';
 import * as api from '../../api/labour.api';
 import { PAY_BASES } from '../../constants/labour.constants';
 import type { Opt } from '../../hooks/useLabourLists';
-import type { Category, ContractorRate, PayBasis } from '../../types/labour.types';
+import type { Category, ContractorRate, ContractorTrade, PayBasis } from '../../types/labour.types';
+import { supplies } from '../../utils/trades';
 import { placeError } from '../../utils/errors';
 import { today } from '../../utils/format';
 import { FormError, primaryBtn, secondaryBtn } from '../shared/Primitives';
@@ -85,12 +86,14 @@ function rowField(field: string): [number, string] | null {
  * The grid of one site: a standard line for every trade, then one line per subcategory (or per category that has none),
  * then any other open rate of that site (e.g. a whole-category rate). Switched-off trades show only when they have a rate.
  */
-function linesOf(siteId: number | null, categories: Category[], current: ContractorRate[]): Line[] {
+function linesOf(siteId: number | null, categories: Category[], trades: ContractorTrade[], current: ContractorRate[]): Line[] {
   const mine = current.filter((r) => (r.siteId ?? null) === siteId);
   const out: Line[] = [blank(siteId, null, null, 'Standard rate (every trade)')];
+  // Trades the contractor supplies (switched-on ones), plus any trade that already has a rate here.
   for (const c of categories) {
-    const subs = c.subcategories.filter((s) => s.isActive || mine.some((r) => r.subcategoryId === s.id));
-    if (!c.isActive && !mine.some((r) => r.categoryId === c.id)) continue;
+    const subs = c.subcategories.filter((s) => (s.isActive && c.isActive && supplies(trades, c.id, s.id)) || mine.some((r) => r.subcategoryId === s.id));
+    const listed = c.isActive && trades.length ? trades.some((t) => t.categoryId === c.id) : c.isActive;
+    if (!listed && !subs.length && !mine.some((r) => r.categoryId === c.id)) continue;
     if (subs.length) {
       if (mine.some((r) => r.categoryId === c.id && !r.subcategoryId)) out.push(blank(siteId, c.id, null, `${c.name} · all subcategories`));
       for (const s of subs) out.push(blank(siteId, c.id, s.id, `${c.name} · ${s.name}`));
@@ -102,7 +105,7 @@ function linesOf(siteId: number | null, categories: Category[], current: Contrac
   });
 }
 
-export function SetRatesDialog({ contractorId, contractorSiteIds, current, sites, categories, onClose, onSaved }: { contractorId: number; contractorSiteIds: number[]; current: ContractorRate[]; sites: Opt[]; categories: Category[]; onClose: () => void; onSaved: () => void }) {
+export function SetRatesDialog({ contractorId, contractorSiteIds, current, sites, categories, trades, onClose, onSaved }: { contractorId: number; contractorSiteIds: number[]; current: ContractorRate[]; sites: Opt[]; categories: Category[]; trades: ContractorTrade[]; onClose: () => void; onSaved: () => void }) {
   // The sites the contractor is registered at (every site when none is linked), plus any site that already has a rate.
   const siteOptions = useMemo(() => {
     const wanted = new Set([...(contractorSiteIds.length ? contractorSiteIds : sites.map((s) => s.value)), ...current.map((r) => r.siteId).filter((v): v is number => v !== null)]);
@@ -116,7 +119,7 @@ export function SetRatesDialog({ contractorId, contractorSiteIds, current, sites
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const shown = useMemo(() => linesOf(siteId, categories, current).map((l) => lines[l.key] || l), [siteId, categories, current, lines]);
+  const shown = useMemo(() => linesOf(siteId, categories, trades, current).map((l) => lines[l.key] || l), [siteId, categories, trades, current, lines]);
   const edited = (l: Line) => lines[l.key] || l;
   const patch = (l: Line, p: Partial<Line>) => { setLines((ls) => ({ ...ls, [l.key]: { ...edited(l), ...p } })); setErrors({}); setFormError(''); };
   const siteName = (id: number | null) => (id === null ? 'All sites' : sites.find((s) => s.value === id)?.label || `Site ${id}`);

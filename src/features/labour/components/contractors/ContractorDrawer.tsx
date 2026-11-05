@@ -48,7 +48,7 @@ function Body({ id, canManage, onChanged, onMerge, onCreated }: Omit<Props, 'ope
       <Tabs<Tab> value={tab} onChange={setTab} tabs={[{ value: 'details', label: 'Details' }, { value: 'documents', label: `Documents (${c.documents?.length || 0})` }, { value: 'rates', label: 'Rates' }]} />
       {tab === 'details' && (canManage ? <ContractorForm contractor={c} onSaved={() => { onChanged(); load(); }} /> : <p className="text-sm text-fg-muted">You can view contractors but not edit them.</p>)}
       {tab === 'documents' && <ContractorDocuments contractorId={c.id} documents={c.documents || []} canManage={canManage} onChanged={() => { load(); }} />}
-      {tab === 'rates' && <ContractorRates contractorId={c.id} siteIds={c.siteIds || []} canManage={canManage} />}
+      {tab === 'rates' && <ContractorRates contractorId={c.id} siteIds={c.siteIds || []} trades={c.trades || []} canManage={canManage} />}
     </div>
   );
 }

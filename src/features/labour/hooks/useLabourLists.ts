@@ -4,11 +4,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { setOrgTimezone } from '../utils/format';
 import type { FilterOption } from '@/features/payroll-runs/types/payrollRuns.model';
 import * as api from '../api/labour.api';
-import type { Category, LabourSettings, WorkItem } from '../types/labour.types';
+import type { Category, ContractorTrade, LabourSettings, WorkItem } from '../types/labour.types';
 
 export interface Opt { value: number; label: string }
-/** A contractor option; `siteIds` = the sites it works at, empty = every site. */
-export interface ContractorOpt extends Opt { siteIds?: number[] }
+/** A contractor option; `siteIds` = the sites it works at, `trades` = the trades it supplies (empty = every site / trade). */
+export interface ContractorOpt extends Opt { siteIds?: number[]; trades?: ContractorTrade[] }
 
 export function useCatalog(includeInactive = false) {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -47,7 +47,7 @@ export function useContractorOptions(excludeId?: number | null) {
       const rest = await Promise.all(Array.from({ length: pages - 1 }, (_, i) => api.listContractors({ status: 'active', page: i + 2, pageSize: CONTRACTOR_PAGE })));
       if (off) return;
       const items = [first, ...rest].flatMap((r) => r.items || []);
-      setOptions(items.filter((c) => c.id !== excludeId).map((c) => ({ value: c.id, label: c.tradeName || c.legalName, siteIds: c.siteIds || [] })));
+      setOptions(items.filter((c) => c.id !== excludeId).map((c) => ({ value: c.id, label: c.tradeName || c.legalName, siteIds: c.siteIds || [], trades: c.trades || [] })));
     })().catch(() => {});
     return () => { off = true; };
   }, [excludeId]);
