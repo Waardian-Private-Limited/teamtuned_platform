@@ -223,7 +223,7 @@ export function toDay(dto: DayDetailDto): DayDetail {
         }
       : null,
     override: dto.override ? { status: dto.override.status, units: dto.override.units, reason: dto.override.reason, by: dto.override.by, at: dto.override.at, inTime: dto.override.in_time, outTime: dto.override.out_time } : null,
-    punches: (dto.punches ?? []).map((p) => ({ id: p.id, direction: p.direction, kind: p.kind, at: p.at, source: p.source, place: p.place, location: p.location, distanceM: p.distance_m, lat: p.lat, lng: p.lng, accuracyM: p.accuracy_m, hasImage: p.has_image, face: p.face, voided: p.voided, voidReason: p.void_reason })),
+    punches: (dto.punches ?? []).map((p) => ({ id: p.id, direction: p.direction, kind: p.kind, at: p.at, source: p.source, place: p.place, location: p.location, distanceM: p.distance_m, lat: p.lat, lng: p.lng, accuracyM: p.accuracy_m, hasImage: p.has_image, face: p.face, faceProvider: p.face_provider ?? null, similarity: p.similarity ?? null, faceCheck: p.face_check ?? null, voided: p.voided, voidReason: p.void_reason })),
     breaks: (dto.breaks ?? []).map((b) => ({ id: b.id, startedAt: b.started_at, endedAt: b.ended_at })),
     compOff: (dto.comp_off || []).map(toCompOffGrant),
     history: dto.history,

@@ -263,6 +263,9 @@ export interface DayDetailDto {
     lng: number | null;
     accuracy_m: number | null;
     face: string;
+    face_provider?: 'ai' | 'rekognition' | null;
+    similarity?: number | null;
+    face_check?: FaceCheckDto | null;
     has_image: boolean;
     flags: string[];
     review_state: string;
@@ -285,6 +288,22 @@ export interface DayDetailDto {
   } | null;
   can_override: boolean;
   locked: boolean;
+}
+
+/** What each face engine said about a punch photo (saved from 2026-11-05; older punches have none). */
+export interface FaceEngineDto {
+  result: 'match' | 'no_match' | 'error' | 'down' | 'skipped';
+  similarity: number | null;
+  ms: number | null;
+}
+
+export interface FaceCheckDto {
+  mode: 'auto' | 'ai' | 'rekognition';
+  threshold: number | null;
+  decided_by: 'ai' | 'rekognition' | null;
+  fallback_reason: 'ai_no_match' | 'ai_error' | 'ai_down' | 'legacy_reference' | null;
+  ai: FaceEngineDto | null;
+  rekognition: FaceEngineDto | null;
 }
 
 interface Pair<T> {

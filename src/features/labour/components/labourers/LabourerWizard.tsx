@@ -6,7 +6,7 @@ import { Check } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { Drawer } from '@/components/ui/Drawer';
 import * as api from '../../api/labour.api';
-import { useCatalog, useContractorOptions, useLabourSettings, useLabourSites } from '../../hooks/useLabourLists';
+import { useCatalog, useContractorOptions, useLabourSettings, useLabourSites, type ContractorOpt, type Opt } from '../../hooks/useLabourLists';
 import { messageOf } from '@/lib/api/errors';
 import { FormError, primaryBtn, secondaryBtn } from '../shared/Primitives';
 import { EMPTY_SHOTS, type Shots } from './wizard/FaceCapture';
@@ -17,6 +17,13 @@ import { useWizardSubmit, type SubmitResult } from './wizard/useWizardSubmit';
 import { useCompliancePack } from '../../hooks/useCompliancePack';
 import type { LabourerDetail } from '../../types/labour.types';
 import { PaySuggestion } from './wizard/PaySuggestion';
+
+/** The sites the chosen contractor works at (all when it has none linked, or its sites are not known). `keep` stays listed (an edit's saved site). */
+function sitesOf(contractors: ContractorOpt[], contractorId: number | null, sites: Opt[], keep: number | null | undefined): Opt[] {
+  const own = contractors.find((c) => c.value === contractorId)?.siteIds;
+  if (!own?.length) return sites;
+  return sites.filter((s) => own.includes(s.value) || s.value === keep);
+}
 
 const LABEL: Record<StepId, string> = { basic: 'Basic', address: 'Address', identity: 'Identity', face: 'Face', documents: 'Documents', compliance: 'Compliance details', review: 'Review' };
 
@@ -70,7 +77,16 @@ function Body({ onClose, onSaved, editId = null, onOpenExisting, startAt }: Omit
     started.current = true;
     setStep(startAt);
   }, [startAt, steps, editing, detail]);
-  const set = (p: Partial<WizardForm>) => setForm((f) => ({ ...f, ...p }));
+  const set = (p: Partial<WizardForm>) => setForm((f) => {
+    const next = { ...f, ...p };
+    // A new contractor only works at its own sites: a site it does not work at is dropped, and its only site is picked.
+    if (p.contractorId !== undefined && p.contractorId !== f.contractorId) {
+      const allowed = sitesOf(contractors, next.contractorId, sites, null);
+      if (next.siteId !== null && !allowed.some((s) => s.value === next.siteId)) next.siteId = null;
+      if (next.siteId === null && allowed.length === 1) next.siteId = allowed[0].value;
+    }
+    return next;
+  });
 
   // A subcategory is required when the chosen category has active ones.
   const subRequired = (categories.find((c) => c.id === form.categoryId)?.subcategories || []).some((s) => s.isActive);
@@ -127,6 +143,7 @@ function Body({ onClose, onSaved, editId = null, onOpenExisting, startAt }: Omit
   }
 
   const errors = submit.errors;
+  const siteOptions = sitesOf(contractors, form.contractorId, sites, form.contractorId === detail?.contractorId ? detail?.siteId : null);
   const moving = editing && isMove(form, detail);
   const common = { form, set, errors, clear: submit.clear };
   const cat = categories.find((c) => c.id === form.categoryId);
@@ -151,7 +168,7 @@ function Body({ onClose, onSaved, editId = null, onOpenExisting, startAt }: Omit
       {submit.savedCode && !editing && <p className="text-xs text-fg-muted">Saved as {submit.savedCode}. Fix what is marked and save again to finish the rest.</p>}
 
       <div className="flex-1">
-        {step === 'basic' && <BasicStep {...common} sites={sites} contractors={contractors} categories={categories} lockContractor={false} move={moving ? { maxBackDays: settings?.regularization.maxBackDays ?? 31 } : null} payHint={payHint} />}
+        {step === 'basic' && <BasicStep {...common} sites={siteOptions} contractors={contractors} categories={categories} lockContractor={false} move={moving ? { maxBackDays: settings?.regularization.maxBackDays ?? 31 } : null} payHint={payHint} />}
         {step === 'address' && <AddressStep {...common} />}
         {step === 'identity' && <IdentityStep {...common} editing={editing} masked={detail?.aadhaarMasked} existingId={submit.existingId} onOpenExisting={onOpenExisting} />}
         {step === 'face' && <FaceStep shots={shots} onChange={(p, f) => { setShots((s) => ({ ...s, [p]: f })); }} issues={submit.faceIssues} existing={faceExisting} />}

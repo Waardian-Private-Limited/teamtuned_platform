@@ -7,6 +7,8 @@ import * as api from '../api/labour.api';
 import type { Category, LabourSettings, WorkItem } from '../types/labour.types';
 
 export interface Opt { value: number; label: string }
+/** A contractor option; `siteIds` = the sites it works at, empty = every site. */
+export interface ContractorOpt extends Opt { siteIds?: number[] }
 
 export function useCatalog(includeInactive = false) {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -36,7 +38,7 @@ const CONTRACTOR_MAX_PAGES = 50;
 
 /** Every active contractor (paged through 200 at a time) for filters and pickers; the dropdowns search them. */
 export function useContractorOptions(excludeId?: number | null) {
-  const [options, setOptions] = useState<Opt[]>([]);
+  const [options, setOptions] = useState<ContractorOpt[]>([]);
   useEffect(() => {
     let off = false;
     (async () => {
@@ -45,7 +47,7 @@ export function useContractorOptions(excludeId?: number | null) {
       const rest = await Promise.all(Array.from({ length: pages - 1 }, (_, i) => api.listContractors({ status: 'active', page: i + 2, pageSize: CONTRACTOR_PAGE })));
       if (off) return;
       const items = [first, ...rest].flatMap((r) => r.items || []);
-      setOptions(items.filter((c) => c.id !== excludeId).map((c) => ({ value: c.id, label: c.tradeName || c.legalName })));
+      setOptions(items.filter((c) => c.id !== excludeId).map((c) => ({ value: c.id, label: c.tradeName || c.legalName, siteIds: c.siteIds || [] })));
     })().catch(() => {});
     return () => { off = true; };
   }, [excludeId]);

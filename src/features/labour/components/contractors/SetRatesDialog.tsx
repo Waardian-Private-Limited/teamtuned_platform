@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { RotateCcw } from 'lucide-react';
 import { Dialog } from '@/components/ui/Dialog';
-import { FieldLabel, SelectField, TextField } from '@/components/ui/FormControls';
+import { SelectField, TextField } from '@/components/ui/FormControls';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { showSuccess } from '@/lib/toast';
 import * as api from '../../api/labour.api';
@@ -14,23 +14,51 @@ import { placeError } from '../../utils/errors';
 import { today } from '../../utils/format';
 import { FormError, primaryBtn, secondaryBtn } from '../shared/Primitives';
 
-interface Row { key: number; siteId: number | null; categoryId: number | null; subcategoryId: number | null; payBasis: PayBasis; dayRate: string; nightRate: string; overtimeRate: string; hajriRate: string; note: string }
+/** One rate line of the grid: a site (null = all sites) × trade (null category = every trade; null subcategory = the whole category). */
+interface Line {
+  key: string;
+  siteId: number | null;
+  categoryId: number | null;
+  subcategoryId: number | null;
+  label: string;
+  payBasis: PayBasis;
+  dayRate: string;
+  nightRate: string;
+  overtimeRate: string;
+  hajriRate: string;
+  note: string | null;
+  /** The open rate this line was filled from (it can be changed, not emptied). */
+  current: ContractorRate | null;
+}
 
+const keyOf = (siteId: number | null, categoryId: number | null, subcategoryId: number | null) => `${siteId ?? 0}:${categoryId ?? 0}:${subcategoryId ?? 0}`;
 const str = (v: number | undefined) => (v !== undefined && v !== null ? String(v) : '');
-const toRow = (r: Partial<ContractorRate>, key: number): Row => {
-  const basis = r.payBasis || 'hourly';
-  return {
-    key, siteId: r.siteId ?? null, categoryId: r.categoryId ?? null, subcategoryId: r.subcategoryId ?? null, payBasis: basis,
-    // A hajri / measurement row stores its time rates as 0; show them empty so switching to hourly asks for real numbers.
-    dayRate: basis === 'hourly' ? str(r.dayRate) : '', nightRate: basis === 'hourly' ? str(r.nightRate) : '', overtimeRate: basis === 'hourly' ? str(r.overtimeRate) : '',
-    hajriRate: basis === 'hajri' ? str(r.hajriRate) : '', note: r.note || '',
-  };
-};
 
-/** `rates[2].dayRate`, `rates.2.dayRate` -> [2, 'dayRate'] */
-function rowField(field: string): [number, string] | null {
-  const m = field.match(/^rates(?:\[(\d+)\]|\.(\d+))\.(\w+)$/);
-  return m ? [Number(m[1] ?? m[2]), m[3]] : null;
+function blank(siteId: number | null, categoryId: number | null, subcategoryId: number | null, label: string): Line {
+  return { key: keyOf(siteId, categoryId, subcategoryId), siteId, categoryId, subcategoryId, label, payBasis: 'hourly', dayRate: '', nightRate: '', overtimeRate: '', hajriRate: '', note: null, current: null };
+}
+
+function fromRate(line: Line, r: ContractorRate): Line {
+  const basis = r.payBasis || 'hourly';
+  // A hajri / measurement rate stores its time rates as 0; show them empty so switching to hourly asks for real numbers.
+  return {
+    ...line, payBasis: basis, current: r, note: r.note || null,
+    dayRate: basis === 'hourly' ? str(r.dayRate) : '', nightRate: basis === 'hourly' ? str(r.nightRate) : '', overtimeRate: basis === 'hourly' ? str(r.overtimeRate) : '',
+    hajriRate: basis === 'hajri' ? str(r.hajriRate) : '',
+  };
+}
+
+/** The line has a rate: measurement is picked, or an amount is typed. */
+const isSet = (l: Line) => l.payBasis === 'measurement' || (l.payBasis === 'hajri' ? l.hajriRate.trim() !== '' : [l.dayRate, l.nightRate, l.overtimeRate].some((v) => v.trim() !== ''));
+
+const num = (v: string) => Number(v.trim() || 0);
+function differs(l: Line) {
+  const c = l.current;
+  if (!c) return true;
+  if ((c.payBasis || 'hourly') !== l.payBasis) return true;
+  if (l.payBasis === 'hajri') return num(l.hajriRate) !== Number(c.hajriRate || 0);
+  if (l.payBasis === 'hourly') return num(l.dayRate) !== c.dayRate || num(l.nightRate) !== c.nightRate || num(l.overtimeRate) !== c.overtimeRate;
+  return false;
 }
 
 const amountOk = (v: string, positive: boolean) => {
@@ -40,47 +68,96 @@ const amountOk = (v: string, positive: boolean) => {
 };
 
 /** Builds the API row for the chosen pay basis (only the money that basis uses is sent). */
-function apiRow(r: Row) {
-  const base = { siteId: r.siteId, categoryId: r.categoryId, subcategoryId: r.subcategoryId, payBasis: r.payBasis, note: r.note.trim() || undefined };
-  if (r.payBasis === 'hajri') return { ...base, hajriRate: Number(r.hajriRate) };
-  if (r.payBasis === 'measurement') return base;
-  return { ...base, dayRate: Number(r.dayRate), nightRate: Number(r.nightRate || 0), overtimeRate: Number(r.overtimeRate || 0) };
+function apiRow(l: Line) {
+  const base = { siteId: l.siteId, categoryId: l.categoryId, subcategoryId: l.subcategoryId, payBasis: l.payBasis, note: l.note || undefined };
+  if (l.payBasis === 'hajri') return { ...base, hajriRate: num(l.hajriRate) };
+  if (l.payBasis === 'measurement') return base;
+  return { ...base, dayRate: num(l.dayRate), nightRate: num(l.nightRate), overtimeRate: num(l.overtimeRate) };
 }
 
-export function SetRatesDialog({ contractorId, current, sites, categories, onClose, onSaved }: { contractorId: number; current: ContractorRate[]; sites: Opt[]; categories: Category[]; onClose: () => void; onSaved: () => void }) {
+/** `rates[2].dayRate`, `rates.2.dayRate` -> [2, 'dayRate'] */
+function rowField(field: string): [number, string] | null {
+  const m = field.match(/^rates(?:\[(\d+)\]|\.(\d+))\.(\w+)$/);
+  return m ? [Number(m[1] ?? m[2]), m[3]] : null;
+}
+
+/**
+ * The grid of one site: a standard line for every trade, then one line per subcategory (or per category that has none),
+ * then any other open rate of that site (e.g. a whole-category rate). Switched-off trades show only when they have a rate.
+ */
+function linesOf(siteId: number | null, categories: Category[], current: ContractorRate[]): Line[] {
+  const mine = current.filter((r) => (r.siteId ?? null) === siteId);
+  const out: Line[] = [blank(siteId, null, null, 'Standard rate (every trade)')];
+  for (const c of categories) {
+    const subs = c.subcategories.filter((s) => s.isActive || mine.some((r) => r.subcategoryId === s.id));
+    if (!c.isActive && !mine.some((r) => r.categoryId === c.id)) continue;
+    if (subs.length) {
+      if (mine.some((r) => r.categoryId === c.id && !r.subcategoryId)) out.push(blank(siteId, c.id, null, `${c.name} · all subcategories`));
+      for (const s of subs) out.push(blank(siteId, c.id, s.id, `${c.name} · ${s.name}`));
+    } else out.push(blank(siteId, c.id, null, c.name));
+  }
+  return out.map((l) => {
+    const r = mine.find((x) => keyOf(x.siteId ?? null, x.categoryId ?? null, x.subcategoryId ?? null) === l.key);
+    return r ? fromRate(l, r) : l;
+  });
+}
+
+export function SetRatesDialog({ contractorId, contractorSiteIds, current, sites, categories, onClose, onSaved }: { contractorId: number; contractorSiteIds: number[]; current: ContractorRate[]; sites: Opt[]; categories: Category[]; onClose: () => void; onSaved: () => void }) {
+  // The sites the contractor is registered at (every site when none is linked), plus any site that already has a rate.
+  const siteOptions = useMemo(() => {
+    const wanted = new Set([...(contractorSiteIds.length ? contractorSiteIds : sites.map((s) => s.value)), ...current.map((r) => r.siteId).filter((v): v is number => v !== null)]);
+    return sites.filter((s) => wanted.has(s.value));
+  }, [contractorSiteIds, sites, current]);
   const [effectiveFrom, setEffectiveFrom] = useState(today());
-  const [rows, setRows] = useState<Row[]>(() => (current.length ? current.map(toRow) : [toRow({}, 0)]).map((r, i) => ({ ...r, key: i })));
+  const [siteId, setSiteId] = useState<number | null>(null);
+  // Every line touched on any site is kept, so switching site and coming back loses nothing.
+  const [lines, setLines] = useState<Record<string, Line>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const patch = (key: number, p: Partial<Row>) => { setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r))); setErrors({}); };
+  const shown = useMemo(() => linesOf(siteId, categories, current).map((l) => lines[l.key] || l), [siteId, categories, current, lines]);
+  const edited = (l: Line) => lines[l.key] || l;
+  const patch = (l: Line, p: Partial<Line>) => { setLines((ls) => ({ ...ls, [l.key]: { ...edited(l), ...p } })); setErrors({}); setFormError(''); };
+  const siteName = (id: number | null) => (id === null ? 'All sites' : sites.find((s) => s.value === id)?.label || `Site ${id}`);
 
   const save = async () => {
     const errs: Record<string, string> = {};
     if (!effectiveFrom) errs.effectiveFrom = 'Choose when the new rates start';
-    rows.forEach((r, i) => {
-      if (r.payBasis === 'hourly') {
-        if (!amountOk(r.dayRate, true)) errs[`${i}.dayRate`] = 'Enter the day rate per hour (above 0)';
-        if (!amountOk(r.nightRate, false)) errs[`${i}.nightRate`] = 'Enter an amount, or leave it empty';
-        if (!amountOk(r.overtimeRate, false)) errs[`${i}.overtimeRate`] = 'Enter an amount, or leave it empty';
-      } else if (r.payBasis === 'hajri' && !amountOk(r.hajriRate, true)) {
-        errs[`${i}.hajriRate`] = 'Enter the money for one hajri (above 0)';
+    const touched = Object.values(lines);
+    for (const l of touched) {
+      if (!isSet(l)) {
+        if (l.current) errs[`${l.key}.${l.payBasis === 'hajri' ? 'hajriRate' : 'dayRate'}`] = 'This rate is in use. Enter the new amount; it cannot be left empty';
+        continue;
       }
-    });
+      if (l.payBasis === 'hourly') {
+        if (!amountOk(l.dayRate, true)) errs[`${l.key}.dayRate`] = 'Enter the day rate per hour (above 0)';
+        if (!amountOk(l.nightRate, false)) errs[`${l.key}.nightRate`] = 'Enter an amount, or leave it empty';
+        if (!amountOk(l.overtimeRate, false)) errs[`${l.key}.overtimeRate`] = 'Enter an amount, or leave it empty';
+      } else if (l.payBasis === 'hajri' && !amountOk(l.hajriRate, true)) errs[`${l.key}.hajriRate`] = 'Enter the money for one hajri (above 0)';
+    }
+    const send = touched.filter((l) => isSet(l) && differs(l));
     setErrors(errs);
     setFormError('');
+    const bad = Object.keys(errs).find((k) => k !== 'effectiveFrom');
+    if (bad) {
+      const l = lines[bad.slice(0, bad.lastIndexOf('.'))];
+      if (l && l.siteId !== siteId) { setSiteId(l.siteId); setFormError(`Check the rates marked in red for ${siteName(l.siteId)}.`); }
+    }
     if (Object.keys(errs).length) return;
+    if (!send.length) { setFormError('No rate changed. Type an amount, or pick measurement, for a trade first.'); return; }
+    if (send.length > 200) { setFormError('Save at most 200 rates at a time.'); return; }
     setBusy(true);
     try {
-      const res = await api.setRates(contractorId, { effectiveFrom, rates: rows.map(apiRow) });
+      const res = await api.setRates(contractorId, { effectiveFrom, rates: send.map(apiRow) });
       showSuccess(res.changed ? `${res.changed} rate${res.changed === 1 ? '' : 's'} updated` : 'No rate changed');
       onSaved();
     } catch (err) {
       const p = placeError(err, (f) => f === 'effectiveFrom' || rowField(f) !== null);
       const f = Object.keys(p.fields)[0];
       const rf = f ? rowField(f) : null;
-      setErrors(f === 'effectiveFrom' ? p.fields : rf ? { [`${rf[0]}.${rf[1]}`]: p.fields[f] } : {});
+      const l = rf ? send[rf[0]] : null;
+      if (l && rf) { setSiteId(l.siteId); setErrors({ [`${l.key}.${rf[1]}`]: p.fields[f] }); } else setErrors(f === 'effectiveFrom' ? p.fields : {});
       setFormError(p.form);
     } finally {
       setBusy(false);
@@ -91,41 +168,46 @@ export function SetRatesDialog({ contractorId, current, sites, categories, onClo
     <Dialog open onClose={onClose} title="Set rates" maxWidthClassName="max-w-3xl"
       footer={<><button type="button" className={secondaryBtn} onClick={onClose}>Cancel</button><button type="button" disabled={busy} className={primaryBtn} onClick={save}>{busy ? 'Saving…' : 'Save rates'}</button></>}>
       <div className="space-y-4">
-        <div className="max-w-xs"><TextField label="Effective from" type="date" required value={effectiveFrom} error={errors.effectiveFrom} onChange={setEffectiveFrom} hint="Current rates close the day before. Unchanged rows are left alone." /></div>
-        {rows.map((r, i) => {
-          const subs = (categories.find((c) => c.id === r.categoryId)?.subcategories || []).map((s) => ({ value: s.id, label: s.name }));
+        <div className="grid gap-3 sm:grid-cols-2">
+          <TextField label="Effective from" type="date" required value={effectiveFrom} error={errors.effectiveFrom} onChange={setEffectiveFrom} hint="Current rates close the day before. Unchanged rates are left alone." />
+          <SelectField label="Rates for" numeric value={siteId} options={siteOptions} placeholder="All sites" onChange={(v) => setSiteId(v)}
+            hint={siteId === null ? 'Used at every site that has no rate of its own.' : 'Used at this site before the all-sites rates.'} />
+        </div>
+        <p className="text-xs text-fg-muted">Leave a trade empty to use the standard rate. A subcategory rate comes before its category and the standard rate.</p>
+        {shown.map((l) => {
+          const err = (f: string) => errors[`${l.key}.${f}`];
           return (
-            <div key={r.key} className="space-y-3 rounded-xl border border-line p-3">
-              <div className="grid gap-3 sm:grid-cols-3">
-                <SelectField label="Site" numeric value={r.siteId} options={sites} placeholder="All sites" onChange={(v) => patch(r.key, { siteId: v })} />
-                <SelectField label="Category" numeric value={r.categoryId} options={categories.map((c) => ({ value: c.id, label: c.name }))} placeholder="All categories" onChange={(v) => patch(r.key, { categoryId: v, subcategoryId: null })} />
-                <SelectField label="Subcategory" numeric value={r.subcategoryId} disabled={!r.categoryId} options={subs} placeholder="All subcategories" onChange={(v) => patch(r.key, { subcategoryId: v })} />
+            <div key={l.key} className="space-y-3 rounded-xl border border-line p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-fg">{l.label}</div>
+                  <div className="text-[11px] text-fg-muted">{l.current ? 'Current rate' : isSet(l) ? 'New rate' : l.categoryId === null ? 'Not set' : 'Not set · uses the standard rate'}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <SegmentedControl options={PAY_BASES} value={l.payBasis} onChange={(payBasis) => patch(l, { payBasis })} fitText />
+                  {!l.current && isSet(l) && (
+                    <button type="button" title="Clear this rate" aria-label={`Clear the rate for ${l.label}`} className="rounded-lg p-1.5 text-fg-muted hover:bg-bg-subtle hover:text-fg"
+                      onClick={() => patch(l, { payBasis: 'hourly', dayRate: '', nightRate: '', overtimeRate: '', hajriRate: '' })}><RotateCcw className="h-3.5 w-3.5" aria-hidden /></button>
+                  )}
+                </div>
               </div>
-              <div>
-                <FieldLabel label="Pay basis" />
-                <SegmentedControl options={PAY_BASES} value={r.payBasis} onChange={(payBasis) => patch(r.key, { payBasis })} fitText />
-                <p className="mt-1 text-[11px] text-fg-muted">{PAY_BASES.find((b) => b.value === r.payBasis)?.description}</p>
-              </div>
-              {r.payBasis === 'hourly' && (
+              {l.payBasis === 'hourly' && (
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <TextField label="Day rate (per hour)" required prefix="₹" inputMode="decimal" value={r.dayRate} error={errors[`${i}.dayRate`]} onChange={(v) => patch(r.key, { dayRate: v })} />
-                  <TextField label="Night rate (per hour)" prefix="₹" inputMode="decimal" value={r.nightRate} error={errors[`${i}.nightRate`]} onChange={(v) => patch(r.key, { nightRate: v })} />
-                  <TextField label="Overtime rate (per hour)" prefix="₹" inputMode="decimal" value={r.overtimeRate} error={errors[`${i}.overtimeRate`]} onChange={(v) => patch(r.key, { overtimeRate: v })} />
+                  <TextField label="Day rate (per hour)" required={isSet(l) || !!l.current} prefix="₹" inputMode="decimal" value={l.dayRate} error={err('dayRate')} onChange={(v) => patch(l, { dayRate: v })} />
+                  <TextField label="Night rate (per hour)" prefix="₹" inputMode="decimal" value={l.nightRate} error={err('nightRate')} onChange={(v) => patch(l, { nightRate: v })} />
+                  <TextField label="Overtime rate (per hour)" prefix="₹" inputMode="decimal" value={l.overtimeRate} error={err('overtimeRate')} onChange={(v) => patch(l, { overtimeRate: v })} />
                 </div>
               )}
-              {r.payBasis === 'hajri' && (
+              {l.payBasis === 'hajri' && (
                 <div className="max-w-xs">
-                  <TextField label="Hajri rate (per hajri)" required prefix="₹" inputMode="decimal" value={r.hajriRate} error={errors[`${i}.hajriRate`]} onChange={(v) => patch(r.key, { hajriRate: v })}
-                    hint="Money for one full day unit. ½ hajri pays half, 1½ pays one and a half; units come from the hajri slabs in labour settings." />
+                  <TextField label="Hajri rate (per hajri)" required prefix="₹" inputMode="decimal" value={l.hajriRate} error={err('hajriRate')} onChange={(v) => patch(l, { hajriRate: v })}
+                    hint="Money for one full day unit. ½ hajri pays half; units come from the hajri slabs in labour settings." />
                 </div>
               )}
-              {r.payBasis === 'measurement' && <p className="rounded-lg bg-bg-subtle px-3 py-2 text-xs text-fg-muted sm:text-sm">Paid from the measurement book. Attendance is still recorded but earns nothing by itself; approved measurement entries are paid.</p>}
-              <TextField label="Note" value={r.note} maxLength={255} onChange={(v) => patch(r.key, { note: v })} />
-              {rows.length > 1 && <button type="button" onClick={() => setRows(rows.filter((x) => x.key !== r.key))} className="inline-flex items-center gap-1 text-xs font-semibold text-fg-muted hover:text-fg"><Trash2 className="h-3.5 w-3.5" aria-hidden />Remove row</button>}
+              {l.payBasis === 'measurement' && <p className="rounded-lg bg-bg-subtle px-3 py-2 text-xs text-fg-muted">Paid from the measurement book. Attendance is still recorded but earns nothing by itself.</p>}
             </div>
           );
         })}
-        <button type="button" className={secondaryBtn} onClick={() => setRows([...rows, toRow({}, Math.max(...rows.map((r) => r.key)) + 1)])}><Plus className="h-3.5 w-3.5" aria-hidden />Add row</button>
         <FormError message={formError} />
       </div>
     </Dialog>

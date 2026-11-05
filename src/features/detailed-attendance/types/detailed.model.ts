@@ -1,4 +1,4 @@
-import type { BadgeTone, OnlyKey, OverrideStatus } from './detailed.dto';
+import type { BadgeTone, FaceCheckDto, OnlyKey, OverrideStatus } from './detailed.dto';
 import type { RosterSlot } from '@/features/my-roster/types/roster.model';
 
 export type { BadgeTone, OnlyKey, OverrideStatus };
@@ -242,6 +242,9 @@ export interface Punch {
   accuracyM: number | null;
   hasImage: boolean;
   face: string;
+  faceProvider: 'ai' | 'rekognition' | null;
+  similarity: number | null;
+  faceCheck: FaceCheckDto | null;
   voided: boolean;
   voidReason: string | null;
 }

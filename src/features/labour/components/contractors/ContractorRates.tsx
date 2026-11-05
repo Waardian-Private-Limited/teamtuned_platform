@@ -14,7 +14,8 @@ import { basisLabel } from '../../utils/pay';
 import { EmptyPanel, FormError, Pill, primaryBtn, td, th, trCls } from '../shared/Primitives';
 import { SetRatesDialog } from './SetRatesDialog';
 
-export function ContractorRates({ contractorId, canManage }: { contractorId: number; canManage: boolean }) {
+/** `siteIds`: the sites the contractor is registered at (empty = every site); Set rates lists them. */
+export function ContractorRates({ contractorId, siteIds, canManage }: { contractorId: number; siteIds: number[]; canManage: boolean }) {
   const [history, setHistory] = useState(false);
   const [rates, setRates] = useState<ContractorRate[] | null>(null);
   const [error, setError] = useState('');
@@ -63,7 +64,7 @@ export function ContractorRates({ contractorId, canManage }: { contractorId: num
           </table>
         </div>
       )}
-      {editing && <SetRatesDialog contractorId={contractorId} current={rates?.filter((r) => !r.effectiveTo) || []} sites={sites} categories={categories} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
+      {editing && <SetRatesDialog contractorId={contractorId} contractorSiteIds={siteIds} current={rates?.filter((r) => !r.effectiveTo) || []} sites={sites} categories={categories} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
     </div>
   );
 }
