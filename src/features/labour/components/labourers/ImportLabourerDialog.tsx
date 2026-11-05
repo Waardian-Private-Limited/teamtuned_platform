@@ -17,7 +17,7 @@ export interface ImportContractor { id: number; name: string; siteIds: number[];
 interface Props {
   contractor: ImportContractor;
   /** Prefilled when the Add labourer screen found the person already registered. */
-  preset?: { query?: string; siteId?: number | null; categoryId?: number | null; subcategoryId?: number | null };
+  preset?: { query?: string; labourerId?: number | null; siteId?: number | null; categoryId?: number | null; subcategoryId?: number | null };
   onClose: () => void;
   onImported: (r: { id: number; code: string }) => void;
 }
@@ -41,14 +41,24 @@ export function ImportLabourerDialog({ contractor, preset, onClose, onImported }
 
   useEffect(() => {
     const term = q.trim();
-    if (term.length < 3) { setPeople([]); return; }
+    if (term.length < 3) { setPeople([]); setSearching(false); return; }
     let off = false;
     const t = setTimeout(() => {
       setSearching(true);
       api.lookupLabourers(term).then((r) => { if (!off) setPeople(r.items || []); }).catch(() => { if (!off) setPeople([]); }).finally(() => { if (!off) setSearching(false); });
     }, 300);
-    return () => { off = true; clearTimeout(t); };
+    return () => { off = true; clearTimeout(t); setSearching(false); };
   }, [q]);
+
+  // Opened from Add labourer's duplicate Aadhaar: the person it named is picked once the search shows them.
+  const presetId = preset?.labourerId ?? null;
+  const [presetDone, setPresetDone] = useState(false);
+  useEffect(() => {
+    if (presetDone || presetId === null || person) return;
+    const hit = people.find((p) => p.sites.some((s) => s.labourerId === presetId));
+    if (hit) { setPresetDone(true); choose(hit); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [people, presetId, presetDone, person]);
 
   const filterContractor = useMemo(() => ({ value: contractor.id, label: contractor.name, siteIds: contractor.siteIds, trades: contractor.trades }), [contractor]);
   const taken = new Set(person?.sites.map((s) => s.siteId) || []);

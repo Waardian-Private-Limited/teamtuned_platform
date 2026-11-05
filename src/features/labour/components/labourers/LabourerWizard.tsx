@@ -76,6 +76,9 @@ function Body({ onClose, onSaved, editId = null, onOpenExisting, startAt }: Omit
   const [done, setDone] = useState<SubmitResult | null>(null);
   const [importing, setImporting] = useState(false);
   const submit = useWizardSubmit();
+  // A new Aadhaar: the duplicate found for the old one (and its Import to this site) no longer applies.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { submit.clearExisting(); }, [form.aadhaar]);
   // Filling what a site's forms need works even with advanced onboarding off.
   const pack = useCompliancePack(settings?.advancedOnboarding === true || startAt === 'compliance' || Boolean(detail?.complianceGaps), form.siteId);
 
@@ -232,7 +235,7 @@ function Body({ onClose, onSaved, editId = null, onOpenExisting, startAt }: Omit
         return c ? (
           <ImportLabourerDialog
             contractor={{ id: c.value, name: c.label, siteIds: c.siteIds || [], trades: c.trades || [] }}
-            preset={{ query: form.aadhaar.replace(/\D/g, '').slice(-4), siteId: form.siteId, categoryId: form.categoryId, subcategoryId: form.subcategoryId }}
+            preset={{ query: form.aadhaar.replace(/\D/g, '').slice(-4), labourerId: submit.existingId, siteId: form.siteId, categoryId: form.categoryId, subcategoryId: form.subcategoryId }}
             onClose={() => setImporting(false)}
             onImported={(r) => { setImporting(false); onSaved(r.id); }}
           />

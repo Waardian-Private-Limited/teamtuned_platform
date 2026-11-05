@@ -38,6 +38,8 @@ export function useWizardSubmit() {
   const [savedCode, setSavedCode] = useState<string | null>(null);
 
   const clear = (k: string) => setErrors((e) => (e[k] ? { ...e, [k]: '' } : e));
+  /** The Aadhaar changed: the person it matched before is no longer the duplicate. */
+  const clearExisting = () => { setExistingId(null); setExistingSites([]); };
 
   /** Pack field messages from `details.errors{key:message}` go under their fields on the Compliance step. */
   function failPack(fieldErrors: Record<string, string>): { jumpTo: StepId } {
@@ -120,5 +122,5 @@ export function useWizardSubmit() {
     }
   }
 
-  return { run, busy, errors, setErrors, clear, faceIssues, formError, existingId, existingSites, savedCode };
+  return { run, busy, errors, setErrors, clear, clearExisting, faceIssues, formError, existingId, existingSites, savedCode };
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { messageOf } from '@/lib/api/errors';
 import * as api from '../../api/labour.api';
@@ -21,12 +21,15 @@ export function ContractorLabour({ contractor, canImport, onChanged }: { contrac
   const [error, setError] = useState('');
   const [importing, setImporting] = useState(false);
 
+  // Only the latest request may fill the list (a slow earlier page must not overwrite it).
+  const latest = useRef(0);
   const load = useCallback(() => {
+    const mine = ++latest.current;
     setLoading(true);
     api.listLabourers({ contractorId: contractor.id, page, pageSize: PAGE })
-      .then((r) => { setRows(r.items || []); setTotal(Number(r.total) || 0); setError(''); })
-      .catch((e) => setError(messageOf(e)))
-      .finally(() => setLoading(false));
+      .then((r) => { if (mine === latest.current) { setRows(r.items || []); setTotal(Number(r.total) || 0); setError(''); } })
+      .catch((e) => { if (mine === latest.current) setError(messageOf(e)); })
+      .finally(() => { if (mine === latest.current) setLoading(false); });
   }, [contractor.id, page]);
   useEffect(() => { load(); }, [load]);
 
@@ -64,7 +67,7 @@ export function ContractorLabour({ contractor, canImport, onChanged }: { contrac
         <ImportLabourerDialog
           contractor={{ id: contractor.id, name: contractor.tradeName || contractor.legalName, siteIds: contractor.siteIds || [], trades: contractor.trades || [] }}
           onClose={() => setImporting(false)}
-          onImported={() => { setImporting(false); setPage(1); load(); onChanged(); }}
+          onImported={() => { setImporting(false); if (page === 1) load(); else setPage(1); onChanged(); }}
         />
       )}
     </div>
