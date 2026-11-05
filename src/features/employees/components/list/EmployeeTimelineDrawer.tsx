@@ -8,7 +8,7 @@ import { messageOf } from '@/lib/api/errors';
 import { SalaryHistoryPanel } from '@/features/compensation/components/SalaryHistoryDrawer';
 import { getAuditLog, getJobHistory } from '../../api/employees.api';
 import { AUDIT_ACTION_LABELS, JOB_EVENT_LABELS, type TimelineTab } from '../../constants/employees.constants';
-import type { AuditEntryDto, HistoryChangeDto, HistoryPageDto, JobEventDto } from '../../types/employees.dto';
+import type { AuditEntryDto, HistoryChangeDto, HistoryPageDto, JobEventDto, JobHistoryPageDto, LastPunchDto } from '../../types/employees.dto';
 import { formatDate as formatDateOnly, formatDateTime as formatDateTimeText, orgDateOf } from '@/lib/datetime';
 
 const PAGE_SIZE = 20;
@@ -100,6 +100,21 @@ function PagedList<T>({ state, empty, render }: {
   );
 }
 
+/** When the employee last punched: date with month and year, then time, IN / OUT and site. Shown for every status. */
+function LastPunchCard({ punch }: { punch: LastPunchDto | null }) {
+  return (
+    <div className="rounded-xl border border-line bg-surface p-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-fg-muted">Last punch</p>
+      {punch ? (
+        <>
+          <p className="mt-0.5 text-base font-bold text-fg">{formatDateOnly(punch.work_date, 'medium')}</p>
+          <p className="text-xs text-fg-muted">{[formatDateTime(punch.at), punch.direction === 'in' ? 'Check-in' : 'Check-out', punch.site].filter(Boolean).join(' · ')}</p>
+        </>
+      ) : <p className="mt-0.5 text-sm font-semibold text-fg">Never punched</p>}
+    </div>
+  );
+}
+
 interface EmployeeTimelineDrawerProps {
   employee: { id: number; name: string } | null;
   tabs: TimelineTab[];
@@ -121,6 +136,7 @@ export function EmployeeTimelineDrawer({ employee, tabs, onClose }: EmployeeTime
       {employee && (
         <div className="space-y-4">
           {options.length > 1 && <SegmentedControl options={options} value={tab} onChange={setTab} fitText />}
+          {tab === 'job' && job.data && <LastPunchCard punch={(job.data as JobHistoryPageDto).last_punch ?? null} />}
           {tab === 'job' && (
             <PagedList
               state={job}

@@ -17,6 +17,7 @@ import type { Payable, PayableContractor, PayableLine, PayableTotals } from '../
 import { parseLabourError, placeError } from '../../utils/errors';
 import { fmtDate, fmtDateTime, fmtMinutes, money, thisMonth, today } from '../../utils/format';
 import { basisLabel, hajriLabel } from '../../utils/pay';
+import { cascade, contractorsAtSite } from '../../utils/trades';
 import { Block, DateFilter, EmptyPanel, FilterBar, FilterGrid, FormError, Gate, PageHeader, Pill, Stat, primaryBtn, secondaryBtn, selectCls, td, th, trCls } from '../shared/Primitives';
 
 type Mode = 'month' | 'range';
@@ -77,8 +78,8 @@ function PayableReport() {
               <DateFilter label="To" value={q.to} onChange={(to) => patch({ to })} />
             </>
           )}
-          <SearchableFilterDropdown label="Site" allLabel="All sites" hideAll={!all} value={q.siteId} options={sites} onChange={(siteId) => patch({ siteId })} className="md:w-44" />
-          <SearchableFilterDropdown label="Contractor" allLabel="All contractors" value={q.contractorId} options={contractors} onChange={(contractorId) => patch({ contractorId })} className="md:w-48" />
+          <SearchableFilterDropdown label="Site" allLabel="All sites" hideAll={!all} value={q.siteId} options={sites} onChange={(siteId) => patch(cascade(q, { siteId }, contractors))} className="md:w-44" />
+          <SearchableFilterDropdown label="Contractor" allLabel="All contractors" value={q.contractorId} options={contractorsAtSite(contractors, q.siteId)} onChange={(contractorId) => patch({ contractorId })} className="md:w-48" />
         </FilterGrid>
       </FilterBar>
 

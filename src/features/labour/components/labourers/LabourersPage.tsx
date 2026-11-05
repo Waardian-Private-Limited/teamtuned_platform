@@ -17,6 +17,7 @@ import { FaceAvatar } from '../shared/FaceAvatar';
 import { LabourerDrawer } from './LabourerDrawer';
 import { LabourerWizard } from './LabourerWizard';
 import type { StepId } from './wizard/wizard.types';
+import { cascade, categoryOptionsFor, contractorsAtSite, subcategoryOptionsFor } from '../../utils/trades';
 import { FormsPdfDialog } from './FormsPdfDialog';
 
 interface Filters extends Record<string, unknown> {
@@ -73,10 +74,10 @@ function Labourers() {
       <FilterBar>
         <SearchBox value={list.searchInput} onChange={list.setSearchInput} placeholder="Search name, code, phone…" />
         <FilterGrid>
-          <SearchableFilterDropdown label="Site" allLabel="All sites" value={f.siteId} options={sites} onChange={(siteId) => list.update({ siteId })} className="md:w-44" />
-          <SearchableFilterDropdown label="Contractor" allLabel="All contractors" value={f.contractorId} options={contractors} onChange={(contractorId) => list.update({ contractorId })} className="md:w-48" />
-          <SearchableFilterDropdown label="Category" allLabel="All categories" value={f.categoryId} options={categoryOptions} onChange={(categoryId) => list.update({ categoryId, subcategoryId: null })} className="md:w-44" />
-          {f.categoryId && <SearchableFilterDropdown label="Subcategory" allLabel="All subcategories" value={f.subcategoryId} options={subcategoryOptions(f.categoryId)} onChange={(subcategoryId) => list.update({ subcategoryId })} className="md:w-44" />}
+          <SearchableFilterDropdown label="Site" allLabel="All sites" value={f.siteId} options={sites} onChange={(siteId) => list.update(cascade(f, { siteId }, contractors))} className="md:w-44" />
+          <SearchableFilterDropdown label="Contractor" allLabel="All contractors" value={f.contractorId} options={contractorsAtSite(contractors, f.siteId)} onChange={(contractorId) => list.update(cascade(f, { contractorId }, contractors))} className="md:w-48" />
+          <SearchableFilterDropdown label="Category" allLabel="All categories" value={f.categoryId} options={categoryOptionsFor(categoryOptions, contractors.find((c) => c.value === f.contractorId))} onChange={(categoryId) => list.update({ categoryId, subcategoryId: null })} className="md:w-44" />
+          {f.categoryId && <SearchableFilterDropdown label="Subcategory" allLabel="All subcategories" value={f.subcategoryId} options={subcategoryOptionsFor(subcategoryOptions(f.categoryId), contractors.find((c) => c.value === f.contractorId), f.categoryId)} onChange={(subcategoryId) => list.update({ subcategoryId })} className="md:w-44" />}
           <FilterSelect label="Status" value={f.status} onChange={(status) => list.update({ status })} anyLabel="Any status" options={[{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }, { value: 'left', label: 'Left' }]} />
           <FilterSelect label="Face status" value={f.faceStatus} onChange={(faceStatus) => list.update({ faceStatus })} anyLabel="Any face status" options={[{ value: 'enrolled', label: 'Registered' }, { value: 'pending', label: 'Finishing' }, { value: 'failed', label: 'Failed' }, { value: 'none', label: 'No face' }]} />
           <FilterSelect label="Forms" value={f.forms} onChange={(forms) => list.update({ forms })} anyLabel="Any forms" options={[{ value: 'incomplete', label: 'Details missing' }]} />

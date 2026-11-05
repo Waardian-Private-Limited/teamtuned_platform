@@ -8,7 +8,8 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { useDownloadCenter } from '@/features/downloads/context/DownloadCenterContext';
 import { showSuccess } from '@/lib/toast';
 import * as api from '../../api/labour.api';
-import type { Opt } from '../../hooks/useLabourLists';
+import type { ContractorOpt, Opt } from '../../hooks/useLabourLists';
+import { cascade, categoryOptionsFor, contractorsAtSite, subcategoryOptionsFor } from '../../utils/trades';
 import { placeError } from '../../utils/errors';
 import { thisMonth, today } from '../../utils/format';
 import { FormError, primaryBtn, secondaryBtn } from '../shared/Primitives';
@@ -35,7 +36,7 @@ const STATUSES: Array<{ value: Status; label: string }> = [
  * status (daily) and Excel or PDF. The file is built in the background and lands in the Download Centre.
  */
 export function ExportDialog({ defaults, sites, singleSite = false, contractors, categoryOptions, subcategoryOptions, onClose }: {
-  defaults: ExportDefaults; sites: FilterOption[]; /** Scoped user: one site is required (the server refuses none when they have several). */ singleSite?: boolean; contractors: Opt[]; categoryOptions: Opt[]; subcategoryOptions: (categoryId: number | null) => Opt[]; onClose: () => void;
+  defaults: ExportDefaults; sites: FilterOption[]; /** Scoped user: one site is required (the server refuses none when they have several). */ singleSite?: boolean; contractors: ContractorOpt[]; categoryOptions: Opt[]; subcategoryOptions: (categoryId: number | null) => Opt[]; onClose: () => void;
 }) {
   const { track } = useDownloadCenter();
   const [type, setType] = useState<ExportType>('daily');
@@ -44,10 +45,15 @@ export function ExportDialog({ defaults, sites, singleSite = false, contractors,
   const [month, setMonth] = useState((defaults.to || thisMonth()).slice(0, 7));
   const [from, setFrom] = useState(defaults.from || today());
   const [to, setTo] = useState(defaults.to || today());
-  const [siteId, setSiteId] = useState<number | null>(defaults.siteId ?? (singleSite ? sites[0]?.value ?? null : null));
-  const [contractorId, setContractorId] = useState<number | null>(defaults.contractorId);
-  const [categoryId, setCategoryId] = useState<number | null>(defaults.categoryId);
-  const [subcategoryId, setSubcategoryId] = useState<number | null>(null);
+  // Site -> contractor -> category -> subcategory: each list follows the picks above it (cascade drops what no longer fits).
+  const [pick, setPick] = useState(() => {
+    const siteId = defaults.siteId ?? (singleSite ? sites[0]?.value ?? null : null);
+    const start = { siteId, contractorId: defaults.contractorId, categoryId: defaults.categoryId, subcategoryId: null as number | null };
+    return { ...start, ...cascade(start, {}, contractors) };
+  });
+  const { siteId, contractorId, categoryId, subcategoryId } = pick;
+  const choose = (patch: Partial<typeof pick>) => setPick((p) => ({ ...p, ...cascade(p, patch, contractors) }));
+  const contractor = contractors.find((c) => c.value === contractorId);
   const [status, setStatus] = useState<Status | null>(null);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -74,7 +80,7 @@ export function ExportDialog({ defaults, sites, singleSite = false, contractors,
     }
   };
 
-  const subs = subcategoryOptions(categoryId);
+  const subs = subcategoryOptionsFor(subcategoryOptions(categoryId), contractor, categoryId);
   return (
     <Dialog open onClose={onClose} title="Export labour attendance" maxWidthClassName="max-w-2xl"
       footer={<><button type="button" className={secondaryBtn} onClick={onClose}>Cancel</button><button type="button" disabled={busy} className={primaryBtn} onClick={submit}>{busy ? 'Queuing…' : 'Export'}</button></>}>
@@ -83,7 +89,7 @@ export function ExportDialog({ defaults, sites, singleSite = false, contractors,
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <FieldLabel label="Site" />
-            <SearchableFilterDropdown label="Site" allLabel="All sites" hideAll={singleSite} value={siteId} options={sites} onChange={setSiteId} className="w-full" />
+            <SearchableFilterDropdown label="Site" allLabel="All sites" hideAll={singleSite} value={siteId} options={sites} onChange={(v) => choose({ siteId: v })} className="w-full" />
           </div>
           {type === 'daily' && <TextField label="Date" type="date" value={date} max={today()} error={errors.date} onChange={setDate} />}
           {type === 'month' && <TextField label="Month" type="month" value={month} max={thisMonth()} error={errors.month} onChange={setMonth} />}
@@ -95,11 +101,11 @@ export function ExportDialog({ defaults, sites, singleSite = false, contractors,
           )}
           <div>
             <FieldLabel label="Contractor" />
-            <SearchableFilterDropdown label="Contractor" allLabel="All contractors" value={contractorId} options={contractors} onChange={setContractorId} className="w-full" />
+            <SearchableFilterDropdown label="Contractor" allLabel="All contractors" value={contractorId} options={contractorsAtSite(contractors, siteId)} onChange={(v) => choose({ contractorId: v })} className="w-full" />
           </div>
           {type === 'daily' && <SelectField<Status> label="Status" value={status} placeholder="All status" options={STATUSES} onChange={setStatus} />}
-          <SelectField<number> label="Category" numeric value={categoryId} placeholder="All categories" options={categoryOptions} onChange={(v) => { setCategoryId(v); setSubcategoryId(null); }} />
-          <SelectField<number> label="Subcategory" numeric value={subcategoryId} placeholder="All subcategories" options={subs} disabled={!categoryId} onChange={setSubcategoryId} />
+          <SelectField<number> label="Category" numeric value={categoryId} placeholder="All categories" options={categoryOptionsFor(categoryOptions, contractor)} onChange={(v) => choose({ categoryId: v, subcategoryId: null })} />
+          <SelectField<number> label="Subcategory" numeric value={subcategoryId} placeholder="All subcategories" options={subs} disabled={!categoryId} onChange={(v) => choose({ subcategoryId: v })} />
           <div>
             <FieldLabel label="Export format" />
             <div className="flex gap-2">

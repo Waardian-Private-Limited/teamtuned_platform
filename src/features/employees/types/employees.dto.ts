@@ -202,7 +202,7 @@ export interface EmployeeDetailDto {
   confirmation_date: string | null;
   exit_date: string | null;
   /** Latest attendance punch (UTC instant), null when they never punched. */
-  last_punch?: { at: string; work_date: string; direction: 'in' | 'out'; kind: string; site: string | null } | null;
+  last_punch?: LastPunchDto | null;
   contract_start: string | null;
   contract_end: string | null;
   work_state: string | null;
@@ -298,6 +298,12 @@ export interface HistoryPageDto<T> {
   total: number;
   pages: number;
 }
+
+/** An employee's latest attendance punch (UTC instant). */
+export interface LastPunchDto { at: string; work_date: string; direction: 'in' | 'out'; kind: string; site: string | null }
+
+/** Job history pages also say when the employee last punched (null = never), whatever their status. */
+export interface JobHistoryPageDto extends HistoryPageDto<JobEventDto> { last_punch?: LastPunchDto | null }
 
 export type ContractTermKind = 'initial' | 'renewal' | 'change';
 

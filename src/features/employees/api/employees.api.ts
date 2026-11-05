@@ -7,7 +7,7 @@ import type {
   IfscDto,
   ManagerDto,
   PolicyPreviewDto,
-  JobEventDto,
+  JobHistoryPageDto,
   AuditEntryDto,
   HistoryPageDto,
   ContractTermDto,
@@ -180,7 +180,7 @@ export function updateEmployeeSettings(subOrgId: number | null, settings: Partia
 }
 
 export function getJobHistory(id: number, page: number, pageSize = 20) {
-  return apiClient.get<HistoryPageDto<JobEventDto>>(`/employees/${id}/job-history`, { page, pageSize }, auth);
+  return apiClient.get<JobHistoryPageDto>(`/employees/${id}/job-history`, { page, pageSize }, auth);
 }
 
 export function getAuditLog(id: number, page: number, pageSize = 20) {

@@ -15,6 +15,7 @@ import { fmtDate, fmtMinutes, fmtTime, titleCase, today } from '../../utils/form
 import { DateFilter, FilterBar, FilterGrid, FilterSelect, Gate, ListShell, PageHeader, Pill, SearchBox, secondaryBtn, td, th, trClickCls } from '../shared/Primitives';
 import { DayPay } from './DayPay';
 import { ExportDialog } from './ExportDialog';
+import { cascade, categoryOptionsFor, contractorsAtSite } from '../../utils/trades';
 import { PunchDrawer } from './PunchDrawer';
 
 interface Filters extends Record<string, unknown> { search: string; from: string; to: string; siteId: number | null; contractorId: number | null; categoryId: number | null; status: string }
@@ -51,9 +52,9 @@ function Days() {
         <FilterGrid>
           <DateFilter label="From" value={f.from} onChange={(from) => list.update({ from })} />
           <DateFilter label="To" value={f.to} onChange={(to) => list.update({ to })} />
-          <SearchableFilterDropdown label="Site" allLabel="All sites" value={f.siteId} options={sites} onChange={(siteId) => list.update({ siteId })} className="md:w-44" />
-          <SearchableFilterDropdown label="Contractor" allLabel="All contractors" value={f.contractorId} options={contractors} onChange={(contractorId) => list.update({ contractorId })} className="md:w-48" />
-          <SearchableFilterDropdown label="Category" allLabel="All categories" value={f.categoryId} options={categoryOptions} onChange={(categoryId) => list.update({ categoryId })} className="md:w-44" />
+          <SearchableFilterDropdown label="Site" allLabel="All sites" value={f.siteId} options={sites} onChange={(siteId) => list.update(cascade(f, { siteId }, contractors))} className="md:w-44" />
+          <SearchableFilterDropdown label="Contractor" allLabel="All contractors" value={f.contractorId} options={contractorsAtSite(contractors, f.siteId)} onChange={(contractorId) => list.update(cascade(f, { contractorId }, contractors))} className="md:w-48" />
+          <SearchableFilterDropdown label="Category" allLabel="All categories" value={f.categoryId} options={categoryOptionsFor(categoryOptions, contractors.find((c) => c.value === f.contractorId))} onChange={(categoryId) => list.update({ categoryId })} className="md:w-44" />
           <FilterSelect label="Status" value={f.status} onChange={(status) => list.update({ status })} anyLabel="Any status" options={[{ value: 'present', label: 'Present' }, { value: 'incomplete', label: 'Incomplete' }, { value: 'regularized', label: 'Regularized' }]} />
         </FilterGrid>
       </FilterBar>

@@ -1,5 +1,6 @@
 import { apiClient } from '@/lib/apiClient';
 import type {
+  LabourTimings, SiteTimingsResponse,
   ComplianceGaps,
   Officer,
   CompliancePack, CompliancePreset, FormCatalogue, FormTemplate, PackDetail, TemplateSummary,
@@ -45,6 +46,10 @@ export const getSettings = (subOrganizationId?: number | null) => get<SettingsRe
 export const saveSettings = (settings: LabourSettings, subOrganizationId?: number | null) =>
   apiClient.put<unknown>(`${B}/settings`, settings, { ...auth, params: { subOrganizationId: subOrganizationId ?? undefined } });
 export const deleteSettingsOverride = (subOrgId: number) => del(`/settings/overrides/${subOrgId}`);
+// each site's labour clock (its own override, else the organization default)
+export const getSiteTimings = () => get<SiteTimingsResponse>('/site-timings');
+export const saveSiteTimings = (siteId: number, body: LabourTimings) => put<{ siteId: number; timings: LabourTimings }>(`/site-timings/${siteId}`, body);
+export const resetSiteTimings = (siteId: number) => del(`/site-timings/${siteId}`);
 
 // catalog
 export const getCatalog = (includeInactive = false) => get<{ categories: Category[] }>('/catalog', { includeInactive: includeInactive || undefined });

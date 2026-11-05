@@ -17,6 +17,7 @@ import { daysAgo, fmtDate, money, today } from '../../utils/format';
 import { DateFilter, FilterBar, FilterGrid, ListShell, Pill, primaryBtn, secondaryBtn, td, th, trClickCls } from '../shared/Primitives';
 import { LabourerFilter } from './LabourerFilter';
 import { EntryDrawer, type EntryDrawerTarget } from './EntryDrawer';
+import { cascade, contractorsAtSite } from '../../utils/trades';
 import { MeasStatusPill, QtyRate, whoLabel } from './MeasBits';
 
 interface Filters extends Record<string, unknown> {
@@ -99,8 +100,8 @@ export function EntriesTab() {
         <FilterGrid>
           <DateFilter label="From" value={f.from} onChange={(from) => list.update({ from })} />
           <DateFilter label="To" value={f.to} onChange={(to) => list.update({ to })} />
-          <SearchableFilterDropdown label="Site" allLabel="All sites" value={f.siteId} options={sites} onChange={(siteId) => list.update({ siteId })} className="md:w-44" />
-          <SearchableFilterDropdown label="Contractor" allLabel="All contractors" value={f.contractorId} options={contractors} onChange={(contractorId) => list.update({ contractorId })} className="md:w-48" />
+          <SearchableFilterDropdown label="Site" allLabel="All sites" value={f.siteId} options={sites} onChange={(siteId) => list.update(cascade(f, { siteId }, contractors))} className="md:w-44" />
+          <SearchableFilterDropdown label="Contractor" allLabel="All contractors" value={f.contractorId} options={contractorsAtSite(contractors, f.siteId)} onChange={(contractorId) => list.update({ contractorId })} className="md:w-48" />
           <LabourerFilter value={f.labourer} onChange={(labourer) => list.update({ labourer })} />
           <SearchableFilterDropdown label="Work item" allLabel="All work items" value={f.workItemId} options={workItemOptions} onChange={(workItemId) => list.update({ workItemId })} className="md:w-44" />
         </FilterGrid>

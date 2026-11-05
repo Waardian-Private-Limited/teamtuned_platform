@@ -15,11 +15,19 @@ export interface Address { line1: string; line2: string; city: string; state: st
 
 export type FaceStatus = 'none' | 'pending' | 'enrolled' | 'failed';
 
-export interface LabourSettings {
-  /** Pay: the day rate runs from this time for 12 hours, the night rate after. */
+/**
+ * A labour clock (organization default, or a site's own): punches before the cutoff close the previous day only while it
+ * is open; day rate standardStart-standardEnd (earlier time of the day too), overtime until overtimeEnd (null = none),
+ * night from then until the next cutoff.
+ */
+export interface LabourTimings { attendanceCutoff: string; standardStart: string; standardEnd: string; overtimeEnd: string | null }
+
+export interface SiteTimingsRow { siteId: number; siteName: string; override: LabourTimings | null; effective: LabourTimings & { summary: string } }
+export interface SiteTimingsResponse { default: LabourTimings & { summary: string }; sites: SiteTimingsRow[] }
+
+export interface LabourSettings extends Partial<LabourTimings> {
+  /** Older settings: the standard start (kept for machines). */
   dayStartsAt: string;
-  /** Attendance: which work day a punch is filed on (missing in older settings = dayStartsAt). */
-  attendanceCutoff?: string;
   standardHours: number;
   duplicatePunchSeconds: number;
   advancedOnboarding: boolean;
