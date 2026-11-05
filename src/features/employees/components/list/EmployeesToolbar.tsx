@@ -29,6 +29,8 @@ interface EmployeesToolbarProps {
   licenseLabel?: string;
   onAdd: () => void;
   onSettings?: () => void;
+  /** Opens bulk company (sub-organization) assignment. */
+  onAssignCompany?: () => void;
 }
 
 // Grade / cost centre filter; hidden until the catalog has something to pick.
@@ -53,7 +55,7 @@ function CatalogFilter({ kind, value, onChange, allLabel }: { kind: CatalogKind;
 
 export function EmployeesToolbar({
   counts, searchValue, onSearchChange, status, onStatusChange, subOrgId, onSubOrgChange,
-  gradeId, onGradeChange, costCentreId, onCostCentreChange, contractsEnding, onContractsEndingChange, canAdd, addBlocked = '', licenseLabel = '', onAdd, onSettings,
+  gradeId, onGradeChange, costCentreId, onCostCentreChange, contractsEnding, onContractsEndingChange, canAdd, addBlocked = '', licenseLabel = '', onAdd, onSettings, onAssignCompany,
 }: EmployeesToolbarProps) {
   return (
     <div className="flex flex-col gap-2.5 rounded-xl border border-line bg-surface p-3 sm:p-3.5 2xl:p-4">
@@ -103,6 +105,11 @@ export function EmployeesToolbar({
           <SubOrgFilter value={subOrgId} onChange={onSubOrgChange} />
           <CatalogFilter kind="grades" value={gradeId} onChange={onGradeChange} allLabel="All grades" />
           <CatalogFilter kind="cost-centres" value={costCentreId} onChange={onCostCentreChange} allLabel="All cost centres" />
+          {onAssignCompany && (
+            <button type="button" onClick={onAssignCompany} className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-fg transition-colors hover:bg-bg-subtle sm:text-sm 2xl:h-10">
+              Assign company
+            </button>
+          )}
           {onSettings && (
             <button type="button" onClick={onSettings} aria-label="Employee settings" className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-fg transition-colors hover:bg-bg-subtle sm:text-sm 2xl:h-10">
               <Settings2 className="h-3.5 w-3.5" />

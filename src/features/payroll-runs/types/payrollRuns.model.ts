@@ -33,6 +33,7 @@ export interface Run {
   periodStart: string;
   periodEnd: string;
   periodLabel: string;
+  batch: number;
   month: string;
   payDate: string | null;
   releaseMode: 'after_pay_day' | 'manual' | null;

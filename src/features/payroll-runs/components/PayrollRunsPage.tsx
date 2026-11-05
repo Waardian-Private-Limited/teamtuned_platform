@@ -2,8 +2,10 @@
 
 import React from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Play, Settings2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Play, Settings2 } from 'lucide-react';
 import { cx } from '@/theme/tokens';
+import { messageOf } from '@/lib/api/errors';
+import { showSuccess } from '@/lib/toast';
 import { ConfirmDialog, type ConfirmState } from '@/components/ui/ConfirmDialog';
 import { Pagination } from '@/components/ui/Pagination';
 import { TableSkeleton } from '@/components/ui/TableSkeleton';
@@ -18,7 +20,7 @@ import { useRunItems } from '../hooks/useRunItems';
 import { useRuns } from '../hooks/useRuns';
 import { toRun } from '../types/payrollRuns.mapper';
 import type { PayItem, Run } from '../types/payrollRuns.model';
-import { MONTH_RE, rememberOrder, thisMonth } from '../utils/format';
+import { money, MONTH_RE, rememberOrder, thisMonth } from '../utils/format';
 import { actionBtn, Skeleton, Spinner } from './components/controls';
 import { ItemCardList, ItemsTable } from './components/ItemsTable';
 import { ItemsToolbar } from './components/ItemsToolbar';
@@ -29,6 +31,7 @@ import { useRunSearchHits } from '../hooks/useRunSearchHits';
 import { PreviewPanel } from './components/PreviewPanel';
 import { RunCard } from './components/RunCard';
 import { RunTable } from './components/RunTable';
+import { HoldDialog } from './components/RunDialogs';
 import { RequestDrawer } from '@/features/approvals/components/RequestDrawer';
 import { MarkPaidDialog, ReopenDialog } from './components/RunDialogs';
 
@@ -81,6 +84,29 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
     return undefined;
   }, [actions]);
 
+  // Employees picked to finalize on their own (a draft payroll): the rest move to a new batch to finalize later.
+  const [picked, setPicked] = React.useState<Set<number>>(() => new Set());
+  const pick = React.useCallback((ids: number[], on: boolean) => setPicked((p) => {
+    const next = new Set(p);
+    for (const id of ids) { if (on) next.add(id); else next.delete(id); }
+    return next;
+  }), []);
+  const finalizePicked = React.useCallback((run: Run) => {
+    const ids = [...picked];
+    const others = Math.max(0, run.totals.employees - ids.length);
+    setConfirm({
+      title: `Finalize ${ids.length} employee${ids.length === 1 ? '' : 's'}?`,
+      body: (
+        <div className="space-y-2 text-sm text-fg-muted">
+          <p>Only the picked employees are finalized{run.finalizeNeedsApproval ? ' (after approval)' : ''} and can be paid now. Picked employees whose pay could not be calculated are put on hold.</p>
+          {others > 0 && <p>The other <span className="font-semibold text-fg">{others}</span> move, as calculated, to <span className="font-semibold text-fg">a new batch</span> of {run.companyName} for this period. It stays a draft: recalculate, finalize and pay it later.</p>}
+        </div>
+      ),
+      cta: `Finalize ${ids.length}`,
+      run: async () => { if (await actions.finalizeSome(run, ids, others)) setPicked(new Set()); },
+    });
+  }, [picked, actions]);
+
   const realRuns = runs.filter((r) => r.id !== null);
   const plannedRuns = runs.filter((r) => r.id === null);
   // Payroll not separate per company (organization-wide runs): one payroll for every company and site, so there is no
@@ -91,6 +117,48 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
   }, [combined, subOrgId]);
   const selected = realRuns.find((r) => r.id === askedRun) || realRuns[0] || null;
   const selectedId = selected?.id ?? null;
+  React.useEffect(() => { setPicked(new Set()); }, [selectedId]);
+  const canFinalizePicked = Boolean(canEdit && selected && selected.stage === 'review' && !selected.pendingAction);
+  // Ticking also holds / releases salaries in bulk, in a draft, finalized or paid payroll.
+  const canPick = Boolean(canEdit && selected && !selected.pendingAction && ['review', 'finalized', 'released', 'paid'].includes(selected.stage));
+  const [holdAsk, setHoldAsk] = React.useState<boolean | null>(null);
+  const [holdBusy, setHoldBusy] = React.useState(false);
+  const holdPicked = async (hold: boolean, reason: string): Promise<string | null> => {
+    if (!selected?.id) return null;
+    setHoldBusy(true);
+    try {
+      const r = await api.holdMany(selected.id, [...picked], hold, reason);
+      const verb = hold ? 'put on hold' : 'released';
+      const why = [...new Set(r.skipped.map((x) => x.reason))].join('; ');
+      if (r.changed.length) showSuccess(`${r.changed.length} salar${r.changed.length === 1 ? 'y' : 'ies'} ${verb}${r.skipped.length ? `; ${r.skipped.length} left as is (${why})` : ''}`);
+      else return `Nothing ${verb}: ${why || 'no change'}`;
+      setPicked(new Set());
+      setHoldAsk(null);
+      reload();
+      setItemsVersion((v) => v + 1);
+      return null;
+    } catch (e) {
+      return messageOf(e);
+    } finally {
+      setHoldBusy(false);
+    }
+  };
+  // Many companies: the run list folds to the open run so the employees table stays in view.
+  const [runsOpen, setRunsOpen] = React.useState<boolean | null>(null);
+  const folding = runs.length > 3;
+  const open = !folding || (runsOpen ?? !selected);
+  const shownRuns = open ? runs : runs.filter((r) => r.id === selectedId || r.key === previewKey);
+  const runSummary = React.useMemo(() => {
+    const by = (test: (r: Run) => boolean) => runs.filter(test).length;
+    return [
+      `${runs.length} payrolls`,
+      by((r) => r.id === null) ? `${by((r) => r.id === null)} not started` : null,
+      by((r) => r.status === 'draft') ? `${by((r) => r.status === 'draft')} draft` : null,
+      by((r) => r.status === 'finalized') ? `${by((r) => r.status === 'finalized')} finalized` : null,
+      by((r) => r.status === 'paid') ? `${by((r) => r.status === 'paid')} paid` : null,
+      `net ${money(runs.reduce((n, r) => n + (r.totals?.net || 0), 0))}`,
+    ].filter(Boolean).join(' · ');
+  }, [runs]);
   const previewRun = plannedRuns.find((r) => r.key === previewKey) || null;
   const pv = usePreview(previewRun);
 
@@ -211,14 +279,23 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
         )
       ) : (
         <div className={cx('transition-opacity duration-200', runsState.refreshing && 'opacity-80')}>
+          {folding && (
+            <button type="button" onClick={() => setRunsOpen(!open)} aria-expanded={open}
+              className="mb-2 flex w-full items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-left hover:bg-bg-subtle">
+              <span className="min-w-0 truncate text-xs text-fg-muted sm:text-sm"><span className="font-semibold text-fg">Payrolls</span> · {runSummary}</span>
+              <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-fg">
+                {open ? <>Show open only <ChevronUp className="h-3.5 w-3.5" /></> : <>Show all {runs.length} <ChevronDown className="h-3.5 w-3.5" /></>}
+              </span>
+            </button>
+          )}
           <div className="hidden md:block">
             <RunTable
-              runs={runs}
+              runs={shownRuns}
               selectedId={selectedId}
               errors={actions.errors}
               canEdit={canEdit}
               busy={actions.busy}
-              onSelect={(r) => setQuery({ month, run: String(r.id) })}
+              onSelect={(r) => { setQuery({ month, run: String(r.id) }); if (folding) setRunsOpen(false); }}
               onStart={actions.start}
               onPreview={(r) => setPreviewKey((k) => (k === r.key ? null : r.key))}
               onDelete={askDelete}
@@ -233,7 +310,7 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
             />
           </div>
           <div className="grid gap-3 md:hidden">
-            {runs.map((run) => (
+            {shownRuns.map((run) => (
               <RunCard
                 key={run.key}
                 run={run}
@@ -280,7 +357,7 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
       {!runsState.loading && !previewRun && selected && (
         <section className="relative flex min-h-[560px] flex-1 flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-xs">
           <ItemsToolbar
-            title={realRuns.length > 1 ? `Employees · ${selected.companyName}` : 'Employees'}
+            title={realRuns.length > 1 ? `Employees · ${selected.companyName}${selected.batch > 1 ? ` · Batch ${selected.batch}` : ''}` : 'Employees'}
             total={list.total}
             searchValue={list.searchInput}
             onSearchChange={list.setSearchInput}
@@ -301,6 +378,17 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
             </div>
           )}
           {list.error && <p className="border-b border-line px-4 py-2.5 text-xs font-medium text-[var(--tt-danger)]">{list.error}</p>}
+          {canPick && picked.size > 0 && selected && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-bg-subtle px-4 py-2">
+              <p className="text-xs text-fg sm:text-sm"><span className="font-semibold">{picked.size} picked</span> of {selected.totals.employees}{canFinalizePicked ? ' · Finalize picked moves the rest to a new batch' : ''}</p>
+              <div className="flex items-center gap-2">
+                <button type="button" className={actionBtn.secondary} onClick={() => setPicked(new Set())}>Clear</button>
+                <button type="button" className={actionBtn.secondary} disabled={holdBusy} onClick={() => setHoldAsk(true)}>Hold salary</button>
+                <button type="button" className={actionBtn.secondary} disabled={holdBusy} onClick={() => setHoldAsk(false)}>Release hold</button>
+                {canFinalizePicked && <button type="button" className={actionBtn.primary} disabled={Boolean(actions.busy)} onClick={() => finalizePicked(selected)}>Finalize picked</button>}
+              </div>
+            </div>
+          )}
 
           {list.loading ? (
             <TableSkeleton rows={8} columns={6} />
@@ -328,7 +416,7 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
           ) : (
             <>
               <div className={cx('hidden min-h-0 flex-1 transition-opacity duration-200 md:block', list.refreshing && 'opacity-70')}>
-                <ItemsTable items={list.items} filters={list.filters} onSort={list.toggleSort} onView={view} />
+                <ItemsTable items={list.items} filters={list.filters} onSort={list.toggleSort} onView={view} picked={canPick ? picked : null} onPick={pick} />
               </div>
               <div className={cx('transition-opacity duration-200 md:hidden', list.refreshing && 'opacity-70')}>
                 <ItemCardList items={list.items} onView={view} />
@@ -372,6 +460,8 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
         }}
       />
       <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
+      <HoldDialog open={holdAsk !== null} holding={holdAsk === true} name={`${picked.size} employee${picked.size === 1 ? '' : 's'}`} busy={holdBusy}
+        onClose={() => setHoldAsk(null)} onSubmit={(reason) => holdPicked(holdAsk === true, reason)} />
       {canEdit && (
         <PayrollSettingsDrawer
           open={settingsOpen}

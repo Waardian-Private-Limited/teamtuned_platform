@@ -163,11 +163,11 @@ export function HoldDialog({
         <p className="text-sm text-fg-muted">
           {holding ? (
             <>
-              <span className="font-semibold text-fg">{name}</span> stays in this payroll, but the payslip is hidden from the app and left out of the bank transfer until the hold is released.
+              <span className="font-semibold text-fg">{name}</span> stays in this payroll, but the payslip is hidden from the app and left out of the bank transfer until the hold is released. In a finalized payroll, advance instalments and reimbursements in it go back to pending.
             </>
           ) : (
             <>
-              <span className="font-semibold text-fg">{name}</span> will be paid with this payroll again. A generated payslip becomes visible in the app again.
+              <span className="font-semibold text-fg">{name}</span> will be paid with this payroll again: back in the payment queue, with advance, reimbursement and insurance lines settled. A generated payslip becomes visible in the app again.
             </>
           )}
         </p>

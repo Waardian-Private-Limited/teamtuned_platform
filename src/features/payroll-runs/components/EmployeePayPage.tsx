@@ -82,7 +82,8 @@ export function EmployeePayPage({ basePath }: { basePath: string }) {
   const isDraft = run?.status === 'draft';
   const pending = Boolean(run?.pendingAction);
   const canChange = canEdit && !isPreview && isDraft && !pending && !pay.calculating;
-  const canHold = canEdit && !isPreview && Boolean(run) && run?.status !== 'paid' && !pending && !pay.calculating;
+  // Also in a paid payroll: a held salary can be released to pay it later (a paid one cannot be held; the server says so).
+  const canHold = canEdit && !isPreview && Boolean(run) && !pending && !pay.calculating;
   const canGenerate = canEdit && !isPreview && item?.payslipState === 'not_generated';
   const held = item?.status === 'held';
   // Hand edits of the lines: a draft, finalized or paid payroll that is not waiting for approval or being calculated.

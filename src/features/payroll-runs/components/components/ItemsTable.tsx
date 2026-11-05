@@ -51,19 +51,32 @@ interface ItemsTableProps {
   filters: ItemFilters;
   onSort: (k: ItemSortKey) => void;
   onView: (item: PayItem) => void;
+  /** Picking employees to finalize on their own (draft payroll only): employee ids. */
+  picked?: Set<number> | null;
+  onPick?: (employeeIds: number[], on: boolean) => void;
 }
+
+const box = 'h-4 w-4 cursor-pointer rounded border-line-strong accent-[var(--tt-primary)]';
 
 function hasPayslipState(items: PayItem[]) {
   return items.some((it) => it.payslipState !== null && it.payslipState !== 'draft');
 }
 
-export function ItemsTable({ items, filters, onSort, onView }: ItemsTableProps) {
+export function ItemsTable({ items, filters, onSort, onView, picked = null, onPick }: ItemsTableProps) {
   const showPayslip = hasPayslipState(items);
+  const pickable = Boolean(picked && onPick);
+  const pageIds = items.map((it) => it.employee.id);
+  const allOnPage = pickable && pageIds.length > 0 && pageIds.every((id) => picked!.has(id));
   return (
     <div className="h-full overflow-auto tt-scroll-hidden">
       <table className="w-full min-w-[820px] border-separate border-spacing-0">
         <thead className="sticky top-0 z-10">
           <tr>
+            {pickable && (
+              <th className={cx(th, 'w-10 pr-0')}>
+                <input type="checkbox" className={box} aria-label="Pick everyone on this page" checked={allOnPage} onChange={(e) => onPick!(pageIds, e.target.checked)} />
+              </th>
+            )}
             <SortHead label="Name" k="name" filters={filters} onSort={onSort} />
             <th className={th}>Site</th>
             <th className={cx(th, 'text-right')}>Cycle days</th>
@@ -79,7 +92,12 @@ export function ItemsTable({ items, filters, onSort, onView }: ItemsTableProps) 
         </thead>
         <tbody>
           {items.map((it) => (
-            <tr key={it.id} className="transition-colors hover:bg-bg-subtle/50">
+            <tr key={it.id} className={cx('transition-colors hover:bg-bg-subtle/50', pickable && picked!.has(it.employee.id) && 'bg-bg-subtle/60')}>
+              {pickable && (
+                <td className={cx(td, 'w-10 pr-0')}>
+                  <input type="checkbox" className={box} aria-label={`Pick ${it.employee.name}`} checked={picked!.has(it.employee.id)} onChange={(e) => onPick!([it.employee.id], e.target.checked)} />
+                </td>
+              )}
               <td className={td}>
                 <div className="flex min-w-0 items-center gap-2.5">
                   <Avatar name={it.employee.name} size="sm" />

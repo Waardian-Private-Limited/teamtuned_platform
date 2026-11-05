@@ -19,7 +19,7 @@ type RunTableProps = Omit<RunCardProps, 'run' | 'selected' | 'error' | 'previewi
 };
 
 const th = 'border-b border-line bg-bg-subtle px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-fg-muted 2xl:px-4';
-const td = 'border-b border-line/60 px-3 py-2.5 align-middle 2xl:px-4';
+const td = 'border-b border-line/60 px-3 py-2 align-middle 2xl:px-4';
 
 function Progress({ run, calculating, pct }: { run: Run; calculating: boolean; pct: number }) {
   if (calculating) {
@@ -115,15 +115,18 @@ function Row(props: RunCardProps) {
           (selected || props.previewing) && 'bg-bg-subtle shadow-[inset_3px_0_0_var(--tt-primary)]'
         )}
       >
-        <td className={td}>
+        <td className={cx(td, 'max-w-[16rem] 2xl:max-w-[22rem]')}>
           <div className="min-w-0">
-            <p className="truncate text-sm font-bold text-fg">{run.companyName}</p>
-            <p className="mt-0.5 truncate text-xs text-fg-muted">
+            <p className="truncate text-sm font-bold text-fg" title={run.companyName}>
+              {run.companyName}
+              {run.batch > 1 && <span className="ml-1.5 rounded border border-line-strong px-1 py-px text-[10px] font-semibold text-fg-muted">Batch {run.batch}</span>}
+            </p>
+            <p className="truncate text-[11px] text-fg-muted">
               {run.periodLabel}
               {run.payDate ? ` · Pay ${dateText(run.payDate)}` : ''}
             </p>
             {note && (
-              <p className="mt-1 flex items-center gap-1 text-[11px] text-fg-muted">
+              <p className="flex items-center gap-1 text-[11px] text-fg-muted" title={note.text}>
                 {note.icon}
                 <span className="truncate">{note.text}</span>
               </p>
@@ -179,11 +182,11 @@ function Row(props: RunCardProps) {
 
 export function RunTable({ runs, selectedId, previewKey, errors, ...handlers }: RunTableProps) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-line bg-surface shadow-xs tt-scroll-hidden">
+    <div className="max-h-[45vh] overflow-auto rounded-xl border border-line bg-surface shadow-xs tt-scroll-hidden">
       <table className="w-full border-separate border-spacing-0">
-        <thead>
+        <thead className="sticky top-0 z-10">
           <tr>
-            <th className={th}>Company &amp; period</th>
+            <th className={th}>Company</th>
             <th className={th}>Progress</th>
             <th className={cx(th, 'text-right')}>Employees</th>
             <th className={cx(th, 'text-right')}>Net pay</th>

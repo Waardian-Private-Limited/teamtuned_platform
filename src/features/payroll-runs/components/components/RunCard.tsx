@@ -189,7 +189,7 @@ export function RunCard(props: RunCardProps) {
     >
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="truncate text-sm font-bold text-fg sm:text-base">{run.companyName}</h3>
+          <h3 className="truncate text-sm font-bold text-fg sm:text-base">{run.companyName}{run.batch > 1 ? ` · Batch ${run.batch}` : ''}</h3>
           <p className="mt-0.5 truncate text-xs text-fg-muted">
             {run.periodLabel}
             {run.payDate ? ` · Pay date ${dateText(run.payDate)}` : ''}

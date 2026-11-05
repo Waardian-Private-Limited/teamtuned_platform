@@ -32,6 +32,8 @@ export interface RunDto {
   period_start: string;
   period_end: string;
   period_label: string;
+  /** 1 = the company's main payroll for the period; 2+ = people split off when only some were finalized. */
+  batch?: number;
   month: string;
   pay_date?: string | null;
   release_mode?: 'after_pay_day' | 'manual' | null;

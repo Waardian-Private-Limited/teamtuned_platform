@@ -22,10 +22,14 @@ import { EmployeeActionDialog } from './list/EmployeeActionDialog';
 import { EmployeeTimelineDrawer } from './list/EmployeeTimelineDrawer';
 import { EmployeeSettingsDrawer } from './settings/EmployeeSettingsDrawer';
 import { licenseCountLabel, licenseFullMessage } from '@/features/licenses/license';
+import { useManageableSubOrgs } from '@/features/sub-organizations/hooks/useManageableSubOrgs';
 
 export function EmployeesPage() {
   const router = useRouter();
   const routes = useEmployeeRoutes();
+  // Bulk company assignment only matters when the organization has companies (sub-organizations).
+  const { subOrgs } = useManageableSubOrgs();
+  const hasCompanies = subOrgs.length > 0;
   const { can, hasPerm } = usePermission();
   const perms = {
     canAdd: can(EMPLOYEE_PERMISSIONS.ADD),
@@ -82,6 +86,7 @@ export function EmployeesPage() {
         licenseLabel={licenseCountLabel(list.license)}
         onAdd={openCreate}
         onSettings={perms.canEdit ? () => setSettingsOpen(true) : undefined}
+        onAssignCompany={perms.canEdit && hasCompanies ? () => router.push(routes.assignCompany) : undefined}
       />
 
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-xs">

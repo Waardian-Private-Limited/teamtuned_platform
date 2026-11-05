@@ -93,6 +93,13 @@ export function useRunActions({ month, onRun, onReload }: Options) {
     (run: Run, holdErrors = false) => runCall(run, 'finalize', () => api.finalize(run.id as number, holdErrors), run.finalizeNeedsApproval ? 'Sent for approval' : 'Payroll finalized'),
     [runCall]
   );
+  /** Finalizes only `employeeIds` (those with errors are held); the rest go to a new draft batch. */
+  const finalizeSome = useCallback(
+    (run: Run, employeeIds: number[], others: number) =>
+      runCall(run, 'finalize', () => api.finalize(run.id as number, true, employeeIds),
+        `${run.finalizeNeedsApproval ? 'Sent for approval' : 'Finalized'}: ${employeeIds.length} employee${employeeIds.length === 1 ? '' : 's'}${others ? `. ${others} moved to a new batch` : ''}`),
+    [runCall]
+  );
   const release = useCallback((run: Run) => runCall(run, 'release', () => api.release(run.id as number), 'Payslips generated for all employees except held ones'), [runCall]);
 
   const reopen = useCallback(
@@ -148,5 +155,5 @@ export function useRunActions({ month, onRun, onReload }: Options) {
     [exec, track]
   );
 
-  return { busy, errors, start, startAll, remove, recompute, finalize, release, reopen, markPaid, exportRun };
+  return { busy, errors, start, startAll, remove, recompute, finalize, finalizeSome, release, reopen, markPaid, exportRun };
 }

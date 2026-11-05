@@ -25,6 +25,8 @@ export interface ListParams {
   gradeId?: number | null;
   costCentreId?: number | null;
   contractEndingDays?: number | null;
+  /** Only employees with no company yet. */
+  withoutSubOrg?: boolean;
 }
 
 export function listEmployees(params: ListParams) {
@@ -39,6 +41,7 @@ export function listEmployees(params: ListParams) {
       gradeId: params.gradeId ?? undefined,
       costCentreId: params.costCentreId ?? undefined,
       contractEndingDays: params.contractEndingDays ?? undefined,
+      withoutSubOrg: params.withoutSubOrg ? 'true' : undefined,
     },
     auth
   );
@@ -201,4 +204,17 @@ export interface LoginPasswordResult { success: boolean; password: string | null
 /** Org admin: a new sign-in password, typed or generated. A generated one is returned once and is not kept readable. */
 export function setLoginPassword(id: number, body: { generate?: boolean; password?: string; signOut: boolean }) {
   return apiClient.post<LoginPasswordResult>(`/employees/${id}/login-password`, body, auth);
+}
+
+export interface BulkSubOrgResult {
+  company: { id: number; name: string };
+  dry_run: boolean;
+  moved: { id: number; name: string; code: string | null }[];
+  skipped: { id: number; name: string | null; code: string | null; reason: string }[];
+  already: { id: number; name: string; code: string | null }[];
+}
+
+/** Moves employees to one company (only the company, plus a department / role for people whose own does not fit). */
+export function bulkAssignSubOrg(body: { employee_ids: number[]; sub_organization_id: number; department_id?: number | null; role_id?: number | null; dry_run?: boolean }) {
+  return apiClient.post<BulkSubOrgResult>('/employees/bulk/sub-organization', body, auth);
 }

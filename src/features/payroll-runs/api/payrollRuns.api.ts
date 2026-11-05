@@ -88,9 +88,18 @@ export function setHold(id: number, employeeId: number, hold: boolean, reason?: 
   return apiClient.post<ItemDto>(`/payroll-runs/${id}/items/${employeeId}/hold`, { hold, reason: reason || undefined }, auth);
 }
 
+/** Holds or releases many salaries of one payroll; `skipped` says who was left as is and why. */
+export function holdMany(id: number, employeeIds: number[], hold: boolean, reason?: string) {
+  return apiClient.post<{ changed: number[]; skipped: { employeeId: number; reason: string }[]; run: RunDto }>(`/payroll-runs/${id}/hold`, { employee_ids: employeeIds, hold, reason: reason || undefined }, auth);
+}
+
 /** `holdErrors`: employees whose pay could not be calculated are put on hold (not paid) and the rest is finalized. */
-export function finalize(id: number, holdErrors = false) {
-  return apiClient.post<RunDto>(`/payroll-runs/${id}/finalize`, holdErrors ? { hold_errors: true } : {}, auth);
+export function finalize(id: number, holdErrors = false, employeeIds?: number[]) {
+  const body: Record<string, unknown> = {};
+  if (holdErrors) body.hold_errors = true;
+  // Only these employees: everyone else moves to a new draft batch of the same company and period.
+  if (employeeIds) body.employee_ids = employeeIds;
+  return apiClient.post<RunDto>(`/payroll-runs/${id}/finalize`, body, auth);
 }
 
 export function reopen(id: number, reason: string) {

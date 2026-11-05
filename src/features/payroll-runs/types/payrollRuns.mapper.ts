@@ -52,6 +52,7 @@ export function toRun(dto: RunDto): Run {
     periodStart: dto.period_start,
     periodEnd: dto.period_end,
     periodLabel: dto.period_label,
+    batch: dto.batch ?? 1,
     month: dto.month,
     payDate: dto.pay_date ?? null,
     releaseMode: dto.release_mode ?? null,
