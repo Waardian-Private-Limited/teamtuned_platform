@@ -227,6 +227,7 @@ export function toEligibility(dto: EligibilityDto): Eligibility {
     reasonRequired: dto.request?.reason_required ?? dto.reason_required ?? true,
     attachmentRequired: Boolean(dto.request?.attachment_required ?? dto.attachment_required),
     earliestStart: dto.request?.earliest_start ?? null,
+    earliestStartByMode: dto.request?.earliest_start_by_mode ?? null,
     defaultStart: dto.request?.default_start ?? null,
     mergeable: (dto.mergeable || []).map(toMergeable),
   };

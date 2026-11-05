@@ -156,14 +156,16 @@ export function NewAdvanceDrawer({ open, types, canSkipApproval, onClose, onCrea
         <TextField
           label="First deduction month"
           type="month"
-          min={thisMonth()}
+          min={e?.earliestStartByMode?.[mode ?? policyMode] ?? thisMonth()}
           value={startMonth}
           onChange={(v) => {
             setStartMonth(v);
             clearField('start_month');
           }}
           error={fe.start_month}
-          hint={startMonth ? undefined : 'Empty: the payroll after it is paid out. Pick this month to recover it from this month’s salary.'}
+          hint={startMonth ? undefined : (mode ?? policyMode) === 'manual' && e?.earliestStartByMode && e.earliestStartByMode.manual < thisMonth()
+            ? 'Empty: the payroll after it is paid out. Last month’s payroll is not finalized yet, so it can be recovered from last month’s salary too.'
+            : 'Empty: the payroll after it is paid out. Pick this month to recover it from this month’s salary.'}
         />
 
         {e && e.mergeable.length > 0 && (

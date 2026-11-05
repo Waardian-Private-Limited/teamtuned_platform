@@ -188,7 +188,7 @@ export interface EligibilityDto {
   can_choose_installments?: boolean;
   reason_required?: boolean;
   attachment_required?: boolean;
-  request?: { reason_required?: boolean; attachment_required?: boolean; employee_can_choose_installments?: boolean; earliest_start?: string | null; default_start?: string | null };
+  request?: { reason_required?: boolean; attachment_required?: boolean; employee_can_choose_installments?: boolean; earliest_start?: string | null; earliest_start_by_mode?: { manual: string; payroll: string } | null; default_start?: string | null };
   mergeable?: MergeableAdvanceDto[];
 }
 

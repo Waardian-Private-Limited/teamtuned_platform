@@ -177,6 +177,8 @@ export interface Eligibility {
   reasonRequired: boolean;
   attachmentRequired: boolean;
   earliestStart: string | null;
+  /** Earliest first deduction per payout mode (hand-paid can start last month while its payroll is open). */
+  earliestStartByMode: { manual: string; payroll: string } | null;
   defaultStart: string | null;
   mergeable: MergeableAdvance[];
 }
