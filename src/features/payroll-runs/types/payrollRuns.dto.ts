@@ -39,6 +39,8 @@ export interface RunDto {
   status: RunStatusDto;
   stage: RunStageDto;
   pending_action?: 'finalize' | 'reopen' | null;
+  /** The approval request of the pending finalize / reopen (open it to approve or reject). */
+  approval_request_id?: number | null;
   pending_note?: string | null;
   compute?: { state: ComputeStateDto; error: string | null; done: number; total: number } | null;
   computed_at?: string | null;

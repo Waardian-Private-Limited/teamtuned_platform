@@ -40,6 +40,7 @@ export interface Run {
   status: RunStatus;
   stage: RunStage;
   pendingAction: 'finalize' | 'reopen' | null;
+  approvalRequestId: number | null;
   pendingNote: string | null;
   compute: { state: ComputeState; error: string | null; done: number; total: number };
   computedAt: string | null;

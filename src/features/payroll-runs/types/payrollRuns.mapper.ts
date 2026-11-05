@@ -59,6 +59,7 @@ export function toRun(dto: RunDto): Run {
     status: dto.status,
     stage: dto.stage,
     pendingAction: dto.pending_action ?? null,
+    approvalRequestId: dto.approval_request_id ?? null,
     pendingNote: dto.pending_note ?? null,
     compute: {
       state: dto.compute?.state ?? 'idle',

@@ -30,6 +30,8 @@ export interface RunCardProps {
   onMarkPaid: (run: Run) => void;
   onReopen: (run: Run) => void;
   onExport: (run: Run, kind: RunExportKind) => void;
+  /** Opens the pending finalize / reopen approval (approvers get Approve / Reject there). */
+  onReviewApproval?: (run: Run) => void;
 }
 
 function Figure({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
@@ -66,6 +68,13 @@ export function runActions(props: RunCardProps) {
   const hasNumbers = !planned && Boolean(run.computedAt);
 
   const primary = (() => {
+    if (waiting && run.approvalRequestId && props.onReviewApproval) {
+      return (
+        <button type="button" className={actionBtn.primary} onClick={() => props.onReviewApproval!(run)}>
+          <Hourglass className="h-3.5 w-3.5" /> Review request
+        </button>
+      );
+    }
     if (!canEdit || calculating || waiting) return null;
     if (planned) {
       return (

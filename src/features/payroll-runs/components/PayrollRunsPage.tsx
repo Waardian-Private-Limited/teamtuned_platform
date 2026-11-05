@@ -29,6 +29,7 @@ import { useRunSearchHits } from '../hooks/useRunSearchHits';
 import { PreviewPanel } from './components/PreviewPanel';
 import { RunCard } from './components/RunCard';
 import { RunTable } from './components/RunTable';
+import { RequestDrawer } from '@/features/approvals/components/RequestDrawer';
 import { MarkPaidDialog, ReopenDialog } from './components/RunDialogs';
 
 export function PayrollRunsPage({ basePath }: { basePath: string }) {
@@ -58,6 +59,8 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
     setItemsVersion((v) => v + 1);
   }, [refresh]);
   const actions = useRunActions({ month, onRun: patchRun, onReload: reload });
+  // The finalize / reopen approval opened from a waiting run (Approve / Reject for whoever may decide).
+  const [reviewId, setReviewId] = React.useState<number | null>(null);
   // Employees whose pay could not be calculated do not block the payroll: after a warning they are put on hold
   // (not paid in this payroll, kept to fix and release later) and everyone else is finalized.
   const finalizeRun = React.useCallback((run: Run) => {
@@ -226,6 +229,7 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
               onMarkPaid={setPaidTarget}
               onReopen={setReopenTarget}
               onExport={actions.exportRun}
+              onReviewApproval={(r) => setReviewId(r.approvalRequestId)}
             />
           </div>
           <div className="grid gap-3 md:hidden">
@@ -248,11 +252,14 @@ export function PayrollRunsPage({ basePath }: { basePath: string }) {
                 onMarkPaid={setPaidTarget}
                 onReopen={setReopenTarget}
                 onExport={actions.exportRun}
+                onReviewApproval={(r) => setReviewId(r.approvalRequestId)}
               />
             ))}
           </div>
         </div>
       )}
+
+      <RequestDrawer id={reviewId} onClose={() => setReviewId(null)} onChanged={() => { setReviewId(null); reload(); }} />
 
       {!runsState.loading && previewRun && (
         <PreviewPanel

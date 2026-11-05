@@ -38,6 +38,8 @@ const PAGES: Record<string, Record<Area, Page>> = {
   'exit.case': both((p) => (p.id ? `/employee/exits/${p.id}` : '/employee/approvals'), (p) => (p.id ? `/org-admin/exits/${p.id}` : '/org-admin/exits')),
   'exit.review': both('/employee/approvals', '/org-admin/approvals'),
   'approvals.inbox': both('/employee/approvals', '/org-admin/approvals'),
+  // Payroll finalize / reopen approvals: the pay run's "Review request" button.
+  'payroll.runs': both('/employee/payroll', '/org-admin/payroll'),
   // Approver pushes for petty cash expenses and fund requests.
   'petty_cash.approvals': both('/employee/approvals', '/org-admin/approvals'),
   'birthday.wall': both((p) => `/employee/birthdays${p.employee_id ? `?e=${p.employee_id}` : ''}`, (p) => `/org-admin/birthdays${p.employee_id ? `?e=${p.employee_id}` : ''}`),
