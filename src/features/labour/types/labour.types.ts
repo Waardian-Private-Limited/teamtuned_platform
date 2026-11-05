@@ -343,7 +343,8 @@ export interface DeviceEvent {
   createdAt: string;
 }
 
-export interface BillingLine { meter: string; label: string; unit: string; quantity: number; rate: number; amount: number }
+/** fullRate + part: a monthly charge pro-rated because the period covers only `part.days` of a `part.of`-day month. */
+export interface BillingLine { meter: string; label: string; unit: string; quantity: number; rate: number; amount: number; fullRate?: number; part?: { days: number; of: number } }
 export interface BillingWindow {
   from: string;
   to: string;
@@ -355,7 +356,8 @@ export interface BillingWindow {
   total: number;
 }
 export interface BillingUsage {
-  month: string;
+  /** Set when a whole month was asked for; null for a from/to period. */
+  month: string | null;
   start: string;
   end: string;
   noPlan: boolean;

@@ -120,7 +120,9 @@ export const restoreDevice = (id: number) => post(`/devices/${id}/restore`);
 export const resyncDevice = (id: number) => post(`/devices/${id}/resync`);
 
 // billing (organization, read only)
-export const getUsage = (month: string) => get<BillingUsage>('/billing/usage', { month });
+/** A whole month ('YYYY-MM') or any from/to dates. */
+export interface BillingPeriod { month?: string; from?: string; to?: string }
+export const getUsage = (period: BillingPeriod) => get<BillingUsage>('/billing/usage', { ...period });
 export const listInvoices = (q: ListQuery) => get<Paged<Invoice> | { invoices: Invoice[] } | Invoice[]>('/billing/invoices', q);
 export const getInvoice = (id: number) => get<Invoice | { invoice: Invoice }>(`/billing/invoices/${id}`);
 export const listPlans = () => get<unknown>('/billing/plans');
@@ -201,12 +203,12 @@ export const exportPayable = (body: PayableQuery & { format: 'excel' | 'pdf' }) 
 const S = (orgId: number | string) => `/superadmin/labour-billing/${orgId}`;
 const sget = <T>(orgId: number | string, path: string, params?: Params) => apiClient.get<T>(`${S(orgId)}${path}`, params, auth);
 const spost = <T>(orgId: number | string, path: string, body?: unknown) => apiClient.post<T>(`${S(orgId)}${path}`, body ?? {}, auth);
-export const saUsage = (orgId: number | string, month: string) => sget<BillingUsage>(orgId, '/usage', { month });
+export const saUsage = (orgId: number | string, period: BillingPeriod) => sget<BillingUsage>(orgId, '/usage', { ...period });
 export const saPlans = (orgId: number | string) => sget<unknown>(orgId, '/plans');
 export const saSavePlan = (orgId: number | string, body: unknown) => spost(orgId, '/plans', body);
-export const saInvoices = (orgId: number | string, status?: string) => sget<unknown>(orgId, '/invoices', { status });
+export const saInvoices = (orgId: number | string, status?: string, range: { from?: string; to?: string } = {}) => sget<unknown>(orgId, '/invoices', { status, ...range });
 export const saInvoice = (orgId: number | string, id: number) => sget<Invoice | { invoice: Invoice }>(orgId, `/invoices/${id}`);
-export const saDraftInvoice = (orgId: number | string, month: string) => spost(orgId, '/invoices/draft', { month });
+export const saDraftInvoice = (orgId: number | string, period: BillingPeriod) => spost(orgId, '/invoices/draft', period);
 export const saInvoiceAction = (orgId: number | string, id: number, action: 'issue' | 'pay' | 'void', body?: unknown) => spost(orgId, `/invoices/${id}/${action}`, body);
 export const saAdjustments = (orgId: number | string) => sget<unknown>(orgId, '/adjustments');
 export const saAddAdjustment = (orgId: number | string, body: Adjustment) => spost(orgId, '/adjustments', body);

@@ -49,7 +49,7 @@ export function LabourBillingOrgPage({ orgId }: { orgId: string }) {
       <Link href="/superadmin/labour-billing" className="inline-flex items-center gap-1.5 text-xs font-semibold text-fg-muted hover:text-fg"><ArrowLeft className="h-3.5 w-3.5" aria-hidden />All organizations</Link>
       <PageHeader title={name || `Organization ${orgId}`} description="Labour billing" />
       <Tabs value={tab} onChange={setTab} tabs={[{ value: 'usage', label: 'Usage' }, { value: 'plan', label: 'Plan' }, { value: 'invoices', label: 'Invoices' }, { value: 'adjustments', label: 'Adjustments' }]} />
-      {tab === 'usage' && <UsagePanel load={(m) => api.saUsage(orgId, m)} />}
+      {tab === 'usage' && <UsagePanel load={(p) => api.saUsage(orgId, p)} />}
       {tab === 'plan' && <PlanPanel orgId={orgId} />}
       {tab === 'invoices' && <InvoicesPanel orgId={orgId} />}
       {tab === 'adjustments' && <AdjustmentsPanel orgId={orgId} />}

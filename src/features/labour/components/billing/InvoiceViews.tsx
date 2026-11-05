@@ -17,7 +17,7 @@ export const unwrapInvoice = (raw: Invoice | { invoice: Invoice }): Invoice => (
 export const invoiceRows = (raw: unknown) => asList<Invoice>(raw, 'invoices');
 
 export function InvoiceTable({ rows, onOpen, actions }: { rows: Invoice[]; onOpen: (i: Invoice) => void; actions?: (i: Invoice) => React.ReactNode }) {
-  if (!rows.length) return <EmptyPanel illustration={ILL.invoices} title="No invoices yet" text="Invoices appear here once a month is billed." />;
+  if (!rows.length) return <EmptyPanel illustration={ILL.invoices} title="No invoices yet" text="Invoices appear here once a period is billed." />;
   return (
     <div className="overflow-x-auto rounded-xl border border-line bg-surface">
       <table className="w-full min-w-[34rem] border-separate border-spacing-0">

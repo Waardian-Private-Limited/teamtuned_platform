@@ -44,12 +44,12 @@ function Body({ id, canManage, onChanged, onMerge, onCreated }: Omit<Props, 'ope
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="truncate text-base font-bold text-fg">{c.legalName}</h3>
-          <p className="text-xs text-fg-muted">{[c.code, `${c.labourCount} labourers`].filter(Boolean).join(' · ')}</p>
+          <p className="text-xs text-fg-muted">{[c.code, `${c.labourCount ?? 0} labourers`].filter(Boolean).join(' · ')}</p>
           <div className="mt-1.5"><Pill tone={c.status === 'active' ? 'good' : 'neutral'}>{c.status}</Pill></div>
         </div>
         {canManage && c.status === 'active' && <button type="button" className={secondaryBtn} onClick={() => onMerge({ id: c.id, name })}><GitMerge className="h-3.5 w-3.5" aria-hidden />Merge</button>}
       </div>
-      <Tabs<Tab> value={tab} onChange={setTab} tabs={[{ value: 'details', label: 'Details' }, { value: 'labour', label: `Labour (${c.labourCount})` }, { value: 'documents', label: `Documents (${c.documents?.length || 0})` }, { value: 'rates', label: 'Rates' }]} />
+      <Tabs<Tab> value={tab} onChange={setTab} tabs={[{ value: 'details', label: 'Details' }, { value: 'labour', label: `Labour (${c.labourCount ?? 0})` }, { value: 'documents', label: `Documents (${c.documents?.length || 0})` }, { value: 'rates', label: 'Rates' }]} />
       {tab === 'details' && (canManage ? <ContractorForm contractor={c} onSaved={() => { onChanged(); load(); }} /> : <p className="text-sm text-fg-muted">You can view contractors but not edit them.</p>)}
       {tab === 'labour' && <ContractorLabour contractor={c} canImport={can(LP.MANAGE)} onChanged={() => { onChanged(); load(); }} />}
       {tab === 'documents' && <ContractorDocuments contractorId={c.id} documents={c.documents || []} canManage={canManage} onChanged={() => { load(); }} />}

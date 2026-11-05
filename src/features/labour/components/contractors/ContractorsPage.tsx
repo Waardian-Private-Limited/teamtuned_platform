@@ -70,7 +70,7 @@ function Contractors() {
           {list.rows.map((c) => (
             <button key={c.id} type="button" onClick={() => setDrawer(c.id)} className="rounded-xl border border-line p-3 text-left active:bg-bg-subtle">
               <div className="flex items-start justify-between gap-2"><span className="font-semibold text-fg">{c.legalName}</span><Pill tone={c.status === 'active' ? 'good' : 'neutral'}>{c.status}</Pill></div>
-              <div className="mt-0.5 text-xs text-fg-muted">{c.labourCount} labourers · {c.phone || 'No phone'}</div>
+              <div className="mt-0.5 text-xs text-fg-muted">{c.labourCount ?? 0} labourers · {c.phone || 'No phone'}</div>
             </button>
           ))}
         </div>

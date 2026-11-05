@@ -8,27 +8,30 @@ import { showError, showSuccess } from '@/lib/toast';
 import * as api from '../../../api/labour.api';
 import type { Invoice } from '../../../types/labour.types';
 import { parseLabourError } from '../../../utils/errors';
-import { thisMonth } from '../../../utils/format';
-import { Block, FilterSelect, FormError, primaryBtn, secondaryBtn } from '../../shared/Primitives';
+import { Block, DateFilter, FilterSelect, FormError, primaryBtn, secondaryBtn } from '../../shared/Primitives';
+import { PeriodPicker, monthPeriod, periodParams, periodProblem, type Period } from '../PeriodPicker';
 import { InvoiceDrawer, InvoiceTable, invoiceNo, invoiceRows } from '../InvoiceViews';
 
 export function InvoicesPanel({ orgId }: { orgId: string }) {
   const [status, setStatus] = useState('');
   const [rows, setRows] = useState<Invoice[] | null>(null);
   const [error, setError] = useState('');
-  const [month, setMonth] = useState(thisMonth());
-  const [monthError, setMonthError] = useState('');
+  const [period, setPeriod] = useState<Period>(() => monthPeriod(-1));
+  const [periodError, setPeriodError] = useState('');
+  const [range, setRange] = useState({ from: '', to: '' });
   const [busy, setBusy] = useState(false);
   const [openId, setOpenId] = useState<number | null>(null);
   const [pay, setPay] = useState<Invoice | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
 
-  const load = useCallback(() => { api.saInvoices(orgId, status || undefined).then((r) => { setRows(invoiceRows(r)); setError(''); }).catch((e) => setError(parseLabourError(e).message)); }, [orgId, status]);
+  const load = useCallback(() => { api.saInvoices(orgId, status || undefined, { from: range.from || undefined, to: range.to || undefined }).then((r) => { setRows(invoiceRows(r)); setError(''); }).catch((e) => setError(parseLabourError(e).message)); }, [orgId, status, range]);
   useEffect(() => { load(); }, [load]);
 
   const draft = async () => {
-    setBusy(true); setMonthError('');
-    try { await api.saDraftInvoice(orgId, month); showSuccess('Draft created'); load(); } catch (e) { setMonthError(parseLabourError(e).message); } finally { setBusy(false); }
+    const problem = periodProblem(period);
+    if (problem) { setPeriodError(problem); return; }
+    setBusy(true); setPeriodError('');
+    try { await api.saDraftInvoice(orgId, periodParams(period)); showSuccess('Draft created'); load(); } catch (e) { setPeriodError(parseLabourError(e).message); } finally { setBusy(false); }
   };
   const act = (i: Invoice, action: 'issue' | 'void') => setConfirm({
     title: `${action === 'issue' ? 'Issue' : 'Void'} ${invoiceNo(i)}?`,
@@ -47,9 +50,19 @@ export function InvoicesPanel({ orgId }: { orgId: string }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex items-end gap-2"><div className="w-44"><TextField label="Month" type="month" value={month} error={monthError} onChange={(v) => { setMonth(v); setMonthError(''); }} /></div><button type="button" disabled={busy} className={`${primaryBtn} mb-0 self-start sm:mt-[1.65rem]`} onClick={draft}>{busy ? 'Creating…' : 'Create draft'}</button></div>
+      <section className="space-y-2 rounded-xl border border-line bg-surface p-3">
+        <h2 className="text-sm font-bold text-fg">Raise an invoice</h2>
+        <div className="flex flex-col gap-2 md:flex-row md:items-center">
+          <PeriodPicker value={period} onChange={(p) => { setPeriod(p); setPeriodError(''); }} />
+          <button type="button" disabled={busy} className={primaryBtn} onClick={draft}>{busy ? 'Creating…' : 'Create draft'}</button>
+        </div>
+        <FormError message={periodError} />
+        <p className="text-[11px] text-fg-muted">A whole month or any dates that have ended. Drafts that overlap it are replaced; days already on an issued invoice cannot be billed again. Monthly charges are pro-rated for part of a month.</p>
+      </section>
+      <div className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-3 md:flex-row md:flex-wrap md:items-center">
         <FilterSelect label="Status" value={status} onChange={setStatus} anyLabel="Any status" options={['draft', 'issued', 'paid', 'void'].map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))} />
+        <DateFilter label="Covering from" value={range.from} onChange={(from) => setRange((r) => ({ ...r, from }))} />
+        <DateFilter label="To" value={range.to} onChange={(to) => setRange((r) => ({ ...r, to }))} />
       </div>
       <FormError message={error} />
       {!rows && !error ? <Block className="h-32 rounded-xl" /> : rows && <InvoiceTable rows={rows} onOpen={(i) => setOpenId(i.id)} actions={actions} />}
