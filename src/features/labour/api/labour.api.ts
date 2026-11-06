@@ -5,7 +5,7 @@ import type {
   Officer,
   CompliancePack, CompliancePreset, FormCatalogue, FormTemplate, PackDetail, TemplateSummary,
   Adjustment, AttendanceDay, BillingUsage, Category, Contractor, ContractorRate, Dashboard, Device, DeviceDetail, DeviceEvent,
-  ImportBody, Invoice, LabourSettings, Labourer, LabourerBody, LabourerDetail, LookupPerson, MergePreview, Paged, PlanVersion, Punch, RegAction,
+  ImportBody, ImportManyBody, ImportManyResult, Invoice, LabourSettings, Labourer, LabourerBody, LabourerDetail, LookupPerson, MergePreview, Paged, PlanVersion, Punch, RegAction,
   RegularizationLog, SettingsResponse,
   BulkApproveResult, Measurement, MeasurementBody, MeasurementDetail, MeasurementPage, Payable, PaySuggestion, PersonalRateBody,
   PersonalRatesResponse, WorkItem, WorkItemBody, WorkItemDetail, WorkItemOverride, WorkItemRate,
@@ -86,6 +86,9 @@ export const deleteLabourer = (id: number) => del(`/labourers/${id}`);
 // import a registered labourer into a contractor at another site (same person, own contractor / rates / days)
 export const lookupLabourers = (q: string) => get<{ items: LookupPerson[] }>('/labourers/lookup', { q });
 export const importLabourer = (id: number, b: ImportBody) => post<{ id: number; code: string; siteId: number; contractorId: number; linkedFromId: number }>(`/labourers/${id}/import`, b);
+/** Several labourers into one contractor at one site, at most IMPORT_MANY_MAX per call; one result per person. */
+export const importLabourers = (b: ImportManyBody) => post<ImportManyResult>('/labourers/import-many', b);
+export const IMPORT_MANY_MAX = 50;
 export function enrolFace(id: number, shots: Array<{ pose: string; file: File }>) {
   const fd = new FormData();
   shots.forEach((s) => fd.append('images', s.file));

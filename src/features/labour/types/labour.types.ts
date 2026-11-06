@@ -167,6 +167,13 @@ export interface LookupPerson {
 }
 
 export interface ImportBody { contractorId: number; siteId: number; categoryId: number | null; subcategoryId: number | null }
+/** keepCategory: each person keeps the category of the record imported from (no shared category). */
+export interface ImportManyBody extends ImportBody { ids: number[]; keepCategory?: boolean }
+export interface ImportManyResult {
+  imported: number;
+  failed: number;
+  items: Array<{ id: number; code: string | null; name: string | null; ok: boolean; newId?: number; error?: string }>;
+}
 
 /** Whether one site machine has taken a labourer's latest change. */
 export interface MachineSyncState { id: number; name: string; siteId: number; siteName: string | null; online: boolean; lastSeenAt: string | null; state: 'synced' | 'pending' | 'failed' }

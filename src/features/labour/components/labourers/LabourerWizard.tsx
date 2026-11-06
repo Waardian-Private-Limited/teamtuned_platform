@@ -237,7 +237,7 @@ function Body({ onClose, onSaved, editId = null, onOpenExisting, startAt }: Omit
             contractor={{ id: c.value, name: c.label, siteIds: c.siteIds || [], trades: c.trades || [] }}
             preset={{ query: form.aadhaar.replace(/\D/g, '').slice(-4), labourerId: submit.existingId, siteId: form.siteId, categoryId: form.categoryId, subcategoryId: form.subcategoryId }}
             onClose={() => setImporting(false)}
-            onImported={(r) => { setImporting(false); onSaved(r.id); }}
+            onImported={(r) => { setImporting(false); if (r[0]) onSaved(r[0].id); }}
           />
         ) : null;
       })()}
