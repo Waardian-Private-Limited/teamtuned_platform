@@ -615,9 +615,12 @@ export interface Payable {
 /** Why a machine refused a punch (labour_device_events type punch_rejected). */
 export type RejectReason = 'other_site' | 'labour_inactive' | 'contractor_inactive' | 'not_recognized';
 /** A refused machine punch: who, where, why, with the photo (org admins). siteGuessed: backfilled, site read from the face server. */
+/** One visit: tries of one person, reason and site close together (newest try's details; `firstAt` and `tries` cover all). */
 export interface RejectedPunch {
   id: number;
   at: string;
+  firstAt: string;
+  tries: number;
   reason: RejectReason | null;
   message: string;
   siteGuessed: boolean;
@@ -634,4 +637,6 @@ export interface RejectedPunchPage extends Paged<RejectedPunch> {
   from: string;
   to: string;
   summary: Record<RejectReason, { tries: number; people: number }>;
+  /** More tries than one answer reads: narrow the dates. */
+  truncated: boolean;
 }

@@ -29,6 +29,8 @@ const INITIAL: Filters = { from: today(), to: today(), reason: '', siteId: '' };
 const EXPORT_PAGE = 500;
 const EXPORT_MAX = 5000;
 
+const timeOnly = (iso: string) => fmtDateTime(iso).replace(/^.*?(\d{1,2}:\d{2}(\s?[AP]M)?)$/i, '$1');
+
 const csvCell = (v: unknown) => { const t = String(v ?? ''); return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
 
 /** Refused machine punches (org admins): who was turned away, where and why, with the photo, to pass on to the people concerned. */
@@ -41,11 +43,12 @@ export function RejectedPunchesPage() {
 function RejectedPunches() {
   const { sites } = useLabourSites();
   const [summary, setSummary] = useState<RejectedPunchPage['summary'] | null>(null);
+  const [summaryTruncated, setTruncated] = useState(false);
   const [photo, setPhoto] = useState<RejectedPunch | null>(null);
   const [exporting, setExporting] = useState(false);
   const query = (f: Filters) => ({ from: f.from || undefined, to: f.to || undefined, reason: f.reason || undefined, siteId: f.siteId ? Number(f.siteId) : undefined, search: f.search || undefined });
   const list = usePagedList<RejectedPunch, Filters>(
-    (f, page, pageSize) => api.listRejectedPunches({ ...query(f), page, pageSize }).then((r) => { setSummary(r.summary); return r; }),
+    (f, page, pageSize) => api.listRejectedPunches({ ...query(f), page, pageSize }).then((r) => { setSummary(r.summary); setTruncated(!!r.truncated); return r; }),
     INITIAL, { pageSize: 50 },
   );
   const f = list.filters;
@@ -67,8 +70,8 @@ function RejectedPunches() {
     setExporting(true);
     try {
       const rows = await everything();
-      const head = ['Time', 'Name', 'Code', 'Phone', 'Reason', 'Tried at site', 'Site guessed', 'Machine', 'Registered at', 'Contractor', 'What to do'];
-      const body = rows.map((r) => [fmtDateTime(r.at), r.labourer?.name || 'Unknown face', r.labourer?.code || '', r.labourer?.phone || '', r.reason ? META[r.reason].label : r.message,
+      const head = ['First try', 'Last try', 'Tries', 'Name', 'Code', 'Phone', 'Reason', 'Tried at site', 'Site guessed', 'Machine', 'Registered at', 'Contractor', 'What to do'];
+      const body = rows.map((r) => [fmtDateTime(r.firstAt), fmtDateTime(r.at), r.tries, r.labourer?.name || 'Unknown face', r.labourer?.code || '', r.labourer?.phone || '', r.reason ? META[r.reason].label : r.message,
         r.site.name || '', r.siteGuessed ? 'yes' : '', r.deviceName || '', r.labourer?.registeredSite || '', r.labourer?.contractorName || '', r.reason ? META[r.reason].todo : ''].map(csvCell).join(','));
       const blob = new Blob([[head.join(','), ...body].join('\n') + '\n'], { type: 'text/csv;charset=utf-8' });
       const a = document.createElement('a');
@@ -92,7 +95,7 @@ function RejectedPunches() {
       for (const r of rows) {
         const key = `${r.labourer?.id ?? `face-${r.id}`}|${r.reason}|${r.site.id}`;
         const g = people.get(key);
-        if (g) { g.n += 1; g.last = r.at; } else people.set(key, { r, n: 1, last: r.at });
+        if (g) { g.n += r.tries; g.last = r.at; } else people.set(key, { r, n: r.tries, last: r.at });
       }
       const lines = [...people.values()].filter((g) => g.r.labourer).map(({ r, n, last }) => {
         const who = `${r.labourer!.name} (${r.labourer!.code})`;
@@ -131,6 +134,7 @@ function RejectedPunches() {
         </div>
       )}
 
+      {list.total > 0 && summaryTruncated && <p className="rounded-lg border border-line bg-bg-subtle px-3 py-2 text-xs text-fg-muted">Too many tries in this range to show them all: pick fewer days.</p>}
       <FilterBar>
         <SearchBox value={list.searchInput} onChange={list.setSearchInput} placeholder="Search name, code, phone…" />
         <FilterGrid>
@@ -152,7 +156,9 @@ function RejectedPunches() {
             <tbody>
               {list.rows.map((r) => (
                 <tr key={r.id}>
-                  <td className={cx(td, 'whitespace-nowrap text-fg-muted')}>{fmtDateTime(r.at)}</td>
+                  <td className={cx(td, 'whitespace-nowrap text-fg-muted')}>
+                    {r.tries > 1 ? <>{fmtDateTime(r.firstAt)} – {timeOnly(r.at)}<div className="text-[11px]">{r.tries} tries</div></> : fmtDateTime(r.at)}
+                  </td>
                   <td className={td}>
                     {r.labourer ? (
                       <>
