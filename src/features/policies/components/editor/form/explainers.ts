@@ -712,7 +712,7 @@ const PAYROLL: Record<string, (c: Config, section: Config) => CardSummary> = {
         rule.push(`Payable days are capped at ${cap} days maximum. Extra days worked collapse.`);
       }
     } else {
-      rule.push('Payable days cap is disabled — employees can receive 35, 40+ paid days if extra shifts or weekend work are completed.');
+      rule.push('No cap: payable days can go past the days in the month when HR adds payable-day corrections in payroll. Work on week offs and holidays is paid through the weekend & holiday work rule (comp-off or extra pay), not as extra payable days.');
     }
     return {
       rule,
