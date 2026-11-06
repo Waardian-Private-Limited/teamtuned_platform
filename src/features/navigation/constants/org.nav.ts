@@ -70,6 +70,7 @@ import {
   Gauge,
   Ruler,
   DoorOpen,
+  UserX,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
 import { ANY_LABOUR_PERM, LABOUR_MEAS_PAGE_PERMS, LABOUR_PAYABLE_PERMS, LABOUR_SETTINGS_PAGE_PERMS, LABOUR_VIEW_PERMS, LP } from '@/features/labour/constants/labour.constants';
@@ -286,6 +287,7 @@ export const orgNav: NavNode[] = [
       { kind: 'link', label: 'Payable', href: '/org-admin/labour/payable', icon: HandCoins, match: 'prefix', gate: { anyPerm: LABOUR_PAYABLE_PERMS } },
       { kind: 'link', label: 'Categories', href: '/org-admin/labour/categories', icon: LayoutGrid, match: 'prefix', gate: { anyPerm: LABOUR_VIEW_PERMS } },
       { kind: 'link', label: 'Devices', href: '/org-admin/labour/devices', icon: Activity, match: 'prefix', gate: { anyPerm: LABOUR_VIEW_PERMS } },
+      { kind: 'link', label: 'Rejected punches', href: '/org-admin/labour/rejected-punches', icon: UserX, match: 'prefix' },
       { kind: 'link', label: 'Billing', href: '/org-admin/labour/billing', icon: Receipt, match: 'prefix', gate: { anyPerm: [LP.BILLING] } },
       { kind: 'link', label: 'Compliance forms', href: '/org-admin/labour/compliance', icon: FileText, match: 'prefix', gate: { anyPerm: [LP.COMPLIANCE] } },
       { kind: 'link', label: 'Settings', href: '/org-admin/labour/settings', icon: Settings, match: 'prefix', gate: { anyPerm: LABOUR_SETTINGS_PAGE_PERMS } },

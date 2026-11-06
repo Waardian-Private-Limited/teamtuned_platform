@@ -611,3 +611,27 @@ export interface Payable {
   contractors: PayableContractor[];
   sites: PayableSite[];
 }
+
+/** Why a machine refused a punch (labour_device_events type punch_rejected). */
+export type RejectReason = 'other_site' | 'labour_inactive' | 'contractor_inactive' | 'not_recognized';
+/** A refused machine punch: who, where, why, with the photo (org admins). siteGuessed: backfilled, site read from the face server. */
+export interface RejectedPunch {
+  id: number;
+  at: string;
+  reason: RejectReason | null;
+  message: string;
+  siteGuessed: boolean;
+  source: string;
+  site: { id: number | null; name: string | null };
+  deviceName: string | null;
+  labourer: {
+    id: number; code: string; name: string; phone: string | null; status: string;
+    registeredSite: string | null; contractorName: string | null; contractorStatus: string | null;
+  } | null;
+  imageUrl: string | null;
+}
+export interface RejectedPunchPage extends Paged<RejectedPunch> {
+  from: string;
+  to: string;
+  summary: Record<RejectReason, { tries: number; people: number }>;
+}
