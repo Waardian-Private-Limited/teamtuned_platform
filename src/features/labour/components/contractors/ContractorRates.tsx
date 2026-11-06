@@ -20,7 +20,7 @@ export function ContractorRates({ contractorId, siteIds, trades, canManage }: { 
   const [rates, setRates] = useState<ContractorRate[] | null>(null);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(false);
-  const { sites } = useLabourSites();
+  const { sites, all: allSites } = useLabourSites();
   const { categories } = useCatalog(true);
 
   const load = useCallback(() => {
@@ -64,7 +64,7 @@ export function ContractorRates({ contractorId, siteIds, trades, canManage }: { 
           </table>
         </div>
       )}
-      {editing && <SetRatesDialog contractorId={contractorId} contractorSiteIds={siteIds} current={rates?.filter((r) => !r.effectiveTo) || []} sites={sites} categories={categories} trades={trades} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
+      {editing && <SetRatesDialog contractorId={contractorId} contractorSiteIds={siteIds} current={rates?.filter((r) => !r.effectiveTo) || []} sites={sites} allSites={allSites} categories={categories} trades={trades} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { Dialog } from '@/components/ui/Dialog';
 import { SelectField, TextField } from '@/components/ui/FormControls';
@@ -105,7 +105,8 @@ function linesOf(siteId: number | null, categories: Category[], trades: Contract
   });
 }
 
-export function SetRatesDialog({ contractorId, contractorSiteIds, current, sites, categories, trades, onClose, onSaved }: { contractorId: number; contractorSiteIds: number[]; current: ContractorRate[]; sites: Opt[]; categories: Category[]; trades: ContractorTrade[]; onClose: () => void; onSaved: () => void }) {
+/** `allSites`: the user reaches every site, so may set the all-sites rates; others set rates only for their own sites. */
+export function SetRatesDialog({ contractorId, contractorSiteIds, current, sites, allSites = true, categories, trades, onClose, onSaved }: { contractorId: number; contractorSiteIds: number[]; current: ContractorRate[]; sites: Opt[]; allSites?: boolean; categories: Category[]; trades: ContractorTrade[]; onClose: () => void; onSaved: () => void }) {
   // The sites the contractor is registered at (every site when none is linked), plus any site that already has a rate.
   const siteOptions = useMemo(() => {
     const wanted = new Set([...(contractorSiteIds.length ? contractorSiteIds : sites.map((s) => s.value)), ...current.map((r) => r.siteId).filter((v): v is number => v !== null)]);
@@ -113,6 +114,8 @@ export function SetRatesDialog({ contractorId, contractorSiteIds, current, sites
   }, [contractorSiteIds, sites, current]);
   const [effectiveFrom, setEffectiveFrom] = useState(today());
   const [siteId, setSiteId] = useState<number | null>(null);
+  // Someone limited to some sites starts on their first one: the all-sites rates are a labour admin's.
+  useEffect(() => { if (!allSites && siteId === null && siteOptions[0]) setSiteId(siteOptions[0].value); }, [allSites, siteId, siteOptions]);
   // Every line touched on any site is kept, so switching site and coming back loses nothing.
   const [lines, setLines] = useState<Record<string, Line>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -173,7 +176,7 @@ export function SetRatesDialog({ contractorId, contractorSiteIds, current, sites
       <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <TextField label="Effective from" type="date" required value={effectiveFrom} error={errors.effectiveFrom} onChange={setEffectiveFrom} hint="Current rates close the day before. Unchanged rates are left alone." />
-          <SelectField label="Rates for" numeric value={siteId} options={siteOptions} placeholder="All sites" onChange={(v) => setSiteId(v)}
+          <SelectField label="Rates for" numeric value={siteId} options={siteOptions} placeholder={allSites ? 'All sites' : 'Choose site…'} onChange={(v) => { if (v !== null || allSites) setSiteId(v); }}
             hint={siteId === null ? 'Used at every site that has no rate of its own.' : 'Used at this site before the all-sites rates.'} />
         </div>
         <p className="text-xs text-fg-muted">Leave a trade empty to use the standard rate. A subcategory rate comes before its category and the standard rate. The first rate of a trade also pays every earlier day (from the start); a later change starts on the effective date.</p>

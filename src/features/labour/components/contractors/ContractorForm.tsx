@@ -54,7 +54,7 @@ function body(s: FormState, siteIds: number[], trades: ContractorTrade[]) {
 }
 
 export function ContractorForm({ contractor, onSaved }: { contractor: Contractor | null; onSaved: (id: number) => void }) {
-  const { sites } = useLabourSites();
+  const { sites, all: allSites, loaded: sitesLoaded } = useLabourSites();
   const [s, setS] = useState<FormState>(() => initial(contractor));
   const [siteIds, setSiteIds] = useState<number[]>(contractor?.siteIds || []);
   const { categories } = useCatalog(true);
@@ -123,8 +123,18 @@ export function ContractorForm({ contractor, onSaved }: { contractor: Contractor
           {f('bank.ifsc', 'IFSC', { maxLength: 11 })}{f('bank.bankName', 'Bank name')}
         </div>
       </Section>
-      <Section title="Sites" description="Sites this contractor works at.">
-        <SiteMultiSelect options={sites} value={siteIds} onChange={setSiteIds} error={errors.siteIds} />
+      <Section title="Sites" description="Sites this contractor works at. Each site has its own rates.">
+        {(() => {
+          // Someone who manages only some sites sees and changes only those; the contractor's other sites stay as they are.
+          const mine = new Set(sites.map((x) => x.value));
+          const others = allSites || !sitesLoaded ? [] : siteIds.filter((id) => !mine.has(id));
+          return (
+            <>
+              <SiteMultiSelect options={sites} value={siteIds.filter((id) => allSites || mine.has(id))} onChange={(v) => setSiteIds([...others, ...v])} error={errors.siteIds} />
+              {others.length > 0 && <p className="mt-2 text-xs text-fg-muted">Also works at {others.length} other site{others.length === 1 ? '' : 's'} you do not manage. Those stay as they are.</p>}
+            </>
+          );
+        })()}
       </Section>
       <Section title="Trades" description="Categories and subcategories this contractor supplies labour for. Set rates and new labour use only these.">
         <TradePicker categories={categories} value={trades} onChange={setTrades} error={errors.trades} />
