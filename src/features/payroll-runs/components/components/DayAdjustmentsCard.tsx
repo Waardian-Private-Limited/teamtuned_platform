@@ -143,7 +143,7 @@ function AddDialog({ mode, employeeId, periods, defaultPeriod, onClose, onDone }
             hint="Shown on the payslip as its own line. Added amounts are taxable. A finalized or paid period is settled in the next payroll." />
         ) : (
           <TextField label="Days" type="number" min={0.5} step={0.5} value={days} onChange={setDays} error={errors.days}
-            hint={after !== null && period?.period_days ? `Payable days ${period.payable_days} → ${after} of ${period.period_days}` : 'Whole or half days'} />
+            hint={after !== null && period ? `Payable days ${period.payable_days} → ${after}${period.payable_cap === null ? ' (no cap in policy)' : ` of ${period.payable_cap ?? period.period_days}`}` : 'Whole or half days'} />
         )}
         <TextField label="Reason" value={reason} onChange={setReason} error={errors.reason} placeholder="e.g. Leave approved after payroll, wrong absent on 12 Oct" />
         {errors.form && <p className="text-xs text-[var(--tt-danger)]">{errors.form}</p>}

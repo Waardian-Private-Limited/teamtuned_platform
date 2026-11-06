@@ -147,6 +147,8 @@ export interface DayAdjustmentDto {
 export interface AdjustablePeriodDto {
   period_start: string; period_end: string; month_key: string; status: 'draft' | 'finalized' | 'paid'; pending_action: string | null; computing: boolean;
   payable_days: number | null; period_days: number | null; attendance_payable_days: number | null;
+  /** The policy's payable-day cap for the period; null = no cap (days may go past the period). */
+  payable_cap?: number | null;
 }
 export interface DayAdjustmentListDto { employee: { id: number; code: string | null; name: string }; periods: AdjustablePeriodDto[]; adjustments: DayAdjustmentDto[] }
 export interface DayAdjustmentResultDto { adjustment: DayAdjustmentDto; effect: 'recalculated' | 'arrears' | 'next_payroll'; month_key: string | null; message: string }

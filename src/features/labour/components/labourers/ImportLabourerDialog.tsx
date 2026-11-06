@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { Dialog } from '@/components/ui/Dialog';
 import { SelectField, TextField } from '@/components/ui/FormControls';
@@ -11,7 +11,6 @@ import * as api from '../../api/labour.api';
 import { useCatalog, useLabourSites } from '../../hooks/useLabourLists';
 import type { ContractorTrade, ImportCandidate, ImportManyResult, LookupPerson } from '../../types/labour.types';
 import { placeError } from '../../utils/errors';
-import { categoryOptionsFor, subcategoryOptionsFor } from '../../utils/trades';
 import { FaceAvatar } from '../shared/FaceAvatar';
 import { FormError, Pill, primaryBtn, secondaryBtn } from '../shared/Primitives';
 
@@ -62,10 +61,10 @@ export function ImportLabourerDialog({ contractor, preset, onClose, onImported }
   const { sites } = useLabourSites();
   const { categoryOptions, subcategoryOptions } = useCatalog();
 
-  const filterContractor = useMemo(() => ({ value: contractor.id, label: contractor.name, siteIds: contractor.siteIds, trades: contractor.trades }), [contractor]);
   const siteOptions = sites.filter((s) => !contractor.siteIds.length || contractor.siteIds.includes(s.value));
-  const cats = categoryOptionsFor(categoryOptions, filterContractor);
-  const subs = subcategoryOptionsFor(subcategoryOptions(categoryId), filterContractor, categoryId);
+  // Every category: one the contractor does not list yet is added to its trades on import.
+  const cats = categoryOptions;
+  const subs = subcategoryOptions(categoryId);
   const list = [...picked.values()];
   const alreadyThere = siteId === null ? [] : list.filter((p) => p.siteIds.includes(siteId));
 
@@ -177,7 +176,7 @@ export function ImportLabourerDialog({ contractor, preset, onClose, onImported }
         <div className="grid gap-3 sm:grid-cols-2">
           <SelectField label="Import to site" required numeric value={siteId} options={siteOptions} error={errors.siteId} placeholder="Choose site…" onChange={(v) => { setSiteId(v); setErrors((e) => ({ ...e, siteId: '' })); }} hint={siteOptions.length === 0 ? 'No site of this contractor is available to you.' : undefined} />
           <SelectField<CategoryMode> label="Category" value={mode} options={[{ value: 'same', label: 'Same for everyone' }, { value: 'keep', label: 'Keep each one\'s own' }]} onChange={(v) => setMode(v || 'same')}
-            hint={mode === 'keep' ? 'Each keeps the category they have now; refused for anyone whose trade this contractor does not supply.' : undefined} />
+            hint={mode === 'keep' ? 'Each keeps the category they have now; it is added to this contractor\'s trades if missing.' : undefined} />
           {mode === 'same' && <SelectField label="Category for all" required numeric value={categoryId} options={cats} error={errors.categoryId} placeholder="Choose category…" onChange={(v) => { setCategoryId(v); setSubcategoryId(null); setErrors((e) => ({ ...e, categoryId: '' })); }} />}
           {mode === 'same' && categoryId !== null && subs.length > 0 && <SelectField label="Subcategory" required numeric value={subcategoryId} options={subs} error={errors.subcategoryId} placeholder="Choose subcategory…" onChange={(v) => { setSubcategoryId(v); setErrors((e) => ({ ...e, subcategoryId: '' })); }} />}
         </div>

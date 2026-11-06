@@ -18,8 +18,6 @@ import { useCompliancePack } from '../../hooks/useCompliancePack';
 import type { LabourerDetail } from '../../types/labour.types';
 import { PaySuggestion } from './wizard/PaySuggestion';
 import { ImportLabourerDialog } from './ImportLabourerDialog';
-import { supplies, suppliedCategories } from '../../utils/trades';
-import type { Category } from '../../types/labour.types';
 
 /** The contractors working at the chosen site (linked to it, or to no site = every site). `keep` stays listed (an edit's saved contractor). */
 function contractorsAt(contractors: ContractorOpt[], siteId: number | null, keep: number | null | undefined): ContractorOpt[] {
@@ -27,19 +25,6 @@ function contractorsAt(contractors: ContractorOpt[], siteId: number | null, keep
   return contractors.filter((c) => !c.siteIds?.length || c.siteIds.includes(siteId) || c.value === keep);
 }
 
-/** The categories the chosen contractor supplies; an edit's saved category / subcategory stays listed. */
-function categoriesOf(contractors: ContractorOpt[], contractorId: number | null, categories: Category[], keep: { categoryId: number | null; subcategoryId: number | null } | null): Category[] {
-  const trades = contractors.find((c) => c.value === contractorId)?.trades;
-  if (!trades?.length) return categories;
-  const out = suppliedCategories(categories, trades);
-  if (!keep?.categoryId) return out;
-  const own = categories.find((c) => c.id === keep.categoryId);
-  if (!own) return out;
-  const listed = out.find((c) => c.id === own.id);
-  const sub = own.subcategories.find((s) => s.id === keep.subcategoryId);
-  if (!listed) return [...out, { ...own, subcategories: sub ? [sub] : [] }];
-  return sub && !listed.subcategories.some((s) => s.id === sub.id) ? out.map((c) => (c.id === own.id ? { ...c, subcategories: [...c.subcategories, sub] } : c)) : out;
-}
 
 const LABEL: Record<StepId, string> = { basic: 'Basic', address: 'Address', identity: 'Identity', face: 'Face', documents: 'Documents', compliance: 'Compliance details', review: 'Review' };
 
@@ -104,14 +89,6 @@ function Body({ onClose, onSaved, editId = null, onOpenExisting, startAt }: Omit
       const here = contractorsAt(contractors, next.siteId, null);
       if (next.contractorId !== null && !here.some((c) => c.value === next.contractorId)) next.contractorId = null;
       if (next.contractorId === null && here.length === 1) next.contractorId = here[0].value;
-    }
-    // A contractor supplies only its own trades: a trade it does not supply is dropped.
-    if (next.contractorId !== f.contractorId) {
-      const trades = contractors.find((c) => c.value === next.contractorId)?.trades;
-      if (next.categoryId !== null && !supplies(trades, next.categoryId, next.subcategoryId)) {
-        if (supplies(trades, next.categoryId, null) || trades?.some((t) => t.categoryId === next.categoryId)) next.subcategoryId = null;
-        else { next.categoryId = null; next.subcategoryId = null; }
-      }
     }
     return next;
   });
@@ -186,8 +163,8 @@ function Body({ onClose, onSaved, editId = null, onOpenExisting, startAt }: Omit
 
   const errors = submit.errors;
   const contractorOptions = contractorsAt(contractors, form.siteId, detail?.contractorId);
-  const sameContractor = !!detail && form.contractorId === detail.contractorId;
-  const tradeOptions = categoriesOf(contractors, form.contractorId, categories, sameContractor ? { categoryId: detail.categoryId, subcategoryId: detail.subcategoryId } : null);
+  // Every category: one the contractor does not list yet is added to its trades when the labourer is saved.
+  const tradeOptions = categories;
   const moving = editing && isMove(form, detail);
   const common = { form, set, errors, clear: submit.clear };
   const cat = categories.find((c) => c.id === form.categoryId);
