@@ -5,7 +5,7 @@ import type {
   Officer,
   CompliancePack, CompliancePreset, FormCatalogue, FormTemplate, PackDetail, TemplateSummary,
   Adjustment, AttendanceDay, BillingUsage, Category, Contractor, ContractorRate, Dashboard, Device, DeviceDetail, DeviceEvent,
-  ImportBody, ImportManyBody, ImportManyResult, Invoice, LabourSettings, Labourer, LabourerBody, LabourerDetail, LookupPerson, MergePreview, Paged, PlanVersion, Punch, RegAction,
+  ImportBody, ImportCandidate, ImportManyBody, ImportManyResult, Invoice, LabourSettings, Labourer, LabourerBody, LabourerDetail, LookupPerson, MergePreview, Paged, PlanVersion, Punch, RegAction,
   RegularizationLog, SettingsResponse,
   BulkApproveResult, Measurement, MeasurementBody, MeasurementDetail, MeasurementPage, Payable, PaySuggestion, PersonalRateBody,
   PersonalRatesResponse, WorkItem, WorkItemBody, WorkItemDetail, WorkItemOverride, WorkItemRate,
@@ -89,6 +89,9 @@ export const importLabourer = (id: number, b: ImportBody) => post<{ id: number; 
 /** Several labourers into one contractor at one site, at most IMPORT_MANY_MAX per call; one result per person. */
 export const importLabourers = (b: ImportManyBody) => post<ImportManyResult>('/labourers/import-many', b);
 export const IMPORT_MANY_MAX = 50;
+/** Import picker, whole organization (not the user's site scope): sites to import from, and one site's importable labour. */
+export const importSourceSites = () => get<{ sites: Array<{ id: number; name: string; code: string | null }> }>('/labourers/import-sites');
+export const importCandidates = (q: { siteId: number; search?: string; page?: number; pageSize?: number }) => get<Paged<ImportCandidate>>('/labourers/import-candidates', q);
 export function enrolFace(id: number, shots: Array<{ pose: string; file: File }>) {
   const fd = new FormData();
   shots.forEach((s) => fd.append('images', s.file));

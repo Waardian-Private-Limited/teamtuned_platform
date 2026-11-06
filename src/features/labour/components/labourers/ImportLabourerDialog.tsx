@@ -9,7 +9,7 @@ import { showSuccess } from '@/lib/toast';
 import { cx } from '@/theme/tokens';
 import * as api from '../../api/labour.api';
 import { useCatalog, useLabourSites } from '../../hooks/useLabourLists';
-import type { ContractorTrade, ImportManyResult, Labourer, LookupPerson } from '../../types/labour.types';
+import type { ContractorTrade, ImportCandidate, ImportManyResult, LookupPerson } from '../../types/labour.types';
 import { placeError } from '../../utils/errors';
 import { categoryOptionsFor, subcategoryOptionsFor } from '../../utils/trades';
 import { FaceAvatar } from '../shared/FaceAvatar';
@@ -39,7 +39,7 @@ const checkbox = 'h-4 w-4 shrink-0 cursor-pointer rounded border-line-strong acc
 const fromLookup = (p: LookupPerson): Picked | null => (p.importFrom
   ? { id: p.importFrom, name: p.name, code: p.code, photoUrl: p.photoUrl, siteIds: p.sites.map((s) => s.siteId), siteNames: p.sites.map((s) => s.siteName || '') }
   : null);
-const fromRow = (l: Labourer): Picked => ({
+const fromRow = (l: ImportCandidate): Picked => ({
   id: l.id, name: `${l.firstName} ${l.lastName || ''}`.trim(), code: l.code, photoUrl: l.photoUrl ?? null,
   siteIds: l.siteId ? [l.siteId] : [], siteNames: [l.siteName || ''],
 });
@@ -154,7 +154,7 @@ export function ImportLabourerDialog({ contractor, preset, onClose, onImported }
         <SegmentedControl<Find> options={[{ value: 'search', label: 'Search' }, { value: 'site', label: 'From a site' }]} value={find} onChange={setFind} fitText />
         {find === 'search'
           ? <SearchPicker preset={preset} picked={picked} onToggle={toggle} />
-          : <SitePicker sites={sites} picked={picked} onToggle={toggle} onPickAll={pickAll} />}
+          : <SitePicker picked={picked} onToggle={toggle} onPickAll={pickAll} />}
 
         {n > 0 && (
           <div className="rounded-xl border border-line p-3">
@@ -245,14 +245,23 @@ function SearchPicker({ preset, picked, onToggle }: { preset: Props['preset']; p
   );
 }
 
-/** A site's active labourers with a registered face (a crew), filtered by name or code; tick some or all. */
-function SitePicker({ sites, picked, onToggle, onPickAll }: {
-  sites: Array<{ value: number; label: string }>; picked: Map<number, Picked>; onToggle: (p: Picked, on: boolean) => void; onPickAll: (ps: Picked[], on: boolean) => void;
+/**
+ * Any site's active labourers with a registered face (a crew), filtered by name or code; tick some or all. Every site of
+ * the organization is offered, not only the user's: people are imported from anywhere, only the target site is theirs.
+ */
+function SitePicker({ picked, onToggle, onPickAll }: {
+  picked: Map<number, Picked>; onToggle: (p: Picked, on: boolean) => void; onPickAll: (ps: Picked[], on: boolean) => void;
 }) {
+  const [sites, setSites] = useState<Array<{ value: number; label: string }>>([]);
+  useEffect(() => {
+    let off = false;
+    api.importSourceSites().then((r) => { if (!off) setSites(r.sites.map((x) => ({ value: x.id, label: x.name }))); }).catch(() => null);
+    return () => { off = true; };
+  }, []);
   const [fromSite, setFromSite] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [rows, setRows] = useState<Labourer[]>([]);
+  const [rows, setRows] = useState<ImportCandidate[]>([]);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -263,7 +272,7 @@ function SitePicker({ sites, picked, onToggle, onPickAll }: {
     let off = false;
     const t = setTimeout(() => {
       setLoading(true);
-      api.listLabourers({ siteId: fromSite, status: 'active', faceStatus: 'enrolled', search: search.trim() || undefined, page, pageSize: LIST_SIZE })
+      api.importCandidates({ siteId: fromSite, search: search.trim() || undefined, page, pageSize: LIST_SIZE })
         .then((r) => { if (!off) { setRows(r.items); setPages(r.pages); setTotal(r.total); } })
         .catch(() => { if (!off) setRows([]); })
         .finally(() => { if (!off) setLoading(false); });

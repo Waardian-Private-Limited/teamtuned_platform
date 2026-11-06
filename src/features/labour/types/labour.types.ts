@@ -169,6 +169,11 @@ export interface LookupPerson {
 export interface ImportBody { contractorId: number; siteId: number; categoryId: number | null; subcategoryId: number | null }
 /** keepCategory: each person keeps the category of the record imported from (no shared category). */
 export interface ImportManyBody extends ImportBody { ids: number[]; keepCategory?: boolean }
+/** A labourer of any site who can be imported (active, face registered): the import picker's site list. */
+export interface ImportCandidate {
+  id: number; code: string; firstName: string; lastName: string | null; siteId: number | null; siteName: string | null;
+  contractorName: string | null; categoryName: string | null; subcategoryName: string | null; linkedFromId: number | null; photoUrl: string | null;
+}
 export interface ImportManyResult {
   imported: number;
   failed: number;
