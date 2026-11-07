@@ -18,6 +18,9 @@ export interface LeaveRequest {
   reason: string | null;
   rejection_reason: string | null;
   cancel_reason: string | null;
+  /** HR changed this request: the request it replaced, or the one that replaced it. */
+  replaces_id?: number | null;
+  replaced_by_id?: number | null;
   created_at: string;
 }
 

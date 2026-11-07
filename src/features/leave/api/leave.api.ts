@@ -12,6 +12,8 @@ export const applyFor = (b: ApplyInput) => apiClient.post<{ application: LeaveRe
 export const approve = (id: number, remarks?: string) => apiClient.post<LeaveRequestDetail>(`/leave/requests/${id}/approve`, { remarks }, auth);
 export const reject = (id: number, reason: string) => apiClient.post<LeaveRequestDetail>(`/leave/requests/${id}/reject`, { reason }, auth);
 export const cancel = (id: number, reason?: string, fromDate?: string) => apiClient.post<LeaveRequestDetail>(`/leave/requests/${id}/cancel`, { reason, from_date: fromDate }, auth);
+export const previewEdit = (id: number, b: ApplyInput) => apiClient.post<Quote>(`/leave/requests/${id}/edit/preview`, b, auth);
+export const editRequest = (id: number, b: ApplyInput & { reason: string }) => apiClient.post<LeaveRequestDetail>(`/leave/requests/${id}/edit`, b, auth);
 export const balanceGrid = (p: P) => apiClient.get<BalanceGrid>('/leave/balances', p, auth);
 export const employeeBalances = (id: number) => apiClient.get<BalanceCard>(`/leave/employees/${id}/balances`, undefined, auth);
 export const employeeLedger = (id: number, p: P) => apiClient.get<{ entries: LedgerEntry[]; total: number; pages: number }>(`/leave/employees/${id}/ledger`, p, auth);

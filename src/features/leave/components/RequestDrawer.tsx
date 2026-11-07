@@ -7,6 +7,7 @@ import { Alert } from '@/components/ui/Alert';
 import { messageOf } from '@/lib/api/errors';
 import { showError, showSuccess } from '@/lib/toast';
 import * as api from '../api/leave.api';
+import { ApplyLeaveDialog } from './ApplyLeaveDialog';
 import type { LeaveRequestDetail } from '../types/leave';
 import { SESSION_LABEL, STATUS_TONE, days, fmtDate, range } from '../utils/format';
 
@@ -18,8 +19,14 @@ interface Props {
   onChanged: () => void;
 }
 
-/** HR's view of a leave request: approve, reject or cancel any request in scope. Employees use My Leave. */
-export function RequestDrawer({ id, canApprove, canEdit, onClose, onChanged }: Props) {
+/**
+ * HR's view of a leave request: approve, reject, cancel or change any request in scope. A change replaces the request
+ * with a new one; the drawer then shows the new one, and each links to the other. Employees use My Leave.
+ */
+export function RequestDrawer({ id: openedId, canApprove, canEdit, onClose, onChanged }: Props) {
+  const [id, setId] = React.useState<number | null>(openedId);
+  React.useEffect(() => { setId(openedId); }, [openedId]);
+  const [changing, setChanging] = React.useState(false);
   const [d, setD] = React.useState<LeaveRequestDetail | null>(null);
   const [error, setError] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -49,10 +56,11 @@ export function RequestDrawer({ id, canApprove, canEdit, onClose, onChanged }: P
 
   const mayDecide = d?.status === 'Pending' && Boolean(d.approval_can_decide || canApprove);
   const canCancel = d && (d.status === 'Pending' || (d.status === 'Approved' && canEdit));
+  const canChange = Boolean(d && canEdit && (d.status === 'Pending' || d.status === 'Approved'));
   const btn = 'h-9 rounded-lg px-4 text-sm font-semibold disabled:opacity-60';
 
   return (
-    <Drawer open={id !== null} onClose={onClose} title="Leave request">
+    <Drawer open={openedId !== null} onClose={onClose} title="Leave request">
       <div className="space-y-5 p-4 sm:p-6">
         {error && <Alert message={error} tone="error" />}
         {!d && !error && <div className="h-40 animate-pulse rounded-lg bg-bg-subtle" />}
@@ -73,7 +81,13 @@ export function RequestDrawer({ id, canApprove, canEdit, onClose, onChanged }: P
                 {(d.start_session !== 'full' || d.end_session !== 'full') && <dd className="text-xs text-fg-muted">{SESSION_LABEL[d.start_session]}{d.start_date !== d.end_date && ` → ${SESSION_LABEL[d.end_session]}`}</dd>}</div>
               {d.reason && <div className="col-span-2"><dt className="text-xs text-fg-muted">Reason</dt><dd className="text-fg">{d.reason}</dd></div>}
               {d.rejection_reason && <div className="col-span-2"><dt className="text-xs text-fg-muted">Rejected because</dt><dd className="text-fg">{d.rejection_reason}</dd></div>}
-              {d.cancel_reason && <div className="col-span-2"><dt className="text-xs text-fg-muted">Cancelled because</dt><dd className="text-fg">{d.cancel_reason}</dd></div>}
+              {d.cancel_reason && <div className="col-span-2"><dt className="text-xs text-fg-muted">{d.replaced_by_id ? 'Changed because' : 'Cancelled because'}</dt><dd className="text-fg">{d.cancel_reason.replace(/^Changed: /, '')}</dd></div>}
+              {(d.replaced_by_id || d.replaces_id) && (
+                <div className="col-span-2 text-xs">
+                  {d.replaced_by_id && <button type="button" onClick={() => setId(d.replaced_by_id!)} className="font-semibold text-fg underline underline-offset-2">Replaced by request #{d.replaced_by_id}</button>}
+                  {d.replaces_id && <button type="button" onClick={() => setId(d.replaces_id!)} className="font-semibold text-fg underline underline-offset-2">Changed from request #{d.replaces_id}</button>}
+                </div>
+              )}
             </dl>
 
             {d.balance_impact.length > 0 && (
@@ -120,7 +134,7 @@ export function RequestDrawer({ id, canApprove, canEdit, onClose, onChanged }: P
               </div>
             )}
 
-            {(canCancel || mayDecide) && (
+            {(canCancel || mayDecide || canChange) && (
               <div className="space-y-3 border-t border-line pt-4">
                 <div>
                   <input
@@ -137,6 +151,7 @@ export function RequestDrawer({ id, canApprove, canEdit, onClose, onChanged }: P
                       <button type="button" disabled={busy} onClick={() => act('reject')} className={`${btn} border border-[var(--tt-danger)] text-[var(--tt-danger)]`}>Reject</button>
                     </>
                   )}
+                  {canChange && <button type="button" disabled={busy} onClick={() => setChanging(true)} className={`${btn} border border-line text-fg hover:bg-bg-subtle`}>Change type or dates</button>}
                   {canCancel && <button type="button" disabled={busy} onClick={() => act('cancel')} className={`${btn} border border-line text-fg hover:bg-bg-subtle`}>{d.status === 'Pending' ? 'Withdraw request' : 'Cancel leave'}</button>}
                 </div>
               </div>
@@ -144,6 +159,12 @@ export function RequestDrawer({ id, canApprove, canEdit, onClose, onChanged }: P
           </>
         )}
       </div>
+      {d && changing && (
+        <ApplyLeaveDialog
+          open onClose={() => setChanging(false)} employee={{ id: d.employee.id, name: d.employee.name }} editing={d}
+          onApplied={(next) => { setChanging(false); onChanged(); if (next) setId(next.id); }}
+        />
+      )}
     </Drawer>
   );
 }

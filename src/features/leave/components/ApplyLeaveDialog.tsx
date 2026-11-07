@@ -7,21 +7,24 @@ import { cx } from '@/theme/tokens';
 import { messageOf } from '@/lib/api/errors';
 import { showError, showSuccess } from '@/lib/toast';
 import * as api from '../api/leave.api';
-import type { ApplyInput, Balance, Quote, Session } from '../types/leave';
+import type { ApplyInput, Balance, LeaveRequest, Quote, Session } from '../types/leave';
 import { SESSION_LABEL, days, fmtDate, todayIso } from '../utils/format';
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  onApplied: () => void;
+  /** Called after saving; on a change, with the request that replaced the original. */
+  onApplied: (replacement?: LeaveRequest) => void;
   /** The employee HR is adding leave for. Employees apply from My Leave. */
   employee: { id: number; name: string };
+  /** HR changes this pending or approved request instead of adding a new one. */
+  editing?: LeaveRequest | null;
 }
 
 const SESSIONS: Session[] = ['full', 'first_half', 'second_half'];
 const KIND_LABEL: Record<string, string> = { working: 'Working day', week_off: 'Week off', holiday: 'Holiday', half_holiday: 'Half holiday' };
 
-export function ApplyLeaveDialog({ open, onClose, onApplied, employee }: Props) {
+export function ApplyLeaveDialog({ open, onClose, onApplied, employee, editing = null }: Props) {
   const [types, setTypes] = React.useState<Balance[]>([]);
   const [typeId, setTypeId] = React.useState<number | null>(null);
   const [start, setStart] = React.useState(todayIso());
@@ -39,11 +42,13 @@ export function ApplyLeaveDialog({ open, onClose, onApplied, employee }: Props) 
   React.useEffect(() => {
     if (!open) return;
     const t = todayIso();
-    setStart(t); setEnd(t); setStartSession('full'); setEndSession('full'); setByHour(false); setHours(''); setReason(''); setQuote(null); setError('');
+    setStart(editing?.start_date ?? t); setEnd(editing?.end_date ?? t);
+    setStartSession(editing?.start_session ?? 'full'); setEndSession(editing?.end_session ?? 'full');
+    setByHour(editing?.unit === 'hour'); setHours(editing?.hours ? String(editing.hours) : ''); setReason(''); setQuote(null); setError('');
     api.employeeBalances(employee.id)
-      .then((c) => { setTypes(c.balances); setTypeId(c.balances[0]?.leave_type_id ?? null); })
+      .then((c) => { setTypes(c.balances); setTypeId(editing?.leave_type.id ?? c.balances[0]?.leave_type_id ?? null); })
       .catch((e) => setError(messageOf(e)));
-  }, [open, employee]);
+  }, [open, employee, editing]);
 
   const input = React.useMemo<ApplyInput | null>(() => {
     if (!typeId || !start || !end) return null;
@@ -59,22 +64,24 @@ export function ApplyLeaveDialog({ open, onClose, onApplied, employee }: Props) 
     if (!open || !input) { setQuote(null); return; }
     setChecking(true);
     const t = setTimeout(() => {
-      api.previewFor(input)
+      (editing ? api.previewEdit(editing.id, input) : api.previewFor(input))
         .then(setQuote).catch((e) => setError(messageOf(e))).finally(() => setChecking(false));
     }, 350);
     return () => clearTimeout(t);
-  }, [open, input, employee]);
+  }, [open, input, employee, editing]);
 
   const fieldError = (f: string) => quote?.violations.find((v) => v.field === f)?.message;
   const typeName = (id: number | null) => types.find((t) => t.leave_type_id === id)?.name ?? 'Leave';
 
   async function submit() {
     if (!input) return;
+    if (editing && reason.trim().length < 3) { setError('Say why the leave is changed'); return; }
     setSaving(true);
     try {
-      await api.applyFor({ ...input, reason });
-      showSuccess('Leave added');
-      onApplied();
+      const replacement = editing ? await api.editRequest(editing.id, { ...input, reason: reason.trim() }) : undefined;
+      if (!editing) await api.applyFor({ ...input, reason });
+      showSuccess(editing ? 'Leave changed' : 'Leave added');
+      onApplied(replacement);
       onClose();
     } catch (e) { showError(messageOf(e)); } finally { setSaving(false); }
   }
@@ -95,14 +102,14 @@ export function ApplyLeaveDialog({ open, onClose, onApplied, employee }: Props) 
       open={open}
       onClose={onClose}
       maxWidthClassName="max-w-2xl"
-      title={`Add leave for ${employee.name}`}
+      title={editing ? `Change leave for ${employee.name}` : `Add leave for ${employee.name}`}
       footer={
         <div className="flex items-center justify-between gap-2">
           <p className="text-xs text-fg-muted">{checking ? 'Checking rules…' : quote ? (quote.ok ? 'All rules are met' : `${quote.violations.length} thing${quote.violations.length === 1 ? '' : 's'} to fix`) : ''}</p>
           <div className="flex gap-2">
             <button type="button" onClick={onClose} className="h-9 rounded-lg border border-line px-4 text-sm font-semibold text-fg hover:bg-bg-subtle">Cancel</button>
-            <button type="button" disabled={saving || checking || !quote?.ok} onClick={submit} className="h-9 rounded-lg bg-[var(--tt-primary)] px-4 text-sm font-semibold text-[var(--tt-on-primary)] hover:bg-[var(--tt-primary-hover)] disabled:opacity-50">
-              {saving ? 'Sending…' : 'Add leave'}
+            <button type="button" disabled={saving || checking || !quote?.ok || (Boolean(editing) && reason.trim().length < 3)} onClick={submit} className="h-9 rounded-lg bg-[var(--tt-primary)] px-4 text-sm font-semibold text-[var(--tt-on-primary)] hover:bg-[var(--tt-primary-hover)] disabled:opacity-50">
+              {saving ? 'Saving…' : editing ? 'Save change' : 'Add leave'}
             </button>
           </div>
         </div>
@@ -132,7 +139,16 @@ export function ApplyLeaveDialog({ open, onClose, onApplied, employee }: Props) 
         )}
         <FieldMessage error={fieldError('startSession')} />
 
-        <TextField label="Reason" value={reason} onChange={setReason} maxLength={1000} placeholder="Optional" />
+        {editing && (
+          <p className="rounded-lg border border-line bg-bg-subtle px-3 py-2 text-xs text-fg-muted">
+            {editing.status === 'Approved'
+              ? 'The current leave is cancelled and its days go back to the balance; the new one is approved at once.'
+              : 'The current request is withdrawn and the new one goes for approval again.'} Both stay in the history.
+          </p>
+        )}
+        {editing
+          ? <TextField label="Why is it changed" required value={reason} onChange={(v) => { setReason(v); setError(''); }} maxLength={400} placeholder="e.g. Wrong dates entered, employee asked for sick leave instead" />
+          : <TextField label="Reason" value={reason} onChange={setReason} maxLength={1000} placeholder="Optional" />}
 
         {quote && (
           <div className="rounded-lg border border-line bg-bg-subtle/50 p-3.5">
