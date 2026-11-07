@@ -80,7 +80,9 @@ export function PolicyImpactDialog({ open, impact, isLoading, isPublishing, effe
       ) : impact ? (
         <div className="space-y-3">
           <p className="text-sm text-fg-muted">
-            <span className="font-semibold text-fg">{impact.affectedEmployeeCount}</span> employee{impact.affectedEmployeeCount === 1 ? '' : 's'} will have their entitlement recalculated when this goes live.
+            {impact.affectedEmployeeCount > 0 ? (
+              <><span className="font-semibold text-fg">{impact.affectedEmployeeCount}</span> employee{impact.affectedEmployeeCount === 1 ? '' : 's'} will have their leave entitlement recalculated when this goes live.</>
+            ) : 'No leave balance changes when this goes live.'}
           </p>
 
           {impact.warnings.length > 0 && (
