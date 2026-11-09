@@ -325,6 +325,23 @@ export async function submitHostedApplication(slug: string, jobSlug: string, for
   return data.status === 'already_applied' ? 'already_applied' : 'received';
 }
 
+export interface ResumePrefill {
+  /** filled: values read; no_text: a scan or old .doc with no readable text; unavailable: the reader is busy. */
+  status: 'filled' | 'no_text' | 'unavailable';
+  fields: Record<string, string>;
+  answers: Record<string, string>;
+}
+
+/** Reads the resume into this job's form. Nothing is saved; the same file is sent again with the application. */
+export async function prefillHostedResume(slug: string, jobSlug: string, file: File, signal?: AbortSignal): Promise<ResumePrefill> {
+  const body = new FormData();
+  body.append('resume', file, file.name);
+  const data = obj(await request<unknown>(`${hosted(slug)}/jobs/${enc(jobSlug)}/resume-prefill`, { method: 'POST', body, signal }));
+  const strings = (v: unknown) => Object.fromEntries(Object.entries(obj(v)).filter(([, x]) => typeof x === 'string' && x !== '')) as Record<string, string>;
+  const status = data.status === 'filled' || data.status === 'no_text' ? data.status : 'unavailable';
+  return { status, fields: strings(data.fields), answers: strings(data.answers) };
+}
+
 const testPath = (token: string) => `/public/recruitment/tests/${enc(token)}`;
 
 export async function fetchTest(token: string, signal?: AbortSignal): Promise<TestInfo> {

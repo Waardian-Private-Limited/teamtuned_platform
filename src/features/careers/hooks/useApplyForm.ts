@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useState } from 'react';
-import { PublicApiError, submitHostedApplication } from '../api/careers.api';
+import { useCallback, useRef, useState } from 'react';
+import { PublicApiError, prefillHostedResume, submitHostedApplication } from '../api/careers.api';
 import type { ApplicationFormConfig, ApplyResult, FormQuestion, StandardFieldKey } from '../types/careers.types';
 
 export const RESUME_MAX_BYTES = 5 * 1024 * 1024;
@@ -12,6 +12,9 @@ export const RESUME_ACCEPT =
 type TextKey = 'first_name' | 'last_name' | 'email' | Exclude<StandardFieldKey, 'resume'>;
 
 export const questionField = (key: string) => `q:${key}`;
+
+/** Reading the resume into the form: before, while, and how it went. */
+export type PrefillState = 'idle' | 'reading' | 'filled' | 'nothing' | 'failed';
 
 export interface ApplyValues {
   text: Record<TextKey, string>;
@@ -169,6 +172,11 @@ function buildFormData(v: ApplyValues, form: ApplicationFormConfig): FormData {
   return fd;
 }
 
+/** Entries the applicant changed while the resume was being read; they win over what was read. */
+function typedSince<T extends Record<string, string>>(now: T, before: T): T {
+  return Object.fromEntries(Object.entries(now).filter(([k, val]) => val !== before[k])) as T;
+}
+
 export function useApplyForm(slug: string, jobSlug: string, form: ApplicationFormConfig) {
   const [values, setValues] = useState<ApplyValues>({ text: { ...EMPTY_TEXT }, answers: {}, resume: null, consent: false, website: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -204,6 +212,52 @@ export function useApplyForm(slug: string, jobSlug: string, form: ApplicationFor
       return next;
     });
   }, []);
+
+  const valuesRef = useRef(values);
+  valuesRef.current = values;
+  const [prefill, setPrefill] = useState<PrefillState>('idle');
+  const [filled, setFilled] = useState<Set<string>>(new Set());
+  const prefillRun = useRef<AbortController | null>(null);
+
+  /**
+   * The first step: the resume is attached and Tuner reads it into the form. Only empty inputs are filled, so
+   * nothing the applicant typed is overwritten; filled ones are remembered (`filled`) so the form can show them.
+   */
+  const startWithResume = useCallback(async (file: File) => {
+    setResume(file);
+    if (resumeProblem(file)) return;
+    prefillRun.current?.abort();
+    const run = new AbortController();
+    prefillRun.current = run;
+    setPrefill('reading');
+    setFilled(new Set());
+    try {
+      const res = await prefillHostedResume(slug, jobSlug, file, run.signal);
+      if (run.signal.aborted) return;
+      // Built from the latest values (not inside a state updater), so the filled keys are known right here.
+      const v = valuesRef.current;
+      const keys = new Set<string>();
+      const nextText = { ...v.text };
+      for (const [k, val] of Object.entries(res.fields)) {
+        if (k in nextText && !nextText[k as TextKey].trim()) { nextText[k as TextKey] = val; keys.add(k); }
+      }
+      const nextAnswers = { ...v.answers };
+      for (const q of form.questions) {
+        const val = res.answers[q.key];
+        if (val && !(nextAnswers[q.key] ?? '').trim()) { nextAnswers[q.key] = val; keys.add(questionField(q.key)); }
+      }
+      setValues((cur) => ({ ...cur, text: { ...nextText, ...typedSince(cur.text, v.text) }, answers: { ...nextAnswers, ...typedSince(cur.answers, v.answers) } }));
+      setFilled(keys);
+      setErrors((e) => Object.fromEntries(Object.entries(e).filter(([k]) => !keys.has(k))));
+      setPrefill(res.status === 'filled' && keys.size ? 'filled' : res.status === 'unavailable' ? 'failed' : 'nothing');
+    } catch (err) {
+      if (run.signal.aborted) return;
+      if (err instanceof PublicApiError && err.field === 'resume') setErrors((e) => ({ ...e, resume: err.message }));
+      setPrefill('failed');
+    }
+  }, [form.questions, jobSlug, setResume, slug]);
+
+  const skipPrefill = useCallback(() => { prefillRun.current?.abort(); setPrefill('nothing'); }, []);
 
   const setConsent = useCallback((consent: boolean) => {
     setValues((v) => ({ ...v, consent }));
@@ -247,5 +301,8 @@ export function useApplyForm(slug: string, jobSlug: string, form: ApplicationFor
     }
   }, [values, form, slug, jobSlug]);
 
-  return { values, errors, formError, submitting, result, setText, setAnswer, setResume, setConsent, setWebsite, submit };
+  return {
+    values, errors, formError, submitting, result, setText, setAnswer, setResume, setConsent, setWebsite, submit,
+    prefill, filled, startWithResume, skipPrefill,
+  };
 }

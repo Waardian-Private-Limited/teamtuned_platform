@@ -45,7 +45,11 @@ export function careersSnippets(base: string, key: string): Snippet[] {
 # Apply: POST ${jobs}/<jobSlug>/applications  (multipart/form-data)
 #   every field by its key, answers = JSON {"<question key>": value}, resume = file,
 #   consent = true, website = "" (honeypot, must stay empty)
-#   201 {"status":"received"} | 200 {"status":"already_applied"} | 400 {"code","message","field"}`,
+#   201 {"status":"received"} | 200 {"status":"already_applied"} | 400 {"code","message","field"}
+#
+# Optional, fill the form from a resume: POST ${jobs}/<jobSlug>/resume-prefill  (multipart, resume = file)
+#   200 {"status":"filled"|"no_text"|"unavailable", "fields":{"<key>":"value"}, "answers":{"<key>":"value"}}
+#   Nothing is saved; send the same file again with the application.`,
     },
     {
       key: 'js',
@@ -90,8 +94,10 @@ function renderApplyForm(root, job) {
   }
 
   if (resume !== "off") {
-    form.append(row("resume", "Resume (PDF, DOC, DOCX, max 5 MB)", resume === "required",
-      el("input", { name: "resume", type: "file", accept: ".pdf,.doc,.docx", required: resume === "required" })));
+    const file = el("input", { name: "resume", type: "file", accept: ".pdf,.doc,.docx", required: resume === "required" });
+    form.append(row("resume", "Resume (PDF, DOC, DOCX, max 5 MB)", resume === "required", file));
+    // Optional: read the resume into the form (only empty inputs are filled; nothing is saved until they submit).
+    file.addEventListener("change", () => file.files[0] && prefillFromResume(form, job.slug, file.files[0]));
   }
 
   // Custom questions: q.type is text | long_text | number | yes_no | choice
@@ -143,6 +149,31 @@ function renderApplyForm(root, job) {
   });
 
   root.replaceChildren(form);
+}
+
+async function prefillFromResume(form, slug, file) {
+  const status = form.querySelector(".tt-status");
+  status.textContent = "Reading your resume…";
+  const data = new FormData();
+  data.append("resume", file);
+  try {
+    const res = await fetch(API + "/" + slug + "/resume-prefill", { method: "POST", headers, body: data });
+    const body = await res.json();
+    // { status: "filled" | "no_text" | "unavailable", fields: { key: value }, answers: { key: value } }
+    let filled = 0;
+    const fill = (name, value) => {
+      const input = form.querySelector('[name="' + name + '"]');
+      if (!input || input.value) return;
+      input.value = input.tagName === "SELECT" && name.startsWith("answers.") && (value === "yes" || value === "no")
+        ? (value === "yes" ? "Yes" : "No") : value;
+      filled += 1;
+    };
+    Object.entries(body.fields || {}).forEach(([k, v]) => fill(k, v));
+    Object.entries(body.answers || {}).forEach(([k, v]) => fill("answers." + k, v));
+    status.textContent = filled ? "Filled " + filled + " fields from your resume. Please check them." : "";
+  } catch (e) {
+    status.textContent = "";
+  }
 }`,
     },
   ];

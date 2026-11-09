@@ -206,3 +206,25 @@ body {
 .tt-strike {
   background-image: linear-gradient(to top right, transparent calc(50% - 1px), var(--tt-border-strong) 50%, transparent calc(50% + 1px));
 }
+/* Careers: Tuner reading a resume. A light sweep across the card, and filled fields settling in. */
+@keyframes tt-scan {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.tt-scan::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--tt-fg, #000) 7%, transparent), transparent);
+  animation: tt-scan 1.4s ease-in-out infinite;
+}
+@keyframes tt-filled {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--tt-fg, #000) 35%, transparent); }
+  100% { box-shadow: 0 0 0 10px transparent; }
+}
+.tt-filled input, .tt-filled textarea, .tt-filled select {
+  animation: tt-filled 900ms ease-out 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tt-scan::after, .tt-filled input, .tt-filled textarea, .tt-filled select { animation: none; }
+}
