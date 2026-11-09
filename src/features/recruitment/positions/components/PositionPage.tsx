@@ -1,15 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Link2, MoreHorizontal, UserPlus } from 'lucide-react';
+import { ArrowLeft, MoreHorizontal, QrCode, UserPlus, Users } from 'lucide-react';
 import { Alert } from '@/components/ui/Alert';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { formatDate } from '@/lib/datetime';
-import { showError, showSuccess } from '@/lib/toast';
 import { cx } from '@/theme/tokens';
-import * as api from '../../shared/api/recruitment.api';
 import { ActionMenu } from '../../shared/components/ActionMenu';
 import { PositionStatusPill, PublishedBadge } from '../../shared/components/PositionStatusPill';
 import { RejectDialog } from '../../shared/components/RejectDialog';
@@ -17,7 +15,12 @@ import { Tabs } from '../../shared/components/Tabs';
 import { useApplicationActions } from '../../shared/hooks/useApplicationActions';
 import { useRecruitmentAccess } from '../../shared/hooks/useRecruitmentAccess';
 import { useRecruitmentBase } from '../../shared/hooks/useRecruitmentBase';
-import type { ApplicationCard, PositionDetail } from '../../shared/types/recruitment.model';
+import { useRecruitmentOptions } from '../../shared/hooks/useRecruitmentOptions';
+import { CareersQrDialog } from '../../shared/components/CareersQrDialog';
+import { useFeatures } from '@/lib/hooks/useFeatures';
+import { PickFromPoolDialog } from '../../pool/components/PickFromPoolDialog';
+import { POOL_FEATURE } from '../../pool/constants/pool.constants';
+import type { ApplicationCard } from '../../shared/types/recruitment.model';
 import { openingsText, positionLocation } from '../../shared/utils/format';
 import { usePositionPage } from '../hooks/usePositionPage';
 import { availableStatusActions, STATUS_ACTION_LABELS, usePositionStatusActions, type PositionStatusAction } from '../hooks/usePositionStatusActions';
@@ -32,25 +35,6 @@ import { SendTestDialog } from '../../interviews/components/tests/SendTestDialog
 import { ScheduleInterviewDialog } from '../../interviews/components/ScheduleInterviewDialog';
 
 type Tab = 'pipeline' | 'details';
-
-/** Careers link for a published position: API-provided, else built from the hosted careers settings. */
-function useCareersLink(position: PositionDetail | null, canReadSettings: boolean) {
-  const [hosted, setHosted] = useState<string | null>(null);
-  useEffect(() => {
-    if (!position?.published || position.careersUrl || !canReadSettings) return;
-    let alive = true;
-    api.getSettings()
-      .then((s) => {
-        if (!alive || !s?.hostedEnabled) return;
-        const root = s.hostedUrl || (s.careersSlug ? `${window.location.origin}/careers/${s.careersSlug}` : null);
-        setHosted(root ? root.replace(/\/$/, '') : null);
-      })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [position?.published, position?.careersUrl, canReadSettings]);
-  if (!position?.published) return null;
-  return position.careersUrl || (hosted && position.slug ? `${hosted}/${position.slug}` : null);
-}
 
 export interface PositionPageProps {
   positionId: number;
@@ -80,7 +64,12 @@ export function PositionPage({ positionId }: PositionPageProps) {
     if (action === 'reject') page.removeCard(id);
     page.loadBoard();
   }, [page]));
-  const careersLink = useCareersLink(position, access.canSettings);
+  // The server sends the link only for a published job on an enabled careers page.
+  const careersLink = position?.published ? position.careersUrl : null;
+  const { options } = useRecruitmentOptions();
+  const [sharing, setSharing] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const hasPool = useFeatures().hasFeature(POOL_FEATURE);
 
   const canManage = access.canManage;
 
@@ -88,16 +77,6 @@ export function PositionPage({ positionId }: PositionPageProps) {
     if (!position) return;
     if (action === 'close') setClosing(true);
     else statusActions.run(position, action);
-  };
-
-  const copyLink = async () => {
-    if (!careersLink) return;
-    try {
-      await navigator.clipboard.writeText(careersLink);
-      showSuccess('Careers link copied');
-    } catch {
-      showError('Could not copy. ' + careersLink);
-    }
   };
 
   if (page.notFound) {
@@ -146,8 +125,8 @@ export function PositionPage({ positionId }: PositionPageProps) {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {careersLink && (
-                <button type="button" onClick={copyLink} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-fg hover:bg-bg-subtle sm:text-sm">
-                  <Link2 className="h-3.5 w-3.5" />Copy careers link
+                <button type="button" onClick={() => setSharing(true)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-fg hover:bg-bg-subtle sm:text-sm">
+                  <QrCode className="h-3.5 w-3.5" />Share job
                 </button>
               )}
               {canManage && statusMenu.filter((a) => a !== 'close').slice(0, 2).map((a) => (
@@ -188,9 +167,16 @@ export function PositionPage({ positionId }: PositionPageProps) {
             className="flex-1"
           />
           {tab === 'pipeline' && canManage && position && position.status !== 'closed' && (
-            <button type="button" onClick={() => setAddOpen(true)} className="mb-1.5 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--tt-primary)] px-3 text-xs font-semibold text-[var(--tt-on-primary)] hover:bg-[var(--tt-primary-hover)]">
-              <UserPlus className="h-3.5 w-3.5" />Add candidate
-            </button>
+            <div className="mb-1.5 flex shrink-0 gap-2">
+              {hasPool && position.status !== 'filled' && (
+                <button type="button" onClick={() => setPicking(true)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-fg hover:bg-bg-subtle">
+                  <Users className="h-3.5 w-3.5" /><span className="hidden sm:inline">From talent pool</span><span className="sm:hidden">Pool</span>
+                </button>
+              )}
+              <button type="button" onClick={() => setAddOpen(true)} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[var(--tt-primary)] px-3 text-xs font-semibold text-[var(--tt-on-primary)] hover:bg-[var(--tt-primary-hover)]">
+                <UserPlus className="h-3.5 w-3.5" />Add candidate
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -295,6 +281,27 @@ export function PositionPage({ positionId }: PositionPageProps) {
         onClose={() => setClosing(false)}
         onConfirm={async () => { if (position && (await statusActions.run(position, 'close'))) setClosing(false); }}
       />
+
+      {position && hasPool && (
+        <PickFromPoolDialog
+          open={picking}
+          positionId={position.id}
+          positionTitle={position.title}
+          onClose={() => setPicking(false)}
+          onAdded={() => page.loadBoard()}
+        />
+      )}
+
+      {position && careersLink && (
+        <CareersQrDialog
+          open={sharing}
+          onClose={() => setSharing(false)}
+          url={careersLink}
+          title={position.title}
+          subtitle={[position.department?.name, positionLocation(position)].filter(Boolean).join(' · ')}
+          companyName={options.careers.companyName}
+        />
+      )}
     </div>
   );
 }

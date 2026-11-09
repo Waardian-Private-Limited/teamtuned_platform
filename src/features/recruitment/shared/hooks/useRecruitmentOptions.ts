@@ -5,7 +5,7 @@ import * as api from '../api/recruitment.api';
 import { toOptions } from '../types/recruitment.mapper';
 import type { RecruitmentOptions } from '../types/recruitment.model';
 
-const EMPTY: RecruitmentOptions = { departments: [], roles: [], employmentTypes: [], sites: [], tests: [] };
+const EMPTY: RecruitmentOptions = { departments: [], roles: [], employmentTypes: [], sites: [], tests: [], careers: { url: null, companyName: '' } };
 
 // One fetch shared by every consumer on the page; refreshed on the next mount
 // after `invalidateRecruitmentOptions()` (e.g. after a test is created).

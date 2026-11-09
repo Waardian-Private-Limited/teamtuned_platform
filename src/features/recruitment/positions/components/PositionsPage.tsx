@@ -15,6 +15,7 @@ import { usePositionStatusActions, type PositionStatusAction } from '../hooks/us
 import { PositionsToolbar } from './PositionsToolbar';
 import { PositionCardList, PositionTable, PositionTableSkeleton } from './PositionTable';
 import { ClosePositionDialog } from './ClosePositionDialog';
+import { CareersQrDialog } from '../../shared/components/CareersQrDialog';
 
 function EmptyPositions({ filtered, forbidden, canAdd, onAdd, onClear }: {
   filtered: boolean; forbidden: boolean; canAdd: boolean; onAdd: () => void; onClear: () => void;
@@ -53,6 +54,8 @@ export function PositionsPage() {
   const { options } = useRecruitmentOptions();
   const status = usePositionStatusActions(list.refetch);
   const [closing, setClosing] = React.useState<Position | null>(null);
+  const [sharing, setSharing] = React.useState(false);
+  const careers = options.careers;
 
   const departments = options.departments.map((d) => ({ value: d.id as number, label: d.name }));
   const onAdd = () => router.push(`${base}/positions/new`);
@@ -77,6 +80,7 @@ export function PositionsPage() {
         onMineChange={list.setMine}
         canAdd={access.canManage}
         onAdd={onAdd}
+        onShareCareers={careers.url ? () => setSharing(true) : undefined}
       />
 
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-xs">
@@ -109,6 +113,17 @@ export function PositionsPage() {
           </>
         )}
       </div>
+
+      {careers.url && (
+        <CareersQrDialog
+          open={sharing}
+          onClose={() => setSharing(false)}
+          url={careers.url}
+          title={careers.companyName ? `Careers at ${careers.companyName}` : 'Open positions'}
+          subtitle="Every open role, one scan away"
+          companyName={careers.companyName}
+        />
+      )}
 
       <ClosePositionDialog
         open={Boolean(closing)}

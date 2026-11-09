@@ -52,8 +52,8 @@ export function AddCandidateDialog({ open, positionId, positionTitle, onClose, o
   const submit = async () => {
     const e: Partial<Record<Field, string>> = {};
     if (!v.firstName.trim()) e.first_name = 'Enter the first name';
-    if (!v.email.trim()) e.email = 'Enter an email';
-    else if (!EMAIL_RE.test(v.email.trim())) e.email = 'Enter a valid email';
+    if (!v.email.trim() && !v.phone.trim()) e.phone = 'Enter a phone number or an email';
+    else if (v.email.trim() && !EMAIL_RE.test(v.email.trim())) e.email = 'Enter a valid email';
     if (v.phone.trim() && !/^[+\d][\d\s-]{6,19}$/.test(v.phone.trim())) e.phone = 'Enter a valid phone number';
     if (v.totalExperience.trim() && (!Number.isFinite(Number(v.totalExperience)) || Number(v.totalExperience) < 0)) e.total_experience = 'Years, e.g. 3.5';
     setErrors(e);
@@ -90,11 +90,11 @@ export function AddCandidateDialog({ open, positionId, positionTitle, onClose, o
         </>
       }
     >
-      <p className="mb-4 text-xs text-fg-muted">Adds the person to <span className="font-semibold text-fg">{positionTitle}</span>. If the email already belongs to a candidate, the existing profile is reused.</p>
+      <p className="mb-4 text-xs text-fg-muted">Adds the person to <span className="font-semibold text-fg">{positionTitle}</span>. If the email (or, without one, the phone) already belongs to a candidate, the existing profile is reused. Without an email, no emails go to them.</p>
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField label="First name" required value={v.firstName} onChange={set('firstName', 'first_name')} error={errors.first_name} maxLength={80} autoComplete="off" />
         <TextField label="Last name" value={v.lastName} onChange={set('lastName', 'last_name')} error={errors.last_name} maxLength={80} autoComplete="off" />
-        <TextField label="Email" required type="email" value={v.email} onChange={set('email', 'email')} error={errors.email} maxLength={190} autoComplete="off" />
+        <TextField label="Email" type="email" value={v.email} onChange={set('email', 'email')} error={errors.email} maxLength={190} autoComplete="off" />
         <TextField label="Phone" type="tel" value={v.phone} onChange={set('phone', 'phone')} error={errors.phone} maxLength={20} autoComplete="off" />
         <TextField label="Current title" value={v.currentTitle} onChange={set('currentTitle', 'current_title')} error={errors.current_title} maxLength={160} />
         <TextField label="Current company" value={v.currentCompany} onChange={set('currentCompany', 'current_company')} error={errors.current_company} maxLength={160} />

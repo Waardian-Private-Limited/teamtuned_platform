@@ -73,6 +73,7 @@ import {
   Gauge,
   Ruler,
   DoorOpen,
+  Contact,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
 import { ANY_LABOUR_PERM, LABOUR_MEAS_PAGE_PERMS, LABOUR_PAYABLE_PERMS, LABOUR_SETTINGS_PAGE_PERMS, LABOUR_VIEW_PERMS, LP } from '@/features/labour/constants/labour.constants';
@@ -246,6 +247,7 @@ export const employeeNav: NavNode[] = [
       { kind: 'link', label: 'Overview', href: '/employee/recruitment', icon: LayoutDashboard },
       { kind: 'link', label: 'Positions', href: '/employee/recruitment/positions', icon: Briefcase, match: 'prefix' },
       { kind: 'link', label: 'Candidates', href: '/employee/recruitment/candidates', icon: Users, match: 'prefix' },
+      { kind: 'link', label: 'Talent pool', href: '/employee/recruitment/talent-pool', icon: Contact, match: 'prefix', gate: { feature: 'TALENT_POOL_FEATURE', anyPerm: ['RECRUIT_VIEW', 'RECRUIT_MANAGE'] } },
       { kind: 'link', label: 'Interviews', href: '/employee/recruitment/interviews', icon: CalendarClock, match: 'prefix' },
       { kind: 'link', label: 'Offers', href: '/employee/recruitment/offers', icon: FileSignature, match: 'prefix' },
       { kind: 'link', label: 'Referral rewards', href: '/employee/recruitment/referral-rewards', icon: Gift, match: 'prefix', gate: { anyPerm: ['RECRUIT_MANAGE', 'RECRUIT_SETTINGS'] } },

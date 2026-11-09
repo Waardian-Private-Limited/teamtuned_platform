@@ -18,6 +18,9 @@ import { CandidateDrawerHost } from '../../interviews/components/CandidateDrawer
 import { useApplicationList } from '../hooks/useApplicationList';
 import { CandidatesCardList, CandidatesSkeleton, CandidatesTable } from './CandidatesTable';
 
+// Where an application came from (imports and leads become applications as "manual").
+const APPLICATION_SOURCES: Source[] = ['careers', 'api', 'referral', 'manual'];
+
 function FilterSelect({ label, value, onChange, options, allLabel }: {
   label: string; value: string; onChange: (v: string) => void; options: Array<{ value: string; label: string }>; allLabel: string;
 }) {
@@ -75,7 +78,7 @@ export function CandidatesPage() {
           <FilterSelect label="Status" allLabel="Any status" value={filters.status} onChange={(v) => setFilter('status', v)}
             options={(Object.keys(APPLICATION_STATUS_LABELS) as ApplicationStatus[]).map((s) => ({ value: s, label: APPLICATION_STATUS_LABELS[s] }))} />
           <FilterSelect label="Source" allLabel="All sources" value={filters.source} onChange={(v) => setFilter('source', v)}
-            options={(Object.keys(SOURCE_LABELS) as Source[]).map((s) => ({ value: s, label: SOURCE_LABELS[s] }))} />
+            options={APPLICATION_SOURCES.map((s) => ({ value: s, label: SOURCE_LABELS[s] }))} />
           <label className="inline-flex h-9 items-center gap-2 rounded-lg border border-line bg-surface px-2.5 text-xs font-semibold text-fg sm:text-sm">
             <Switch checked={filters.ownerMe} onChange={(v) => setFilter('ownerMe', v)} label="Assigned to me" />
             Owned by me

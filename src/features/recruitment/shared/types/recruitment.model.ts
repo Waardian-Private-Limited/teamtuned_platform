@@ -5,7 +5,7 @@ export type Stage = 'applied' | 'screening' | 'assessment' | 'interview' | 'offe
 export type ApplicationStatus = 'active' | 'hired' | 'rejected' | 'withdrawn';
 export type PositionStatus = 'draft' | 'open' | 'paused' | 'closed' | 'filled';
 export type WorkMode = 'onsite' | 'hybrid' | 'remote';
-export type Source = 'careers' | 'api' | 'referral' | 'manual';
+export type Source = 'careers' | 'api' | 'referral' | 'manual' | 'import' | 'lead';
 export type InterviewMode = 'in_person' | 'video' | 'phone';
 export type Recommendation = 'strong_yes' | 'yes' | 'no' | 'strong_no';
 export type FieldRule = 'off' | 'optional' | 'required';
@@ -270,6 +270,8 @@ export interface RecruitmentOptions {
   employmentTypes: NamedRef[];
   sites: NamedRef[];
   tests: NamedRef[];
+  /** Public careers page (null while the hosted page is off) and the company name for share posters. */
+  careers: { url: string | null; companyName: string };
 }
 
 export interface EmployeeOption {

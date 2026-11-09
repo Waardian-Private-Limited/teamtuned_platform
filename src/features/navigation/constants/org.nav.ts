@@ -71,6 +71,7 @@ import {
   Ruler,
   DoorOpen,
   UserX,
+  Contact,
 } from 'lucide-react';
 import type { NavNode } from '../types/nav.model';
 import { ANY_LABOUR_PERM, LABOUR_MEAS_PAGE_PERMS, LABOUR_PAYABLE_PERMS, LABOUR_SETTINGS_PAGE_PERMS, LABOUR_VIEW_PERMS, LP } from '@/features/labour/constants/labour.constants';
@@ -199,6 +200,7 @@ export const orgNav: NavNode[] = [
       { kind: 'link', label: 'Overview', href: '/org-admin/recruitment', icon: LayoutDashboard },
       { kind: 'link', label: 'Positions', href: '/org-admin/recruitment/positions', icon: Briefcase, match: 'prefix' },
       { kind: 'link', label: 'Candidates', href: '/org-admin/recruitment/candidates', icon: Users, match: 'prefix' },
+      { kind: 'link', label: 'Talent pool', href: '/org-admin/recruitment/talent-pool', icon: Contact, match: 'prefix', gate: { feature: 'TALENT_POOL_FEATURE' } },
       { kind: 'link', label: 'Interviews', href: '/org-admin/recruitment/interviews', icon: CalendarClock, match: 'prefix' },
       { kind: 'link', label: 'Offers', href: '/org-admin/recruitment/offers', icon: FileSignature, match: 'prefix' },
       { kind: 'link', label: 'Referral rewards', href: '/org-admin/recruitment/referral-rewards', icon: Gift, match: 'prefix' },

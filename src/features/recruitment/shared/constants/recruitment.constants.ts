@@ -58,6 +58,8 @@ export const SOURCE_LABELS: Record<Source, string> = {
   api: 'Website',
   referral: 'Referral',
   manual: 'Added manually',
+  import: 'Imported',
+  lead: 'Lead',
 };
 
 export const WORK_MODE_LABELS: Record<WorkMode, string> = {

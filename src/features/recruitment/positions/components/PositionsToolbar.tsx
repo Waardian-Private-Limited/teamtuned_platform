@@ -1,6 +1,6 @@
 'use client';
 
-import { Plus, Search } from 'lucide-react';
+import { Plus, QrCode, Search } from 'lucide-react';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { SearchableFilterDropdown, type FilterOption } from '@/components/ui/SearchableFilterDropdown';
 import { Switch } from '@/components/ui/Switch';
@@ -19,10 +19,12 @@ interface PositionsToolbarProps {
   onMineChange: (v: boolean) => void;
   canAdd: boolean;
   onAdd: () => void;
+  /** Opens the careers page QR; omitted while the hosted page is off. */
+  onShareCareers?: () => void;
 }
 
 export function PositionsToolbar(props: PositionsToolbarProps) {
-  const { total, searchValue, onSearchChange, status, onStatusChange, departments, departmentId, onDepartmentChange, mine, onMineChange, canAdd, onAdd } = props;
+  const { total, searchValue, onSearchChange, status, onStatusChange, departments, departmentId, onDepartmentChange, mine, onMineChange, canAdd, onAdd, onShareCareers } = props;
   return (
     <div className="flex flex-col gap-2.5 rounded-xl border border-line bg-surface p-3 sm:p-3.5 xl:flex-row xl:items-center xl:justify-between xl:gap-4 2xl:p-4">
       <div className="flex items-center justify-between gap-3 xl:justify-start">
@@ -56,6 +58,11 @@ export function PositionsToolbar(props: PositionsToolbarProps) {
           <Switch checked={mine} onChange={onMineChange} label="Only my positions" />
           Mine
         </label>
+        {onShareCareers && (
+          <button type="button" onClick={onShareCareers} className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-fg shadow-xs hover:bg-bg-subtle sm:text-sm">
+            <QrCode className="h-3.5 w-3.5" />Careers QR
+          </button>
+        )}
         {canAdd && (
           <button type="button" onClick={onAdd} className="hidden h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--tt-primary)] px-3 text-xs font-semibold text-[var(--tt-on-primary)] shadow-xs hover:bg-[var(--tt-primary-hover)] sm:inline-flex sm:text-sm">
             <Plus className="h-3.5 w-3.5" />New position

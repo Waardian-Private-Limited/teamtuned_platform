@@ -33,7 +33,7 @@ const asStage = (v: unknown): Stage => (isStage(v) ? v : 'applied');
 const asStatus = (v: unknown): ApplicationStatus =>
   v === 'hired' || v === 'rejected' || v === 'withdrawn' ? v : 'active';
 const asSource = (v: unknown): Source =>
-  v === 'careers' || v === 'api' || v === 'referral' ? v : 'manual';
+  v === 'careers' || v === 'api' || v === 'referral' || v === 'import' || v === 'lead' ? v : 'manual';
 const asWorkMode = (v: unknown): WorkMode => (v === 'hybrid' || v === 'remote' ? v : 'onsite');
 const asPositionStatus = (v: unknown): PositionStatus =>
   v === 'open' || v === 'paused' || v === 'closed' || v === 'filled' ? v : 'draft';
@@ -371,6 +371,7 @@ export function toOptions(dto: OptionsDto): RecruitmentOptions {
     employmentTypes: named(dto?.employmentTypes),
     sites: named(dto?.sites),
     tests: named(dto?.tests),
+    careers: { url: dto?.careers?.url || null, companyName: str(dto?.careers?.companyName) },
   };
 }
 

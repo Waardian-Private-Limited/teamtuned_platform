@@ -42,7 +42,9 @@ export function OverviewTab({ detail }: { detail: ApplicationDetail }) {
           Contact
         </SectionTitle>
         <div className="space-y-1.5 text-sm">
-          <a href={`mailto:${c.email}`} className="flex items-center gap-2 text-fg hover:underline"><Mail className="h-3.5 w-3.5 text-fg-muted" />{c.email}</a>
+          {c.email
+            ? <a href={`mailto:${c.email}`} className="flex items-center gap-2 text-fg hover:underline"><Mail className="h-3.5 w-3.5 text-fg-muted" />{c.email}</a>
+            : <p className="flex items-center gap-2 text-fg-muted"><Mail className="h-3.5 w-3.5" />No email, so no candidate emails are sent</p>}
           {c.phone && <a href={`tel:${c.phone}`} className="flex items-center gap-2 text-fg hover:underline"><Phone className="h-3.5 w-3.5 text-fg-muted" />{c.phone}</a>}
           {c.city && <p className="flex items-center gap-2 text-fg"><MapPin className="h-3.5 w-3.5 text-fg-muted" />{c.city}</p>}
         </div>

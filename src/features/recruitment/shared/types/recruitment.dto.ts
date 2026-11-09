@@ -269,6 +269,7 @@ export interface OptionsDto {
   employmentTypes?: Array<{ id: number; name: string }>;
   sites?: Array<{ id: number; name: string }>;
   tests?: Array<{ id: number; name: string }>;
+  careers?: { url?: string | null; companyName?: string | null };
 }
 
 export interface EmployeeOptionDto {
