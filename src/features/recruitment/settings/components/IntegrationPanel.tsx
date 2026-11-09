@@ -7,65 +7,13 @@ import { API_BASE_URL } from '@/config/env';
 import { cx } from '@/theme/tokens';
 import { btn } from '../../interviews/lib/ui';
 import { useCopy } from './ApiKeysPanel';
+import { careersSnippets } from './integrationSnippets';
 
 const KEY = 'tt_live_xxxxxxxxxxxxxxxx';
 
-function snippets(base: string) {
-  const jobs = `${base}/public/careers/jobs`;
-  return [
-    {
-      key: 'list',
-      label: 'List jobs (curl)',
-      code: `curl "${jobs}?search=&department=&location=&page=1" \\
-  -H "X-Careers-Key: ${KEY}"`,
-    },
-    {
-      key: 'detail',
-      label: 'Job detail (curl)',
-      code: `curl "${jobs}/<jobSlug>" \\
-  -H "X-Careers-Key: ${KEY}"`,
-    },
-    {
-      key: 'js',
-      label: 'Website (JavaScript)',
-      code: `const API = "${jobs}";
-const KEY = "${KEY}"; // publishable: reads published jobs, submits applications
-
-// 1. List open jobs
-const res = await fetch(\`\${API}?page=1\`, { headers: { "X-Careers-Key": KEY } });
-const { company, items, page, pages } = await res.json();
-// items: [{ slug, title, department, location, workMode, employmentType,
-//           experience: { min, max }, salary: { min, max } | null, closesOn, postedAt }]
-
-// 2. Job detail (description, skills, application form)
-const job = await (await fetch(\`\${API}/\${slug}\`, { headers: { "X-Careers-Key": KEY } })).json();
-
-// 3. Apply (multipart; do not set Content-Type yourself)
-const form = new FormData();
-form.append("first_name", "Asha");
-form.append("last_name", "Rao");
-form.append("email", "asha@example.com");
-form.append("phone", "+91 98765 43210");
-// standard fields the job's form turns on, e.g. city, experience, current_company,
-// notice_period, current_ctc, expected_ctc, linkedin, portfolio
-form.append("answers", JSON.stringify({ /* [question.key]: value */ }));
-form.append("consent", "true");
-form.append("website", ""); // honeypot: must stay empty
-form.append("resume", fileInput.files[0]); // pdf / doc / docx, max 5 MB
-
-const apply = await fetch(\`\${API}/\${slug}/applications\`, {
-  method: "POST",
-  headers: { "X-Careers-Key": KEY },
-  body: form,
-});
-const { status } = await apply.json(); // 201 "received" or 200 "already_applied"`,
-    },
-  ];
-}
-
 export function IntegrationPanel() {
   const base = API_BASE_URL.replace(/\/+$/, '');
-  const list = snippets(base);
+  const list = careersSnippets(base, KEY);
   const [tab, setTab] = useState(list[0].key);
   const { copied, copy } = useCopy();
   const current = list.find((s) => s.key === tab) || list[0];
@@ -97,6 +45,12 @@ export function IntegrationPanel() {
           <code>{current.code}</code>
         </pre>
         <ul className="list-disc space-y-1 pl-5 text-xs text-fg-muted">
+          <li>
+            <span className="font-semibold text-fg">Build the apply form from the job.</span> Each job returns its application form
+            (<code className="font-mono">form.fields</code>, <code className="font-mono">form.resume</code>, <code className="font-mono">form.questions</code>).
+            The JavaScript example renders it, so fields and questions HR adds to a position later show up on your site without code
+            changes. A hand-written form stops working when HR makes a new field required.
+          </li>
           <li>Base URL: <code className="font-mono text-fg">{base}/public/careers</code></li>
           <li>Applications require <code className="font-mono">consent=true</code> and an empty <code className="font-mono">website</code> field; requests are rate limited per IP and key.</li>
           <li>Re-applying to the same job answers <code className="font-mono">already_applied</code> and never overwrites the first application.</li>
