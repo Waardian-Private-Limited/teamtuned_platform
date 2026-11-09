@@ -29,7 +29,8 @@ export function Dialog({ open, onClose, title, children, footer, maxWidthClassNa
         tabIndex={-1}
         className={cx(
           'relative z-10 flex max-h-[85vh] w-full flex-col rounded-[var(--tt-radius-lg)]',
-          'bg-surface shadow-[var(--tt-shadow-lg)] tt-fade-in',
+          // Focus lands on the panel so keyboard users start inside it; no outline on the whole card.
+          'bg-surface shadow-[var(--tt-shadow-lg)] tt-fade-in outline-none',
           maxWidthClassName
         )}
       >

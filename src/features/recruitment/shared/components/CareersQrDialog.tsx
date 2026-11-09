@@ -103,7 +103,9 @@ const fileSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').repl
 export function CareersQrDialog({ open, onClose, url, unavailable, title, subtitle, companyName }: CareersQrDialogProps) {
   const qrRef = useRef<HTMLCanvasElement | null>(null);
   const [copied, setCopied] = useState(false);
-  const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+  // Known only in the browser; read after mount so the first render matches the server's.
+  const [canShare, setCanShare] = useState(false);
+  useEffect(() => { setCanShare(typeof navigator.share === 'function'); }, []);
 
   useEffect(() => {
     if (!copied) return undefined;
@@ -165,7 +167,8 @@ export function CareersQrDialog({ open, onClose, url, unavailable, title, subtit
         </div>
       ) : (
       <div className="flex flex-col items-center">
-        <div className="rounded-2xl border border-line bg-white p-4 shadow-xs">
+        {/* Shrinks with the screen (and with a short screen), never wider than the popup. */}
+        <div className="w-[min(13rem,60vw,34vh)] rounded-2xl border border-line bg-white p-3 shadow-xs sm:p-4">
           <QRCodeCanvas
             ref={qrRef}
             value={url}
@@ -174,12 +177,13 @@ export function CareersQrDialog({ open, onClose, url, unavailable, title, subtit
             marginSize={0}
             bgColor="#ffffff"
             fgColor="#0a0a0a"
-            className="h-48 w-48 sm:h-52 sm:w-52"
+            // The library sets width/height to `size` inline; scale it to the box instead.
+            style={{ display: 'block', width: '100%', height: 'auto', aspectRatio: '1 / 1' }}
             aria-label={`QR code for ${url}`}
           />
         </div>
 
-        <p className="mt-4 max-w-full truncate text-center text-base font-bold text-fg">{title}</p>
+        <p className="mt-4 line-clamp-2 max-w-full break-words text-center text-base font-bold text-fg">{title}</p>
         {subtitle && <p className="max-w-full truncate text-center text-xs text-fg-muted">{subtitle}</p>}
 
         <div className="mt-4 flex w-full items-center gap-1 rounded-lg border border-line bg-bg-subtle/60 py-1 pl-3 pr-1">
@@ -195,7 +199,7 @@ export function CareersQrDialog({ open, onClose, url, unavailable, title, subtit
           </button>
         </div>
 
-        <div className={`mt-3 grid w-full gap-2 ${canShare ? 'grid-cols-3' : 'grid-cols-2'}`}>
+        <div className={`mt-3 grid w-full gap-2 ${canShare ? 'grid-cols-3' : 'grid-cols-2'} [&>*]:min-w-0`}>
           {canShare && (
             <button type="button" onClick={share} className={action}><Share2 className="h-4 w-4" />Share</button>
           )}
