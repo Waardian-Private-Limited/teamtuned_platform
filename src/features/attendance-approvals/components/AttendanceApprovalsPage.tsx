@@ -11,7 +11,7 @@ import { RequestDrawer } from '@/features/approvals/components/RequestDrawer';
 import { DelegationPanel } from '@/features/approvals/components/DelegationPanel';
 import { Skeleton } from '@/features/detailed-attendance/components/components/controls';
 import { useFilterOptions } from '../hooks/useFilterOptions';
-import { useRequestList } from '../hooks/useRequestList';
+import { useQueueFilters, useRequestList, type QueueFilters } from '../hooks/useRequestList';
 import { ApprovalsEmptyState } from './ApprovalsEmptyState';
 import { RequestFilters } from './RequestFilters';
 import { ExitApprovalsQueue } from '@/features/exits/components/ExitApprovalsQueue';
@@ -54,6 +54,7 @@ export function AttendanceApprovalsPage() {
   const [type, setType] = React.useState<TabValue>('regularize');
   const [away, setAway] = React.useState(false);
   const options = useFilterOptions();
+  const shared = useQueueFilters();
 
   const tabs = (
     <div role="tablist" aria-label="Request type" className="flex gap-1 overflow-x-auto border-b border-line tt-scroll-hidden">
@@ -68,11 +69,11 @@ export function AttendanceApprovalsPage() {
 
   return (
     <>
-      {/* Each type keeps its own filters, scope and page; switching starts that list fresh. */}
+      {/* Scope and filters are shared by the tabs, so switching type keeps them; each list starts at page 1. */}
       {type === 'exit' ? (
         <ExitApprovalsQueue tabs={tabs} headerAction={<Btn icon={<Plane className="h-4 w-4" />} onClick={() => setAway(true)}>Out of office</Btn>} />
       ) : (
-      <RequestQueue key={type} type={type} noun={TYPES.find((t) => t.value === type)!.noun} options={options} tabs={tabs}
+      <RequestQueue key={type} type={type} noun={TYPES.find((t) => t.value === type)!.noun} options={options} tabs={tabs} shared={shared}
         headerAction={<Btn icon={<Plane className="h-4 w-4" />} onClick={() => setAway(true)}>Out of office</Btn>} />
       )}
       <DelegationPanel open={away} onClose={() => setAway(false)} />
@@ -85,12 +86,13 @@ interface QueueProps {
   noun: string;
   options: FilterOptionsDto | null;
   tabs: React.ReactNode;
+  shared: QueueFilters;
   headerAction: React.ReactNode;
 }
 
-function RequestQueue({ type, noun, options, tabs, headerAction }: QueueProps) {
+function RequestQueue({ type, noun, options, tabs, shared, headerAction }: QueueProps) {
   const [openId, setOpenId] = React.useState<number | null>(null);
-  const list = useRequestList(type);
+  const list = useRequestList(type, shared);
   // Bulk approval: organization admin only for now (approves on everyone's behalf, as an admin override).
   const { role } = useAuth();
   const canBulk = role === 'OrgAdmin';

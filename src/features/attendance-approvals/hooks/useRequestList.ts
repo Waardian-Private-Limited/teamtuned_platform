@@ -13,21 +13,31 @@ const initialFilters = (): ReviewFilters => ({
 });
 
 /**
+ * Scope, filters, search text and page size for the approvals queues. Held above the tabs (by the page), so
+ * moving from one request type to another keeps what the reviewer picked instead of starting again.
+ */
+export function useQueueFilters() {
+  const [chosenScope, setChosenScope] = useState<ReviewScope | null>('assigned');
+  const [filters, setFilters] = useState<ReviewFilters>(initialFilters);
+  const [searchInput, setSearchInput] = useState('');
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  return { chosenScope, setChosenScope, filters, setFilters, searchInput, setSearchInput, pageSize, setPageSize };
+}
+export type QueueFilters = ReturnType<typeof useQueueFilters>;
+
+/**
  * A filtered page (newest first) of one type of attendance request: the ones assigned to the signed-in reviewer, or
  * (`scope` all, for those the server lets follow) every one in their reach. Any filter change goes back
  * to page 1; the search waits for typing to settle; the answer to an older query never replaces the
  * answer to a newer one.
  */
-export function useRequestList(type: RequestType) {
+export function useRequestList(type: RequestType, shared: QueueFilters) {
   // Starts on what is assigned to the person; those who may follow everything can switch to "all".
-  const [chosenScope, setChosenScope] = useState<ReviewScope | null>('assigned');
+  const { chosenScope, setChosenScope, filters, setFilters, searchInput, setSearchInput, pageSize, setPageSize: setPageSizeState } = shared;
   const [applied, setApplied] = useState<{ scope: ReviewScope; status: ReviewFilters['status'] }>({ scope: 'assigned', status: 'waiting' });
-  const [filters, setFilters] = useState<ReviewFilters>(initialFilters);
   const [counts, setCounts] = useState<RowPage['counts']>({});
   const [access, setAccess] = useState<RowPage['access']>({ canTrack: false, allSites: false });
-  const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSizeState] = useState(DEFAULT_PAGE_SIZE);
   const [rows, setRows] = useState<RequestRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -41,7 +51,7 @@ export function useRequestList(type: RequestType) {
       setPage(1);
     }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [searchInput]);
+  }, [searchInput, setFilters]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -56,22 +66,22 @@ export function useRequestList(type: RequestType) {
   const update = useCallback(<K extends keyof ReviewFilters>(key: K, value: ReviewFilters[K]) => {
     setFilters((f) => ({ ...f, [key]: value }));
     setPage(1);
-  }, []);
+  }, [setFilters]);
 
   const clear = useCallback(() => {
     setFilters(initialFilters());
     setSearchInput('');
     setPage(1);
-  }, []);
+  }, [setFilters, setSearchInput]);
 
   /** Switching between assigned and all keeps the other filters; only the status starts again. */
   const setScope = useCallback((next: ReviewScope) => {
     setChosenScope(next);
     setFilters((f) => ({ ...f, status: null }));
     setPage(1);
-  }, []);
+  }, [setChosenScope, setFilters]);
 
-  const setPageSize = useCallback((size: number) => { setPageSizeState(size); setPage(1); }, []);
+  const setPageSize = useCallback((size: number) => { setPageSizeState(size); setPage(1); }, [setPageSizeState]);
   const reload = useCallback(() => setNonce((n) => n + 1), []);
 
   const defaults = initialFilters();

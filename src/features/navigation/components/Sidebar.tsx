@@ -10,6 +10,18 @@ import { SidebarHeader } from './SidebarHeader';
 import { useNavTree } from '../hooks/useNavTree';
 import type { NavContext, NavNode } from '../types/nav.model';
 
+/** Pages matching `q` (flat), and whole categories whose own name matches; a matched category is not searched further. */
+function searchNav(nodes: NavNode[], q: string): NavNode[] {
+  const out: NavNode[] = [];
+  for (const node of nodes) {
+    if (node.kind === 'link') {
+      if (node.label.toLowerCase().includes(q)) out.push(node);
+    } else if (node.label.toLowerCase().includes(q)) out.push(node);
+    else out.push(...searchNav(node.children, q));
+  }
+  return out;
+}
+
 /**
  * The sidebar itself — header, search, filtered nav tree, user profile.
  *
@@ -69,17 +81,11 @@ export function Sidebar({
     return () => document.removeEventListener('mousedown', handler);
   }, [userMenuOpen]);
 
-  /* Filter nav items by search query */
-  const filteredVisible = searchQuery.trim()
-    ? visible.filter((node) => {
-        const q = searchQuery.toLowerCase();
-        if (node.kind === 'link') return node.label.toLowerCase().includes(q);
-        if (node.label.toLowerCase().includes(q)) return true;
-        return node.children.some(
-          (c) => c.kind === 'link' && c.label.toLowerCase().includes(q)
-        );
-      })
-    : visible;
+  /* While searching: a page whose name matches is listed directly; a category whose name matches is listed open. */
+  const query = searchQuery.trim().toLowerCase();
+  const searching = query !== '';
+  const filteredVisible = searching ? searchNav(visible, query) : visible;
+  const isOpenNow = searching ? () => true : isOpen;
 
   const displayName = userName || 'User';
   const initials = displayName
@@ -155,7 +161,7 @@ export function Sidebar({
               group={node}
               depth={0}
               collapsed={collapsed}
-              isOpen={isOpen}
+              isOpen={isOpenNow}
               onToggle={toggle}
               onNavigate={onNavigate}
             />

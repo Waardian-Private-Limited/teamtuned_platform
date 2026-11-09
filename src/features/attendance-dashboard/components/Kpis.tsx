@@ -59,9 +59,8 @@ export function Kpis({ summary, isToday, view, onView, loading }: { summary: Sum
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <Tile icon={UserCheck} label="Present" value={s.present} note={`${s.counts.working} working now`} tone="var(--tt-success)" onClick={() => onView('present')} active={view === 'present'} />
         <Tile icon={AlarmClock} label="Late" value={s.late} note={`Punctuality ${pctText(s.rates.punctuality)}`} tone="var(--tt-warning)" onClick={() => onView('late')} active={view === 'late'} />
-        {isToday
-          ? <Tile icon={Hourglass} label="Not checked in" value={waiting} note="Expected, no punch yet" tone="var(--tt-warning)" onClick={() => onView('not_checked_in')} active={view === 'not_checked_in'} />
-          : <Tile icon={UserX} label="Absent" value={s.counts.absent} note={`Absence ${pctText(s.rates.absence)}`} tone="var(--tt-danger)" onClick={() => onView('absent')} active={view === 'absent'} />}
+        {/* Today, people past their shift start plus grace with no check-in count as absent; the rest are not in yet. */}
+        <Tile icon={UserX} label="Absent" value={s.counts.absent} note={isToday ? `${waiting} not checked in yet` : `Absence ${pctText(s.rates.absence)}`} tone="var(--tt-danger)" onClick={() => onView('absent')} active={view === 'absent'} />
         <Tile icon={CalendarOff} label="On leave" value={s.counts.on_leave} note={`${s.counts.holiday + s.counts.week_off} off (holiday or week off)`} onClick={() => onView('on_leave')} active={view === 'on_leave'} />
         <Tile icon={Clock4} label="Average hours" value={minutesText(s.minutes.average_worked)} note="Per person present" />
         <Tile icon={Hourglass} label="Overtime" value={minutesText(s.minutes.overtime)} note={s.minutes.night_ot ? `${minutesText(s.minutes.night_ot)} night OT` : 'No night OT'} />

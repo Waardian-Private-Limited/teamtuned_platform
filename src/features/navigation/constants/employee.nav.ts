@@ -108,6 +108,8 @@ export const employeeNav: NavNode[] = [
       { kind: 'link', label: 'My Holidays', href: '/employee/my-holidays', icon: Calendar },
       { kind: 'link', label: 'Birthdays', href: '/employee/birthdays', icon: Gift },
       { kind: 'link', label: 'Teams', href: '/employee/teams', icon: UsersRound, match: 'prefix' },
+      // Own card for everyone; managers also see their reporting line, SCORECARD_VIEW / HR mode everyone.
+      { kind: 'link', label: 'Scorecard', href: '/employee/scorecard', icon: Gauge },
       // Managers HR asked to rate their people for an appraisal (no compensation permission needed).
       { kind: 'link', label: 'Team appraisals', href: '/employee/team-appraisals', icon: ClipboardCheck, gate: { appraisalReviewer: true } },
       { kind: 'link', label: 'My interviews', href: '/employee/my-interviews', icon: CalendarClock, match: 'prefix', gate: { recruitmentRole: 'interviewer' } },
