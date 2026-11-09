@@ -271,7 +271,7 @@ export interface RecruitmentOptions {
   sites: NamedRef[];
   tests: NamedRef[];
   /** Public careers page (null while the hosted page is off) and the company name for share posters. */
-  careers: { url: string | null; companyName: string };
+  careers: { url: string | null; companyName: string; known: boolean };
 }
 
 export interface EmployeeOption {

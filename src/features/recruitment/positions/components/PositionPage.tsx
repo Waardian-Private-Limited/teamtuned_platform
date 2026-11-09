@@ -15,8 +15,8 @@ import { Tabs } from '../../shared/components/Tabs';
 import { useApplicationActions } from '../../shared/hooks/useApplicationActions';
 import { useRecruitmentAccess } from '../../shared/hooks/useRecruitmentAccess';
 import { useRecruitmentBase } from '../../shared/hooks/useRecruitmentBase';
-import { useRecruitmentOptions } from '../../shared/hooks/useRecruitmentOptions';
-import { CareersQrDialog } from '../../shared/components/CareersQrDialog';
+import { CareersOffNotice, CareersQrDialog } from '../../shared/components/CareersQrDialog';
+import { useCareersSite } from '../../shared/hooks/useCareersSite';
 import { useFeatures } from '@/lib/hooks/useFeatures';
 import { PickFromPoolDialog } from '../../pool/components/PickFromPoolDialog';
 import { POOL_FEATURE } from '../../pool/constants/pool.constants';
@@ -64,9 +64,11 @@ export function PositionPage({ positionId }: PositionPageProps) {
     if (action === 'reject') page.removeCard(id);
     page.loadBoard();
   }, [page]));
-  // The server sends the link only for a published job on an enabled careers page.
-  const careersLink = position?.published ? position.careersUrl : null;
-  const { options } = useRecruitmentOptions();
+  // The server sends the link for a published job on an enabled careers page; built here on a server that does not.
+  const careersSite = useCareersSite();
+  const careersLink = position?.published
+    ? position.careersUrl || (careersSite.url && position.slug ? `${careersSite.url}/${position.slug}` : null)
+    : null;
   const [sharing, setSharing] = useState(false);
   const [picking, setPicking] = useState(false);
   const hasPool = useFeatures().hasFeature(POOL_FEATURE);
@@ -124,11 +126,9 @@ export function PositionPage({ positionId }: PositionPageProps) {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {careersLink && (
-                <button type="button" onClick={() => setSharing(true)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-fg hover:bg-bg-subtle sm:text-sm">
-                  <QrCode className="h-3.5 w-3.5" />Share job
-                </button>
-              )}
+              <button type="button" onClick={() => setSharing(true)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-fg hover:bg-bg-subtle sm:text-sm">
+                <QrCode className="h-3.5 w-3.5" />Share job
+              </button>
               {canManage && statusMenu.filter((a) => a !== 'close').slice(0, 2).map((a) => (
                 <button
                   key={a}
@@ -292,14 +292,17 @@ export function PositionPage({ positionId }: PositionPageProps) {
         />
       )}
 
-      {position && careersLink && (
+      {position && (
         <CareersQrDialog
           open={sharing}
           onClose={() => setSharing(false)}
           url={careersLink}
           title={position.title}
           subtitle={[position.department?.name, positionLocation(position)].filter(Boolean).join(' · ')}
-          companyName={options.careers.companyName}
+          unavailable={position.published
+            ? <CareersOffNotice canSettings={careersSite.canSettings} base={base} />
+            : <>This position is not on the careers page yet. {canManage ? 'Use Publish above, then share it.' : 'Ask the recruiter to publish it.'}</>}
+          companyName={careersSite.companyName}
         />
       )}
     </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Tabs } from '../../shared/components/Tabs';
 import { pageTitle, toolbarCard } from '../../interviews/lib/ui';
 import { TestBankPanel } from './tests/TestBankPanel';
@@ -15,6 +15,11 @@ const TABS = [{ value: 'tests', label: 'Tests' }, { value: 'scorecards', label: 
 
 export function RecruitmentSettingsPage() {
   const [tab, setTab] = useState<Tab>('tests');
+  // ?tab=careers opens a section directly (links from the share dialogs).
+  useEffect(() => {
+    const asked = new URLSearchParams(window.location.search).get('tab');
+    if (TABS.some((t) => t.value === asked)) setTab(asked as Tab);
+  }, []);
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       <div className={toolbarCard}>

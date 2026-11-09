@@ -3,14 +3,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Check, Copy, Download, ExternalLink, QrCode, Share2 } from 'lucide-react';
+import type { ReactNode } from 'react';
+import Link from 'next/link';
 import { Dialog } from '@/components/ui/Dialog';
 import { showError } from '@/lib/toast';
 
 export interface CareersQrDialogProps {
   open: boolean;
   onClose: () => void;
-  /** Public link the QR opens: one job, or the whole careers page. */
-  url: string;
+  /** Public link the QR opens: one job, or the whole careers page. Null when there is none yet. */
+  url: string | null;
+  /** Why there is no link and what to do about it, shown instead of the QR. */
+  unavailable?: ReactNode;
   /** Big line on the dialog and poster, e.g. the job title or "Careers at Acme". */
   title: string;
   /** Small line under it, e.g. department and location. */
@@ -40,7 +44,7 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, max
 }
 
 /** A print-ready 4:5 poster: company, title, QR, and the link spelled out for anyone who can't scan. */
-function drawPoster(qr: HTMLCanvasElement, { title, subtitle, companyName, url }: Omit<CareersQrDialogProps, 'open' | 'onClose'>) {
+function drawPoster(qr: HTMLCanvasElement, { title, subtitle, companyName, url }: { title: string; subtitle?: string; companyName?: string; url: string }) {
   const { w, h, pad } = POSTER;
   const canvas = document.createElement('canvas');
   canvas.width = w;
@@ -96,7 +100,7 @@ function drawPoster(qr: HTMLCanvasElement, { title, subtitle, companyName, url }
 const fileSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'careers';
 
 /** Share a careers link: scannable QR, copy, native share sheet, open, and a downloadable poster. */
-export function CareersQrDialog({ open, onClose, url, title, subtitle, companyName }: CareersQrDialogProps) {
+export function CareersQrDialog({ open, onClose, url, unavailable, title, subtitle, companyName }: CareersQrDialogProps) {
   const qrRef = useRef<HTMLCanvasElement | null>(null);
   const [copied, setCopied] = useState(false);
   const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
@@ -108,6 +112,7 @@ export function CareersQrDialog({ open, onClose, url, title, subtitle, companyNa
   }, [copied]);
 
   const copy = async () => {
+    if (!url) return;
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
@@ -117,6 +122,7 @@ export function CareersQrDialog({ open, onClose, url, title, subtitle, companyNa
   };
 
   const share = async () => {
+    if (!url) return;
     try {
       await navigator.share({ title, text: companyName ? `${title} at ${companyName}` : title, url });
     } catch {
@@ -125,7 +131,7 @@ export function CareersQrDialog({ open, onClose, url, title, subtitle, companyNa
   };
 
   const download = () => {
-    if (!qrRef.current) return;
+    if (!qrRef.current || !url) return;
     const poster = drawPoster(qrRef.current, { url, title, subtitle, companyName });
     if (!poster) return;
     const a = document.createElement('a');
@@ -151,6 +157,13 @@ export function CareersQrDialog({ open, onClose, url, title, subtitle, companyNa
         </div>
       }
     >
+      {!url ? (
+        <div className="flex flex-col items-center py-4 text-center">
+          <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-dashed border-line-strong text-fg-subtle"><QrCode className="h-6 w-6" /></span>
+          <p className="text-sm font-bold text-fg">{title}</p>
+          <div className="mt-1.5 max-w-xs text-xs leading-relaxed text-fg-muted">{unavailable || 'There is no public link to share yet.'}</div>
+        </div>
+      ) : (
       <div className="flex flex-col items-center">
         <div className="rounded-2xl border border-line bg-white p-4 shadow-xs">
           <QRCodeCanvas
@@ -191,6 +204,17 @@ export function CareersQrDialog({ open, onClose, url, title, subtitle, companyNa
         </div>
         <p className="mt-2 text-center text-[11px] text-fg-muted">Poster is a print-ready PNG with the QR and link.</p>
       </div>
+      )}
     </Dialog>
+  );
+}
+
+/** The hosted careers page is off or has no address: who can turn it on, and where. */
+export function CareersOffNotice({ canSettings, base }: { canSettings: boolean; base: string }) {
+  return canSettings ? (
+    <>The careers page is off. Turn it on and give it an address in{' '}
+      <Link href={`${base}/settings?tab=careers`} className="font-semibold text-fg underline">Settings → Careers &amp; API</Link>.</>
+  ) : (
+    <>The careers page is off. Ask someone with recruitment settings access to turn it on.</>
   );
 }

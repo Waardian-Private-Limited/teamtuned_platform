@@ -371,7 +371,8 @@ export function toOptions(dto: OptionsDto): RecruitmentOptions {
     employmentTypes: named(dto?.employmentTypes),
     sites: named(dto?.sites),
     tests: named(dto?.tests),
-    careers: { url: dto?.careers?.url || null, companyName: str(dto?.careers?.companyName) },
+    // `known` is false on a server that does not send it yet; useCareersSite then asks the settings.
+    careers: { url: dto?.careers?.url || null, companyName: str(dto?.careers?.companyName), known: Boolean(dto?.careers) },
   };
 }
 

@@ -19,7 +19,7 @@ interface PositionsToolbarProps {
   onMineChange: (v: boolean) => void;
   canAdd: boolean;
   onAdd: () => void;
-  /** Opens the careers page QR; omitted while the hosted page is off. */
+  /** Opens the careers page QR and link. */
   onShareCareers?: () => void;
 }
 
