@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ArrowDown, ArrowUp, Plus, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Plus, RotateCcw, Save, Trash2, X } from 'lucide-react';
 import { FieldLabel, FieldMessage, OptionCard, SelectField, TextField, shellClass } from '@/components/ui/FormControls';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Switch } from '@/components/ui/Switch';
@@ -14,8 +14,13 @@ import { EmployeeMultiPicker, EmployeePicker } from '../../../shared/components/
 import { Markdown } from '../../../shared/components/Markdown';
 import { CriteriaChips } from '../../../shared/components/CriteriaChips';
 import { useScorecardSetup } from '../../../shared/hooks/useScorecardSetup';
-import type { FieldRule, InterviewMode, QuestionType, RecruitmentOptions, WorkMode } from '../../../shared/types/recruitment.model';
+import type { InterviewMode, PositionForm, RecruitmentOptions, WorkMode } from '../../../shared/types/recruitment.model';
 import type { PositionEditorState } from '../../hooks/usePositionEditor';
+import { ApplicationFormEditor, copyForm, formErrors } from '../../../shared/components/ApplicationFormEditor';
+import { invalidateRecruitmentOptions } from '../../../shared/hooks/useRecruitmentOptions';
+import { saveDefaultForm } from '../../../shared/api/recruitment.api';
+import { messageOf } from '@/lib/api/errors';
+import { showError, showSuccess } from '@/lib/toast';
 
 type Ed = PositionEditorState;
 
@@ -318,75 +323,41 @@ export function AssessmentSection({ ed, options }: { ed: Ed; options: Recruitmen
 
 /* ---------------------------- Application form ---------------------------- */
 
-export function FormSection({ ed }: { ed: Ed }) {
+export function FormSection({ ed, defaultForm, canSaveDefault }: { ed: Ed; defaultForm: PositionForm | null; canSaveDefault: boolean }) {
   const { draft, set, errors, clearError } = ed;
-  const setRule = (key: (typeof STANDARD_FIELDS)[number]['key'], rule: FieldRule) => {
-    set('form', { ...draft.form, standard: { ...draft.form.standard, [key]: rule } });
-    clearError('form', `form.standard.${key}`);
+  const [savingDefault, setSavingDefault] = useState(false);
+  const saveAsDefault = async () => {
+    const e = formErrors(draft.form);
+    if (Object.keys(e).length) { ed.addErrors(e as Record<string, string>); return; }
+    setSavingDefault(true);
+    try {
+      await saveDefaultForm(draft.form);
+      invalidateRecruitmentOptions();
+      showSuccess('Saved as the company application form');
+    } catch (err) {
+      showError(messageOf(err));
+    } finally {
+      setSavingDefault(false);
+    }
   };
   return (
     <EditorSection id="form" title="Application form" description="Name and email are always asked. Choose what else candidates fill in." error={ed.sectionErrors.has('form')}>
-      <FieldMessage error={errors.form} />
-      <div className="divide-y divide-line rounded-lg border border-line">
-        {STANDARD_FIELDS.map((f) => (
-          <div key={f.key} className={cx('flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between', errors[`form.standard.${f.key}`] && 'bg-[var(--tt-danger-soft)]')}>
-            <span className="text-sm font-medium text-fg">{f.label}</span>
-            <SegmentedControl fitText options={FIELD_RULE_OPTIONS} value={draft.form.standard[f.key]} onChange={(v) => setRule(f.key, v)} />
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-5">
-        <p className="mb-2 text-xs font-semibold text-fg sm:text-[13px]">Custom questions</p>
-        {draft.form.questions.length === 0 && <p className="mb-2 text-xs text-fg-muted">No custom questions.</p>}
-        <ol className="space-y-3">
-          {draft.form.questions.map((q, i) => {
-            const optErr = errors[`form.questions.${i}.options`];
-            return (
-              <li key={q.key} className="rounded-lg border border-line p-3">
-                <div className="flex items-start gap-3">
-                  <div className="grid min-w-0 flex-1 gap-3 sm:grid-cols-[1fr_150px]">
-                    <TextField label={`Question ${i + 1}`} required value={q.label} maxLength={200}
-                      onChange={(v) => { ed.updateQuestion(i, { label: v }); clearError(`form.questions.${i}.label`, 'form'); }}
-                      error={errors[`form.questions.${i}.label`]} />
-                    <SelectField label="Answer type" value={q.type}
-                      options={(Object.keys(QUESTION_TYPE_LABELS) as QuestionType[]).map((t) => ({ value: t, label: QUESTION_TYPE_LABELS[t] }))}
-                      onChange={(v) => { ed.updateQuestion(i, { type: (v || 'text') as QuestionType }); clearError(`form.questions.${i}.options`); }} />
-                    {q.type === 'choice' && (
-                      <div className="sm:col-span-2">
-                        <FieldLabel label="Options (one per line)" required />
-                        <div className={cx(shellClass(Boolean(optErr)), 'h-auto py-2')}>
-                          <textarea
-                            value={q.options.join('\n')}
-                            onChange={(e) => { ed.updateQuestion(i, { options: e.target.value.split('\n') }); clearError(`form.questions.${i}.options`); }}
-                            rows={3}
-                            aria-label={`Options for question ${i + 1}`}
-                            aria-invalid={Boolean(optErr) || undefined}
-                            className="w-full resize-y bg-transparent text-sm text-fg outline-none"
-                          />
-                        </div>
-                        <FieldMessage error={optErr} />
-                      </div>
-                    )}
-                    <label className="flex items-center gap-2 text-xs font-semibold text-fg sm:col-span-2">
-                      <Switch checked={q.required} onChange={(v) => ed.updateQuestion(i, { required: v })} label={`Question ${i + 1} required`} />
-                      Required
-                    </label>
-                  </div>
-                  <div className="mt-6 flex shrink-0 flex-col gap-1">
-                    <button type="button" className={iconBtn} disabled={i === 0} onClick={() => ed.moveQuestion(i, -1)} aria-label={`Move question ${i + 1} up`}><ArrowUp className="h-3.5 w-3.5" /></button>
-                    <button type="button" className={iconBtn} disabled={i === draft.form.questions.length - 1} onClick={() => ed.moveQuestion(i, 1)} aria-label={`Move question ${i + 1} down`}><ArrowDown className="h-3.5 w-3.5" /></button>
-                    <button type="button" className={cx(iconBtn, 'hover:text-[var(--tt-danger)]')} onClick={() => ed.removeQuestion(i)} aria-label={`Remove question ${i + 1}`}><Trash2 className="h-3.5 w-3.5" /></button>
-                  </div>
-                </div>
-              </li>
-            );
-          })}
-        </ol>
-        <button type="button" onClick={ed.addQuestion} className="mt-3 inline-flex h-9 items-center gap-1.5 rounded-lg border border-dashed border-line-strong px-3 text-xs font-semibold text-fg hover:bg-bg-subtle sm:text-sm">
-          <Plus className="h-3.5 w-3.5" />Add question
-        </button>
-      </div>
+      {(defaultForm || canSaveDefault) && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-bg-subtle/50 px-3 py-2 text-xs text-fg-muted">
+          <span className="mr-auto">New positions start from the company application form.</span>
+          {defaultForm && (
+            <button type="button" onClick={() => { set('form', copyForm(defaultForm)); clearError('form'); }} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-surface px-2.5 font-semibold text-fg hover:bg-bg-subtle">
+              <RotateCcw className="h-3.5 w-3.5" />Use company form
+            </button>
+          )}
+          {canSaveDefault && (
+            <button type="button" onClick={saveAsDefault} disabled={savingDefault} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-surface px-2.5 font-semibold text-fg hover:bg-bg-subtle disabled:opacity-50">
+              <Save className="h-3.5 w-3.5" />Save as company form
+            </button>
+          )}
+        </div>
+      )}
+      <ApplicationFormEditor value={draft.form} onChange={(f) => set('form', f)} errors={errors} onClearErrors={(...keys) => clearError(...keys)} />
     </EditorSection>
   );
 }

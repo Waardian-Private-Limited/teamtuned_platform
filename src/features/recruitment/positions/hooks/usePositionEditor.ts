@@ -1,15 +1,16 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { showSuccess } from '@/lib/toast';
 import { messageOf } from '@/lib/api/errors';
 import * as api from '../../shared/api/recruitment.api';
 import { DEFAULT_INTERVIEW_CRITERIA, DEFAULT_STANDARD_FORM } from '../../shared/constants/recruitment.constants';
 import { newKey, toPositionDetail } from '../../shared/types/recruitment.mapper';
 import type {
-  FormQuestion, InterviewRound, NamedRef, PositionDetail, PositionForm, PositionInput, PositionStatus, WorkMode,
+  InterviewRound, NamedRef, PositionDetail, PositionForm, PositionInput, PositionStatus, WorkMode,
 } from '../../shared/types/recruitment.model';
 import { serverFieldOf } from '../../shared/utils/errors';
+import { copyForm, formErrors } from '../../shared/components/ApplicationFormEditor';
 
 /** Editor state: numeric inputs stay strings while typing ("2." must survive). */
 export interface PositionDraft {
@@ -156,10 +157,7 @@ function validate(d: PositionDraft): FieldErrors {
     if (lower.length > 8) e[`interview_plan.${i}.criteria`] = 'Up to 8 criteria';
     else if (new Set(lower).size !== lower.length) e[`interview_plan.${i}.criteria`] = 'Each criterion once';
   });
-  d.form.questions.forEach((q, i) => {
-    if (!q.label.trim()) e[`form.questions.${i}.label`] = 'Write the question';
-    if (q.type === 'choice' && q.options.filter((o) => o.trim()).length < 2) e[`form.questions.${i}.options`] = 'Add at least two options';
-  });
+  Object.assign(e, formErrors(d.form));
   if (d.closesOn && !/^\d{4}-\d{2}-\d{2}$/.test(d.closesOn)) e.closes_on = 'Pick a date';
   return e;
 }
@@ -203,8 +201,10 @@ export function usePositionEditor(initial: PositionDetail | null, onSaved: (p: P
   const [formError, setFormError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const formTouched = useRef(false);
 
   const set = useCallback(<K extends keyof PositionDraft>(key: K, value: PositionDraft[K]) => {
+    if (key === 'form') formTouched.current = true;
     setDraft((d) => ({ ...d, [key]: value }));
     setDirty(true);
   }, []);
@@ -245,32 +245,16 @@ export function usePositionEditor(initial: PositionDetail | null, onSaved: (p: P
     setDirty(true);
   }, []);
 
-  /* custom questions */
-  const updateQuestion = useCallback((index: number, patch: Partial<FormQuestion>) => {
-    setDraft((d) => ({ ...d, form: { ...d.form, questions: d.form.questions.map((q, i) => (i === index ? { ...q, ...patch } : q)) } }));
-    setDirty(true);
-  }, []);
-  const addQuestion = useCallback(() => {
-    setDraft((d) => ({ ...d, form: { ...d.form, questions: [...d.form.questions, { key: newKey('q'), label: '', type: 'text', required: false, options: [] }] } }));
-    setDirty(true);
-  }, []);
-  const removeQuestion = useCallback((index: number) => {
-    setDraft((d) => ({ ...d, form: { ...d.form, questions: d.form.questions.filter((_, i) => i !== index) } }));
-    setErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith('form.questions'))));
-    setDirty(true);
-  }, []);
-  const moveQuestion = useCallback((index: number, dir: -1 | 1) => {
-    setDraft((d) => {
-      const to = index + dir;
-      const qs = [...d.form.questions];
-      if (to < 0 || to >= qs.length) return d;
-      [qs[index], qs[to]] = [qs[to], qs[index]];
-      return { ...d, form: { ...d.form, questions: qs } };
-    });
-    setErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith('form.questions'))));
-    setDirty(true);
-  }, []);
+  /** Shows errors found outside `submit` (e.g. before saving the form as the company default). */
+  const addErrors = useCallback((found: FieldErrors) => setErrors((prev) => ({ ...prev, ...found })), []);
 
+  /**
+   * A new position starts from the company application form once it has loaded, unless the form was
+   * already changed by hand.
+   */
+  const startFrom = useCallback((form: PositionForm) => {
+    setDraft((d) => (initial || formTouched.current ? d : { ...d, form: copyForm(form) }));
+  }, [initial]);
   /** Returns the first section with an error (to scroll to) or null when saved. */
   const submit = useCallback(async (): Promise<SectionId | null> => {
     const local = validate(draft);
@@ -310,7 +294,7 @@ export function usePositionEditor(initial: PositionDetail | null, onSaved: (p: P
   return {
     draft, set, errors, clearError, formError, isSaving, dirty, sectionErrors, submit,
     updateRound, addRound, removeRound, moveRound,
-    updateQuestion, addQuestion, removeQuestion, moveQuestion,
+    addErrors, startFrom,
   };
 }
 

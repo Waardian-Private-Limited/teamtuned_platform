@@ -24,18 +24,20 @@ export function JobCard({ job, href }: { job: PublicJob; href: string }) {
   const experience = formatExperience(job.experience);
   const salary = formatSalary(job.salary);
   const posted = postedAgo(job.postedAt);
+  const fresh = job.postedAt ? Date.now() - new Date(job.postedAt).getTime() < 7 * 86_400_000 : false;
 
   return (
-    <li>
+    <li className="h-full">
       <Link
         href={href}
-        className="group relative block rounded-[var(--tt-radius-lg)] border border-line bg-surface p-5 transition-all duration-150 hover:border-fg/30 hover:shadow-[var(--tt-shadow-md)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--tt-ring)] sm:p-6"
+        className="group relative block h-full rounded-[var(--tt-radius-lg)] border border-line bg-surface p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-fg/30 hover:shadow-[var(--tt-shadow-md)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--tt-ring)] sm:p-6"
       >
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            {job.department && (
-              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-fg-subtle">{job.department}</p>
-            )}
+            <div className="mb-1.5 flex items-center gap-2">
+              {job.department && <p className="truncate text-[11px] font-semibold uppercase tracking-[0.16em] text-fg-subtle">{job.department}</p>}
+              {fresh && <span className="shrink-0 rounded-full bg-fg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-bg">New</span>}
+            </div>
             <h3 className="text-lg font-semibold leading-snug tracking-tight text-fg">{job.title}</h3>
           </div>
           <span

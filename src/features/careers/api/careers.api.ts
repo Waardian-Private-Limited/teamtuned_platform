@@ -167,13 +167,20 @@ const FIELD_MODES: FieldMode[] = ['off', 'optional', 'required'];
 const QUESTION_TYPES: QuestionType[] = ['text', 'long_text', 'yes_no', 'choice', 'number'];
 const camel = (k: string) => k.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
 
+/**
+ * The public form schema. The API sends `fields` (each asked field with `required`) and `resume`
+ * (off/optional/required); a `standard` map of modes is read too.
+ */
 function toForm(v: unknown): ApplicationFormConfig {
   const o = obj(v);
   const std = obj(o.standard);
+  const asked = new Map(arr(o.fields).map((f) => { const fo = obj(f); return [str(fo.key) ?? '', Boolean(fo.required)] as const; }));
   const standard = {} as Record<StandardFieldKey, FieldMode>;
   STANDARD_FIELD_KEYS.forEach((key) => {
-    const mode = std[key] ?? std[camel(key)];
-    standard[key] = FIELD_MODES.includes(mode as FieldMode) ? (mode as FieldMode) : 'off';
+    const mode = key === 'resume' && o.resume !== undefined ? o.resume : std[key] ?? std[camel(key)];
+    if (FIELD_MODES.includes(mode as FieldMode)) standard[key] = mode as FieldMode;
+    else if (asked.has(key)) standard[key] = asked.get(key) ? 'required' : 'optional';
+    else standard[key] = 'off';
   });
   const questions: FormQuestion[] = arr(o.questions)
     .map((q) => {

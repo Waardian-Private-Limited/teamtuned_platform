@@ -3,6 +3,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
+import { QrCode } from 'lucide-react';
+import { CareersQrDialog } from '@/features/recruitment/shared/components/CareersQrDialog';
 import { cx, heading, text } from '@/theme/tokens';
 import type { CareersCompany } from '../types/careers.types';
 
@@ -43,9 +45,14 @@ interface PublicShellProps {
   children: React.ReactNode;
   /** Narrow column for token pages (test, offer); wide for the board. */
   width?: 'narrow' | 'wide';
+  /** Adds a Share button (QR, link, poster) for the page being viewed. */
+  share?: { title: string; subtitle?: string };
+  /** Full-bleed band under the header (the board's hero), outside the content column. */
+  hero?: React.ReactNode;
 }
 
-export function PublicShell({ company, homeHref, children, width = 'wide' }: PublicShellProps) {
+export function PublicShell({ company, homeHref, children, width = 'wide', share, hero }: PublicShellProps) {
+  const [sharing, setSharing] = useState(false);
   const container = width === 'narrow' ? 'max-w-3xl' : 'max-w-6xl';
   const brand = company?.name ? (
     <span className="flex min-w-0 items-center gap-3">
@@ -67,14 +74,25 @@ export function PublicShell({ company, homeHref, children, width = 'wide' }: Pub
           ) : (
             brand
           )}
-          {homeHref && (
-            <Link href={homeHref} className="shrink-0 text-sm font-semibold text-fg underline-offset-4 hover:underline">
-              All jobs
-            </Link>
-          )}
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            {homeHref && (
+              <Link href={homeHref} className="rounded-full px-3 py-2 text-sm font-semibold text-fg hover:bg-bg-subtle">
+                All jobs
+              </Link>
+            )}
+            {share && (
+              <button type="button" onClick={() => setSharing(true)} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-line px-3 text-sm font-semibold text-fg transition-colors hover:bg-bg-subtle">
+                <QrCode className="h-4 w-4" aria-hidden="true" /><span className="hidden sm:inline">Share</span>
+              </button>
+            )}
+          </div>
         </div>
       </header>
+      {hero}
       <main className={cx('mx-auto w-full flex-1 px-4 pb-16 pt-8 sm:px-6 sm:pt-12', container)}>{children}</main>
+      {share && sharing && typeof window !== 'undefined' && (
+        <CareersQrDialog open onClose={() => setSharing(false)} url={window.location.href.split('#')[0]} title={share.title} subtitle={share.subtitle} companyName={company?.name} />
+      )}
       <footer className="border-t border-line">
         <div className={cx('mx-auto flex items-center justify-center gap-2 px-4 py-6 sm:px-6', container)}>
           <span className={text.caption}>Powered by</span>

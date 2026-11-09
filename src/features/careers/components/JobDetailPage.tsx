@@ -1,13 +1,13 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Briefcase, Clock, MapPin } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Briefcase, Clock, MapPin } from 'lucide-react';
 import { button, cx, heading, text } from '@/theme/tokens';
 import { useJobDetail } from '../hooks/useJobDetail';
 import type { JobDetail } from '../types/careers.types';
 import { WORK_MODE_LABEL, formatDateOnly, formatExperience, formatSalary, postedAgo } from '../utils/format';
 import { ApplyForm } from './ApplyForm';
-import { JobMeta } from './JobCard';
 import { Markdown } from './Markdown';
 import { PublicShell, StatusScreen } from './PublicShell';
 
@@ -58,8 +58,22 @@ function DetailSkeleton() {
   );
 }
 
+/** On phones, an Apply bar stays at the bottom until the form itself is on screen. */
+function useApplyInView(ready: boolean) {
+  const [inView, setInView] = useState(false);
+  useEffect(() => {
+    const el = document.getElementById('apply');
+    if (!el || typeof IntersectionObserver === 'undefined') return undefined;
+    const io = new IntersectionObserver(([e]) => setInView(e.isIntersecting || e.boundingClientRect.top < 0), { threshold: 0 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [ready]);
+  return inView;
+}
+
 export function JobDetailPage({ slug, jobSlug }: { slug: string; jobSlug: string }) {
   const { job, company, state, error, reload } = useJobDetail(slug, jobSlug);
+  const applyInView = useApplyInView(state === 'ready');
   const boardHref = `/careers/${encodeURIComponent(slug)}`;
 
   if (state === 'not_found') {
@@ -76,7 +90,7 @@ export function JobDetailPage({ slug, jobSlug }: { slug: string; jobSlug: string
   }
 
   return (
-    <PublicShell company={company} homeHref={boardHref}>
+    <PublicShell company={company} homeHref={boardHref} share={job ? { title: job.title, subtitle: [job.department, job.location].filter(Boolean).join(' · ') } : undefined}>
       {state === 'loading' && <DetailSkeleton />}
 
       {state === 'error' && (
@@ -93,13 +107,25 @@ export function JobDetailPage({ slug, jobSlug }: { slug: string; jobSlug: string
             <ArrowLeft className="h-4 w-4" aria-hidden="true" /> All jobs
           </Link>
 
-          <header className="mt-6 border-b border-line pb-8">
-            {job.department && <p className={text.overline}>{job.department}</p>}
-            <h1 className={cx(heading.xl, 'mt-2 break-words')}>{job.title}</h1>
-            <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2">
-              {job.location && <JobMeta icon={<MapPin className="h-4 w-4" />}>{job.location}{job.workMode ? ` · ${WORK_MODE_LABEL[job.workMode]}` : ''}</JobMeta>}
-              {job.employmentType && <JobMeta icon={<Briefcase className="h-4 w-4" />}>{job.employmentType}</JobMeta>}
-              {formatExperience(job.experience) && <JobMeta icon={<Clock className="h-4 w-4" />}>{formatExperience(job.experience)}</JobMeta>}
+          <header className="relative mt-6 overflow-hidden rounded-[var(--tt-radius-lg)] bg-[var(--tt-primary)] px-5 py-8 text-[var(--tt-on-primary)] sm:px-8 sm:py-10">
+            <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-[0.07] [background-image:radial-gradient(currentColor_1px,transparent_1px)] [background-size:22px_22px]" />
+            <div className="relative">
+              {job.department && <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-70">{job.department}</p>}
+              <h1 className="mt-2 break-words text-3xl font-extrabold leading-[1.1] tracking-tight sm:text-4xl lg:text-5xl">{job.title}</h1>
+              <div className="mt-5 flex flex-wrap gap-2">
+                {[
+                  job.location ? { icon: MapPin, label: `${job.location}${job.workMode ? ` · ${WORK_MODE_LABEL[job.workMode]}` : ''}` } : null,
+                  job.employmentType ? { icon: Briefcase, label: job.employmentType } : null,
+                  formatExperience(job.experience) ? { icon: Clock, label: formatExperience(job.experience) as string } : null,
+                ].filter((x): x is { icon: typeof MapPin; label: string } => Boolean(x)).map(({ icon: Icon, label }) => (
+                  <span key={label} className="inline-flex items-center gap-1.5 rounded-full bg-[var(--tt-on-primary)]/10 px-3 py-1.5 text-sm font-medium">
+                    <Icon className="h-4 w-4 opacity-70" aria-hidden="true" />{label}
+                  </span>
+                ))}
+              </div>
+              <a href="#apply" className="mt-7 inline-flex h-12 items-center gap-2 rounded-full bg-[var(--tt-on-primary)] px-6 text-sm font-bold text-[var(--tt-primary)] transition-transform hover:-translate-y-0.5">
+                Apply for this role <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </a>
             </div>
           </header>
 
@@ -137,6 +163,15 @@ export function JobDetailPage({ slug, jobSlug }: { slug: string; jobSlug: string
                 <KeyFacts job={job} />
               </div>
             </aside>
+          </div>
+
+          <div className={cx(
+            'fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur transition-transform duration-200 lg:hidden',
+            applyInView ? 'translate-y-full' : 'translate-y-0'
+          )}>
+            <a href="#apply" className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[var(--tt-primary)] text-sm font-bold text-[var(--tt-on-primary)]">
+              Apply for this role <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </a>
           </div>
         </article>
       )}

@@ -9,12 +9,13 @@ import { ApiKeysPanel } from './ApiKeysPanel';
 import { IntegrationPanel } from './IntegrationPanel';
 import { ScorecardSettingsPanel } from './ScorecardSettingsPanel';
 import { ReferralProgramPanel } from './ReferralProgramPanel';
+import { ApplicationFormPanel } from './ApplicationFormPanel';
 
-type Tab = 'tests' | 'scorecards' | 'referrals' | 'careers';
-const TABS = [{ value: 'tests', label: 'Tests' }, { value: 'scorecards', label: 'Scorecards' }, { value: 'referrals', label: 'Referrals' }, { value: 'careers', label: 'Careers & API' }] as const;
+type Tab = 'form' | 'tests' | 'scorecards' | 'referrals' | 'careers';
+const TABS = [{ value: 'form', label: 'Application form' }, { value: 'tests', label: 'Tests' }, { value: 'scorecards', label: 'Scorecards' }, { value: 'referrals', label: 'Referrals' }, { value: 'careers', label: 'Careers & API' }] as const;
 
 export function RecruitmentSettingsPage() {
-  const [tab, setTab] = useState<Tab>('tests');
+  const [tab, setTab] = useState<Tab>('form');
   // ?tab=careers opens a section directly (links from the share dialogs).
   useEffect(() => {
     const asked = new URLSearchParams(window.location.search).get('tab');
@@ -27,7 +28,9 @@ export function RecruitmentSettingsPage() {
         <Tabs tabs={TABS} value={tab} onChange={setTab} idPrefix="recruit-settings" ariaLabel="Settings sections" />
       </div>
       <div id={`recruit-settings-panel-${tab}`} role="tabpanel" className="min-h-0 flex-1 space-y-3 overflow-y-auto tt-scroll-hidden">
-        {tab === 'tests' ? (
+        {tab === 'form' ? (
+          <ApplicationFormPanel />
+        ) : tab === 'tests' ? (
           <TestBankPanel />
         ) : tab === 'scorecards' ? (
           <ScorecardSettingsPanel />

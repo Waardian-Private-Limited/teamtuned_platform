@@ -272,6 +272,8 @@ export interface RecruitmentOptions {
   tests: NamedRef[];
   /** Public careers page (null while the hosted page is off) and the company name for share posters. */
   careers: { url: string | null; companyName: string; known: boolean };
+  /** The company application form new positions start from; null on a server that does not send it. */
+  defaultForm: PositionForm | null;
 }
 
 export interface EmployeeOption {

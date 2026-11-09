@@ -32,6 +32,9 @@ export function PositionEditor({ initial, onSaved, onCancel, header }: PositionE
   const ed = usePositionEditor(initial, onSaved);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState<SectionId>('basics');
+  // A new position starts from the company application form.
+  const { startFrom } = ed;
+  useEffect(() => { if (options.defaultForm) startFrom(options.defaultForm); }, [options.defaultForm, startFrom]);
 
   const scrollTo = useCallback((id: SectionId) => {
     const root = scrollerRef.current;
@@ -111,7 +114,7 @@ export function PositionEditor({ initial, onSaved, onCancel, header }: PositionE
             <SkillsSection ed={ed} />
             <InterviewPlanSection ed={ed} />
             <AssessmentSection ed={ed} options={options} />
-            <FormSection ed={ed} />
+            <FormSection ed={ed} defaultForm={options.defaultForm} canSaveDefault={access.canSettings} />
             <PublishingSection ed={ed} isNew={!initial} />
           </div>
           <div className="sticky bottom-0 z-10 flex items-center justify-between gap-3 rounded-xl border border-line bg-surface/95 px-4 py-3 shadow-[var(--tt-shadow-md)] backdrop-blur">

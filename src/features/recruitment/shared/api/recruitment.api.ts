@@ -3,7 +3,7 @@ import type {
   ApplicationCardDto, ApplicationDetailDto, EmployeeOptionDto, ListResponseDto, OptionsDto, OverviewDto, PipelineDto,
   PositionDetailDto, PositionListItemDto, ResumeUrlDto, ScorecardSetupDto,
 } from '../types/recruitment.dto';
-import type { ManualCandidateInput, PositionInput, PositionStatus, Stage } from '../types/recruitment.model';
+import type { ManualCandidateInput, PositionForm, PositionInput, PositionStatus, Stage } from '../types/recruitment.model';
 
 /**
  * Base for every /api/v1/recruitment call. Sibling sub-features (interviews,
@@ -93,16 +93,7 @@ export function positionBody(input: PositionInput) {
       criteria: r.criteria,
     })),
     test_id: input.testId,
-    form: {
-      standard: input.form.standard,
-      questions: input.form.questions.map((q) => ({
-        key: q.key,
-        label: q.label.trim(),
-        type: q.type,
-        required: q.required,
-        options: q.type === 'choice' ? q.options.map((o) => o.trim()).filter(Boolean) : [],
-      })),
-    },
+    form: formBody(input.form),
     published: input.published,
   };
   // PUT/POST accept only draft|open; paused/closed/filled change through PATCH /status.
@@ -237,4 +228,31 @@ export function getScorecardSetup(target: { applicationId: number } | { subOrgan
     ? { application_id: target.applicationId }
     : target.subOrganizationId ? { sub_organization_id: target.subOrganizationId } : {};
   return recruitmentApi.get<ScorecardSetupDto>('/scorecard-setup', params);
+}
+
+/* --------------------------- company application form --------------------------- */
+
+/** An application form as the API takes it (positions and the company default). */
+function formBody(form: PositionForm) {
+  return {
+    standard: form.standard,
+    questions: form.questions.map((q) => ({
+      key: q.key,
+      label: q.label.trim(),
+      type: q.type,
+      required: q.required,
+      options: q.type === 'choice' ? q.options.map((o) => o.trim()).filter(Boolean) : [],
+    })),
+  };
+}
+
+export function getDefaultForm() {
+  return recruitmentApi.get<{ form: PositionDetailDto['form']; custom: boolean }>('/settings/application-form');
+}
+
+/** Saves the company application form; null goes back to the built-in one. */
+export function saveDefaultForm(form: PositionForm | null) {
+  return recruitmentApi.put<{ form: PositionDetailDto['form']; custom: boolean }>('/settings/application-form', {
+    form: form && formBody(form),
+  });
 }

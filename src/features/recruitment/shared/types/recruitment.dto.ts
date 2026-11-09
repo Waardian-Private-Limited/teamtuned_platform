@@ -270,6 +270,7 @@ export interface OptionsDto {
   sites?: Array<{ id: number; name: string }>;
   tests?: Array<{ id: number; name: string }>;
   careers?: { url?: string | null; companyName?: string | null };
+  defaultForm?: PositionDetailDto['form'];
 }
 
 export interface EmployeeOptionDto {
