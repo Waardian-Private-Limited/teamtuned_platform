@@ -300,7 +300,7 @@ export function PositionPage({ positionId }: PositionPageProps) {
           title={position.title}
           subtitle={[position.department?.name, positionLocation(position)].filter(Boolean).join(' · ')}
           unavailable={position.published
-            ? <CareersOffNotice canSettings={careersSite.canSettings} base={base} />
+            ? <CareersOffNotice state={careersSite.state} canSettings={careersSite.canSettings} base={base} />
             : <>This position is not on the careers page yet. {canManage ? 'Use Publish above, then share it.' : 'Ask the recruiter to publish it.'}</>}
           companyName={careersSite.companyName}
         />

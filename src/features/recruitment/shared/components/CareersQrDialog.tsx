@@ -209,8 +209,10 @@ export function CareersQrDialog({ open, onClose, url, unavailable, title, subtit
   );
 }
 
-/** The hosted careers page is off or has no address: who can turn it on, and where. */
-export function CareersOffNotice({ canSettings, base }: { canSettings: boolean; base: string }) {
+/** Why there is no careers link: still checking, the hosted page is off, or it could not be checked. */
+export function CareersOffNotice({ state, canSettings, base }: { state: 'checking' | 'on' | 'off' | 'unknown'; canSettings: boolean; base: string }) {
+  if (state === 'checking') return <>Getting the careers link…</>;
+  if (state === 'unknown') return <>Could not get the careers link. Try again after the page reloads, or ask someone with recruitment settings access.</>;
   return canSettings ? (
     <>The careers page is off. Turn it on and give it an address in{' '}
       <Link href={`${base}/settings?tab=careers`} className="font-semibold text-fg underline">Settings → Careers &amp; API</Link>.</>

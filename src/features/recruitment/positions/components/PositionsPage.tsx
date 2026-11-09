@@ -77,8 +77,6 @@ export function PositionsPage() {
         departments={departments}
         departmentId={list.departmentId}
         onDepartmentChange={list.setDepartmentId}
-        mine={list.mine}
-        onMineChange={list.setMine}
         canAdd={access.canManage}
         onAdd={onAdd}
         onShareCareers={() => setSharing(true)}
@@ -119,7 +117,7 @@ export function PositionsPage() {
           open={sharing}
           onClose={() => setSharing(false)}
           url={careers.url}
-          unavailable={<CareersOffNotice canSettings={careers.canSettings} base={base} />}
+          unavailable={<CareersOffNotice state={careers.state} canSettings={careers.canSettings} base={base} />}
           title={careers.companyName ? `Careers at ${careers.companyName}` : 'Open positions'}
           subtitle="Every open role, one scan away"
           companyName={careers.companyName}

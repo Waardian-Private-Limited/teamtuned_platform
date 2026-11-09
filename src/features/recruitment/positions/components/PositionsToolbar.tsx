@@ -3,7 +3,6 @@
 import { Plus, QrCode, Search } from 'lucide-react';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { SearchableFilterDropdown, type FilterOption } from '@/components/ui/SearchableFilterDropdown';
-import { Switch } from '@/components/ui/Switch';
 import { POSITION_STATUS_FILTERS, type PositionStatusFilter } from '../hooks/usePositionList';
 
 interface PositionsToolbarProps {
@@ -15,8 +14,6 @@ interface PositionsToolbarProps {
   departments: FilterOption[];
   departmentId: number | null;
   onDepartmentChange: (v: number | null) => void;
-  mine: boolean;
-  onMineChange: (v: boolean) => void;
   canAdd: boolean;
   onAdd: () => void;
   /** Opens the careers page QR and link. */
@@ -24,7 +21,7 @@ interface PositionsToolbarProps {
 }
 
 export function PositionsToolbar(props: PositionsToolbarProps) {
-  const { total, searchValue, onSearchChange, status, onStatusChange, departments, departmentId, onDepartmentChange, mine, onMineChange, canAdd, onAdd, onShareCareers } = props;
+  const { total, searchValue, onSearchChange, status, onStatusChange, departments, departmentId, onDepartmentChange, canAdd, onAdd, onShareCareers } = props;
   return (
     <div className="flex flex-col gap-2.5 rounded-xl border border-line bg-surface p-3 sm:p-3.5 xl:flex-row xl:items-center xl:justify-between xl:gap-4 2xl:p-4">
       <div className="flex items-center justify-between gap-3 xl:justify-start">
@@ -54,10 +51,6 @@ export function PositionsToolbar(props: PositionsToolbarProps) {
         {departments.length > 0 && (
           <SearchableFilterDropdown label="Department" allLabel="All departments" value={departmentId} options={departments} onChange={onDepartmentChange} />
         )}
-        <label className="inline-flex h-9 items-center gap-2 rounded-lg border border-line bg-surface px-2.5 text-xs font-semibold text-fg sm:text-sm">
-          <Switch checked={mine} onChange={onMineChange} label="Only my positions" />
-          Mine
-        </label>
         {onShareCareers && (
           <button type="button" onClick={onShareCareers} className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-fg shadow-xs hover:bg-bg-subtle sm:text-sm">
             <QrCode className="h-3.5 w-3.5" />Careers QR
