@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
-import { CheckCircle2, FileText, Sparkles, Upload, X } from 'lucide-react';
+import { CheckCircle2, FileText, Upload, X } from 'lucide-react';
 import { cx, text } from '@/theme/tokens';
+import { TunerIcon } from '@/features/data-collection/components/shared/TunerIcon';
 import { RESUME_ACCEPT, type PrefillState } from '../hooks/useApplyForm';
 
 // What Tuner says while it reads, one line at a time.
@@ -80,8 +81,8 @@ export function ResumeStart({ file, state, filledCount, mode, error, onFile, onR
             dragging ? 'scale-[1.01] border-fg bg-bg-subtle' : error ? 'border-[var(--tt-danger)]' : 'border-line-strong hover:border-fg/50 hover:bg-bg-subtle/60'
           )}
         >
-          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--tt-primary)] text-[var(--tt-on-primary)] shadow-[var(--tt-shadow-md)] transition-transform group-hover:-translate-y-0.5">
-            <Sparkles className="h-6 w-6" aria-hidden="true" />
+          <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-line bg-surface shadow-[var(--tt-shadow-md)] transition-transform group-hover:-translate-y-0.5">
+            <TunerIcon className="h-9 w-9" />
           </span>
           <span id={`${id}-title`} className="text-lg font-bold tracking-tight text-fg">Start with your resume</span>
           <span className="max-w-sm text-sm text-fg-muted">Upload it and Tuner fills in the form for you. You check everything before you send it.</span>
@@ -108,9 +109,9 @@ export function ResumeStart({ file, state, filledCount, mode, error, onFile, onR
       <div className="flex items-start gap-3 sm:gap-4">
         <span className={cx(
           'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl',
-          reading ? 'animate-pulse bg-[var(--tt-primary)] text-[var(--tt-on-primary)]' : 'bg-bg-subtle text-fg'
+          reading ? 'animate-pulse border border-line bg-surface' : 'bg-bg-subtle text-fg'
         )}>
-          {reading ? <Sparkles className="h-5 w-5" aria-hidden="true" /> : state === 'filled' ? <CheckCircle2 className="h-5 w-5" aria-hidden="true" /> : <FileText className="h-5 w-5" aria-hidden="true" />}
+          {reading ? <TunerIcon className="h-7 w-7" /> : state === 'filled' ? <CheckCircle2 className="h-5 w-5" aria-hidden="true" /> : <FileText className="h-5 w-5" aria-hidden="true" />}
         </span>
 
         {reading ? (

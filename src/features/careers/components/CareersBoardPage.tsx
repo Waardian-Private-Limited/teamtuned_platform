@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { ArrowDown, Building2, MapPin, Search, Sparkles, X } from 'lucide-react';
+import { ArrowDown, Briefcase, Building2, MapPin, Search, X } from 'lucide-react';
 import { Pagination } from '@/components/ui/Pagination';
 import { button, cx, heading, text } from '@/theme/tokens';
 import { useHostedJobs } from '../hooks/useHostedJobs';
@@ -81,7 +81,7 @@ export function CareersBoardPage({ slug }: { slug: string }) {
                 {company && <CompanyMark company={company} size={52} />}
                 {total > 0 && (
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--tt-on-primary)]/20 bg-[var(--tt-on-primary)]/10 px-3 py-1 text-xs font-semibold">
-                    <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />We&apos;re hiring
+                    <Briefcase className="h-3.5 w-3.5" aria-hidden="true" />We&apos;re hiring
                   </span>
                 )}
               </div>
@@ -95,7 +95,7 @@ export function CareersBoardPage({ slug }: { slug: string }) {
             </div>
             {total > 0 && (
               <div className="flex gap-6 sm:gap-8 lg:flex-col lg:gap-5">
-                <Stat icon={Sparkles} value={total} label={total === 1 ? 'Open role' : 'Open roles'} />
+                <Stat icon={Briefcase} value={total} label={total === 1 ? 'Open role' : 'Open roles'} />
                 {facets.departments.length > 0 && <Stat icon={Building2} value={facets.departments.length} label={facets.departments.length === 1 ? 'Team' : 'Teams'} />}
                 {facets.locations.length > 0 && <Stat icon={MapPin} value={facets.locations.length} label={facets.locations.length === 1 ? 'Location' : 'Locations'} />}
               </div>
