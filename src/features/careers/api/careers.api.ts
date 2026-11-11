@@ -326,7 +326,7 @@ export async function submitHostedApplication(slug: string, jobSlug: string, for
 }
 
 export interface ResumePrefill {
-  /** filled: values read; no_text: a scan or old .doc with no readable text; unavailable: the reader is busy. */
+  /** filled: values read; no_text: no readable text (pages could not be read); unavailable: the reader is busy. */
   status: 'filled' | 'no_text' | 'unavailable';
   fields: Record<string, string>;
   answers: Record<string, string>;
