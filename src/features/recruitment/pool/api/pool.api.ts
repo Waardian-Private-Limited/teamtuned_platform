@@ -28,7 +28,14 @@ export function listPool(q: PoolQuery) {
 
 export const getPoolPerson = (id: number) => recruitmentApi.get<PoolPerson>(`/pool/${id}`);
 
-export const addLead = (body: LeadInput) => recruitmentApi.post<PoolPerson>('/pool', body);
+/** A new lead; with a resume the body goes as multipart. */
+export function addLead(body: LeadInput, resume?: File | null) {
+  if (!resume) return recruitmentApi.post<PoolPerson>('/pool', body);
+  const fd = new FormData();
+  Object.entries(body).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') fd.append(k, String(v)); });
+  fd.append('resume', resume);
+  return recruitmentApi.post<PoolPerson>('/pool', fd);
+}
 
 export const importPool = (body: { rows: Array<Record<string, string>>; lead_source?: string; lead_status?: LeadStatus | null; update_existing?: boolean }) =>
   recruitmentApi.post<ImportResult>('/pool/import', body);

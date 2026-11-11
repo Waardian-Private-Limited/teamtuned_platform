@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRightLeft, Linkedin, Mail, MessageCircle, Phone, PhoneCall, StickyNote, UserPlus, Upload } from 'lucide-react';
+import { ArrowRightLeft, FileText, Linkedin, Mail, MessageCircle, Phone, PhoneCall, StickyNote, UserPlus, Upload } from 'lucide-react';
 import { Combobox } from '@/components/ui/Combobox';
 import { Drawer } from '@/components/ui/Drawer';
 import { Chip, FieldLabel, TextField } from '@/components/ui/FormControls';
@@ -13,6 +13,7 @@ import { showSuccess } from '@/lib/toast';
 import { cx } from '@/theme/tokens';
 import * as api from '../../shared/api/recruitment.api';
 import { CandidateAvatar } from '../../shared/components/CandidateAvatar';
+import { ResumeViewer } from '../../shared/components/ResumeViewer';
 import { SOURCE_LABELS, STAGE_LABELS } from '../../shared/constants/recruitment.constants';
 import { useRecruitmentBase } from '../../shared/hooks/useRecruitmentBase';
 import { toPaged, toPosition } from '../../shared/types/recruitment.mapper';
@@ -143,8 +144,8 @@ function MoveToPosition({ person, onMoved }: { person: PoolPerson; onMoved: () =
 
   return (
     <section className="rounded-xl border border-line p-3 sm:p-4">
-      <h3 className="mb-1 text-sm font-bold text-fg">Move to a position</h3>
-      <p className="mb-2.5 text-xs text-fg-muted">Adds them to the position&apos;s pipeline at Applied.</p>
+      <h3 className="mb-1 text-sm font-bold text-fg">Move to candidates</h3>
+      <p className="mb-2.5 text-xs text-fg-muted">Pick a position: they join its pipeline at Applied, show under Candidates, and this lead is marked Moved to candidates.</p>
       <div className="flex flex-col gap-2 sm:flex-row">
         <div className="min-w-0 flex-1">
           <Combobox options={options} value={positionId} onChange={(v) => { setPositionId(v === null ? null : Number(v)); setError(null); }}
@@ -183,6 +184,8 @@ export function PoolDrawer({ candidateId, canManage, onClose, onChanged }: {
   useEffect(() => { setPerson(null); setError(null); load(); }, [load]);
 
   const c = person?.candidate;
+  const [showResume, setShowResume] = useState(false);
+  useEffect(() => { setShowResume(false); }, [candidateId]);
   const changed = (p?: PoolPerson) => { if (p) setPerson(p); else load(); onChanged(); };
 
   return (
@@ -216,6 +219,16 @@ export function PoolDrawer({ candidateId, canManage, onClose, onChanged }: {
             <div className="flex flex-wrap gap-1">
               {c.skills.split(',').map((s) => s.trim()).filter(Boolean).map((s) => <span key={s} className="rounded-md border border-line bg-bg-subtle px-2 py-0.5 text-[11px] font-semibold text-fg-muted">{s}</span>)}
             </div>
+          )}
+
+          {c.hasResume && (
+            <section className="rounded-xl border border-line">
+              <button type="button" onClick={() => setShowResume((x) => !x)} aria-expanded={showResume} className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-sm font-bold text-fg sm:px-4">
+                <span className="inline-flex items-center gap-1.5"><FileText className="h-4 w-4 text-fg-muted" />Resume</span>
+                <span className="text-xs font-semibold text-fg-muted">{showResume ? 'Hide' : 'Show'}</span>
+              </button>
+              {showResume && <div className="border-t border-line p-2"><ResumeViewer candidateId={c.id} className="h-[60vh]" /></div>}
+            </section>
           )}
 
           {canManage && <CallLog person={person} onSaved={(p) => changed(p)} />}

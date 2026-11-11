@@ -3,7 +3,7 @@ import type {
   ApplicationCardDto, ApplicationDetailDto, EmployeeOptionDto, ListResponseDto, OptionsDto, OverviewDto, PipelineDto,
   PositionDetailDto, PositionListItemDto, ResumeUrlDto, ScorecardSetupDto,
 } from '../types/recruitment.dto';
-import type { ManualCandidateInput, PositionForm, PositionInput, PositionStatus, Stage } from '../types/recruitment.model';
+import type { ManualCandidateInput, PositionForm, PositionInput, PositionStatus, ResumeScan, Stage } from '../types/recruitment.model';
 
 /**
  * Base for every /api/v1/recruitment call. Sibling sub-features (interviews,
@@ -148,25 +148,34 @@ export function listApplications(params: ApplicationListParams = {}) {
  * `req.body.candidate` under multer; the same values also go flat (like the
  * referral form) so either reading works.
  */
-export function addCandidate(input: ManualCandidateInput) {
+/**
+ * Adds a candidate by hand. With a position they go into its pipeline at Applied (answer: the application id);
+ * without one they are saved as "Not assigned" (application id null).
+ */
+export async function addCandidate(input: ManualCandidateInput): Promise<{ applicationId: number | null }> {
   const fd = new FormData();
-  const candidate: Record<string, string> = {
-    first_name: input.firstName.trim(),
-    last_name: input.lastName.trim(),
-    email: input.email.trim(),
-  };
-  if (blank(input.phone)) candidate.phone = input.phone.trim();
-  if (blank(input.currentTitle)) candidate.current_title = input.currentTitle.trim();
-  if (blank(input.currentCompany)) candidate.current_company = input.currentCompany.trim();
-  if (blank(input.totalExperience)) candidate.total_experience = input.totalExperience.trim();
-  fd.append('position_id', String(input.positionId));
-  Object.entries(candidate).forEach(([k, v]) => {
-    fd.append(`candidate[${k}]`, v);
-    fd.append(k, v);
+  Object.entries(input.fields).forEach(([k, v]) => {
+    const value = blank(v);
+    if (value === undefined && k !== 'first_name' && k !== 'last_name' && k !== 'email') return;
+    fd.append(`candidate[${k}]`, value ?? '');
+    fd.append(k, value ?? '');
   });
   if (input.referredByEmployeeId) fd.append('referred_by_employee_id', String(input.referredByEmployeeId));
   if (input.resume) fd.append('resume', input.resume);
-  return recruitmentApi.post<{ id: number }>('/applications', fd);
+  if (!input.positionId) {
+    await recruitmentApi.post<{ id: number }>('/candidates', fd);
+    return { applicationId: null };
+  }
+  fd.append('position_id', String(input.positionId));
+  const res = await recruitmentApi.post<{ id: number }>('/applications', fd);
+  return { applicationId: res && typeof res.id === 'number' ? res.id : null };
+}
+
+/** Tuner reads the resume into the Add candidate form. Nothing is saved. */
+export function scanResume(file: File) {
+  const fd = new FormData();
+  fd.append('resume', file);
+  return recruitmentApi.post<ResumeScan>('/candidates/resume-scan', fd);
 }
 
 export function getApplication(id: number) {

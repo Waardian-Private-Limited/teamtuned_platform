@@ -24,7 +24,7 @@ import type { ApplicationCard } from '../../shared/types/recruitment.model';
 import { openingsText, positionLocation } from '../../shared/utils/format';
 import { usePositionPage } from '../hooks/usePositionPage';
 import { availableStatusActions, STATUS_ACTION_LABELS, usePositionStatusActions, type PositionStatusAction } from '../hooks/usePositionStatusActions';
-import { AddCandidateDialog } from './AddCandidateDialog';
+import { AddCandidateDialog } from '../../shared/components/AddCandidateDialog';
 import { ClosePositionDialog } from './ClosePositionDialog';
 import { PipelineBoard, PipelineSkeleton } from './pipeline/PipelineBoard';
 import { PositionDetailsView } from './PositionDetailsView';
@@ -256,10 +256,9 @@ export function PositionPage({ positionId }: PositionPageProps) {
       {position && (
         <AddCandidateDialog
           open={addOpen}
-          positionId={position.id}
-          positionTitle={position.title}
+          position={{ id: position.id, title: position.title }}
           onClose={() => setAddOpen(false)}
-          onAdded={(id) => { setAddOpen(false); page.loadBoard(); if (id) setOpenApp(id); }}
+          onAdded={(res) => { setAddOpen(false); page.loadBoard(); if ('applicationId' in res && res.applicationId) setOpenApp(res.applicationId); }}
         />
       )}
 

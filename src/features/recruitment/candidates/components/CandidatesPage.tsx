@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { useSearchParams } from 'next/navigation';
-import { RotateCcw, Search } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { RotateCcw, Search, UserPlus } from 'lucide-react';
 import { Alert } from '@/components/ui/Alert';
 import { Pagination } from '@/components/ui/Pagination';
 import { SearchableFilterDropdown } from '@/components/ui/SearchableFilterDropdown';
@@ -15,6 +15,9 @@ import {
 import { toPaged, toPosition } from '../../shared/types/recruitment.mapper';
 import type { ApplicationStatus, Source } from '../../shared/types/recruitment.model';
 import { CandidateDrawerHost } from '../../interviews/components/CandidateDrawerHost';
+import { AddCandidateDialog } from '../../shared/components/AddCandidateDialog';
+import { useRecruitmentAccess } from '../../shared/hooks/useRecruitmentAccess';
+import { useRecruitmentBase } from '../../shared/hooks/useRecruitmentBase';
 import { useApplicationList } from '../hooks/useApplicationList';
 import { CandidatesCardList, CandidatesSkeleton, CandidatesTable } from './CandidatesTable';
 
@@ -38,12 +41,21 @@ function FilterSelect({ label, value, onChange, options, allLabel }: {
   );
 }
 
+/**
+ * Candidates are people in a position's pipeline. "Add candidate" without a position sends the person to the
+ * talent pool as a New lead (with the add-on), where callers follow them up and move them into a position.
+ */
 export function CandidatesPage() {
   const params = useSearchParams();
   const initialPosition = Number(params?.get('position_id')) || null;
   const initialStage = params?.get('stage') || '';
   const list = useApplicationList({ positionId: initialPosition, stage: (STAGES as readonly string[]).includes(initialStage) ? initialStage : '' });
   const [openApp, setOpenApp] = React.useState<number | null>(null);
+  const access = useRecruitmentAccess();
+  const [adding, setAdding] = React.useState(false);
+  const router = useRouter();
+  const base = useRecruitmentBase();
+  const openInPool = (id: number) => router.push(`${base}/talent-pool?open=${id}`);
   const [positions, setPositions] = React.useState<Array<{ value: number; label: string }>>([]);
 
   React.useEffect(() => {
@@ -57,9 +69,16 @@ export function CandidatesPage() {
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="flex flex-col gap-2.5 rounded-xl border border-line bg-surface p-3 sm:p-3.5 xl:flex-row xl:items-center xl:justify-between xl:gap-4 2xl:p-4">
-        <div className="flex items-center gap-2 sm:gap-2.5">
-          <h1 className="text-base font-bold tracking-tight text-fg sm:text-lg 2xl:text-xl">Candidates</h1>
-          <span className="inline-flex items-center rounded-md border border-line bg-bg-subtle px-2 py-0.5 text-xs font-semibold tabular-nums text-fg-muted">{list.total}</span>
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-2.5">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <h1 className="text-base font-bold tracking-tight text-fg sm:text-lg 2xl:text-xl">Candidates</h1>
+            <span className="inline-flex items-center rounded-md border border-line bg-bg-subtle px-2 py-0.5 text-xs font-semibold tabular-nums text-fg-muted">{list.total}</span>
+          </div>
+          {access.canManage && (
+            <button type="button" onClick={() => setAdding(true)} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--tt-primary)] px-3 text-xs font-semibold text-[var(--tt-on-primary)] shadow-xs hover:bg-[var(--tt-primary-hover)] sm:text-sm xl:hidden">
+              <UserPlus className="h-3.5 w-3.5" />Add candidate
+            </button>
+          )}
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2.5">
           <div className="relative flex h-9 w-full items-center rounded-lg border border-line bg-surface px-2.5 transition-colors focus-within:border-[var(--tt-primary)] focus-within:ring-1 focus-within:ring-[var(--tt-primary)] sm:w-52 xl:w-60">
@@ -83,6 +102,11 @@ export function CandidatesPage() {
             <Switch checked={filters.ownerMe} onChange={(v) => setFilter('ownerMe', v)} label="Assigned to me" />
             Owned by me
           </label>
+          {access.canManage && (
+            <button type="button" onClick={() => setAdding(true)} className="hidden h-9 items-center gap-1.5 rounded-lg bg-[var(--tt-primary)] px-3 text-sm font-semibold text-[var(--tt-on-primary)] shadow-xs hover:bg-[var(--tt-primary-hover)] xl:inline-flex">
+              <UserPlus className="h-3.5 w-3.5" />Add candidate
+            </button>
+          )}
         </div>
       </div>
 
@@ -135,6 +159,15 @@ export function CandidatesPage() {
       </div>
 
       <CandidateDrawerHost applicationId={openApp} onClose={() => setOpenApp(null)} onChanged={() => list.refetch()} />
+      <AddCandidateDialog
+        open={adding}
+        onClose={() => setAdding(false)}
+        onAdded={(res) => {
+          setAdding(false);
+          if ('applicationId' in res) { list.refetch(); if (res.applicationId) setOpenApp(res.applicationId); }
+        }}
+        onOpenExisting={openInPool}
+      />
     </div>
   );
 }

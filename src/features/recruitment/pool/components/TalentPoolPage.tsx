@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { FileUp, Plus, RotateCcw, Search } from 'lucide-react';
 import { Alert } from '@/components/ui/Alert';
 import { Pagination } from '@/components/ui/Pagination';
@@ -42,7 +43,9 @@ const select = 'h-9 rounded-lg border border-line bg-surface px-2.5 text-xs font
 export function TalentPoolPage() {
   const access = useRecruitmentAccess();
   const list = usePoolList();
-  const [openId, setOpenId] = useState<number | null>(null);
+  const params = useSearchParams();
+  // ?open=<id>: opened from elsewhere (e.g. Add candidate found the person already in the pool).
+  const [openId, setOpenId] = useState<number | null>(Number(params?.get('open')) || null);
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
   const counts = list.data?.counts;

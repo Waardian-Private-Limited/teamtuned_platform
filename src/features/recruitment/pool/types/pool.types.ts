@@ -94,6 +94,11 @@ export interface LeadInput {
   total_experience?: string;
   city?: string;
   skills?: string;
+  notice_period_days?: string;
+  current_ctc?: string;
+  expected_ctc?: string;
+  linkedin_url?: string;
+  portfolio_url?: string;
   lead_status?: LeadStatus;
   follow_up_on?: string;
   note?: string;

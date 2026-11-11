@@ -312,16 +312,24 @@ export interface PositionInput {
   closesOn: string;
 }
 
+/** Candidate fields on the recruiter's Add candidate form, by their server (column) names. */
+export const CANDIDATE_FIELD_KEYS = [
+  'first_name', 'last_name', 'email', 'phone', 'current_title', 'current_company', 'total_experience', 'city',
+  'notice_period_days', 'current_ctc', 'expected_ctc', 'linkedin_url', 'portfolio_url', 'skills',
+] as const;
+export type CandidateFieldKey = (typeof CANDIDATE_FIELD_KEYS)[number];
+
 export interface ManualCandidateInput {
-  positionId: number;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  currentTitle: string;
-  currentCompany: string;
-  totalExperience: string;
+  /** Null: the candidate is saved without a position ("Not assigned") and can be assigned later. */
+  positionId: number | null;
+  fields: Record<CandidateFieldKey, string>;
   /** The employee who referred them, when HR adds a referral by hand. */
   referredByEmployeeId?: number | null;
   resume: File | null;
+}
+
+/** Tuner's reading of a resume: form keys (experience, notice_period, linkedin, portfolio, …) to values. */
+export interface ResumeScan {
+  status: 'filled' | 'no_text' | 'unavailable';
+  fields: Record<string, string>;
 }

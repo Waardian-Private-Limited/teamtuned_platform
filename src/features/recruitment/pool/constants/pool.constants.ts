@@ -9,7 +9,7 @@ export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
   interested: 'Interested',
   not_interested: 'Not interested',
   call_back: 'Call back',
-  moved: 'Moved to position',
+  moved: 'Moved to candidates',
 };
 
 /** Outcomes offered after a call, in the order people pick them. */
