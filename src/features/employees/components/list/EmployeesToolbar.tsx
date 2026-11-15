@@ -1,10 +1,12 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { ChevronDown, Plus, Search, Settings2 } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { SubOrgFilter } from '@/features/sub-organizations/components/SubOrgFilter';
 import { useCatalogOptions } from '@/features/job-catalogs/hooks/useCatalogOptions';
 import type { CatalogKind } from '@/features/job-catalogs/types/jobCatalogs.model';
+import { listSiteOptions } from '../../api/employees.api';
 import { STATUS_FILTERS, type StatusFilter } from '../../constants/employees.constants';
 import type { EmployeeListResponseDto } from '../../types/employees.dto';
 
@@ -20,6 +22,8 @@ interface EmployeesToolbarProps {
   onGradeChange: (value: number | null) => void;
   costCentreId: number | null;
   onCostCentreChange: (value: number | null) => void;
+  siteId: number | null;
+  onSiteChange: (value: number | null) => void;
   contractsEnding: boolean;
   onContractsEndingChange: (value: boolean) => void;
   canAdd: boolean;
@@ -33,9 +37,10 @@ interface EmployeesToolbarProps {
   onAssignCompany?: () => void;
 }
 
-// Grade / cost centre filter; hidden until the catalog has something to pick.
-function CatalogFilter({ kind, value, onChange, allLabel }: { kind: CatalogKind; value: number | null; onChange: (value: number | null) => void; allLabel: string }) {
-  const items = useCatalogOptions(kind);
+interface FilterProps { value: number | null; onChange: (value: number | null) => void }
+
+// One select filter; hidden until there is something to pick.
+function FilterSelect({ items, value, onChange, allLabel }: FilterProps & { items: { id: number; name: string }[]; allLabel: string }) {
   if (!items.length) return null;
   return (
     <div className="relative">
@@ -53,9 +58,25 @@ function CatalogFilter({ kind, value, onChange, allLabel }: { kind: CatalogKind;
   );
 }
 
+// Grade / cost centre filter.
+function CatalogFilter({ kind, allLabel, ...rest }: FilterProps & { kind: CatalogKind; allLabel: string }) {
+  return <FilterSelect items={useCatalogOptions(kind)} allLabel={allLabel} {...rest} />;
+}
+
+// Employees assigned to the picked site.
+function SiteFilter(props: FilterProps) {
+  const [sites, setSites] = useState<{ id: number; name: string }[]>([]);
+  useEffect(() => {
+    let alive = true;
+    listSiteOptions().then((dto) => alive && setSites(dto.sites || [])).catch(() => alive && setSites([]));
+    return () => { alive = false; };
+  }, []);
+  return <FilterSelect items={sites} allLabel="All sites" {...props} />;
+}
+
 export function EmployeesToolbar({
   counts, searchValue, onSearchChange, status, onStatusChange, subOrgId, onSubOrgChange,
-  gradeId, onGradeChange, costCentreId, onCostCentreChange, contractsEnding, onContractsEndingChange, canAdd, addBlocked = '', licenseLabel = '', onAdd, onSettings, onAssignCompany,
+  gradeId, onGradeChange, costCentreId, onCostCentreChange, siteId, onSiteChange, contractsEnding, onContractsEndingChange, canAdd, addBlocked = '', licenseLabel = '', onAdd, onSettings, onAssignCompany,
 }: EmployeesToolbarProps) {
   return (
     <div className="flex flex-col gap-2.5 rounded-xl border border-line bg-surface p-3 sm:p-3.5 2xl:p-4">
@@ -103,6 +124,7 @@ export function EmployeesToolbar({
             />
           </div>
           <SubOrgFilter value={subOrgId} onChange={onSubOrgChange} />
+          <SiteFilter value={siteId} onChange={onSiteChange} />
           <CatalogFilter kind="grades" value={gradeId} onChange={onGradeChange} allLabel="All grades" />
           <CatalogFilter kind="cost-centres" value={costCentreId} onChange={onCostCentreChange} allLabel="All cost centres" />
           {onAssignCompany && (

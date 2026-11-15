@@ -79,6 +79,8 @@ export function EmployeesPage() {
         onGradeChange={list.setGradeId}
         costCentreId={list.costCentreId}
         onCostCentreChange={list.setCostCentreId}
+        siteId={list.siteId}
+        onSiteChange={list.setSiteId}
         contractsEnding={list.contractsEnding}
         onContractsEndingChange={list.setContractsEnding}
         canAdd={perms.canAdd}

@@ -27,6 +27,7 @@ export function useEmployeeList() {
   const [subOrgId, setSubOrgIdState] = useState<number | null>(null);
   const [gradeId, setGradeIdState] = useState<number | null>(null);
   const [costCentreId, setCostCentreIdState] = useState<number | null>(null);
+  const [siteId, setSiteIdState] = useState<number | null>(null);
   const [contractsEnding, setContractsEndingState] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSizeState] = useState(DEFAULT_PAGE_SIZE);
@@ -41,7 +42,7 @@ export function useEmployeeList() {
     setError('');
     try {
       const dto = await employeesApi.listEmployees({
-        search, status, page, pageSize, subOrgId, gradeId, costCentreId,
+        search, status, page, pageSize, subOrgId, gradeId, costCentreId, siteId,
         contractEndingDays: contractsEnding ? CONTRACT_SOON_DAYS : null,
       });
       if (requestId !== requestRef.current) return;
@@ -59,7 +60,7 @@ export function useEmployeeList() {
         setIsFetching(false);
       }
     }
-  }, [search, status, page, pageSize, subOrgId, gradeId, costCentreId, contractsEnding]);
+  }, [search, status, page, pageSize, subOrgId, gradeId, costCentreId, siteId, contractsEnding]);
 
   useEffect(() => {
     fetchEmployees();
@@ -95,6 +96,11 @@ export function useEmployeeList() {
     setPage(1);
   }, []);
 
+  const setSiteId = useCallback((next: number | null) => {
+    setSiteIdState(next);
+    setPage(1);
+  }, []);
+
   const setContractsEnding = useCallback((next: boolean) => {
     setContractsEndingState(next);
     setPage(1);
@@ -112,6 +118,7 @@ export function useEmployeeList() {
     setSubOrgIdState(null);
     setGradeIdState(null);
     setCostCentreIdState(null);
+    setSiteIdState(null);
     setContractsEndingState(false);
     setPage(1);
   }, []);
@@ -138,6 +145,8 @@ export function useEmployeeList() {
     setGradeId,
     costCentreId,
     setCostCentreId,
+    siteId,
+    setSiteId,
     contractsEnding,
     setContractsEnding,
     page,
@@ -149,6 +158,6 @@ export function useEmployeeList() {
     refetch: fetchEmployees,
     clearFilters,
     patchLocally,
-    hasActiveFilters: Boolean(search) || status !== DEFAULT_STATUS || subOrgId !== null || gradeId !== null || costCentreId !== null || contractsEnding,
+    hasActiveFilters: Boolean(search) || status !== DEFAULT_STATUS || subOrgId !== null || gradeId !== null || costCentreId !== null || siteId !== null || contractsEnding,
   };
 }

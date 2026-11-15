@@ -24,6 +24,8 @@ export interface ListParams {
   subOrgId?: number | null;
   gradeId?: number | null;
   costCentreId?: number | null;
+  /** Employees assigned to this site. */
+  siteId?: number | null;
   contractEndingDays?: number | null;
   /** Only employees with no company yet. */
   withoutSubOrg?: boolean;
@@ -40,6 +42,7 @@ export function listEmployees(params: ListParams) {
       subOrgId: params.subOrgId ?? undefined,
       gradeId: params.gradeId ?? undefined,
       costCentreId: params.costCentreId ?? undefined,
+      siteId: params.siteId ?? undefined,
       contractEndingDays: params.contractEndingDays ?? undefined,
       withoutSubOrg: params.withoutSubOrg ? 'true' : undefined,
     },
@@ -49,6 +52,11 @@ export function listEmployees(params: ListParams) {
 
 export function getEmployee(id: number) {
   return apiClient.get<EmployeeDetailDto>(`/employees/${id}`, undefined, auth);
+}
+
+/** Active sites for the list's site filter. */
+export function listSiteOptions() {
+  return apiClient.get<{ sites: { id: number; name: string }[] }>('/employees/site-options', undefined, auth);
 }
 
 export function getFormOptions(subOrgId: number | null, withCode: boolean) {
