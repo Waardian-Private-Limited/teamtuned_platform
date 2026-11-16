@@ -7,7 +7,10 @@ import { formatDate, formatTime } from '@/lib/datetime';
 import { minutesText } from '@/features/detailed-attendance/utils/format';
 import type { SnapshotDto } from '../types/selfDashboard.dto';
 import { todayState, type TodayState, type TodayTone } from '../utils/todayState';
+import { Button } from '@/components/ui/Button';
+import { ConfirmDialog, type ConfirmState } from '@/components/ui/ConfirmDialog';
 import { DashCard } from './DashCard';
+import { WebPunchDialog } from './WebPunchDialog';
 
 const DOT: Record<TodayTone, string> = {
   live: 'bg-[var(--tt-success)]',
@@ -82,10 +85,26 @@ function Fact({ icon: Icon, label, value, tone }: { icon: typeof Clock; label: s
   );
 }
 
-export function TodayCard({ data, loading, error, onRetry }: { data: SnapshotDto | null; loading: boolean; error: string; onRetry: () => void }) {
+export function TodayCard({ data, loading, error, onRetry, onPunched }: { data: SnapshotDto | null; loading: boolean; error: string; onRetry: () => void; onPunched: () => void }) {
   const now = useNow(!!data?.open_since);
   const s = data ? todayState(data, now) : null;
   const tz = data?.timezone;
+  const [punching, setPunching] = useState(false);
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+  // Web check-in / check-out, only when the policy allows the next one from the browser.
+  const web = data?.web_punch || null;
+  const direction = data?.next_action === 'check_out' ? 'out' : 'in';
+  const canPunch = !!web && (direction === 'in' ? web.check_in : web.check_out);
+  // Check-out ends the day's work, so it is confirmed first; check-in starts at once.
+  const startPunch = () => {
+    if (direction === 'in') { setPunching(true); return; }
+    setConfirm({
+      title: 'Check out now?',
+      body: s?.inAt ? `You checked in at ${formatTime(s.inAt, tz)}. Checking out ends your work for now.` : 'Checking out ends your work for now.',
+      cta: 'Yes, check out',
+      run: () => setPunching(true),
+    });
+  };
 
   return (
     <DashCard
@@ -139,7 +158,17 @@ export function TodayCard({ data, loading, error, onRetry }: { data: SnapshotDto
             <Fact icon={LogOut} label="Out" value={s.outAt ? formatTime(s.outAt, tz) : '—'} />
             <Fact icon={Timer} label="Ends" value={s.expectedEndAt ? formatTime(s.expectedEndAt, tz) : '—'} />
           </div>
+          {canPunch && (
+            <Button variant={direction === 'in' ? 'primary' : 'secondary'} onClick={startPunch} className="w-full">
+              {direction === 'in' ? <LogIn className="h-4 w-4" aria-hidden /> : <LogOut className="h-4 w-4" aria-hidden />}
+              {direction === 'in' ? 'Check in' : 'Check out'}
+            </Button>
+          )}
         </div>
+      )}
+      <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
+      {web && punching && (
+        <WebPunchDialog open direction={direction} policy={web} onClose={() => setPunching(false)} onDone={onPunched} />
       )}
     </DashCard>
   );

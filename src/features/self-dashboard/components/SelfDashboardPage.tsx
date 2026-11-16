@@ -86,7 +86,7 @@ export function SelfDashboardPage() {
 
       {/* Today sits beside the team: where I am and where the people I work with are. */}
       <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-2 xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-        <TodayCard data={snapshot.data} loading={snapshot.loading} error={snapshot.error} onRetry={() => void snapshot.refetch()} />
+        <TodayCard data={snapshot.data} loading={snapshot.loading} error={snapshot.error} onRetry={() => void snapshot.refetch()} onPunched={() => { void snapshot.refetch(); void cycle.refetch(); }} />
         <TeamsCard />
       </div>
 

@@ -338,6 +338,13 @@ const WORK_RULES: Record<string, (c: Config) => CardSummary> = {
     if (allowedDevices.length > 0) {
       rule.push(`Allowed punch channels: ${allowedDevices.join(', ')}.`);
     }
+    if (b(c.allowWebPunch)) {
+      const inOk = c.webCheckIn !== false;
+      const outOk = c.webCheckOut !== false;
+      rule.push(inOk && outOk ? 'From the web: check-in and check-out.' : inOk ? 'From the web: check-in only; check-out in the app.' : outOk ? 'From the web: check-out only; check-in in the app.' : 'From the web: neither check-in nor check-out.');
+      rule.push('A web punch proves the same place and face as the app; where the app scans a site QR code, the web takes a face photo.');
+      if (c.webRequireFace !== false) rule.push('Every web punch needs a live selfie that matches the employee; a photo of a photo or a screen is refused.');
+    }
     const verifications = [
       b(c.requireGeofencing) ? 'Site GPS geofence' : null,
       b(c.requireFaceRecognition) ? 'AI face recognition' : null,

@@ -16,6 +16,8 @@ export interface SnapshotDto {
   } | null;
   next_action: 'check_in' | 'check_out';
   open_since: string | null;
+  /** Web check-in / check-out from the dashboard (policy "Allow web browser check-in"); absent on an older backend. */
+  web_punch?: WebPunchPolicyDto | null;
   expected_minutes?: number;
   /** Server-computed policy-correct figures as of `as_of`; null/absent before a punch, on an off day, or on an older backend. */
   progress?: {
@@ -77,3 +79,26 @@ export interface RegularizationRowDto { id: number; date: string; status: string
 
 /** GET /attendance/me/permissions */
 export interface PermissionRowDto { id: number; date: string; kind: 'permission' | 'gate_pass'; from_at: string; to_at: string; minutes: number; state: string }
+
+/** What a web punch is allowed to do and must prove: the app's place and face rules (a QR is asked as a face photo). */
+export interface WebPunchPolicyDto {
+  check_in: boolean;
+  check_out: boolean;
+  require_geo: boolean;
+  require_face: boolean;
+  /** assigned | all_sites | other_locations | exception | flagged | open */
+  location_mode: string;
+  /** The widest location reading the server accepts, in metres. */
+  max_accuracy_m: number;
+}
+
+/** POST /attendance/locations/resolve */
+export interface PlaceCheckDto {
+  allowed: boolean;
+  site_name: string | null;
+  other_location_name: string | null;
+  distance_m: number | null;
+  requires_review: boolean;
+  nearest: { name: string | null; distance_m: number } | null;
+  error: { code: string; message: string; retryable: boolean; needs_reason: boolean } | null;
+}
