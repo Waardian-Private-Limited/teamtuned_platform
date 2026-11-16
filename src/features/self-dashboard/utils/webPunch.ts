@@ -14,12 +14,29 @@ export class DeviceProblem extends Error {}
 
 const isMac = () => typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform || navigator.userAgent);
 
-function locationMessage(code: number | null): string {
-  if (code === 1) return 'Location is blocked for this site. Click the lock icon in the address bar, set Location to Allow, then try again.';
-  if (code === 3) return 'Finding your location took too long. Check that Wi-Fi is on, then try again.';
-  return isMac()
-    ? 'Your computer could not find its location. Turn on System Settings → Privacy & Security → Location Services, and allow it for this browser. Then try again.'
-    : 'Your computer could not find its location. Turn on location in your system settings (Windows: Settings → Privacy & security → Location) and allow it for this browser. Then try again.';
+/** What the browser has decided for this site: granted, denied or prompt (null when it cannot say). */
+async function sitePermission(): Promise<PermissionState | null> {
+  try {
+    return (await navigator.permissions.query({ name: 'geolocation' })).state;
+  } catch {
+    return null;
+  }
+}
+
+interface GeoFailure { code: number | null; detail: string }
+const failureOf = (err: GeolocationPositionError): GeoFailure => ({ code: err.code, detail: err.message || '' });
+
+async function locationMessage({ code, detail }: GeoFailure): Promise<string> {
+  const said = detail ? ` (Browser: ${detail})` : '';
+  if (code === 1) return `Location is blocked for this site. Click the lock icon in the address bar, set Location to Allow, then try again.${said}`;
+  // Already allowed for this site, so the browser shows no prompt: the computer itself found no location.
+  const allowed = (await sitePermission()) === 'granted';
+  const where = isMac()
+    ? 'Turn on System Settings → Privacy & Security → Location Services, and switch it on for this browser (for example Google Chrome).'
+    : 'Turn on location in Windows Settings → Privacy & security → Location, and allow it for desktop apps.';
+  const lead = allowed ? 'This site is already allowed to use your location, but your computer could not find one.' : 'Your computer could not find its location.';
+  if (code === 3) return `Finding your location took too long. Check that Wi-Fi is on, then try again. ${where}${said}`;
+  return `${lead} ${where} Wi-Fi must be on. Then try again.${said}`;
 }
 
 /** A random id per punch attempt, so a retried save is not stored twice. */
@@ -40,25 +57,27 @@ function precise(maxAccuracyM: number): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
     let best: GeolocationPosition | null = null;
     let watch = -1;
-    const done = (pos: GeolocationPosition | null, code: number | null) => {
+    const done = (pos: GeolocationPosition | null, err: GeolocationPositionError | null) => {
+      if (err) failure = failureOf(err);
       navigator.geolocation.clearWatch(watch);
       clearTimeout(timer);
-      if (pos) resolve(pos); else reject(code);
+      if (pos) resolve(pos); else reject(failure);
     };
-    const timer = setTimeout(() => done(best, 3), PRECISE_WAIT_MS);
+    let failure: GeoFailure = { code: 3, detail: '' };
+    const timer = setTimeout(() => done(best, null), PRECISE_WAIT_MS);
     watch = navigator.geolocation.watchPosition(
       (pos) => {
         if (!best || pos.coords.accuracy < best.coords.accuracy) best = pos;
         if (pos.coords.accuracy <= maxAccuracyM) done(pos, null);
       },
-      (err) => { if (err.code === err.PERMISSION_DENIED || !best) done(best, err.code); },
+      (err) => { if (err.code === err.PERMISSION_DENIED || !best) done(best, err); },
       { enableHighAccuracy: true, maximumAge: 0, timeout: PRECISE_WAIT_MS }
     );
   });
 }
 
 function coarse(): Promise<GeolocationPosition> {
-  return new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, (err) => reject(err.code), { enableHighAccuracy: false, maximumAge: COARSE_MAX_AGE_MS, timeout: COARSE_WAIT_MS }));
+  return new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, (err) => reject(failureOf(err)), { enableHighAccuracy: false, maximumAge: COARSE_MAX_AGE_MS, timeout: COARSE_WAIT_MS }));
 }
 
 /**
@@ -71,12 +90,12 @@ export async function currentFix(maxAccuracyM: number): Promise<WebFix> {
   if (typeof navigator === 'undefined' || !navigator.geolocation) throw new DeviceProblem('This browser cannot share your location. Use another browser or the app.');
   try {
     return toFix(await precise(maxAccuracyM));
-  } catch (code) {
-    if (code === 1) throw new DeviceProblem(locationMessage(1));
+  } catch (first) {
+    if ((first as GeoFailure).code === 1) throw new DeviceProblem(await locationMessage(first as GeoFailure));
     try {
       return toFix(await coarse());
     } catch (again) {
-      throw new DeviceProblem(locationMessage(typeof again === 'number' ? again : null));
+      throw new DeviceProblem(await locationMessage(again as GeoFailure));
     }
   }
 }

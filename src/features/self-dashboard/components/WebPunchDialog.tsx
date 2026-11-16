@@ -31,7 +31,7 @@ interface Props {
 }
 
 function AccessRow({ icon: Icon, label, state }: { icon: LucideIcon; label: string; state: Access }) {
-  const text = { waiting: 'Waiting', asking: 'Allow it in the browser prompt…', ok: 'Allowed', blocked: 'Blocked' }[state];
+  const text = { waiting: 'Waiting', asking: 'Allow it in the browser prompt…', ok: 'Allowed', blocked: 'Not available' }[state];
   return (
     <div className="flex items-center gap-3 rounded-xl border border-line px-3.5 py-3">
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-bg-subtle text-fg"><Icon className="h-4 w-4" aria-hidden /></span>
