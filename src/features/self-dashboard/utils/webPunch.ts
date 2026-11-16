@@ -35,6 +35,8 @@ async function locationMessage({ code, detail }: GeoFailure): Promise<string> {
     ? 'Turn on System Settings → Privacy & Security → Location Services, and switch it on for this browser (for example Google Chrome).'
     : 'Turn on location in Windows Settings → Privacy & security → Location, and allow it for desktop apps.';
   const lead = allowed ? 'This site is already allowed to use your location, but your computer could not find one.' : 'Your computer could not find its location.';
+  // macOS answered but cannot place itself: a Mac has no GPS and needs Wi-Fi scanning to find where it is.
+  if (/kCLErrorLocationUnknown/i.test(detail)) return 'Your Mac cannot work out where it is. Turn Wi-Fi on (even if you are on a cable), wait a minute, then try again. If it still fails, turn Location Services off and on in System Settings → Privacy & Security.';
   if (code === 3) return `Finding your location took too long. Check that Wi-Fi is on, then try again. ${where}${said}`;
   return `${lead} ${where} Wi-Fi must be on. Then try again.${said}`;
 }
