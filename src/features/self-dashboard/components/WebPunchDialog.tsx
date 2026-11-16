@@ -1,18 +1,21 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera, CheckCircle2, MapPin } from 'lucide-react';
+import { Camera, Check, CheckCircle2, MapPin, X } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
 import { Textarea } from '@/components/ui/Textarea';
 import { Alert } from '@/components/ui/Alert';
+import { cx } from '@/theme/tokens';
 import { ApiError, messageOf } from '@/lib/api/errors';
 import * as api from '../api/selfDashboard.api';
 import type { WebFix } from '../api/selfDashboard.api';
 import type { WebPunchPolicyDto } from '../types/selfDashboard.dto';
-import { currentFix, LocationProblem, newClientPunchId, takeShots } from '../utils/webPunch';
+import { currentFix, DeviceProblem, newClientPunchId, openCamera, takeShots } from '../utils/webPunch';
 
-type Step = 'locating' | 'reason' | 'camera' | 'saving' | 'done' | 'failed';
+type Step = 'access' | 'checking' | 'reason' | 'camera' | 'saving' | 'done' | 'failed';
+type Access = 'waiting' | 'asking' | 'ok' | 'blocked';
 
 const REASON_REQUIRED = 'ATTENDANCE_EXCEPTION_REASON_REQUIRED';
 // The photo is no good any more: take it again.
@@ -21,24 +24,42 @@ const RETAKE = new Set(['ATTENDANCE_FACE_CAPTURE_EXPIRED', 'ATTENDANCE_FACE_NO_M
 const TRANSIENT = new Set([0, 502, 503, 504]);
 
 interface Props {
-  open: boolean;
   direction: 'in' | 'out';
   policy: WebPunchPolicyDto;
   onClose: () => void;
   onDone: () => void;
 }
 
+function AccessRow({ icon: Icon, label, state }: { icon: LucideIcon; label: string; state: Access }) {
+  const text = { waiting: 'Waiting', asking: 'Allow it in the browser prompt…', ok: 'Allowed', blocked: 'Blocked' }[state];
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-line px-3.5 py-3">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-bg-subtle text-fg"><Icon className="h-4 w-4" aria-hidden /></span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-fg">{label}</p>
+        <p className={cx('text-xs', state === 'blocked' ? 'text-[var(--tt-danger)]' : 'text-fg-muted')}>{text}</p>
+      </div>
+      {state === 'asking' && <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent text-fg-muted" aria-hidden />}
+      {state === 'ok' && <Check className="h-4 w-4 text-[var(--tt-success)]" aria-label="Allowed" />}
+      {state === 'blocked' && <X className="h-4 w-4 text-[var(--tt-danger)]" aria-label="Blocked" />}
+    </div>
+  );
+}
+
 /**
- * One check-in or check-out from the browser, as in the app: location first (refused before any photo when it is
- * the wrong place), then a selfie when the policy wants a face, then the save. The server checks everything again.
+ * One check-in or check-out from the browser, as in the app. First the browser's location and camera
+ * permissions (each prompt in turn), then the place check (a wrong place is refused before any photo), then the
+ * live selfie when the policy wants a face, then the save. The server checks everything again.
  */
-export function WebPunchDialog({ open, direction, policy, onClose, onDone }: Props) {
-  const [step, setStep] = useState<Step>('locating');
+export function WebPunchDialog({ direction, policy, onClose, onDone }: Props) {
+  const needsLocation = policy.require_geo || policy.location_mode !== 'open';
+  const [step, setStep] = useState<Step>('access');
+  const [locationAccess, setLocationAccess] = useState<Access>('waiting');
+  const [cameraAccess, setCameraAccess] = useState<Access>('waiting');
   const [error, setError] = useState('');
   const [place, setPlace] = useState<string | null>(null);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
-  const [cameraError, setCameraError] = useState('');
 
   const punchId = useRef(newClientPunchId());
   const fix = useRef<WebFix | null>(null);
@@ -46,10 +67,10 @@ export function WebPunchDialog({ open, direction, policy, onClose, onDone }: Pro
   const reasonRef = useRef<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const alive = useRef(true);
+  // Bumped on close (and on React's dev double-mount), so an older attempt's late answers are ignored.
+  const gen = useRef(0);
 
   const label = direction === 'in' ? 'Check in' : 'Check out';
-  const needsLocation = policy.require_geo || policy.location_mode !== 'open';
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -62,35 +83,68 @@ export function WebPunchDialog({ open, direction, policy, onClose, onDone }: Pro
     if (code && RETAKE.has(code)) { captureId.current = null; setError(messageOf(err)); setStep('camera'); return; }
     // A saved attempt keeps its place only on network trouble; anything else reads the location again.
     if (!(err instanceof ApiError && TRANSIENT.has(err.status))) fix.current = null;
-    setError(err instanceof LocationProblem ? err.message : messageOf(err));
+    setError(messageOf(err));
     setStep('failed');
   }, []);
 
   const save = useCallback(async () => {
+    const token = gen.current;
     setStep('saving');
     try {
       await api.punch({ direction, clientPunchId: punchId.current, fix: fix.current, captureId: captureId.current, exceptionReason: reasonRef.current });
-      if (!alive.current) return;
+      if (token !== gen.current) return;
       stopCamera();
       setStep('done');
       onDone();
     } catch (err) {
-      if (alive.current) fail(err);
+      if (token === gen.current) fail(err);
     }
   }, [direction, fail, onDone, stopCamera]);
 
-  // Location, the place check, then the photo or the save.
+  // Permissions, the place check, then the photo or the save.
   const advance = useCallback(async () => {
+    const token = gen.current;
+    const stale = () => token !== gen.current;
     setError('');
-    try {
-      if (needsLocation && !fix.current) {
-        setStep('locating');
-        fix.current = await currentFix(policy.max_accuracy_m);
+    // 1. Location, then camera: each request shows the browser's own prompt.
+    if (needsLocation && !fix.current) {
+      setStep('access');
+      setLocationAccess('asking');
+      try {
+        const got = await currentFix(policy.max_accuracy_m);
+        if (stale()) return;
+        fix.current = got;
+        setLocationAccess('ok');
+      } catch (err) {
+        if (stale()) return;
+        setLocationAccess('blocked');
+        setError(err instanceof DeviceProblem ? err.message : messageOf(err));
+        setStep('failed');
+        return;
       }
+    }
+    if (policy.require_face && !captureId.current && !streamRef.current?.active) {
+      setStep('access');
+      setCameraAccess('asking');
+      try {
+        const stream = await openCamera();
+        if (stale()) { stream.getTracks().forEach((t) => t.stop()); return; }
+        streamRef.current = stream;
+        setCameraAccess('ok');
+      } catch (err) {
+        if (stale()) return;
+        setCameraAccess('blocked');
+        setError(err instanceof DeviceProblem ? err.message : messageOf(err));
+        setStep('failed');
+        return;
+      }
+    }
+    try {
+      // 2. The place, refused before any photo when it is wrong.
       if (fix.current && policy.location_mode !== 'open') {
-        setStep('locating');
+        setStep('checking');
         const checked = await api.checkPlace(fix.current, reasonRef.current);
-        if (!alive.current) return;
+        if (stale()) return;
         if (!checked.allowed && checked.error) {
           if (checked.error.needs_reason) { setError(checked.error.message); setStep('reason'); return; }
           const near = checked.nearest?.name ? ` Nearest: ${checked.nearest.name}, ${checked.nearest.distance_m} m away.` : '';
@@ -101,53 +155,34 @@ export function WebPunchDialog({ open, direction, policy, onClose, onDone }: Pro
         }
         setPlace(checked.site_name || checked.other_location_name || null);
       }
-      if (!alive.current) return;
+      // 3. The live selfie, then the save.
       if (policy.require_face && !captureId.current) { setStep('camera'); return; }
       await save();
     } catch (err) {
-      if (alive.current) fail(err);
+      if (!stale()) fail(err);
     }
   }, [fail, needsLocation, policy.location_mode, policy.max_accuracy_m, policy.require_face, save]);
 
-  // A fresh attempt each time the dialog opens.
+  // Mounted per attempt: start at once, release the camera on close. Runs once; the snapshot refreshing after the
+  // punch must not start it again.
+  const advanceRef = useRef(advance);
+  advanceRef.current = advance;
   useEffect(() => {
-    if (!open) return undefined;
-    alive.current = true;
-    punchId.current = newClientPunchId();
-    fix.current = null;
-    captureId.current = null;
-    reasonRef.current = null;
-    setReason('');
-    setPlace(null);
-    void advance();
-    return () => { alive.current = false; stopCamera(); };
-  }, [open]);
+    void advanceRef.current();
+    return () => { gen.current += 1; stopCamera(); };
+  }, [stopCamera]);
 
-  // The camera runs only on the photo step.
+  // Show the open camera on the photo step.
   useEffect(() => {
-    if (!open || step !== 'camera') { stopCamera(); return undefined; }
-    let cancelled = false;
-    setCameraError('');
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setCameraError('This browser cannot open the camera. Use another browser or the app.');
-      return undefined;
-    }
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } }, audio: false })
-      .then((stream) => {
-        if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(() => {});
-        }
-      })
-      .catch(() => setCameraError('The camera is blocked or not available. Allow camera access in the browser, then try again.'));
-    return () => { cancelled = true; stopCamera(); };
-  }, [open, step, stopCamera]);
+    if (step !== 'camera' || !videoRef.current || !streamRef.current) return;
+    videoRef.current.srcObject = streamRef.current;
+    videoRef.current.play().catch(() => {});
+  }, [step]);
 
   const snap = async () => {
     const v = videoRef.current;
     if (!v || !v.videoWidth) return;
+    const token = gen.current;
     setBusy(true);
     setError('');
     try {
@@ -157,9 +192,9 @@ export function WebPunchDialog({ open, direction, policy, onClose, onDone }: Pro
       captureId.current = res.capture_id;
       await save();
     } catch (err) {
-      if (alive.current) fail(err);
+      if (token === gen.current) fail(err);
     } finally {
-      if (alive.current) setBusy(false);
+      if (token === gen.current) setBusy(false);
     }
   };
 
@@ -179,7 +214,7 @@ export function WebPunchDialog({ open, direction, policy, onClose, onDone }: Pro
     if (step === 'camera') return (
       <>
         <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
-        <Button onClick={() => void snap()} loading={busy} loadingLabel="Checking photo…" disabled={!!cameraError}>
+        <Button onClick={() => void snap()} loading={busy} loadingLabel="Checking photo…">
           <Camera className="h-4 w-4" aria-hidden />Take photo
         </Button>
       </>
@@ -193,18 +228,27 @@ export function WebPunchDialog({ open, direction, policy, onClose, onDone }: Pro
     return <Button variant="secondary" onClick={onClose}>Cancel</Button>;
   })();
 
+  const showAccess = step === 'access' || (step === 'failed' && (locationAccess === 'blocked' || cameraAccess === 'blocked'));
+
   return (
-    <Dialog open={open} onClose={onClose} title={label} footer={<div className="flex justify-end gap-2">{footer}</div>}>
+    <Dialog open onClose={onClose} title={label} footer={<div className="flex w-full justify-end gap-2 [&>button]:w-auto">{footer}</div>}>
       <div className="space-y-4">
+        {showAccess && (
+          <div className="space-y-2">
+            <p className="text-sm text-fg-muted">To {direction === 'in' ? 'check in' : 'check out'}, allow these in your browser.</p>
+            {needsLocation && <AccessRow icon={MapPin} label="Location" state={locationAccess} />}
+            {policy.require_face && <AccessRow icon={Camera} label="Camera" state={cameraAccess} />}
+          </div>
+        )}
         {place && step !== 'done' && (
           <p className="flex items-center gap-2 text-sm text-fg-muted"><MapPin className="h-4 w-4 shrink-0" aria-hidden />At {place}</p>
         )}
         {error && step !== 'done' && <Alert message={error} />}
 
-        {(step === 'locating' || step === 'saving') && (
+        {(step === 'checking' || step === 'saving') && (
           <div className="flex items-center gap-3 py-6 text-sm text-fg-muted">
             <span className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden />
-            {step === 'locating' ? 'Checking your location…' : `Saving your ${direction === 'in' ? 'check-in' : 'check-out'}…`}
+            {step === 'checking' ? 'Checking your location…' : `Saving your ${direction === 'in' ? 'check-in' : 'check-out'}…`}
           </div>
         )}
 
@@ -221,7 +265,6 @@ export function WebPunchDialog({ open, direction, policy, onClose, onDone }: Pro
                 <div className="h-[78%] w-[52%] rounded-[50%] border-2 border-dashed border-white/80 shadow-[0_0_0_999px_rgba(0,0,0,0.35)]" />
               </div>
             </div>
-            {cameraError && <p role="alert" className="mt-2 text-xs font-medium text-[var(--tt-danger)]">{cameraError}</p>}
           </div>
         )}
 

@@ -17,11 +17,13 @@ interface DashCardProps {
   error?: string;
   onRetry?: () => void;
   className?: string;
+  /** A small control at the top right (the Today card's check-in / check-out), before the link. */
+  action?: ReactNode;
   children?: ReactNode;
 }
 
 /** One dashboard section. Each loads on its own, so a slow or failing card never holds up the others. */
-export function DashCard({ title, subtitle, icon: Icon, href, hrefLabel = 'View all', loading, error, onRetry, className, children }: DashCardProps) {
+export function DashCard({ title, subtitle, icon: Icon, href, hrefLabel = 'View all', loading, error, onRetry, className, action, children }: DashCardProps) {
   return (
     <section className={cx('flex min-w-0 flex-col rounded-2xl border border-line bg-surface p-4 shadow-[var(--tt-shadow-sm)] sm:p-5', className)}>
       <header className="mb-4 flex items-start justify-between gap-3">
@@ -34,11 +36,16 @@ export function DashCard({ title, subtitle, icon: Icon, href, hrefLabel = 'View 
             {subtitle && <p className="truncate text-xs text-fg-muted">{subtitle}</p>}
           </div>
         </div>
-        {href && (
-          <Link href={href} className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg">
-            {hrefLabel}
-            <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
-          </Link>
+        {(action || href) && (
+          <div className="flex shrink-0 items-center gap-2">
+            {href && (
+              <Link href={href} className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg">
+                {hrefLabel}
+                <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+              </Link>
+            )}
+            {action}
+          </div>
         )}
       </header>
       {loading ? (

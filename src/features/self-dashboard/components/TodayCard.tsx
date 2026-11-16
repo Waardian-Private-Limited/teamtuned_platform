@@ -7,7 +7,6 @@ import { formatDate, formatTime } from '@/lib/datetime';
 import { minutesText } from '@/features/detailed-attendance/utils/format';
 import type { SnapshotDto } from '../types/selfDashboard.dto';
 import { todayState, type TodayState, type TodayTone } from '../utils/todayState';
-import { Button } from '@/components/ui/Button';
 import { ConfirmDialog, type ConfirmState } from '@/components/ui/ConfirmDialog';
 import { DashCard } from './DashCard';
 import { WebPunchDialog } from './WebPunchDialog';
@@ -117,6 +116,21 @@ export function TodayCard({ data, loading, error, onRetry, onPunched }: { data: 
       error={!data ? error : ''}
       onRetry={onRetry}
       className="h-full"
+      action={canPunch ? (
+        // As on the app's shift card: a small button at the top right, check-in dark, check-out red.
+        <button
+          type="button"
+          onClick={startPunch}
+          className={cx(
+            'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] px-3.5 text-[13px] font-bold transition-all active:scale-[0.98]',
+            'focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--tt-ring)]',
+            direction === 'in' ? 'bg-[var(--tt-primary)] text-[var(--tt-on-primary)] hover:bg-[var(--tt-primary-hover)]' : 'bg-[var(--tt-danger)] text-white hover:bg-[var(--tt-danger)]/90'
+          )}
+        >
+          {direction === 'in' ? <LogIn className="h-4 w-4" aria-hidden /> : <LogOut className="h-4 w-4" aria-hidden />}
+          {direction === 'in' ? 'Check in' : 'Check out'}
+        </button>
+      ) : null}
     >
       {s && (
         <div className="flex flex-col gap-5">
@@ -158,17 +172,11 @@ export function TodayCard({ data, loading, error, onRetry, onPunched }: { data: 
             <Fact icon={LogOut} label="Out" value={s.outAt ? formatTime(s.outAt, tz) : '—'} />
             <Fact icon={Timer} label="Ends" value={s.expectedEndAt ? formatTime(s.expectedEndAt, tz) : '—'} />
           </div>
-          {canPunch && (
-            <Button variant={direction === 'in' ? 'primary' : 'secondary'} onClick={startPunch} className="w-full">
-              {direction === 'in' ? <LogIn className="h-4 w-4" aria-hidden /> : <LogOut className="h-4 w-4" aria-hidden />}
-              {direction === 'in' ? 'Check in' : 'Check out'}
-            </Button>
-          )}
         </div>
       )}
       <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
       {web && punching && (
-        <WebPunchDialog open direction={direction} policy={web} onClose={() => setPunching(false)} onDone={onPunched} />
+        <WebPunchDialog direction={direction} policy={web} onClose={() => setPunching(false)} onDone={onPunched} />
       )}
     </DashCard>
   );
