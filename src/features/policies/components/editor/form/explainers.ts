@@ -860,6 +860,14 @@ const LEAVE_RULE: Record<string, (c: Config) => CardSummary> = {
     switch (s(c.mode, 'prorate_days')) {
       case 'full_year': return { rule: ['A mid-year joiner gets the full year’s amount.'] };
       case 'next_cycle': return { rule: ['A mid-year joiner gets nothing until the next leave year starts.'] };
+      case 'from_next_month':
+        return {
+          rule: [
+            'No leave for the month they join in, whatever the joining day.',
+            'Monthly credit starts the next month. A yearly amount is prorated from the next month and credited on its 1st.',
+          ],
+          example: 'Example: on 1 day a month, joining on 1 or 14 July gives nothing for July; August gives 1 day.',
+        };
       case 'after_probation':
         return { rule: [b(c.backfillProbation) ? 'Credit starts on confirmation and includes the probation months.' : 'Credit starts on the confirmation date; probation months earn nothing.'] };
       case 'month_cutoff':
