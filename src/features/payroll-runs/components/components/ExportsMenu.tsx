@@ -63,6 +63,7 @@ export function ExportsMenu({ run, busy, onExport }: { run: Run; busy: boolean; 
     { kind: 'payslips_zip', label: 'Payslips (ZIP)', hint: 'One PDF per employee', icon: <FileArchive className="h-4 w-4" /> },
     { kind: 'payslips_combined', label: 'Payslips (single PDF)', hint: 'All payslips in one file', icon: <FileText className="h-4 w-4" /> },
     { kind: 'register', label: 'Payroll sheet', hint: 'Site-wise paysheet with totals', icon: <Sheet className="h-4 w-4" /> },
+    { kind: 'register_summary', label: 'Payroll summary', hint: 'Days only: P.Days, absent, leave, LOP, payable', icon: <Sheet className="h-4 w-4" /> },
     { kind: 'bank', label: 'Bank sheet', hint: bankReady ? 'Bank account salary list' : 'Available after finalize', icon: <Landmark className="h-4 w-4" />, disabled: !bankReady },
   ];
 
