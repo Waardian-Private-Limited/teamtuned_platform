@@ -8,7 +8,7 @@ import * as api from '../api/payrollRuns.api';
 import { toRun } from '../types/payrollRuns.mapper';
 import type { Run } from '../types/payrollRuns.model';
 
-export type RunExportKind = 'payslips_zip' | 'payslips_combined' | 'register' | 'register_summary' | 'bank';
+export type RunExportKind = 'payslips_zip' | 'payslips_combined' | 'register' | 'register_summary' | 'missed_checkout_lop' | 'bank';
 /** Payroll sheet only: week off in its own column instead of inside P.Days. */
 export type RunExportOptions = { separateWeekOff?: boolean };
 
@@ -153,6 +153,8 @@ export function useRunActions({ month, onRun, onReload }: Options) {
                 ? await api.exportRegister(id, !!options?.separateWeekOff)
                 : kind === 'register_summary'
                 ? await api.exportRegister(id, false, 'summary')
+                : kind === 'missed_checkout_lop'
+                ? await api.exportMissedCheckoutLop(id)
                 : await api.exportBankTransfer(id);
         track(job);
       }),

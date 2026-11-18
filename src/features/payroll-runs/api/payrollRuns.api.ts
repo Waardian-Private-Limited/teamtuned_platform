@@ -134,6 +134,11 @@ export function exportRegister(runId: number, separateWeekOff = false, layout: '
   return apiClient.post<ExportJobDto>('/exports/payroll-register', { runId, separateWeekOff, layout }, auth);
 }
 
+/** Days each employee checked in, never checked out, and lost pay for (as the run counted them). */
+export function exportMissedCheckoutLop(runId: number) {
+  return apiClient.post<ExportJobDto>('/exports/payroll-missed-checkout-lop', { runId }, auth);
+}
+
 export function exportBankTransfer(runId: number) {
   return apiClient.post<ExportJobDto>('/exports/payroll-bank-transfer', { runId }, auth);
 }
