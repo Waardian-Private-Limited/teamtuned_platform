@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, Download, FileArchive, FileText, Landmark, Sheet } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import type { RunExportKind, RunExportOptions } from '../../hooks/useRunActions';
@@ -8,17 +9,45 @@ import type { Run } from '../../types/payrollRuns.model';
 import { actionBtn, Spinner } from './controls';
 
 const FROZEN = new Set(['finalized', 'paid']);
+const MENU_W = 256;
 
 export function ExportsMenu({ run, busy, onExport }: { run: Run; busy: boolean; onExport: (kind: RunExportKind, options?: RunExportOptions) => void }) {
   const [open, setOpen] = React.useState(false);
   // Payroll sheet: week off sits inside P.Days unless this is ticked.
   const [separateWeekOff, setSeparateWeekOff] = React.useState(false);
   const rootRef = React.useRef<HTMLDivElement>(null);
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
+  const menuRef = React.useRef<HTMLDivElement>(null);
+  // The menu lives in a portal with fixed position, so a table or card with overflow never clips it;
+  // it opens upward when there is no room below.
+  const [pos, setPos] = React.useState<{ top: number; left: number } | null>(null);
+
+  React.useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const place = () => {
+      const r = triggerRef.current!.getBoundingClientRect();
+      const h = menuRef.current?.offsetHeight ?? 320;
+      let top = r.bottom + 6;
+      if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 6);
+      setPos({ top, left: Math.min(Math.max(8, r.right - MENU_W), window.innerWidth - MENU_W - 8) });
+    };
+    place();
+    const raf = requestAnimationFrame(place); // again once the menu has its real height
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [open]);
 
   React.useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (rootRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
     document.addEventListener('mousedown', onDown);
@@ -39,13 +68,18 @@ export function ExportsMenu({ run, busy, onExport }: { run: Run; busy: boolean; 
 
   return (
     <div ref={rootRef} className="relative">
-      <button type="button" className={actionBtn.secondary} aria-haspopup="menu" aria-expanded={open} disabled={busy} onClick={() => setOpen((v) => !v)}>
+      <button ref={triggerRef} type="button" className={actionBtn.secondary} aria-haspopup="menu" aria-expanded={open} disabled={busy} onClick={() => setOpen((v) => !v)}>
         {busy ? <Spinner /> : <Download className="h-3.5 w-3.5" />}
         <span>Exports</span>
         <ChevronDown className={cx('h-3.5 w-3.5 text-fg-muted transition-transform duration-150', open && 'rotate-180')} />
       </button>
-      {open && (
-        <div role="menu" className="tt-fade-in absolute right-0 z-30 mt-1.5 w-64 overflow-hidden rounded-xl border border-line bg-surface p-1 shadow-[var(--tt-shadow-lg)]">
+      {open && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={menuRef}
+          role="menu"
+          style={{ position: 'fixed', top: pos?.top ?? -9999, left: pos?.left ?? -9999, width: MENU_W, zIndex: 70 }}
+          className="tt-fade-in overflow-hidden rounded-xl border border-line bg-surface p-1 shadow-[var(--tt-shadow-lg)]"
+        >
           {items.map((it) => (
             <button
               key={it.kind}
@@ -75,7 +109,8 @@ export function ExportsMenu({ run, busy, onExport }: { run: Run; busy: boolean; 
             <span>Payroll sheet: keep Week Off separate</span>
           </label>
           <p className="border-t border-line px-2.5 pb-1.5 pt-2 text-[11px] text-fg-muted">Files are prepared in the Download Centre.</p>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
