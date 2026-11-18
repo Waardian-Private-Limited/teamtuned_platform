@@ -3,14 +3,11 @@ import { formatDate } from '@/lib/datetime';
 import { WEEKDAYS } from '../../constants/payrollRuns.constants';
 import type { DayCell } from '../../types/payrollRuns.model';
 import { SectionCard } from './controls';
+import { TONE as ATTENDANCE_TONE } from '@/features/detailed-attendance/constants/detailed.constants';
 
-const TONE: Record<string, { bar: string; text: string }> = {
-  good: { bar: 'bg-fg', text: 'text-fg' },
-  warn: { bar: 'bg-fg-muted', text: 'text-fg' },
-  bad: { bar: 'bg-[var(--tt-danger)]', text: 'text-[var(--tt-danger)]' },
-  info: { bar: 'bg-line-strong', text: 'text-fg-muted' },
-  muted: { bar: 'bg-line', text: 'text-fg-subtle' },
-};
+// The attendance month view's colours (present green, half day amber, absent red, leave blue, off days grey), so a
+// day looks the same in payroll as in attendance.
+const TONE: Record<string, { bar: string; text: string }> = ATTENDANCE_TONE;
 
 const OFF_KEYS = ['week_off', 'holiday'];
 const NOT_COUNTED = ['week_off', 'holiday', 'not_joined', 'exited', 'upcoming'];
