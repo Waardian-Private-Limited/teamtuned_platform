@@ -17,8 +17,8 @@ const NOT_COUNTED = ['week_off', 'holiday', 'not_joined', 'exited', 'upcoming'];
 const LOP = { bar: 'bg-[var(--tt-danger)]', text: 'text-[var(--tt-danger)]', box: 'border-[var(--tt-danger)] bg-[var(--tt-danger-soft)]' };
 const WORKED_OFF = { bar: 'bg-[var(--tt-accent)]', text: 'text-[var(--tt-accent)]', box: 'border-[var(--tt-accent)] bg-[var(--tt-accent-soft)]' };
 
-/** A working day not paid in full: loss of pay. */
-const isLop = (c: DayCell) => c.payableUnits !== null && c.payableUnits < 1 && !NOT_COUNTED.includes(c.key);
+/** A working day not paid in full: loss of pay. Unpaid leave (the server marks it with the absence tone) is one too. */
+const isLop = (c: DayCell) => (c.payableUnits !== null && c.payableUnits < 1 && !NOT_COUNTED.includes(c.key)) || (c.key === 'leave' && c.tone === 'bad');
 /** A week off or holiday with overtime on it. */
 const workedOff = (c: DayCell) => OFF_KEYS.includes(c.key) && c.overtimeMinutes > 0;
 
