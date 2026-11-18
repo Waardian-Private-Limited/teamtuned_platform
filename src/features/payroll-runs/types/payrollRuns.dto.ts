@@ -214,7 +214,7 @@ export interface ItemDetailDto extends ItemDto {
 
 export interface ItemLeaveDto {
   paid: { balance: number; used: number };
-  comp_off: { balance: number; used: number; earned: Array<{ date: string; reason: string; days: number; state: string }> };
+  comp_off: { balance: number; used: number; earned: Array<{ date: string; reason: string; days: number; state: string; from?: string | null }> };
 }
 
 export interface OtherCompanyDto {

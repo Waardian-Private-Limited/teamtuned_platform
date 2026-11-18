@@ -8,7 +8,7 @@ const REASON: Record<string, string> = {
   holiday_work: 'Holiday worked',
   overtime: 'Overtime',
   night_ot: 'Night overtime',
-  night_ot_leftover: 'Night credit left over',
+  night_ot_leftover: 'Night credit not needed next day',
 };
 
 const STATE: Record<string, { label: string; tone: string }> = {
@@ -53,6 +53,7 @@ export function LeaveCard({ leave }: { leave: ItemLeave | null }) {
                 <li key={`${e.date}-${e.reason}-${i}`} className="flex items-baseline justify-between gap-3 text-xs">
                   <span className="min-w-0 truncate text-fg">
                     {formatDate(e.date, 'weekday')} · {REASON[e.reason] || e.reason.replace(/_/g, ' ')}
+                    {e.from && e.from !== e.date && <span className="text-fg-muted"> (night of {formatDate(e.from, 'short')})</span>}
                   </span>
                   <span className={cx('shrink-0 tabular-nums', st.tone)}>
                     {days(e.days)} · {st.label}

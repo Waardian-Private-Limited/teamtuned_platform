@@ -253,7 +253,7 @@ export function toEmployeePay(dto: ItemDetailResponseDto): EmployeePay {
             compOff: {
               balance: n(item.leave.comp_off?.balance),
               used: n(item.leave.comp_off?.used),
-              earned: (item.leave.comp_off?.earned || []).map((e) => ({ date: e.date, reason: e.reason, days: n(e.days), state: e.state })),
+              earned: (item.leave.comp_off?.earned || []).map((e) => ({ date: e.date, reason: e.reason, days: n(e.days), state: e.state, from: e.from || null })),
             },
           }
         : null,
