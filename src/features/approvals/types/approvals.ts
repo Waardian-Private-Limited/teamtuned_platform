@@ -129,7 +129,7 @@ export interface RequestDetail {
     decision_form?: { kind: string; units?: number; requested_units?: number; case_id?: number; advance_id?: number; claim_id?: number; fund_request_id?: number; expense_id?: number; amount?: number; physical?: { status: string; required: boolean; blocks_decision: boolean; step?: { name: string | null; current: boolean } | null }; inward?: { required: boolean; status: string; blocks_decision: boolean; step?: { name: string | null; current: boolean } | null; numbering?: 'auto' | 'typed'; numbers: string[]; lines?: Array<{ line: number; name: string; unit: string | null; ordered: number; received: number; pending: number; numbers?: Array<{ inward_no: string; qty: number }> }> }; files?: Array<{ index: number; name?: string | null }> };
   } | null;
   createdAt: string; decidedAt: string | null;
-  actions: { decide: boolean; sendBack: boolean; withdraw: boolean; resubmit: boolean; override: boolean; reassign: boolean };
+  actions: { decide: boolean; sendBack: boolean; withdraw: boolean; resubmit: boolean; override: boolean; reassign: boolean; delete?: boolean };
 }
 
 export interface Delegation {

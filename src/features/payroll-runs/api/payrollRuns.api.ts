@@ -130,8 +130,8 @@ export function exportPayslips(runId: number, layout: 'zip' | 'combined', employ
   return apiClient.post<ExportJobDto>('/exports/payslips', { runId, layout, employeeIds, includeHeld }, auth);
 }
 
-export function exportRegister(runId: number) {
-  return apiClient.post<ExportJobDto>('/exports/payroll-register', { runId }, auth);
+export function exportRegister(runId: number, separateWeekOff = false) {
+  return apiClient.post<ExportJobDto>('/exports/payroll-register', { runId, separateWeekOff }, auth);
 }
 
 export function exportBankTransfer(runId: number) {

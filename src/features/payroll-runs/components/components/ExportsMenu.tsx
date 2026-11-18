@@ -3,14 +3,16 @@
 import React from 'react';
 import { ChevronDown, Download, FileArchive, FileText, Landmark, Sheet } from 'lucide-react';
 import { cx } from '@/theme/tokens';
-import type { RunExportKind } from '../../hooks/useRunActions';
+import type { RunExportKind, RunExportOptions } from '../../hooks/useRunActions';
 import type { Run } from '../../types/payrollRuns.model';
 import { actionBtn, Spinner } from './controls';
 
 const FROZEN = new Set(['finalized', 'paid']);
 
-export function ExportsMenu({ run, busy, onExport }: { run: Run; busy: boolean; onExport: (kind: RunExportKind) => void }) {
+export function ExportsMenu({ run, busy, onExport }: { run: Run; busy: boolean; onExport: (kind: RunExportKind, options?: RunExportOptions) => void }) {
   const [open, setOpen] = React.useState(false);
+  // Payroll sheet: week off sits inside P.Days unless this is ticked.
+  const [separateWeekOff, setSeparateWeekOff] = React.useState(false);
   const rootRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -52,7 +54,7 @@ export function ExportsMenu({ run, busy, onExport }: { run: Run; busy: boolean; 
               disabled={it.disabled}
               onClick={() => {
                 setOpen(false);
-                onExport(it.kind);
+                onExport(it.kind, it.kind === 'register' ? { separateWeekOff } : undefined);
               }}
               className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-bg-subtle disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
             >
@@ -63,6 +65,15 @@ export function ExportsMenu({ run, busy, onExport }: { run: Run; busy: boolean; 
               </span>
             </button>
           ))}
+          <label className="flex cursor-pointer items-center gap-2 border-t border-line px-2.5 py-2 text-xs text-fg">
+            <input
+              type="checkbox"
+              className="h-4 w-4 cursor-pointer rounded border-line-strong accent-[var(--tt-primary)]"
+              checked={separateWeekOff}
+              onChange={(e) => setSeparateWeekOff(e.target.checked)}
+            />
+            <span>Payroll sheet: keep Week Off separate</span>
+          </label>
           <p className="border-t border-line px-2.5 pb-1.5 pt-2 text-[11px] text-fg-muted">Files are prepared in the Download Centre.</p>
         </div>
       )}

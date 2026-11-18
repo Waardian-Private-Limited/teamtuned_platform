@@ -165,7 +165,7 @@ function Row(props: RunCardProps) {
           <div className="flex flex-wrap items-center justify-end gap-1.5">
             {primary}
             {secondary}
-            {hasNumbers && !calculating && <ExportsMenu run={run} busy={isBusy('export')} onExport={(kind) => props.onExport(run, kind)} />}
+            {hasNumbers && !calculating && <ExportsMenu run={run} busy={isBusy('export')} onExport={(kind, options) => props.onExport(run, kind, options)} />}
           </div>
         </td>
       </tr>

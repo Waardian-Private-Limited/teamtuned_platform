@@ -4,7 +4,7 @@ import React from 'react';
 import { AlertCircle, CheckCircle2, Eye, Hourglass, Lock, Play, RefreshCw, RotateCcw, Send, Trash2, Wallet } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { Tooltip } from '@/components/ui/Tooltip';
-import type { RunExportKind } from '../../hooks/useRunActions';
+import type { RunExportKind, RunExportOptions } from '../../hooks/useRunActions';
 import type { Run } from '../../types/payrollRuns.model';
 import { dateText, money } from '../../utils/format';
 import { actionBtn, Spinner, StagePill } from './controls';
@@ -29,7 +29,7 @@ export interface RunCardProps {
   onRelease: (run: Run) => void;
   onMarkPaid: (run: Run) => void;
   onReopen: (run: Run) => void;
-  onExport: (run: Run, kind: RunExportKind) => void;
+  onExport: (run: Run, kind: RunExportKind, options?: RunExportOptions) => void;
   /** Opens the pending finalize / reopen approval (approvers get Approve / Reject there). */
   onReviewApproval?: (run: Run) => void;
 }
@@ -265,7 +265,7 @@ export function RunCard(props: RunCardProps) {
           {secondary}
           {hasNumbers && !calculating && (
             <div className="ml-auto">
-              <ExportsMenu run={run} busy={isBusy('export')} onExport={(kind) => props.onExport(run, kind)} />
+              <ExportsMenu run={run} busy={isBusy('export')} onExport={(kind, options) => props.onExport(run, kind, options)} />
             </div>
           )}
         </div>

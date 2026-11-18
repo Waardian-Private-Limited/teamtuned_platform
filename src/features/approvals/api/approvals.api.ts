@@ -32,6 +32,8 @@ export const bulkDecide = (ids: number[], decision: 'approve' | 'reject', note?:
 export const sendBack = (id: number, note: string) => apiClient.post(`/approvals/requests/${id}/send-back`, { note }, auth);
 export const withdraw = (id: number) => apiClient.post(`/approvals/requests/${id}/withdraw`, {}, auth);
 export const resubmit = (id: number) => apiClient.post(`/approvals/requests/${id}/resubmit`, {}, auth);
+/** Org admin: deletes the request and undoes what it changed. Cannot be undone. */
+export const remove = (id: number, reason?: string) => apiClient.post(`/approvals/requests/${id}/delete`, { reason }, auth);
 export const reassign = (id: number, employeeId: number) => apiClient.post(`/approvals/requests/${id}/reassign`, { employeeId }, auth);
 
 export const myDelegations = () => apiClient.get<Delegation[]>('/approvals/delegations/me', undefined, auth);

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Check, CornerUpLeft, Send, Undo2, UserRoundCog, X } from 'lucide-react';
+import { Check, CornerUpLeft, Send, Trash2, Undo2, UserRoundCog, X } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { Drawer } from '@/components/ui/Drawer';
 import { Dialog } from '@/components/ui/Dialog';
@@ -28,7 +28,7 @@ import { PettyFundAmountSection } from '@/features/petty-cash/components/PettyFu
 import { CompOffUnitsSection } from './CompOffUnitsSection';
 import { RegularizationTimesSection, RegularizationWaiversSection, RegularizationTimesTable, RegularizationTrail, TIME_LINE_KEYS } from '@/features/attendance-approvals/components/RegularizationTimes';
 
-type Action = 'approve' | 'reject' | 'send_back' | 'reassign';
+type Action = 'approve' | 'reject' | 'send_back' | 'reassign' | 'delete';
 
 /** One labelled fact; long values (a reason, a place) take the full row so they never squeeze. */
 function Fact({ label, value, wide }: { label: string; value: React.ReactNode; wide?: boolean }) {
@@ -90,6 +90,20 @@ export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; o
     } finally { setBusy(false); }
   };
 
+  // The request is gone afterwards, so the drawer closes instead of reloading it.
+  const removeRequest = async () => {
+    if (!request) return;
+    setBusy(true);
+    try {
+      await api.remove(request.id, note.trim() || undefined);
+      showSuccess('Request deleted');
+      setAction(null);
+      setNote('');
+      onChanged();
+      onClose();
+    } catch (e) { showError(messageOf(e)); } finally { setBusy(false); }
+  };
+
   const confirm = () => {
     if (!request || !action) return;
     if ((action === 'reject' || action === 'send_back') && !note.trim()) { setNoteError(action === 'reject' ? 'Add a reason for rejecting' : 'Say what needs to change'); return; }
@@ -97,6 +111,7 @@ export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; o
       if (!target[0]) return;
       return run(() => api.reassign(request.id, target[0].id), 'Reassigned');
     }
+    if (action === 'delete') return removeRequest();
     if (action === 'send_back') return run(() => api.sendBack(request.id, note.trim()), 'Sent back');
     if (action === 'approve' && (!plan.valid || !formExtra.valid)) return;
     const merged = action === 'approve' ? { ...(plan.value ? { plan: plan.value } : {}), ...(formExtra.value ?? {}), ...(waiveExtra ?? {}) } : {};
@@ -118,11 +133,11 @@ export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; o
   const correctTimes = form?.kind === 'regularization_times' && times ? times : null;
   const wideForm = Boolean(planAdvanceId || reviewClaimId || pettyExpenseId || exitCaseId !== null || settlementCaseId !== null);
   const formValid = plan.valid && formExtra.valid;
-  const titles: Record<Action, string> = { approve: exitCaseId !== null ? 'Accept resignation' : 'Approve request', reject: 'Reject request', send_back: 'Send back for changes', reassign: 'Reassign to another approver' };
+  const titles: Record<Action, string> = { approve: exitCaseId !== null ? 'Accept resignation' : 'Approve request', reject: 'Reject request', send_back: 'Send back for changes', reassign: 'Reassign to another approver', delete: 'Delete request permanently' };
 
   return (
     <Drawer open={Boolean(id)} onClose={onClose} title={request?.detail?.title || request?.typeLabel || 'Request'} maxWidthClassName="sm:max-w-2xl xl:max-w-5xl"
-      footer={a && (a.decide || a.sendBack || a.withdraw || a.resubmit || a.override || a.reassign) ? (
+      footer={a && (a.decide || a.sendBack || a.withdraw || a.resubmit || a.override || a.reassign || a.delete) ? (
         <div className="flex flex-wrap gap-2">
           {(a.decide || a.override) && <Btn variant="primary" icon={<Check className="h-4 w-4" />} onClick={() => setAction('approve')}>{exitCaseId !== null ? 'Accept' : a.override ? 'Approve as admin' : 'Approve'}</Btn>}
           {a.decide && exitCaseId !== null && <Link href={`${window.location.pathname.startsWith('/employee') ? '/employee' : '/org-admin'}/exits/${exitCaseId}`} className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3.5 text-xs font-semibold text-fg hover:bg-bg-subtle sm:text-sm">Try to retain</Link>}
@@ -131,6 +146,7 @@ export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; o
           {a.reassign && <Btn icon={<UserRoundCog className="h-4 w-4" />} onClick={() => setAction('reassign')}>Reassign</Btn>}
           {a.resubmit && <Btn variant="primary" icon={<Send className="h-4 w-4" />} busy={busy} onClick={() => request && run(() => api.resubmit(request.id), 'Resubmitted')}>Resubmit</Btn>}
           {a.withdraw && <Btn icon={<Undo2 className="h-4 w-4" />} busy={busy} onClick={() => request && run(() => api.withdraw(request.id), 'Withdrawn')}>Withdraw</Btn>}
+          {a.delete && <Btn variant="danger" icon={<Trash2 className="h-4 w-4" />} onClick={() => setAction('delete')}>Delete</Btn>}
         </div>
       ) : undefined}>
       {error && <Alert message={error} />}
@@ -185,7 +201,7 @@ export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; o
         </div>
       )}
       <Dialog open={Boolean(action)} onClose={() => setAction(null)} title={action ? titles[action] : ''} maxWidthClassName={action === 'approve' && (reviewClaimId || pettyExpenseId) ? 'max-w-4xl' : action === 'approve' && wideForm ? 'max-w-xl' : undefined}
-        footer={<div className="flex justify-end gap-2"><Btn onClick={() => setAction(null)}>Cancel</Btn><Btn variant={action === 'reject' ? 'danger' : 'primary'} busy={busy} disabled={action === 'approve' && !formValid} onClick={confirm}>Confirm</Btn></div>}>
+        footer={<div className="flex justify-end gap-2"><Btn onClick={() => setAction(null)}>Cancel</Btn><Btn variant={action === 'reject' || action === 'delete' ? 'danger' : 'primary'} busy={busy} disabled={action === 'approve' && !formValid} onClick={confirm}>{action === 'delete' ? 'Delete' : 'Confirm'}</Btn></div>}>
         {action === 'approve' && planAdvanceId && (
           <div className="mb-4 border-b border-line pb-4">
             <ApprovalPlanSection advanceId={planAdvanceId} onChange={onPlan} />
@@ -243,10 +259,15 @@ export function RequestDrawer({ id, onClose, onChanged }: { id: number | null; o
             <WalletFundAmountSection requested={fundAmount} onChange={onFundAmount} fundRequestId={form?.fund_request_id ?? null} files={form?.files ?? []} />
           </div>
         )}
+        {action === 'delete' && (
+          <div className="mb-4">
+            <Alert message="This removes the request completely and undoes what it changed (leave balance, attendance, payouts and so on). It cannot be undone. If money was already paid out or the change can no longer be reversed, the delete is refused with the reason." />
+          </div>
+        )}
         {action === 'reassign' ? (
           <EmployeeSearch label="New approver" value={target} onChange={(v) => setTarget(v.slice(-1))} excludeIds={request?.requester ? [request.requester.id] : []} />
         ) : (
-          <Textarea label={action === 'approve' ? 'Note' : action === 'reject' ? 'Reason' : 'What needs to change'} required={action !== 'approve'} value={note} error={noteError}
+          <Textarea label={action === 'approve' ? 'Note' : action === 'reject' || action === 'delete' ? 'Reason' : 'What needs to change'} required={action !== 'approve' && action !== 'delete'} value={note} error={noteError}
             onChange={(e) => { setNote(e.target.value); setNoteError(''); }} />
         )}
       </Dialog>

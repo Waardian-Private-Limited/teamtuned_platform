@@ -9,6 +9,8 @@ import { toRun } from '../types/payrollRuns.mapper';
 import type { Run } from '../types/payrollRuns.model';
 
 export type RunExportKind = 'payslips_zip' | 'payslips_combined' | 'register' | 'bank';
+/** Payroll sheet only: week off in its own column instead of inside P.Days. */
+export type RunExportOptions = { separateWeekOff?: boolean };
 
 interface Options {
   month: string;
@@ -139,7 +141,7 @@ export function useRunActions({ month, onRun, onReload }: Options) {
   );
 
   const exportRun = useCallback(
-    (run: Run, kind: RunExportKind) =>
+    (run: Run, kind: RunExportKind, options?: RunExportOptions) =>
       exec(run.key, `${run.key}:export`, async () => {
         const id = run.id as number;
         const job =
@@ -148,7 +150,7 @@ export function useRunActions({ month, onRun, onReload }: Options) {
             : kind === 'payslips_combined'
               ? await api.exportPayslips(id, 'combined')
               : kind === 'register'
-                ? await api.exportRegister(id)
+                ? await api.exportRegister(id, !!options?.separateWeekOff)
                 : await api.exportBankTransfer(id);
         track(job);
       }),
