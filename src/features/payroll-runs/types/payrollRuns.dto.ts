@@ -208,6 +208,13 @@ export interface ItemDetailDto extends ItemDto {
   attendance: AttendanceDto | null;
   inputs: InputsDto;
   has_legacy_payslip: boolean;
+  /** Leave for the period, read when the item is opened; null when it could not be read. */
+  leave?: ItemLeaveDto | null;
+}
+
+export interface ItemLeaveDto {
+  paid: { balance: number; used: number };
+  comp_off: { balance: number; used: number; earned: Array<{ date: string; reason: string; days: number; state: string }> };
 }
 
 export interface OtherCompanyDto {

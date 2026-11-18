@@ -247,6 +247,16 @@ export function toEmployeePay(dto: ItemDetailResponseDto): EmployeePay {
         weight: n(s.weight),
       })),
       hasLegacyPayslip: Boolean(item.has_legacy_payslip),
+      leave: item.leave
+        ? {
+            paid: { balance: n(item.leave.paid?.balance), used: n(item.leave.paid?.used) },
+            compOff: {
+              balance: n(item.leave.comp_off?.balance),
+              used: n(item.leave.comp_off?.used),
+              earned: (item.leave.comp_off?.earned || []).map((e) => ({ date: e.date, reason: e.reason, days: n(e.days), state: e.state })),
+            },
+          }
+        : null,
     },
     otherCompanies: (dto.other_companies || []).map((c) => ({
       runId: c.run_id,

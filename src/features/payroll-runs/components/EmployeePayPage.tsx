@@ -12,6 +12,7 @@ import { useEmployeePay } from '../hooks/useEmployeePay';
 import { recallOrder } from '../utils/format';
 import { actionBtn, Avatar, IconButton, PayslipStatePill, Skeleton, Spinner, StagePill } from './components/controls';
 import { AttendanceCalendar } from './components/AttendanceCalendar';
+import { LeaveCard } from './components/LeaveCard';
 import { LinesTable } from './components/LinesTable';
 import { OtherCompanies, SalaryUsed } from './components/PayContext';
 import { PaySummaryTiles } from './components/PaySummaryTiles';
@@ -197,6 +198,7 @@ export function EmployeePayPage({ basePath }: { basePath: string }) {
           <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
             <AttendanceCalendar cells={item.attendance?.cells || []} onOpenDay={setOpenDay} />
             <div className="space-y-4">
+              <LeaveCard leave={item.leave} />
               {!isPreview && (
                 <DayAdjustmentsCard
                   employeeId={item.employee.id}

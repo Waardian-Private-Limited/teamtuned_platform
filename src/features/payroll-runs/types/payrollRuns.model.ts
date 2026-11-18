@@ -190,6 +190,13 @@ export interface PayDetail extends PayItem {
   attendance: Attendance | null;
   segments: SalarySegment[];
   hasLegacyPayslip: boolean;
+  leave: ItemLeave | null;
+}
+
+/** Leave for the pay period: balance had (carried in + credited in it) and used (requested + absences it paid). */
+export interface ItemLeave {
+  paid: { balance: number; used: number };
+  compOff: { balance: number; used: number; earned: Array<{ date: string; reason: string; days: number; state: string }> };
 }
 
 export interface OtherCompany {
