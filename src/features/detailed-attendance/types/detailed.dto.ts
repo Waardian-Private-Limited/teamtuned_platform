@@ -346,7 +346,7 @@ export interface OverrideBody {
 export type OnlyKey = 'present' | 'half_day' | 'absent' | 'leave' | 'late' | 'no_checkout' | 'overridden';
 
 export interface ExportRequest {
-  report?: 'daily' | 'monthly' | 'data';
+  report?: 'daily' | 'monthly' | 'data' | 'missed_checkout';
   month?: string;
   from: string;
   to: string;

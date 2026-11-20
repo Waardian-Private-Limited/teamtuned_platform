@@ -98,7 +98,11 @@ export interface TaskView {
   delegatedFrom: { id: number; name: string } | null; actedAt: string | null; note: string | null;
 }
 export interface RegularizationTime { recorded: string | null; asked: string | null; current: string | null; editable: boolean }
-export interface RegularizationTrailStep { by: 'employee' | 'approver'; name: string | null; step: string | null; at: string | null; in_time: string | null; out_time: string | null }
+export interface RegularizationTrailStep { by: 'employee' | 'approver'; name: string | null; step: string | null; at: string | null; in_time: string | null; out_time: string | null; status?: DayChoice | null }
+/** A day's status as an approver picks it. */
+export type DayChoice = 'full_day' | 'half_day' | 'absent';
+/** Regularization: the day's status now, as asked, as approving leaves it, and the approvers' pick (null when none). */
+export interface RegularizationStatusChoice { options: DayChoice[]; now: DayChoice | null; now_status: string | null; asked: DayChoice | null; will_be: DayChoice | null; chosen: DayChoice | null }
 
 /** One punch behind an attendance request: when, where, what failed, and whether it has a selfie and a map point. */
 export interface PunchEvidence {
@@ -121,6 +125,8 @@ export interface RequestDetail {
     times?: { in: RegularizationTime; out: RegularizationTime };
     /** Regularization: who set the times, oldest first (the employee's ask, then each approver's correction). */
     trail?: RegularizationTrailStep[];
+    /** Regularization: the day's status, which the approver may set to full day, half day or absent (extra.mark_as). */
+    status_choice?: RegularizationStatusChoice;
     /** Regularization: the marks and penalties the day carries now, which the approver may remove. */
     day_now?: { status: string | null; late_mark: boolean; late_penalty: string | null; early_mark: boolean; early_penalty: string | null } | null;
     /** Attendance requests: the day's punches with place, map point and selfie, as in the attendance popup. */

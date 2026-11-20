@@ -4,7 +4,7 @@ import React from 'react';
 import { Clock } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { formatDayTime } from '@/lib/datetime';
-import type { RegularizationTime, RegularizationTrailStep } from '@/features/approvals/types/approvals';
+import type { DayChoice, RegularizationStatusChoice, RegularizationTime, RegularizationTrailStep } from '@/features/approvals/types/approvals';
 
 const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -63,9 +63,9 @@ export function RegularizationTrail({ steps }: { steps: RegularizationTrailStep[
                 {!last && <span className="mt-1 w-px flex-1 bg-line" />}
               </div>
               <div className="min-w-0 pb-1">
-                <p className="text-sm font-semibold text-fg">{s.by === 'employee' ? `${s.name ?? 'Employee'} asked` : `${s.name ?? 'Approver'} changed the times`}</p>
+                <p className="text-sm font-semibold text-fg">{s.by === 'employee' ? `${s.name ?? 'Employee'} asked` : `${s.name ?? 'Approver'} ${s.in_time || s.out_time ? 'changed the times' : 'changed the status'}`}</p>
                 <p className="text-sm tabular-nums text-fg">
-                  {[s.in_time && `Check-in ${s.in_time}`, s.out_time && `Check-out ${s.out_time}`].filter(Boolean).join('  ·  ')}
+                  {[s.in_time && `Check-in ${s.in_time}`, s.out_time && `Check-out ${s.out_time}`, s.status && DAY_CHOICE_LABEL[s.status]].filter(Boolean).join('  ·  ')}
                 </p>
                 <p className="text-xs text-fg-muted">{[s.by === 'approver' ? s.step : null, s.at ? formatDayTime(s.at) : null].filter(Boolean).join(' · ')}</p>
               </div>
@@ -123,6 +123,36 @@ export function RegularizationTimesSection({ times, onChange }: { times: { in: R
         {times.in.editable && field('Check-in', times.in, inTime, setIn, inError)}
         {times.out.editable && field('Check-out', times.out, outTime, setOut, outError)}
       </div>
+    </div>
+  );
+}
+
+export const DAY_CHOICE_LABEL: Record<DayChoice, string> = { full_day: 'Full day', half_day: 'Half day', absent: 'Absent' };
+
+/**
+ * In the approve dialog: the day's status, open to change whatever the request asked (full day, half day or absent),
+ * as an HR override sets it. Starts at what approving leaves the day as; reports `mark_as` only when changed.
+ */
+export function RegularizationStatusSection({ choice, onChange }: { choice: RegularizationStatusChoice; onChange: (value: { mark_as: DayChoice } | null) => void }) {
+  const start = choice.chosen ?? choice.will_be ?? '';
+  const [value, setValue] = React.useState<DayChoice | ''>(start);
+  React.useEffect(() => { setValue(start); }, [start]);
+  React.useEffect(() => { onChange(value && value !== start ? { mark_as: value } : null); }, [value, start, onChange]);
+  const nowText = choice.now ? DAY_CHOICE_LABEL[choice.now] : choice.now_status ?? 'No record';
+  return (
+    <div className="space-y-2">
+      <label className="block">
+        <span className="text-xs font-semibold text-fg">Mark the day as</span>
+        <select value={value} onChange={(e) => setValue(e.target.value as DayChoice | '')}
+          className={cx('mt-1 h-10 w-full rounded border bg-surface px-3 text-sm font-semibold text-fg', value !== start ? 'border-fg' : 'border-line')}>
+          {!start && <option value="">As the punches decide</option>}
+          {choice.options.map((o) => <option key={o} value={o}>{DAY_CHOICE_LABEL[o]}</option>)}
+        </select>
+      </label>
+      <p className="text-xs text-fg-muted">
+        {[`Now: ${nowText}`, choice.asked ? `Asked: ${DAY_CHOICE_LABEL[choice.asked]}` : null, choice.will_be ? `Approving makes it: ${DAY_CHOICE_LABEL[choice.will_be]}` : null].filter(Boolean).join(' · ')}
+        {value && value !== start ? '. Your pick is forced on the day, as an override.' : ''}
+      </p>
     </div>
   );
 }

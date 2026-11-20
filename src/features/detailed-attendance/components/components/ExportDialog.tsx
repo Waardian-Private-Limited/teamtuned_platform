@@ -20,17 +20,20 @@ import { Avatar, controlClass, Select } from './controls';
 import { monthRange } from '@/lib/datetime';
 
 type Format = 'xlsx' | 'csv' | 'pdf';
-type Report = 'daily' | 'monthly' | 'data';
+type Report = 'daily' | 'monthly' | 'data' | 'missed_checkout';
 const MAX_DAYS = 400;
 
 const REPORTS: Array<{ value: Report; label: string; hint: string }> = [
   { value: 'daily', label: 'Daily report', hint: 'Everyone on one date, counts per site' },
   { value: 'monthly', label: 'Monthly report', hint: 'A month grid per person, day by day' },
   { value: 'data', label: 'Detailed data', hint: 'A summary per month and a line per day' },
+  { value: 'missed_checkout', label: 'Missed check-out LOP', hint: 'Days lost to a missing check-out, site by site' },
 ];
 
-/** What each report can be saved as; the daily and monthly reports are Excel or PDF. */
-const FORMATS_FOR: Record<Report, Format[]> = { daily: ['xlsx', 'pdf'], monthly: ['xlsx', 'pdf'], data: ['xlsx', 'csv', 'pdf'] };
+/** What each report can be saved as; the daily and monthly reports are Excel or PDF, the missed check-out LOP Excel only. */
+const FORMATS_FOR: Record<Report, Format[]> = { daily: ['xlsx', 'pdf'], monthly: ['xlsx', 'pdf'], data: ['xlsx', 'csv', 'pdf'], missed_checkout: ['xlsx'] };
+/** Reports of one whole month, picked with the month field. */
+const BY_MONTH: Report[] = ['monthly', 'missed_checkout'];
 
 const FORMATS: Array<{ value: Format; label: string; hint: string; icon: typeof FileText }> = [
   { value: 'xlsx', label: 'Excel', hint: 'Opens in Excel or Sheets', icon: FileSpreadsheet },
@@ -119,7 +122,8 @@ function Form({ today, date, filters: initial, options: initialOptions, onClose 
   }, [pick, term, today, filters.subOrgId, filters.siteId, filters.departmentId, filters.roleId]);
 
   const days = from && to ? Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1 : 0;
-  const rangeError = report === 'monthly' ? (month ? null : 'Pick the month') : report === 'daily' ? (from ? null : 'Pick the date') : !from || !to ? 'Pick the first and last date' : from > to ? 'The first date cannot be after the last' : days > MAX_DAYS ? `Pick at most ${MAX_DAYS} days` : null;
+  const byMonth = BY_MONTH.includes(report);
+  const rangeError = byMonth ? (month ? null : 'Pick the month') : report === 'daily' ? (from ? null : 'Pick the date') : !from || !to ? 'Pick the first and last date' : from > to ? 'The first date cannot be after the last' : days > MAX_DAYS ? `Pick at most ${MAX_DAYS} days` : null;
   const peopleError = pick && chosen.length === 0 ? 'Pick at least one person' : null;
   const addEmail = () => {
     const parts = emailText.split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter(Boolean);
@@ -139,10 +143,10 @@ function Form({ today, date, filters: initial, options: initialOptions, onClose 
     setError(null);
     try {
       const job = await api.requestExport({
-        report, from: report === 'monthly' ? `${month}-01` : from, to: report === 'daily' ? from : to, month: report === 'monthly' ? month : undefined, format,
+        report, from: byMonth ? `${month}-01` : from, to: report === 'daily' ? from : to, month: byMonth ? month : undefined, format,
         subOrgId: filters.subOrgId, siteId: filters.siteId, departmentId: filters.departmentId, roleId: filters.roleId,
         employeeIds: pick ? chosen.map((c) => c.id) : undefined,
-        only: report === 'monthly' || !only.length ? undefined : only,
+        only: byMonth || !only.length ? undefined : only,
         emails: emailOn ? emails : undefined,
       });
       track(job);
@@ -175,7 +179,7 @@ function Form({ today, date, filters: initial, options: initialOptions, onClose 
       <div className="space-y-5">
         <section>
           <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-fg-muted">Report</h3>
-          <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Report">
+          <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Report">
             {REPORTS.map((r) => (
               <button key={r.value} type="button" role="radio" aria-checked={report === r.value} onClick={() => { setReport(r.value); if (!FORMATS_FOR[r.value].includes(format)) setFormat('xlsx'); }}
                 className={cx('flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors', report === r.value ? 'border-fg bg-bg-subtle ring-1 ring-fg' : 'border-line bg-surface hover:bg-bg-subtle')}>
@@ -273,7 +277,7 @@ function Form({ today, date, filters: initial, options: initialOptions, onClose 
           )}
         </section>
 
-        {report !== 'monthly' && (
+        {!byMonth && (
         <section>
           <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-fg-muted">Only days that were</h3>
           <div className="flex flex-wrap gap-1.5">
