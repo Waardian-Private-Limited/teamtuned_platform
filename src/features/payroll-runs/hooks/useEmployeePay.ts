@@ -17,7 +17,7 @@ export function useEmployeePay(runId: number | null, employeeId: number | null, 
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
-  const [busy, setBusy] = useState<'payslip' | 'recompute' | 'hold' | 'generate' | null>(null);
+  const [busy, setBusy] = useState<'payslip' | 'recompute' | 'hold' | 'generate' | 'pay' | null>(null);
   const reqRef = useRef(0);
   const keyRef = useRef('');
 
@@ -130,5 +130,37 @@ export function useEmployeePay(runId: number | null, employeeId: number | null, 
     [runId, employeeId, load]
   );
 
-  return { data, loading, refreshing, error, actionError, busy, calculating, reload: load, downloadPayslip, recompute, generatePayslip, setHold };
+  /**
+   * Pays only this salary. In a draft payroll it is finalized first on its own (everyone else moves to a new draft batch);
+   * when finalizing needs approval it stops there. `generate` also makes the payslip visible to the employee.
+   */
+  const paySalary = useCallback(
+    async ({ paidOn, reference, generate }: { paidOn: string; reference: string; generate: boolean }) => {
+      if (runId === null || employeeId === null || !data) return 'Missing payroll entry';
+      setBusy('pay');
+      try {
+        if (data.run.status === 'draft') {
+          const run = toRun(await api.finalize(runId, false, [employeeId]));
+          if (run.pendingAction) {
+            showSuccess('Finalizing this salary was sent for approval. Pay it once it is approved.');
+            await load();
+            return null;
+          }
+        }
+        await api.markPaid(runId, paidOn, reference.trim(), [employeeId]);
+        if (generate) await api.generatePayslips(runId, [employeeId]);
+        showSuccess(generate ? 'Salary paid and payslip generated' : 'Salary marked paid');
+        await load();
+        return null;
+      } catch (err) {
+        await load();
+        return messageOf(err);
+      } finally {
+        setBusy(null);
+      }
+    },
+    [runId, employeeId, data, load]
+  );
+
+  return { data, loading, refreshing, error, actionError, busy, calculating, reload: load, downloadPayslip, recompute, generatePayslip, setHold, paySalary };
 }

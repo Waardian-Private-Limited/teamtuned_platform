@@ -23,7 +23,7 @@ export function LinesEditor({ lines, runId, employeeId, stage, onDone }: { lines
   const [drafts, setDrafts] = React.useState<Record<string, Draft>>(() =>
     Object.fromEntries(lines.map((l) => [l.key, { amount: String(l.amount), steps: l.steps.map((s) => ({ ...s })) }]))
   );
-  const [busy, setBusy] = React.useState<'save' | 'reset' | null>(null);
+  const [busy, setBusy] = React.useState<'save' | 'reset' | 'remove' | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   const patch = (key: string, next: Partial<Draft>) => setDrafts((d) => ({ ...d, [key]: { ...d[key], ...next } }));
@@ -57,6 +57,20 @@ export function LinesEditor({ lines, runId, employeeId, stage, onDone }: { lines
     }
   }
 
+  /** An added line comes off the payslip. */
+  async function remove(line: PayLine) {
+    setBusy('remove');
+    try {
+      await api.resetLineOverrides({ run_id: runId, employee_id: employeeId, keys: [line.key] });
+      showSuccess(`${line.label} removed`);
+      onDone(true);
+    } catch (e) {
+      showError(messageOf(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function reset() {
     setBusy('reset');
     try {
@@ -79,6 +93,11 @@ export function LinesEditor({ lines, runId, employeeId, stage, onDone }: { lines
             <li key={l.key} className="space-y-2 px-4 py-3">
               <div className="flex items-center gap-3">
                 <span className="min-w-0 flex-1 truncate text-sm text-fg">{l.label}</span>
+                {l.added && (
+                  <button type="button" disabled={busy !== null} onClick={() => remove(l)} className="shrink-0 text-xs font-semibold text-fg-muted hover:text-[var(--tt-danger,#b42318)] disabled:opacity-40">
+                    Remove
+                  </button>
+                )}
                 <div className="flex w-36 shrink-0 items-center rounded-md border border-line bg-surface focus-within:border-[var(--tt-primary)] focus-within:ring-1 focus-within:ring-[var(--tt-primary)]">
                   <span className="pl-2 text-xs font-semibold text-fg-muted">₹</span>
                   <input
@@ -162,7 +181,7 @@ export function LinesEditor({ lines, runId, employeeId, stage, onDone }: { lines
         <div className="flex flex-wrap items-center justify-end gap-2">
           {edited.length > 0 && (
             <button type="button" className={`${actionBtn.secondary} mr-auto`} disabled={busy !== null} onClick={reset}>
-              {busy === 'reset' ? 'Resetting…' : 'Reset to calculated'}
+              {busy === 'reset' ? 'Resetting…' : edited.some((l) => l.added) ? 'Reset to calculated (removes added lines)' : 'Reset to calculated'}
             </button>
           )}
           <button type="button" className={actionBtn.secondary} disabled={busy !== null} onClick={() => onDone(false)}>Cancel</button>

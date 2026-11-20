@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, ChevronLeft, ChevronRight, Download, Eye, Lock, LockOpen, RefreshCw, Send } from 'lucide-react';
+import { ArrowLeft, Banknote, ChevronLeft, ChevronRight, Download, Eye, Lock, LockOpen, RefreshCw, Send } from 'lucide-react';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { cx } from '@/theme/tokens';
 import { usePermission } from '@/lib/hooks/usePermission';
@@ -16,7 +16,7 @@ import { LeaveCard } from './components/LeaveCard';
 import { LinesTable } from './components/LinesTable';
 import { OtherCompanies, SalaryUsed } from './components/PayContext';
 import { PaySummaryTiles } from './components/PaySummaryTiles';
-import { HoldDialog } from './components/RunDialogs';
+import { HoldDialog, PaySalaryDialog } from './components/RunDialogs';
 import { DayAdjustmentsCard } from './components/DayAdjustmentsCard';
 import { WarningsList } from './components/WarningsList';
 import { PayrollEmptyState } from './components/PayrollEmptyState';
@@ -61,6 +61,7 @@ export function EmployeePayPage({ basePath }: { basePath: string }) {
   const pay = useEmployeePay(valid ? runId : null, valid ? employeeId : null, previewTarget);
   const data = pay.data;
   const [holdOpen, setHoldOpen] = React.useState(false);
+  const [payOpen, setPayOpen] = React.useState(false);
   const [openDay, setOpenDay] = React.useState<string | null>(null);
   const [order, setOrder] = React.useState<number[]>([]);
 
@@ -89,8 +90,14 @@ export function EmployeePayPage({ basePath }: { basePath: string }) {
   const held = item?.status === 'held';
   // Hand edits of the lines: a draft, finalized or paid payroll that is not waiting for approval or being calculated.
   const lineEdit = canEdit && !isPreview && run && run.id && item && !pending && !pay.calculating
-    ? { runId: Number(run.id), employeeId: item.employee.id, stage: run.status, onSaved: () => void pay.reload() }
+    ? {
+        runId: Number(run.id), employeeId: item.employee.id, stage: run.status, subOrganizationId: run.subOrganizationId,
+        keys: new Set([...item.earningLines, ...item.deductionLines].map((l) => l.key)), onSaved: () => void pay.reload(),
+      }
     : undefined;
+  // Pay only this salary: a draft is finalized for this employee alone first; a finalized one is marked paid.
+  const payable = Boolean(item) && !held && item?.status !== 'error' && (item?.netPay ?? 0) > 0 && item?.payment.status !== 'paid';
+  const canPay = canEdit && !isPreview && Boolean(run) && !pending && !pay.calculating && payable && (isDraft || run?.status === 'finalized' || run?.status === 'paid');
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 pb-8">
@@ -152,6 +159,14 @@ export function EmployeePayPage({ basePath }: { basePath: string }) {
               {pay.busy === 'recompute' ? <Spinner /> : <RefreshCw className="h-3.5 w-3.5" />} Recalculate run
             </button>
           )}
+          {canPay && (
+            <button type="button" className={actionBtn.secondary} onClick={() => setPayOpen(true)} disabled={pay.busy !== null}>
+              {pay.busy === 'pay' ? <Spinner /> : <Banknote className="h-3.5 w-3.5" />} {isDraft ? 'Finalize & pay salary' : 'Mark salary paid'}
+            </button>
+          )}
+          {item && !isPreview && item.payment.status === 'paid' && (
+            <span className="text-xs font-semibold text-fg-muted">Paid{item.payment.paidOn ? ` on ${item.payment.paidOn}` : ''}{item.payment.reference ? ` · ${item.payment.reference}` : ''}</span>
+          )}
           {item && !isPreview && (
             <button type="button" className={actionBtn.primary} onClick={pay.downloadPayslip} disabled={pay.busy !== null || pay.calculating}>
               {pay.busy === 'payslip' ? <Spinner /> : <Download className="h-3.5 w-3.5" />} Download payslip
@@ -191,8 +206,8 @@ export function EmployeePayPage({ basePath }: { basePath: string }) {
           <WarningsList warnings={item.warnings} />
 
           <div className="grid items-start gap-4 lg:grid-cols-2">
-            <LinesTable title="Earnings" lines={item.earningLines} total={item.earnings} empty="No earnings in this period." edit={lineEdit} />
-            <LinesTable title="Deductions" lines={item.deductionLines} total={item.deductions} empty="No deductions in this period." edit={lineEdit} />
+            <LinesTable title="Earnings" kind="earning" lines={item.earningLines} total={item.earnings} empty="No earnings in this period." edit={lineEdit} />
+            <LinesTable title="Deductions" kind="deduction" lines={item.deductionLines} total={item.deductions} empty="No deductions in this period." edit={lineEdit} />
           </div>
 
           <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
@@ -223,6 +238,23 @@ export function EmployeePayPage({ basePath }: { basePath: string }) {
         onClose={() => setOpenDay(null)}
         onChanged={() => {
           if (!isPreview && run?.status === 'draft' && !pending) pay.recompute();
+        }}
+      />
+
+      <PaySalaryDialog
+        open={payOpen}
+        name={item?.employee.name || ''}
+        finalizeFirst={isDraft}
+        others={Math.max(0, (run?.totals.employees ?? 1) - 1)}
+        periodStart={run?.periodStart || ''}
+        payDate={run?.payDate ?? null}
+        needsApproval={isDraft && Boolean(run?.finalizeNeedsApproval)}
+        busy={pay.busy === 'pay'}
+        onClose={() => setPayOpen(false)}
+        onSubmit={async (paidOn, reference, generate) => {
+          const err = await pay.paySalary({ paidOn, reference, generate });
+          if (!err) setPayOpen(false);
+          return err;
         }}
       />
 

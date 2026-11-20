@@ -95,6 +95,7 @@ export interface PayItem {
   payslipNumber: string | null;
   payslipState: PayslipState | null;
   publishedAt: string | null;
+  payment: { status: 'unpaid' | 'paid' | 'failed'; paidOn: string | null; reference: string | null; note: string | null };
 }
 
 export interface ItemPage {
@@ -105,7 +106,7 @@ export interface ItemPage {
   items: PayItem[];
 }
 
-export type LineSource = 'component' | 'grant' | 'payout' | 'rule' | 'advance' | 'rounding' | 'legacy';
+export type LineSource = 'component' | 'grant' | 'payout' | 'rule' | 'advance' | 'rounding' | 'legacy' | 'manual';
 
 export interface PayLine {
   key: string;
@@ -117,6 +118,8 @@ export interface PayLine {
   badge: string | null;
   steps: Array<{ step: string; value: string }>;
   edited: boolean;
+  /** Added by hand to this entry (removing it takes it off the payslip). */
+  added: boolean;
 }
 
 export interface DayCell {

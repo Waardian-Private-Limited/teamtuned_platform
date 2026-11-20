@@ -131,6 +131,12 @@ export function toItem(dto: ItemDto): PayItem {
     payslipNumber: dto.payslip_number,
     payslipState: dto.payslip_state ?? null,
     publishedAt: dto.published_at ?? null,
+    payment: {
+      status: dto.payment?.status ?? 'unpaid',
+      paidOn: dto.payment?.paid_on ?? null,
+      reference: dto.payment?.reference ?? null,
+      note: dto.payment?.note ?? null,
+    },
   };
 }
 
@@ -153,6 +159,7 @@ function lineBadge(line: LineDto): string | null {
   if (type === 'advance') return 'Advance';
   if (type === 'rounding') return 'Rounding';
   if (type === 'legacy') return 'Imported';
+  if (type === 'manual' || line.added) return 'Added';
   if (type === 'rule') return STATUTORY_CATEGORIES.has(category) ? 'Statutory' : null;
   return null;
 }
@@ -180,6 +187,7 @@ export function toLine(dto: LineDto): PayLine {
     badge: lineBadge(dto),
     steps,
     edited: Boolean(dto.edited),
+    added: Boolean(dto.added),
   };
 }
 

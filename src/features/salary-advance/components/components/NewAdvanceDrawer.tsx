@@ -13,7 +13,7 @@ import { useEligibility } from '../../hooks/useEligibility';
 import { useCreateHrAdvance } from '../../hooks/useCreateAdvance';
 import type { AdvanceType, DisbursementMode, HrAdvanceFormInput } from '../../types/salaryAdvance.model';
 import { buildSchedule } from '../../utils/schedule';
-import { money, parseAmount, thisMonth } from '../../utils/format';
+import { money, monthLabel, parseAmount, thisMonth } from '../../utils/format';
 import { validateHrAdvance } from '../../utils/validators';
 import { EligibilityPanel } from './EligibilityPanel';
 import { InstallmentStepper } from './InstallmentStepper';
@@ -164,7 +164,7 @@ export function NewAdvanceDrawer({ open, types, canSkipApproval, onClose, onCrea
           }}
           error={fe.start_month}
           hint={startMonth ? undefined : (mode ?? policyMode) === 'manual' && e?.earliestStartByMode && e.earliestStartByMode.manual < thisMonth()
-            ? 'Empty: the payroll after it is paid out. Last month’s payroll is not finalized yet, so it can be recovered from last month’s salary too.'
+            ? `Empty: the payroll after it is paid out. Payrolls from ${monthLabel(e.earliestStartByMode.manual)} are not finalized yet, so it can be recovered from those salaries too.`
             : 'Empty: the payroll after it is paid out. Pick this month to recover it from this month’s salary.'}
         />
 

@@ -106,8 +106,9 @@ export function reopen(id: number, reason: string) {
   return apiClient.post<RunDto>(`/payroll-runs/${id}/reopen`, { reason }, auth);
 }
 
-export function markPaid(id: number, paidOn: string, reference?: string) {
-  return apiClient.post<RunDto>(`/payroll-runs/${id}/mark-paid`, { paid_on: paidOn, reference: reference || undefined }, auth);
+/** `employeeIds`: pay only these salaries (the payroll is paid once nothing payable is left). */
+export function markPaid(id: number, paidOn: string, reference?: string, employeeIds?: number[]) {
+  return apiClient.post<RunDto>(`/payroll-runs/${id}/mark-paid`, { paid_on: paidOn, reference: reference || undefined, employee_ids: employeeIds }, auth);
 }
 
 export function generatePayslips(id: number, employeeIds?: number[]) {
@@ -174,4 +175,31 @@ export function saveLineOverrides(body: { run_id: number; employee_id: number; e
 }
 export function resetLineOverrides(body: { run_id: number; employee_id: number; keys?: string[] }) {
   return apiClient.post<{ ok: boolean; removed: number; message: string }>('/payroll-runs/line-overrides/reset', body, auth);
+}
+
+export interface LineTypeDto { id: number; name: string }
+/** Earning components and deduction rules a line can be added from, for this payroll's company. */
+export function lineTypes(runId: number) {
+  return apiClient.get<{ earnings: LineTypeDto[]; deductions: LineTypeDto[] }>('/payroll-runs/line-overrides/types', { run_id: runId }, auth);
+}
+export function addLine(body: { run_id: number; employee_id: number; kind: 'earning' | 'deduction'; type_id: number; amount: number }) {
+  return apiClient.post<{ ok: boolean; message: string }>('/payroll-runs/line-overrides/lines', body, auth);
+}
+
+/**
+ * A new type in payroll settings, made from the payslip edit: an earning component (fixed amount, taxable) or a custom
+ * deduction rule (fixed ₹0, not assigned to anyone), so it only shows where a line of it is added. Needs the
+ * salary-components / deduction-rules add permission.
+ */
+export async function createLineType(kind: 'earning' | 'deduction', name: string, subOrganizationId: number | null): Promise<number> {
+  if (kind === 'earning') {
+    const r = await apiClient.post<{ component: { id: number } }>('/payroll/components', {
+      component_name: name, component_type: 'credit', calculation_type: 'flat', tax_treatment: 'taxable', status: 'active', sub_organization_id: subOrganizationId,
+    }, auth);
+    return Number(r.component.id);
+  }
+  const r = await apiClient.post<{ id: number }>('/payroll/debits', {
+    debit_name: name, category: 'custom', debit_type: 'fixed', fixed_amount: 0, frequency: 'monthly', status: 'active', sub_organization_id: subOrganizationId,
+  }, auth);
+  return Number(r.id);
 }

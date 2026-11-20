@@ -7,6 +7,7 @@ import type { PayLine } from '../../types/payrollRuns.model';
 import { money } from '../../utils/format';
 import { SectionCard, actionBtn } from './controls';
 import { LinesEditor } from './LinesEditor';
+import { AddLineForm } from './AddLineForm';
 
 function Line({ line }: { line: PayLine }) {
   const [open, setOpen] = React.useState(false);
@@ -46,23 +47,52 @@ function Line({ line }: { line: PayLine }) {
   );
 }
 
-export interface LinesEdit { runId: number; employeeId: number; stage: string; onSaved: () => void }
+export interface LinesEdit {
+  runId: number;
+  employeeId: number;
+  stage: string;
+  /** The payroll's company, for a new type made from here. */
+  subOrganizationId: number | null;
+  /** Keys of every line on the payslip (earnings and deductions), so a type already on it is not added twice. */
+  keys: Set<string>;
+  onSaved: () => void;
+}
 
-export function LinesTable({ title, lines, total, empty, edit }: { title: string; lines: PayLine[]; total: number; empty: string; edit?: LinesEdit }) {
+/** `kind`: an Earnings or Deductions card, which can also add a line. */
+export function LinesTable({ title, lines, total, empty, edit, kind }: { title: string; lines: PayLine[]; total: number; empty: string; edit?: LinesEdit; kind?: 'earning' | 'deduction' }) {
   const [editing, setEditing] = React.useState(false);
+  const [adding, setAdding] = React.useState(false);
   const canEdit = Boolean(edit) && lines.length > 0;
+  const canAdd = Boolean(edit) && Boolean(kind);
   return (
     <SectionCard
       title={title}
       aside={
         <span className="flex items-center gap-3">
-          {canEdit && !editing && (
+          {canAdd && !editing && !adding && (
+            <button type="button" className={`${actionBtn.secondary} !h-7 !px-2.5 !text-xs`} onClick={() => setAdding(true)}>+ Add</button>
+          )}
+          {canEdit && !editing && !adding && (
             <button type="button" className={`${actionBtn.secondary} !h-7 !px-2.5 !text-xs`} onClick={() => setEditing(true)}>Edit</button>
           )}
           <span className="text-sm font-bold tabular-nums text-fg">{money(total, true)}</span>
         </span>
       }
     >
+      {adding && edit && kind && (
+        <AddLineForm
+          kind={kind}
+          runId={edit.runId}
+          employeeId={edit.employeeId}
+          subOrganizationId={edit.subOrganizationId}
+          stage={edit.stage}
+          present={edit.keys}
+          onDone={(changed) => {
+            setAdding(false);
+            if (changed) edit.onSaved();
+          }}
+        />
+      )}
       {editing && edit ? (
         <LinesEditor
           lines={lines}
@@ -75,7 +105,7 @@ export function LinesTable({ title, lines, total, empty, edit }: { title: string
           }}
         />
       ) : lines.length === 0 ? (
-        <p className="px-4 py-5 text-center text-xs text-fg-muted">{empty}</p>
+        adding ? null : <p className="px-4 py-5 text-center text-xs text-fg-muted">{empty}</p>
       ) : (
         <ul className="divide-y divide-line/70">
           {lines.map((l) => (

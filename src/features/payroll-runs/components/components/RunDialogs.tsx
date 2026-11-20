@@ -70,6 +70,79 @@ export function MarkPaidDialog({ run, busy, onClose, onSubmit }: { run: Run | nu
   );
 }
 
+/**
+ * Pays one employee's salary on its own. `finalizeFirst`: the payroll is a draft, so this salary is finalized alone first
+ * and `others` people move to a new draft batch.
+ */
+export function PaySalaryDialog({ open, name, finalizeFirst, others, periodStart, payDate, needsApproval, busy, onClose, onSubmit }: {
+  open: boolean;
+  name: string;
+  finalizeFirst: boolean;
+  others: number;
+  periodStart: string;
+  payDate: string | null;
+  needsApproval: boolean;
+  busy: boolean;
+  onClose: () => void;
+  onSubmit: (paidOn: string, reference: string, generate: boolean) => Promise<string | null>;
+}) {
+  const [paidOn, setPaidOn] = React.useState('');
+  const [reference, setReference] = React.useState('');
+  const [generate, setGenerate] = React.useState(true);
+  const [error, setError] = React.useState('');
+
+  React.useEffect(() => {
+    if (open) {
+      setPaidOn(payDate && payDate <= today() ? payDate : today());
+      setReference('');
+      setGenerate(true);
+      setError('');
+    }
+  }, [open, payDate]);
+
+  const submit = async () => {
+    if (!paidOn) return setError('Pick the date the salary was paid');
+    if (paidOn > today()) return setError('Payment date cannot be in the future');
+    if (paidOn < periodStart) return setError('Payment date cannot be before the pay period starts');
+    setError('');
+    const err = await onSubmit(paidOn, reference, generate);
+    if (err) setError(err);
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title={finalizeFirst ? 'Finalize and pay this salary' : 'Mark this salary paid'}
+      maxWidthClassName="max-w-md"
+      footer={<Footer onClose={onClose} onSubmit={submit} busy={busy} label={finalizeFirst ? (needsApproval ? 'Send for approval' : 'Finalize and pay') : 'Mark paid'} />}
+    >
+      <div className="space-y-4">
+        <p className="text-sm text-fg-muted">
+          Only <span className="font-semibold text-fg">{name}</span>&apos;s salary.
+          {finalizeFirst && ' It is finalized on its own first and cannot be changed afterwards.'}
+          {finalizeFirst && others > 0 && ` The other ${others} employee${others === 1 ? '' : 's'} move to a new draft batch, to finalize and pay later.`}
+        </p>
+        {finalizeFirst && needsApproval ? (
+          <p className="rounded-lg border border-line-strong bg-bg-subtle px-3 py-2 text-xs font-medium text-fg">
+            Finalizing needs approval in this company. It is sent for approval now; mark it paid once it is approved.
+          </p>
+        ) : (
+          <>
+            <TextField label="Paid on" type="date" required value={paidOn} onChange={(v) => setPaidOn(v)} max={today()} />
+            <TextField label="Payment reference" value={reference} onChange={(v) => setReference(v.slice(0, 100))} placeholder="UTR / cheque number (optional)" />
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-fg">
+              <input type="checkbox" checked={generate} onChange={(e) => setGenerate(e.target.checked)} className="h-4 w-4 accent-[var(--tt-primary)]" />
+              Generate the payslip (the employee sees it in the app)
+            </label>
+          </>
+        )}
+        {error && <p className="text-xs font-medium text-[var(--tt-danger)]">{error}</p>}
+      </div>
+    </Dialog>
+  );
+}
+
 export function ReopenDialog({ run, busy, onClose, onSubmit }: { run: Run | null; busy: boolean; onClose: () => void; onSubmit: (reason: string) => Promise<string | null> }) {
   const [reason, setReason] = React.useState('');
   const [error, setError] = React.useState('');

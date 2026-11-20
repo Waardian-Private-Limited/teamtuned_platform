@@ -115,6 +115,8 @@ export interface ItemDto {
   payslip_number: string | null;
   payslip_state?: PayslipStateDto | null;
   published_at?: string | null;
+  /** Whether this salary was paid (finalized or paid payroll). */
+  payment?: { status: 'unpaid' | 'paid' | 'failed'; paid_on: string | null; reference: string | null; note: string | null } | null;
   computed_at: string | null;
 }
 
@@ -135,10 +137,12 @@ export interface LineDto {
   is_basic?: boolean;
   category?: string | null;
   employer_share?: number;
-  source?: { type: 'component' | 'grant' | 'payout' | 'rule' | 'advance' | 'rounding' | 'legacy'; id: number | null } | null;
+  source?: { type: 'component' | 'grant' | 'payout' | 'rule' | 'advance' | 'rounding' | 'legacy' | 'manual'; id: number | null } | null;
   steps?: Array<{ step: string; value: number | string | null }>;
   /** Set by hand in the entry (payroll_line_overrides). */
   edited?: boolean;
+  /** Added by hand to the entry, of a type from payroll settings (also `edited`). */
+  added?: boolean;
 }
 
 export interface CellDto {
