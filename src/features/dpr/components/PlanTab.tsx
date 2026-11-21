@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ArrowDownToLine, CalendarPlus, Check, Download, History, ListPlus, Pencil, Plus, RotateCcw, Save, Trash2, Wand2, X } from 'lucide-react';
+import { ArrowDownToLine, CalendarPlus, Check, Download, History, ListPlus, Pencil, Plus, RotateCcw, Save, Send, Trash2, Wand2, X } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { addDays, formatDate } from '@/lib/datetime';
 import { fieldErrorsOf, messageOf } from '@/lib/api/errors';
@@ -234,7 +234,7 @@ function Milestones({ siteId, view, edit, onChanged }: { siteId: number; view: P
   const run = async (f: () => Promise<unknown>, done?: string) => { setBusy(true); try { await f(); if (done) showSuccess(done); onChanged(); } catch (e) { showError(messageOf(e)); } finally { setBusy(false); } };
   const rows = [...view.milestones].sort((a, b) => (a.target_on || '9').localeCompare(b.target_on || '9'));
   return (
-    <Section id="milestones" no={4} title="Milestone schedule" note={`${rows.length} · ${rows.filter((m) => m.state === 'done').length} done`}
+    <Section id="milestones" no={4} title="Milestone schedule" note={`${rows.length} · ${rows.filter((m) => m.state === 'done').length} done${edit ? ' · saved as you change them' : ''}`}
       tools={edit ? (
         <>
           <Btn variant="secondary" size="sm" icon={RotateCcw} disabled={!rows.length || !view.plan} onClick={() => setCycle({ start_on: view.valid_from, every_days: 7, location_id: null })}>Set dates by cycle</Btn>
@@ -307,7 +307,7 @@ function Editor({ siteId, view, onSaved, onReloadMilestones }: { siteId: number;
   const [bills, setBills] = React.useState({ client: view.plan?.client_bill_on ?? null, contractor: view.plan?.contractor_bill_on ?? null });
   const [note, setNote] = React.useState(view.plan?.note ?? '');
   const [errors, setErrors] = React.useState<Record<string, string>>({});
-  const [saving, setSaving] = React.useState(false);
+  const [saving, setSaving] = React.useState<'' | 'draft' | 'live'>('');
   const [dirty, setDirty] = React.useState(false);
   const [exporting, setExporting] = React.useState<'' | 'pdf' | 'xlsx'>('');
   const setLines = (f: (l: PlanLine[]) => PlanLine[]) => { setLinesRaw(f); setDirty(true); };
@@ -325,20 +325,21 @@ function Editor({ siteId, view, onSaved, onReloadMilestones }: { siteId: number;
   const pourSum = lines.filter((l) => l.kind === 'pour').reduce((s, l) => s + (Number(l.qty) || 0), 0);
   const count = (k: PlanLine['kind']) => lines.filter((l) => l.kind === k).reduce((s, l) => s + (Number(l.qty) || 0), 0);
 
-  const save = async () => {
-    setSaving(true);
+  const isDraft = !view.plan || view.plan.draft;
+  const save = async (draft: boolean) => {
+    setSaving(draft ? 'draft' : 'live');
     setErrors({});
     try {
-      const body = { valid_from: period.from, valid_till: period.to, concrete_target_m3: target, client_bill_on: bills.client, contractor_bill_on: bills.contractor, note: note || null, settings, lines };
+      const body = { draft, valid_from: period.from, valid_till: period.to, concrete_target_m3: target, client_bill_on: bills.client, contractor_bill_on: bills.contractor, note: note || null, settings, lines };
       const out = view.plan ? await api.savePlan(view.plan.id, body) : await api.createPlan(siteId, body);
-      showSuccess(view.plan ? 'Plan saved' : 'Plan created. Daily forms come up for every report day of the period.');
+      showSuccess(draft ? 'Draft saved. Nobody gets daily forms until it is published.' : isDraft ? 'Plan published. Daily forms come up for every report day of the period.' : 'Plan saved');
       setDirty(false);
       onSaved(out);
     } catch (e) {
       const { fields, general } = fieldErrorsOf(e);
       setErrors(fields);
       showError(general || 'Check the highlighted fields');
-    } finally { setSaving(false); }
+    } finally { setSaving(''); }
   };
   const download = async (format: 'pdf' | 'xlsx') => {
     setExporting(format);
@@ -350,14 +351,15 @@ function Editor({ siteId, view, onSaved, onReloadMilestones }: { siteId: number;
   return (
     <div className="space-y-3 sm:space-y-4">
       <div className="grid gap-3 rounded-xl border border-line bg-surface p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-        <label className="text-xs font-semibold text-fg">Valid from<DateBox value={period.from} onChange={(v) => { setPeriod((x) => ({ ...x, from: v || '' })); setDirty(true); }} ariaLabel="Valid from" error={errors.valid_from} disabled={!edit || view.status !== 'upcoming' && Boolean(view.plan)} /></label>
+        <label className="text-xs font-semibold text-fg">Valid from<DateBox value={period.from} onChange={(v) => { setPeriod((x) => ({ ...x, from: v || '' })); setDirty(true); }} ariaLabel="Valid from" error={errors.valid_from} disabled={!edit} /></label>
         <label className="text-xs font-semibold text-fg">Valid till<DateBox value={period.to} min={period.from} onChange={(v) => { setPeriod((x) => ({ ...x, to: v || '' })); setDirty(true); }} ariaLabel="Valid till" error={errors.valid_till} disabled={!edit} /></label>
         <div className="rounded-lg bg-[var(--tt-primary)] px-4 py-2 text-center text-[var(--tt-on-primary)]"><p className="text-[10px] font-semibold uppercase tracking-wide opacity-80">Duration</p><p className="text-lg font-bold tabular-nums">{days} days</p></div>
       </div>
-      {view.status === 'upcoming' && view.plan && <p className="rounded-xl border border-dashed border-line bg-surface p-3 text-sm text-fg-muted">Scheduled: this plan takes over on {formatDate(view.valid_from)}. Edit it freely until then.</p>}
+      {view.plan?.draft && <p className="rounded-xl border border-dashed border-line bg-surface p-3 text-sm text-fg-muted">Draft: not live yet. Nobody gets daily forms or reminders for it until you publish it.</p>}
+      {view.status === 'upcoming' && view.plan && !view.plan.draft && <p className="rounded-xl border border-dashed border-line bg-surface p-3 text-sm text-fg-muted">Scheduled: this plan takes over on {formatDate(view.valid_from)}. Edit it freely until then.</p>}
       <div className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-fg-muted">
-          <Tag tone={view.status === 'active' ? 'done' : view.status === 'closed' ? 'plain' : 'wait'}>{view.plan ? PLAN_LABEL[view.status] : 'Draft · not saved'}{p?.days_left !== null && p?.days_left !== undefined ? ` · ${p.days_left} days left` : ''}</Tag>
+          <Tag tone={view.plan?.draft ? 'wait' : view.status === 'active' ? 'done' : view.status === 'closed' ? 'plain' : 'wait'}>{!view.plan ? 'New · not saved' : view.plan.draft ? 'Draft' : PLAN_LABEL[view.status]}{!view.plan?.draft && p?.days_left !== null && p?.days_left !== undefined ? ` · ${p.days_left} days left` : ''}</Tag>
           {p?.last_report ? <span>Last report <b className="text-fg">{formatDate(p.last_report.date, 'short')}</b> · {n1(p.last_report.m3)} m³</span> : view.plan ? <span>No report yet</span> : null}
           {p && <span>Against plan to date <b className={p.variance_to_date < 0 ? 'text-[var(--tt-danger)]' : 'text-fg'}>{p.variance_to_date === 0 ? 'on plan' : `${n1(Math.abs(p.variance_to_date))} m³ ${p.variance_to_date < 0 ? 'behind' : 'ahead'}`}</b></span>}
           <span>{view.expected_days} report days</span>
@@ -410,7 +412,8 @@ function Editor({ siteId, view, onSaved, onReloadMilestones }: { siteId: number;
       {edit && (
         <div className="sticky bottom-0 z-20 -mx-1 flex items-center justify-end gap-2 border-t border-line bg-bg/95 px-1 py-2.5 backdrop-blur">
           <p className="mr-auto truncate text-[11px] text-fg-muted">{dirty ? 'Unsaved changes' : view.plan?.updated_by_name ? `Saved by ${view.plan.updated_by_name}` : ''}</p>
-          <Btn icon={Save} loading={saving} onClick={save}>{view.plan ? 'Save changes' : 'Create plan'}</Btn>
+          {isDraft && <Btn variant="secondary" icon={Save} loading={saving === 'draft'} disabled={Boolean(saving)} onClick={() => save(true)}>Save draft</Btn>}
+          <Btn icon={isDraft ? Send : Save} loading={saving === 'live'} disabled={Boolean(saving)} onClick={() => save(false)}>{isDraft ? 'Publish plan' : 'Save changes'}</Btn>
         </div>
       )}
     </div>
@@ -424,8 +427,8 @@ function PlanList({ siteId, onOpen, onTab }: { siteId: number; onOpen: (id: numb
   const list = useAsync(() => api.plans(siteId), [siteId]);
   const [busy, setBusy] = React.useState(0);
   const d = list.data;
-  const running = d?.items.find((p) => p.status === 'active');
-  const scheduled = d?.items.filter((p) => p.status === 'upcoming') || [];
+  const running = d?.items.find((p) => !p.draft && p.status === 'active');
+  const scheduled = d?.items.filter((p) => !p.draft && p.status === 'upcoming') || [];
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -443,13 +446,13 @@ function PlanList({ siteId, onOpen, onTab }: { siteId: number; onOpen: (id: numb
                 {d.items.map((p) => (
                   <tr key={p.id} className="cursor-pointer hover:bg-bg-subtle/60" onClick={() => onOpen(p.id)}>
                     <td className="border-b border-line/60 px-3 py-2.5"><p className="font-semibold text-fg">{p.label}</p><p className="text-[11px] text-fg-muted">{formatDate(p.valid_from)} – {formatDate(p.valid_till)} · {p.days} days</p></td>
-                    <td className="border-b border-line/60 px-3 py-2.5"><Tag tone={STATUS_TONE[p.status]}>{p.status === 'active' ? 'Active' : p.status === 'upcoming' ? `Scheduled · starts ${formatDate(p.valid_from, 'short')}` : 'Closed'}</Tag></td>
-                    <td className="border-b border-line/60 px-3 py-2.5 tabular-nums">{p.filed}/{p.forms_expected} filled</td>
+                    <td className="border-b border-line/60 px-3 py-2.5">{p.draft ? <Tag tone="wait">Draft · not published</Tag> : <Tag tone={STATUS_TONE[p.status]}>{p.status === 'active' ? 'Active' : p.status === 'upcoming' ? `Scheduled · starts ${formatDate(p.valid_from, 'short')}` : 'Closed'}</Tag>}</td>
+                    <td className="border-b border-line/60 px-3 py-2.5 tabular-nums">{p.draft ? '—' : `${p.filed}/${p.forms_expected} filled`}</td>
                     <td className="border-b border-line/60 px-3 py-2.5 tabular-nums">{n1(p.poured_m3)} / {n1(p.target_m3)} m³</td>
                     <td className="border-b border-line/60 px-3 py-2.5 text-xs text-fg-muted">{p.updated_at ? formatDate(p.updated_at.slice(0, 10)) : '—'}{p.updated_by_name ? ` · ${p.updated_by_name}` : ''}</td>
                     <td className="whitespace-nowrap border-b border-line/60 px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
-                      <Btn variant={p.status === 'closed' ? 'secondary' : 'primary'} size="sm" onClick={() => onOpen(p.id)}>{p.status === 'closed' ? 'View plan' : 'Open plan'}</Btn>
-                      {p.status === 'upcoming' && d.access.plan && <IconBtn label="Remove plan" disabled={busy === p.id} onClick={async () => { setBusy(p.id); try { await api.deletePlan(p.id); showSuccess('Plan removed'); void list.refetch(); } catch (e) { showError(messageOf(e)); } finally { setBusy(0); } }}><Trash2 className="h-4 w-4" /></IconBtn>}
+                      <Btn variant={p.status === 'closed' && !p.draft ? 'secondary' : 'primary'} size="sm" onClick={() => onOpen(p.id)}>{p.status === 'closed' && !p.draft ? 'View plan' : 'Open plan'}</Btn>
+                      {(p.draft || p.status === 'upcoming') && d.access.plan && <IconBtn label={p.draft ? 'Remove draft' : 'Remove plan'} disabled={busy === p.id} onClick={async () => { setBusy(p.id); try { await api.deletePlan(p.id); showSuccess(p.draft ? 'Draft removed' : 'Plan removed'); void list.refetch(); } catch (e) { showError(messageOf(e)); } finally { setBusy(0); } }}><Trash2 className="h-4 w-4" /></IconBtn>}
                     </td>
                   </tr>
                 ))}
@@ -471,17 +474,21 @@ export function PlanTab({ siteId, plan, onOpen, onTab }: { siteId: number; plan:
       <div className="flex flex-wrap items-center gap-2">
         <Btn variant="ghost" size="sm" onClick={() => onOpen(null)}>← All plans</Btn>
         <h2 className="text-base font-bold text-fg">{plan === 'new' ? 'New plan' : `Plan · ${view.data?.label || ''}`}</h2>
-        {view.data?.plan && <Tag tone={STATUS_TONE[view.data.status]}>{PLAN_LABEL[view.data.status]}</Tag>}
-        {view.data?.plan && view.data.status !== 'upcoming' && <Btn variant="secondary" size="sm" icon={CalendarPlus} className="ml-auto" onClick={() => onOpen('new')}>Create plan for next period</Btn>}
+        {view.data?.plan && <Tag tone={view.data.plan.draft ? 'wait' : STATUS_TONE[view.data.status]}>{view.data.plan.draft ? 'Draft' : PLAN_LABEL[view.data.status]}</Tag>}
+        {view.data?.plan && !view.data.plan.draft && view.data.status !== 'upcoming' && <Btn variant="secondary" size="sm" icon={CalendarPlus} className="ml-auto" onClick={() => onOpen('new')}>Create plan for next period</Btn>}
       </div>
       {view.error && <p className="text-sm text-[var(--tt-danger)]">{view.error}</p>}
       {!view.data ? <div className="rounded-xl border border-line bg-surface p-4"><TableSkeleton rows={5} columns={3} /></div> : (
         <>
           {!view.data.setup.ready && <p className="rounded-xl border border-dashed border-line bg-surface p-3 text-sm text-fg-muted">Set up the site first (towers, areas and who reports). <button type="button" className="font-semibold text-fg underline" onClick={() => onTab('setup')}>Site setup</button></p>}
-          {view.data.status === 'closed' && <p className="text-xs text-fg-muted">This plan is over; it is kept for its record.</p>}
+          {view.data.status === 'closed' && !view.data.plan?.draft && <p className="text-xs text-fg-muted">This plan is over; it is kept for its record.</p>}
           <Editor key={`${view.data.plan?.id || 'new'}:${view.data.plan?.updated_at || view.data.valid_from}`} siteId={siteId} view={view.data}
             onSaved={(v) => { if (plan === 'new' && v.plan) onOpen(v.plan.id); else view.setData(v); }}
-            onReloadMilestones={() => { if (typeof plan === 'number') void api.plan(plan).then((v) => view.setData((cur) => (cur ? { ...cur, milestones: v.milestones } : v))); }} />
+            onReloadMilestones={() => {
+              const d = view.data;
+              const fresh = typeof plan === 'number' ? api.plan(plan) : d ? api.newPlan(siteId, { from: d.valid_from, to: d.valid_till }) : null;
+              void fresh?.then((v) => view.setData((cur) => (cur ? { ...cur, milestones: v.milestones } : v))).catch((e) => showError(messageOf(e)));
+            }} />
         </>
       )}
     </div>

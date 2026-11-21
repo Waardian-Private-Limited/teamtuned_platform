@@ -41,7 +41,7 @@ export interface Milestone {
   carried?: { kind: 'overdue' | 'rescheduled'; from: string; first_target?: string } | null;
 }
 export interface PlanSettings { concrete_mode: 'date' | 'month'; concrete_scope: 'tower' | 'overall'; staff_scope: 'tower' | 'overall'; labour_scope: 'tower' | 'overall'; equipment_scope: 'tower' | 'overall' }
-export interface PlanRow { id: number; valid_from: string; valid_till: string; concrete_target_m3: number | null; client_bill_on: string | null; contractor_bill_on: string | null; note: string | null; settings: Partial<PlanSettings>; mom_meeting_id: number | null; updated_at: string | null; updated_by_name: string | null }
+export interface PlanRow { id: number; draft: boolean; valid_from: string; valid_till: string; concrete_target_m3: number | null; client_bill_on: string | null; contractor_bill_on: string | null; note: string | null; settings: Partial<PlanSettings>; mom_meeting_id: number | null; updated_at: string | null; updated_by_name: string | null }
 export interface PlanView {
   site: Site; valid_from: string; valid_till: string; days: number; label: string; status: PlanStatus; today: string;
   setup: Pick<Setup, 'ready' | 'locations' | 'report_days' | 'billing_enabled'>; plan: PlanRow | null; lines: PlanLine[]; copied_from: { id: number; label: string; settings: Partial<PlanSettings> } | null;
@@ -135,7 +135,7 @@ export interface Dashboard {
 }
 
 export interface SetupInput extends Omit<Setup, 'ready' | 'people' | 'updated_at'> { people: Record<Role, number[]> }
-export interface PlanInput { valid_from: string; valid_till: string; concrete_target_m3: number | null; client_bill_on: string | null; contractor_bill_on: string | null; note: string | null; settings: PlanSettings; lines: PlanLine[] }
+export interface PlanInput { draft?: boolean; valid_from: string; valid_till: string; concrete_target_m3: number | null; client_bill_on: string | null; contractor_bill_on: string | null; note: string | null; settings: PlanSettings; lines: PlanLine[] }
 
 export const overview = (q: { date?: string; mine?: boolean; q?: string } = {}) => apiClient.get<Overview>(`${B}/overview`, { date: q.date, q: q.q || undefined, mine: q.mine ? '1' : undefined }, auth);
 export const catalog = () => apiClient.get<{ catalog: Catalog; access: { admin: boolean } }>(`${B}/catalog`, undefined, auth);
