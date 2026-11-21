@@ -10,6 +10,8 @@ import { ConfirmDialog, type ConfirmState } from '@/components/ui/ConfirmDialog'
 import { messageOf } from '@/lib/api/errors';
 import { showError, showSuccess } from '@/lib/toast';
 import { usePermission } from '@/lib/hooks/usePermission';
+import { SubOrgPicker } from '@/features/sub-organizations/components/SubOrgPicker';
+import { useManageableSubOrgs } from '@/features/sub-organizations/hooks/useManageableSubOrgs';
 import * as api from '../api/dc.api';
 import { DC_PERMISSIONS } from '../constants/dc.constants';
 import { useAsync } from '../hooks/useAsync';
@@ -19,7 +21,8 @@ type Tab = 'active' | 'draft' | 'archived';
 
 export function FormsPage({ basePath }: { basePath: string }) {
   const router = useRouter();
-  const { can } = usePermission();
+  const { can, isOrgAdmin } = usePermission();
+  const { subOrgs } = useManageableSubOrgs();
   const canManage = can(DC_PERMISSIONS.FORMS);
   const [tab, setTab] = useState<Tab>('active');
   const [search, setSearch] = useState('');
@@ -30,13 +33,17 @@ export function FormsPage({ basePath }: { basePath: string }) {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [nameError, setNameError] = useState('');
+  const [subOrgId, setSubOrgId] = useState<number | null>(null);
+  const [subOrgError, setSubOrgError] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
 
   const create = async () => {
     if (!name.trim()) { setNameError('Give the form a name'); return; }
+    // Only full-access admins may create an organization-wide form; scoped users must pick one of their sub-orgs.
+    if (!isOrgAdmin && subOrgId === null && subOrgs.length > 0) { setSubOrgError('Pick a sub-organization'); return; }
     setBusy(true);
-    try { const f = await api.createForm({ name: name.trim() }); router.push(`${basePath}/forms/${f.id}`); } catch (e) { setNameError(messageOf(e)); } finally { setBusy(false); }
+    try { const f = await api.createForm({ name: name.trim(), sub_organization_id: subOrgId }); router.push(`${basePath}/forms/${f.id}`); } catch (e) { setNameError(messageOf(e)); } finally { setBusy(false); }
   };
   const act = async (fn: () => Promise<unknown>, ok: string) => { try { await fn(); showSuccess(ok); await refetch(); } catch (e) { showError(messageOf(e)); } };
 
@@ -46,7 +53,7 @@ export function FormsPage({ basePath }: { basePath: string }) {
   return (
     <div className="mx-auto max-w-6xl p-4 sm:p-6">
       <PageHeader title="Forms" subtitle="Build checklists, audits and data sheets once, assign them anywhere."
-        actions={canManage && <Btn variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => { setName(''); setNameError(''); setCreating(true); }}>New form</Btn>} />
+        actions={canManage && <Btn variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => { setName(''); setNameError(''); setSubOrgId(null); setSubOrgError(''); setCreating(true); }}>New form</Btn>} />
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <SegmentedControl<Tab> value={tab} onChange={(t) => { setTab(t); setPage(1); }} options={[{ value: 'active', label: 'Live' }, { value: 'draft', label: 'Drafts' }, { value: 'archived', label: 'Archived' }]} />
         <div className="relative min-w-0 flex-1 basis-56 sm:max-w-xs"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" /><input aria-label="Search forms" className={`${inputCls()} pl-9`} placeholder="Search forms" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} /></div>
@@ -105,6 +112,10 @@ export function FormsPage({ basePath }: { basePath: string }) {
 
       <Dialog open={creating} onClose={() => setCreating(false)} title="New form" footer={<><Btn onClick={() => setCreating(false)}>Cancel</Btn><Btn variant="primary" busy={busy} onClick={create}>Create and open builder</Btn></>}>
         <Labeled label="Form name" required error={nameError}><input autoFocus className={inputCls(Boolean(nameError))} value={name} maxLength={150} onChange={(e) => { setName(e.target.value); setNameError(''); }} onKeyDown={(e) => e.key === 'Enter' && create()} placeholder="e.g. Daily safety audit" /></Labeled>
+        <div className="mt-4">
+          <SubOrgPicker value={subOrgId} onChange={(v) => { setSubOrgId(v); setSubOrgError(''); }} allowShared={isOrgAdmin} />
+          {subOrgError && <p className="mt-1 text-[11px] text-[var(--tt-danger)]">{subOrgError}</p>}
+        </div>
       </Dialog>
       <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
     </div>
