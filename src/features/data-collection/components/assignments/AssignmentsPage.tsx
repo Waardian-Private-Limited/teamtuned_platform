@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { useSearchParams } from 'next/navigation';
-import { Pause, Pencil, Play, Plus, Search, Square } from 'lucide-react';
+import Link from 'next/link';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { BarChart3, Pause, Pencil, Play, Plus, Search, Square } from 'lucide-react';
 import { Drawer } from '@/components/ui/Drawer';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { ConfirmDialog, type ConfirmState } from '@/components/ui/ConfirmDialog';
@@ -19,14 +20,14 @@ import { AssignmentWizard } from './AssignmentWizard';
 
 type Tab = 'active' | 'paused' | 'ended';
 
-export const describeSchedule = (a: AssignmentRow) => {
+export const describeSchedule = (a: Pick<AssignmentRow, 'mode' | 'flags' | 'schedule'>) => {
   if (a.mode === 'open') return `Open any time${a.flags.daily_limit ? ` · ${a.flags.daily_limit}/day` : ''}`;
   const s = a.schedule as Schedule | null;
   if (!s) return '';
   const base = s.kind === 'daily' ? 'Every day' : s.kind === 'weekly' ? (s.weekdays || []).map((d) => WEEKDAYS[d]).join(', ') : s.kind === 'monthly' ? `Monthly on ${(s.month_days || []).join(', ')}` : s.kind === 'every_n_days' ? `Every ${s.interval} days` : s.kind === 'dates' ? `${(s.dates || []).length} dates` : 'Once';
   return `${base} · due ${s.due_time}`;
 };
-export const describeWho = (a: AssignmentRow) => {
+export const describeWho = (a: Pick<AssignmentRow, 'target'>) => {
   const k = a.target.who.kind;
   const n = a.target.who.ids?.length || 0;
   const where = 'all' in a.target.sites ? 'all sites' : `${a.target.sites.ids.length} site${a.target.sites.ids.length === 1 ? '' : 's'}`;
@@ -37,6 +38,8 @@ export const describeWho = (a: AssignmentRow) => {
 export function AssignmentsPage() {
   const { can } = usePermission();
   const canAssign = can(DC_PERMISSIONS.ASSIGN);
+  const canReport = can(DC_PERMISSIONS.REPORTS);
+  const dashboardOf = `${usePathname().replace(/\/assignments.*$/, '')}/assignments`;
   const params = useSearchParams();
   const presetForm = Number(params.get('form')) || null;
   const [tab, setTab] = useState<Tab>('active');
@@ -94,7 +97,8 @@ export function AssignmentsPage() {
                         ? <div><div className="mb-1 text-[11px] text-fg-muted">{a.today.done} of {a.today.total} filled{a.today.missed ? ` · ${a.today.missed} missed` : ''}</div><Bar value={a.today.done} total={a.today.total} /></div>
                         : <span className="text-xs text-fg-muted">Open form</span>}
                     </td>
-                    <td className="ml-auto py-1 md:ml-0 md:px-3 md:py-3"><Pill label={a.status} tone={a.status === 'active' ? 'strong' : 'neutral'} /></td>
+                    <td className="ml-auto py-1 md:ml-0 md:px-3 md:py-3"><div className="flex items-center gap-2"><Pill label={a.status} tone={a.status === 'active' ? 'strong' : 'neutral'} />
+                      {canReport && <Link href={`${dashboardOf}/${a.id}`} onClick={(e) => e.stopPropagation()} aria-label={`Dashboard for ${a.title}`} title="Dashboard" className="rounded-md p-1 text-fg-muted hover:bg-surface hover:text-fg"><BarChart3 className="h-4 w-4" /></Link>}</div></td>
                   </tr>
                 ))}
               </tbody>
@@ -109,6 +113,7 @@ export function AssignmentsPage() {
           return (
             <div className="space-y-5 p-4 sm:p-6">
               <div className="flex flex-wrap items-center gap-2"><Pill label={a.status} tone={a.status === 'active' ? 'strong' : 'neutral'} /><Pill label={a.mode === 'open' ? 'Open' : 'Scheduled'} /><span className="text-xs text-fg-muted">{a.form_name}</span></div>
+              {canReport && <Link href={`${dashboardOf}/${a.id}`} className="flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-2.5 text-sm font-semibold text-fg hover:bg-bg-subtle"><span className="flex items-center gap-2"><BarChart3 className="h-4 w-4" />Open dashboard</span><span className="text-xs font-normal text-fg-muted">Progress, answers, export</span></Link>}
               <dl className="grid grid-cols-[7rem_1fr] gap-y-2 text-xs"><dt className="text-fg-muted">Who</dt><dd className="font-semibold text-fg">{describeWho(a)}</dd><dt className="text-fg-muted">When</dt><dd className="font-semibold text-fg">{describeSchedule(a)}</dd><dt className="text-fg-muted">Runs</dt><dd className="font-semibold text-fg">{a.start_date}{a.end_date ? ` to ${a.end_date}` : ' onwards'}</dd><dt className="text-fg-muted">Rules</dt><dd className="font-semibold text-fg">{Object.entries(a.flags).filter(([, v]) => v === true).map(([k]) => k.replace(/_/g, ' ')).join(', ') || 'None'}</dd></dl>
               {a.mode === 'scheduled' && (
                 <div><h3 className="mb-2 text-sm font-bold text-fg">Today by site</h3>

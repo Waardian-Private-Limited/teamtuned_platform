@@ -1,6 +1,7 @@
 import { apiClient } from '@/lib/apiClient';
+import type { ExportJobDto } from '@/features/downloads/types/downloads.dto';
 import type {
-  AssignmentInput, AssignmentRow, Attachment, Dashboard, FillPayload, FormDetail, FormSchema, FormSummary, MyRun, MySummary, OpenForm, Options, Paged,
+  AssignmentInput, AssignmentInsights, AssignmentRow, Board, BoardDataResult, BoardLayout, BoardList, InsightFilters, ResponsesPage, Widget, Attachment, Dashboard, FillPayload, FormDetail, FormSchema, FormSummary, MyRun, MySummary, OpenForm, Options, Paged,
   PersonOption, SubmissionDetail, SubmissionRow, Target, Values, VersionRow,
 } from '../types/dc.types';
 
@@ -32,6 +33,27 @@ export const createAssignment = (body: AssignmentInput) => apiClient.post<Assign
 export const updateAssignment = (id: number, body: AssignmentInput) => apiClient.put<AssignmentRow>(`${B}/assignments/${id}`, body, auth);
 export const previewAssignment = (target: Target) => apiClient.post<{ people: number; sites: number; runs_per_period: number }>(`${B}/assignments/preview`, { target }, auth);
 export const assignmentAction = (id: number, action: 'pause' | 'resume' | 'end') => apiClient.post<AssignmentRow>(`${B}/assignments/${id}/${action}`, {}, auth);
+const insightQuery = (f: InsightFilters) => clean({
+  from: f.from, to: f.to, site_id: f.siteId ?? undefined, department_id: f.departmentId ?? undefined, employee_id: f.employeeId ?? undefined,
+  status: f.status, late: f.late || undefined, search: f.search,
+});
+export const assignmentInsights = (id: number, f: InsightFilters) => apiClient.get<AssignmentInsights>(`${B}/assignments/${id}/dashboard`, insightQuery(f), auth);
+export const assignmentResponses = (id: number, f: InsightFilters & { page?: number; pageSize?: number }) =>
+  apiClient.get<ResponsesPage>(`${B}/assignments/${id}/responses`, { ...insightQuery(f), ...clean({ page: f.page, pageSize: f.pageSize }) }, auth);
+/** Excel of the filtered answers, built in the background: track the job in the Download Center. */
+export const exportAssignment = (id: number, f: InsightFilters) => apiClient.post<ExportJobDto>('/exports/dc-assignment', { id, ...insightQuery(f) }, auth);
+/** PDF of the filtered submissions (at most 200). */
+export const assignmentPdf = (id: number, f: InsightFilters) =>
+  apiClient<Blob>(`${B}/submissions/export.pdf`, { ...auth, responseType: 'blob', params: { assignment_id: id, ...insightQuery(f) } });
+// audit boards (per form, shared)
+export const listDashboards = (formId: number) => apiClient.get<BoardList>(`${B}/forms/${formId}/dashboards`, undefined, auth);
+export const createDashboard = (formId: number, body: { name: string; layout: BoardLayout; is_default?: boolean }) => apiClient.post<Board>(`${B}/forms/${formId}/dashboards`, body, auth);
+export const updateDashboard = (formId: number, dashId: number, body: { name?: string; layout?: BoardLayout; is_default?: boolean }) => apiClient.put<Board>(`${B}/forms/${formId}/dashboards/${dashId}`, body, auth);
+export const deleteDashboard = (formId: number, dashId: number) => apiClient.delete<{ deleted: boolean }>(`${B}/forms/${formId}/dashboards/${dashId}`, auth);
+export const reorderDashboards = (formId: number, order: number[]) => apiClient.post<{ ok: boolean }>(`${B}/forms/${formId}/dashboards/reorder`, { order }, auth);
+/** Compute widgets (saved or in-progress) for one assignment under the dashboard filters. */
+export const boardData = (assignmentId: number, widgets: Widget[], f: InsightFilters) =>
+  apiClient.post<BoardDataResult>(`${B}/assignments/${assignmentId}/board-data`, { widgets }, { ...auth, params: insightQuery(f) });
 export const getOptions = () => apiClient.get<Options>(`${B}/options`, undefined, auth);
 export const searchPeople = (q: string, ids?: number[]) => apiClient.get<{ items: PersonOption[] }>(`${B}/options/employees`, clean({ q, ids: ids?.join(',') }), auth);
 

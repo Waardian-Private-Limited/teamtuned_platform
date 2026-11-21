@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { CalendarClock, Moon, Timer } from 'lucide-react';
-import type { PolicyScheduleDto, WeekOffConfig } from '../../types/employees.dto';
+import type { PolicyScheduleDto, SchemaField, WeekOffConfig } from '../../types/employees.dto';
 import { FieldMessage, OptionCard, Section, SelectField, TextField } from '@/components/ui/FormControls';
 import { WeekOffEditor } from './WeekOffEditor';
 import type { EmployeeFormController } from './types';
@@ -57,6 +57,8 @@ export function StepSchedule({ c }: { c: EmployeeFormController }) {
   const { form, set, errors, options, inherited, inheritedLoading, policy } = c;
   const inheritedPolicy = options?.policies.find((p) => p.id === inherited?.policy_id) || null;
   const schedule = policy?.schedule || null;
+  const offSchema = (options?.week_off_schema || null) as Record<string, unknown> | null;
+  const flexDaysField = offSchema?.flexibleDaysPerMonth as SchemaField | undefined;
 
   const policyOptions = (options?.policies || []).map((p) => ({ value: p.id, label: p.name }));
   const inheritedHint = inheritedLoading
@@ -65,16 +67,23 @@ export function StepSchedule({ c }: { c: EmployeeFormController }) {
       ? `${inheritedPolicy.name} applies from ${SOURCE_LABEL[inherited?.source || ''] || 'assignment'}. Pick another only to override for this employee.`
       : 'No policy is assigned to this department, role or site. Select one.';
 
-  const startCustomWeekOff = () => {
-    if (!form.weekOffConfig && schedule) {
-      const seed = { weeklyOffMode: schedule.weeklyOffMode === 'flexible' ? 'flexible' : 'fixed_days', flexibleDaysPerMonth: schedule.flexibleDaysPerMonth ?? 4, ...schedule.weekOffConfig } as WeekOffConfig;
-      set('weekOffConfig', seed);
-    }
+  const pickWeekOff = (mode: 'fixed_days' | 'flexible') => {
+    if (!schedule) return;
+    const base = form.weekOffConfig ?? ({ flexibleDaysPerMonth: schedule.flexibleDaysPerMonth ?? 4, ...schedule.weekOffConfig } as WeekOffConfig);
+    set('weekOffConfig', { ...base, weeklyOffMode: mode, flexibleDaysPerMonth: base.flexibleDaysPerMonth || schedule.flexibleDaysPerMonth || 4 });
     set('weekOffMode', 'custom');
   };
 
-  const policyShift = schedule?.shiftStart ? `${hhmm(schedule.shiftStart)} – ${hhmm(schedule.shiftEnd)}` : 'As set in policy';
+  const pickFlexibleHours = () => {
+    set('shiftSource', 'flexible');
+    if (!form.flexibleHours) set('flexibleHours', String(schedule?.flexibleHours ?? 8));
+  };
+
+  const policyShift = schedule?.timingMode === 'flexible'
+    ? `Flexible, ${schedule.flexibleHours ?? 8} hours a day`
+    : schedule?.shiftStart ? `${hhmm(schedule.shiftStart)} – ${hhmm(schedule.shiftEnd)}` : 'As set in policy';
   const customNight = form.customShiftStart && form.customShiftEnd && form.customShiftEnd <= form.customShiftStart;
+  const weekOffChoice = form.weekOffMode === 'custom' && form.weekOffConfig ? (form.weekOffConfig.weeklyOffMode === 'flexible' ? 'flexible' : 'fixed_days') : 'policy';
 
   return (
     <div className="space-y-4">
@@ -93,22 +102,14 @@ export function StepSchedule({ c }: { c: EmployeeFormController }) {
       </Section>
 
       {schedule && (
-        <Section title="Shift" description="Timing rules follow the policy; the shift decides the clock times">
-          {schedule.timingMode === 'roster' && (
+        <Section title="Shift timing" description="Policy rules apply to every option; this decides when the employee works">
+          {schedule.timingMode === 'roster' ? (
             <ModeBanner
               icon={<CalendarClock className="h-4 w-4" />}
               title="Roster based"
               text={`Shifts and off days are planned per date in the roster. Standard off days per week: ${schedule.rosterOffDaysPerWeek ?? 1}. Dates with no roster entry show as Unscheduled.`}
             />
-          )}
-          {schedule.timingMode === 'flexible' && (
-            <ModeBanner
-              icon={<Timer className="h-4 w-4" />}
-              title="Flexible hours"
-              text={`No fixed start time. The employee must complete ${schedule.flexibleHours ?? 8} hours a day.`}
-            />
-          )}
-          {schedule.timingMode === 'fixed_time' && (
+          ) : (
             <div className="space-y-3">
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
                 <OptionCard
@@ -140,12 +141,40 @@ export function StepSchedule({ c }: { c: EmployeeFormController }) {
                   title="Custom timing"
                   description="Set this employee's own start, end and break"
                 />
+                <OptionCard
+                  selected={form.shiftSource === 'flexible'}
+                  onClick={pickFlexibleHours}
+                  title="Flexible hours"
+                  description="No fixed start time; set the hours to complete each day"
+                />
               </div>
               {form.shiftSource === 'custom' && (
                 <div className="grid grid-cols-1 gap-4 rounded-lg border border-line p-3 sm:grid-cols-3">
                   <TextField label="Starts" required type="time" value={form.customShiftStart} onChange={(v) => set('customShiftStart', v)} error={errors.shift_start} />
                   <TextField label="Ends" required type="time" value={form.customShiftEnd} onChange={(v) => set('customShiftEnd', v)} error={errors.shift_end} hint={customNight ? 'Ends next day (night shift)' : undefined} />
                   <TextField label="Break (minutes)" type="number" min={0} max={240} value={form.customBreak} onChange={(v) => set('customBreak', v)} error={errors.shift_break_minutes} />
+                </div>
+              )}
+              {form.shiftSource === 'flexible' && (
+                <div className="grid grid-cols-1 gap-4 rounded-lg border border-line p-3 sm:grid-cols-3">
+                  <TextField
+                    label="Hours per day"
+                    required
+                    type="number"
+                    min={1}
+                    max={24}
+                    step={0.25}
+                    value={form.flexibleHours}
+                    onChange={(v) => set('flexibleHours', v)}
+                    error={errors.flexible_hours}
+                  />
+                  <div className="flex items-start gap-2 text-[11px] text-fg-muted sm:col-span-2 sm:pt-6 sm:text-xs">
+                    <Timer className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      Any start time. Late and early marks do not apply; half and full day follow the policy&apos;s share of these hours.
+                      {schedule.timingMode === 'flexible' && Number(schedule.flexibleHours) > 0 ? ` Policy hours: ${schedule.flexibleHours}.` : ''}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
@@ -156,13 +185,31 @@ export function StepSchedule({ c }: { c: EmployeeFormController }) {
 
       {schedule && schedule.timingMode !== 'roster' && (
         <Section title="Weekly off">
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-            <OptionCard selected={form.weekOffMode === 'policy'} onClick={() => set('weekOffMode', 'policy')} title="Follow policy" description={policyWeekOffs(schedule)} />
-            <OptionCard selected={form.weekOffMode === 'custom'} onClick={startCustomWeekOff} title="Custom for this employee" description="Any days, half days, alternate or chosen weeks" />
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+            <OptionCard selected={weekOffChoice === 'policy'} onClick={() => set('weekOffMode', 'policy')} title="Follow policy" description={policyWeekOffs(schedule)} />
+            <OptionCard selected={weekOffChoice === 'fixed_days'} onClick={() => pickWeekOff('fixed_days')} title="Fixed days" description="Own days: full or half off, every week or chosen weeks" />
+            <OptionCard selected={weekOffChoice === 'flexible'} onClick={() => pickWeekOff('flexible')} title="Flexible days" description="Employee picks the dates, up to a count each month" />
           </div>
-          {form.weekOffMode === 'custom' && form.weekOffConfig && options?.week_off_schema && (
+          {weekOffChoice === 'fixed_days' && form.weekOffConfig && offSchema && (
             <div className="mt-4">
-              <WeekOffEditor value={form.weekOffConfig} onChange={(v) => set('weekOffConfig', v)} schema={options.week_off_schema as Record<string, unknown>} error={errors.week_off_config} />
+              <WeekOffEditor value={form.weekOffConfig} onChange={(v) => set('weekOffConfig', v)} schema={offSchema} error={errors.week_off_config} />
+            </div>
+          )}
+          {weekOffChoice === 'flexible' && form.weekOffConfig && (
+            <div className="mt-4 grid grid-cols-1 gap-4 rounded-lg border border-line p-3 sm:grid-cols-3">
+              <TextField
+                label={flexDaysField?.label || 'Off days per month'}
+                required
+                type="number"
+                min={flexDaysField?.min ?? 1}
+                max={flexDaysField?.max ?? 12}
+                value={String(form.weekOffConfig.flexibleDaysPerMonth ?? '')}
+                onChange={(v) => set('weekOffConfig', { ...form.weekOffConfig!, flexibleDaysPerMonth: v === '' ? 0 : Number(v) })}
+                error={errors.week_off_config}
+              />
+              <p className="text-[11px] text-fg-muted sm:col-span-2 sm:pt-6 sm:text-xs">
+                The employee picks these dates in the app each month. Unpicked days are working days; a day not worked and not picked is absent.
+              </p>
             </div>
           )}
         </Section>

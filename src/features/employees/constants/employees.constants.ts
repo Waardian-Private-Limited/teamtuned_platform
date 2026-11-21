@@ -70,6 +70,7 @@ export const FIELD_STEP: Record<string, FormStepKey> = {
   shift_start: 'schedule',
   shift_end: 'schedule',
   shift_break_minutes: 'schedule',
+  flexible_hours: 'schedule',
   location_access: 'job',
   ctc: 'salary',
   monthly_gross: 'salary',

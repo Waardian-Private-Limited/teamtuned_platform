@@ -5,7 +5,7 @@ export type Gender = 'Male' | 'Female' | 'Other';
 export type WeekDay = 'Sun' | 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat';
 export type PaymentMode = 'bank' | 'cash' | 'cheque';
 export type TimingMode = 'fixed_time' | 'flexible' | 'roster';
-export type ShiftSource = 'policy' | 'template' | 'custom';
+export type ShiftSource = 'policy' | 'template' | 'custom' | 'flexible';
 export type DayKey = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 
 export interface DayOffConfig {
@@ -220,6 +220,7 @@ export interface EmployeeDetailDto {
   shift_start: string | null;
   shift_end: string | null;
   shift_break_minutes: number | null;
+  flexible_hours?: number | null;
   week_off_config: WeekOffConfig | null;
   location_access: string;
   hide_in_attendance?: boolean;

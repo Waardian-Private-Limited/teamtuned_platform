@@ -14,7 +14,7 @@ import type { SubmissionStatus } from '../../types/dc.types';
 import { Btn, Card, PageHeader, Pill, Skeleton, inputCls, statusTone } from '../shared/Ui';
 import { FormRenderer } from '../renderer/FormRenderer';
 
-function saveFile(blob: Blob, name: string) {
+export function saveFile(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -24,7 +24,7 @@ function saveFile(blob: Blob, name: string) {
 }
 
 /** Downloads a PDF the server builds; shows the server's message (e.g. "Narrow the filters…") when it refuses. */
-function PdfButton({ label, load, name }: { label: string; load: () => Promise<Blob>; name: string }) {
+export function PdfButton({ label, load, name }: { label: string; load: () => Promise<Blob>; name: string }) {
   const [busy, setBusy] = useState(false);
   const run = async () => {
     setBusy(true);

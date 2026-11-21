@@ -91,6 +91,73 @@ export interface Dashboard {
   recent: { id: number; status: string; submitted_at: string; is_late: number; form_name: string; site_name: string | null; employee_name: string }[];
 }
 
+// Assignment dashboard (GET /assignments/:id/dashboard and /responses)
+export type AssignmentHeader = Pick<AssignmentRow, 'id' | 'title' | 'form_id' | 'form_name' | 'mode' | 'status' | 'schedule' | 'target' | 'flags' | 'start_date' | 'end_date'>;
+export interface InsightFilters { from?: string; to?: string; siteId?: number | null; departmentId?: number | null; employeeId?: number | null; status?: string; late?: boolean; search?: string }
+/** Scheduled: measured against what was due. */
+export interface RunCounts { total: number; done: number; in_review: number; missed: number; overdue: number; pending: number; late: number; expected: number; compliance: number | null }
+/** Open forms: what came in. */
+export interface SubmissionCounts { submissions: number; late: number; people: number; in_review?: number }
+export type InsightGroup = { id: number; name: string | null; code: string | null } & (RunCounts | SubmissionCounts);
+export interface PendingRun { id: number; work_date: string; due_at: string; status: 'missed' | 'overdue'; site_id: number | null; site_name: string | null; employee_id: number | null; employee_name: string | null; employee_code: string | null; department_name: string | null }
+export interface FieldInsight {
+  key: string; label: string; group: string | null; type: FieldType; kind: 'yes_no' | 'choice' | 'number' | 'values' | 'filled'; total: number; answered: number;
+  yes?: number; no?: number;
+  options?: { label: string; count: number }[];
+  agg?: Aggregate; unit?: string; decimals?: number | null;
+  stats?: { count: number; sum: number; avg: number | null; min: number | null; max: number | null };
+  series?: { date: string; value: number }[];
+}
+export interface AssignmentInsights {
+  assignment: AssignmentHeader;
+  range: { from: string; to: string };
+  options: { sites: { id: number; name: string }[]; departments: { id: number; name: string }[]; people: { id: number; name: string; code: string | null; department_id: number | null }[] };
+  tiles: (RunCounts & { submissions: number; people: number }) | (SubmissionCounts & { in_review: number });
+  trend: { date: string; expected?: number; done?: number; missed?: number; submissions?: number; late?: number }[];
+  by_site: InsightGroup[]; by_department: InsightGroup[]; by_person: InsightGroup[];
+  pending: PendingRun[];
+  fields: FieldInsight[];
+  fields_capped: number | null;
+}
+export interface ResponseRow {
+  id: number; form_version_id: number; status: SubmissionStatus; is_late: boolean; submitted_at: string; work_date: string;
+  site_id: number | null; site_name: string | null; employee_id: number; employee_name: string; employee_code: string | null; department_name: string | null;
+  values: Record<string, string>;
+}
+// Audit board builder v2 (per form, shared)
+export type WidgetType = 'bar' | 'line' | 'area' | 'pie' | 'scatter' | 'kpi' | 'table' | 'data';
+export type WidgetAgg = 'count' | 'sum' | 'avg' | 'min' | 'max';
+export type GroupKind = 'none' | 'field' | 'site' | 'department' | 'person' | 'day';
+export type RunStat = 'compliance' | 'filled' | 'missed' | 'overdue' | 'pending' | 'late' | 'submissions' | 'people' | 'in_review';
+export type CondOp = 'eq' | 'neq' | 'gt' | 'lt' | 'gte' | 'lte' | 'filled' | 'empty';
+export interface Condition { field: string; op: CondOp; value?: string | number | boolean }
+export interface WidgetFilter { from?: string; to?: string; siteId?: number; departmentId?: number; employeeId?: number; status?: string; late?: boolean; match?: 'all' | 'any'; conditions?: Condition[] }
+export interface WidgetSeries { id: string; source: 'field' | 'count' | 'run'; field?: string; agg?: WidgetAgg; runStat?: RunStat; chart?: 'bar' | 'line' | 'area'; axis?: 'left' | 'right'; label?: string }
+export interface Widget {
+  id: string; type: WidgetType; title: string;
+  x?: { kind: GroupKind; field?: string };
+  series?: WidgetSeries[];
+  scatter?: { xField: string; yField: string };
+  columns?: string[];
+  filter?: WidgetFilter;
+  limit: number; sort: 'value_desc' | 'value_asc' | 'label' | 'none';
+}
+export interface WidgetLayout { i: string; x: number; y: number; w: number; h: number }
+export interface BoardLayout { widgets: Widget[]; layout: WidgetLayout[] }
+export interface Board { id: number; form_id: number; name: string; layout: BoardLayout; is_default: boolean; sort_order: number }
+export interface PaletteField { key: string; label: string; type: FieldType; numeric?: boolean; options?: { value: string; label: string }[]; fields?: PaletteField[] }
+export interface BoardList { items: Board[]; columns: PaletteField[] }
+export type WidgetResult =
+  | { kind: 'kpi'; value: number | null; unit: string }
+  | { kind: 'series'; series: { id: string; label: string; chart: 'bar' | 'line' | 'area'; axis: 'left' | 'right'; unit: string }[]; rows: { label: string; values: Record<string, number | null> }[] }
+  | { kind: 'pie'; rows: { label: string; value: number | null }[]; unit: string }
+  | { kind: 'scatter'; points: { x: number; y: number; label: string }[]; xLabel: string; yLabel: string; xDate: boolean; yDate: boolean }
+  | { kind: 'table'; columns: string[]; rows: { label: string; cells: (number | null)[]; total: number | null }[] }
+  | { kind: 'data'; columns: { key: string; label: string; numeric: boolean }[]; rows: { id: number; work_date: string; employee_name: string; employee_code: string | null; site_name: string | null; status: string; is_late: boolean; values: Record<string, string> }[] };
+export interface BoardDataResult { range: { from: string; to: string }; results: Record<string, WidgetResult> }
+
+export interface ResponsesPage extends Paged<ResponseRow> { columns: { key: string; label: string; type: FieldType; numeric: boolean }[]; range: { from: string; to: string } }
+
 export type SubmissionStatus = 'submitted' | 'in_review' | 'approved' | 'returned' | 'rejected';
 export interface SubmissionRow {
   id: number; form_id: number; form_name: string; status: SubmissionStatus; is_late: number; submitted_at: string; work_date: string;

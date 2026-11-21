@@ -46,6 +46,7 @@ export interface EmployeeFormState {
   customShiftStart: string;
   customShiftEnd: string;
   customBreak: string;
+  flexibleHours: string;
   weekOffMode: 'policy' | 'custom';
   weekOffConfig: WeekOffConfig | null;
   driver: SalaryDriver;
@@ -105,6 +106,7 @@ export function emptyForm(): EmployeeFormState {
     customShiftStart: '09:00',
     customShiftEnd: '18:00',
     customBreak: '60',
+    flexibleHours: '',
     weekOffMode: 'policy',
     weekOffConfig: null,
     driver: { source: 'ctc', value: 0 },
@@ -166,6 +168,7 @@ export function formFromDetail(d: EmployeeDetailDto): EmployeeFormState {
     customShiftStart: d.shift_source === 'custom' && d.shift_start ? d.shift_start : '09:00',
     customShiftEnd: d.shift_source === 'custom' && d.shift_end ? d.shift_end : '18:00',
     customBreak: d.shift_break_minutes !== null && d.shift_break_minutes !== undefined ? String(d.shift_break_minutes) : '60',
+    flexibleHours: d.shift_source === 'flexible' && d.flexible_hours ? String(d.flexible_hours) : '',
     weekOffMode: d.week_off_config ? 'custom' : 'policy',
     weekOffConfig: d.week_off_config,
     driver: d.ctc ? { source: 'ctc', value: d.ctc } : { source: 'gross', value: d.monthly_gross || 0 },
@@ -207,6 +210,7 @@ function contractFields(f: EmployeeFormState, fixedTerm: boolean) {
 }
 
 export function toPayload(f: EmployeeFormState, timingMode: string | null, salary: Record<string, unknown> | null, fixedTerm: boolean) {
+  const ownTiming = timingMode === 'fixed_time' || timingMode === 'flexible';
   return {
     employee_code: blank(f.employeeCode),
     first_name: f.firstName.trim(),
@@ -235,11 +239,12 @@ export function toPayload(f: EmployeeFormState, timingMode: string | null, salar
     location_access: f.locationAccess,
     hide_in_attendance: f.hideInAttendance,
     hide_in_payroll: f.hideInPayroll,
-    shift_source: timingMode === 'fixed_time' ? f.shiftSource : 'policy',
-    shift_template_id: timingMode === 'fixed_time' && f.shiftSource === 'template' ? f.shiftTemplateId : null,
-    shift_start: timingMode === 'fixed_time' && f.shiftSource === 'custom' ? f.customShiftStart : null,
-    shift_end: timingMode === 'fixed_time' && f.shiftSource === 'custom' ? f.customShiftEnd : null,
-    shift_break_minutes: timingMode === 'fixed_time' && f.shiftSource === 'custom' ? intOrNull(f.customBreak) : null,
+    shift_source: ownTiming ? f.shiftSource : 'policy',
+    shift_template_id: ownTiming && f.shiftSource === 'template' ? f.shiftTemplateId : null,
+    shift_start: ownTiming && f.shiftSource === 'custom' ? f.customShiftStart : null,
+    shift_end: ownTiming && f.shiftSource === 'custom' ? f.customShiftEnd : null,
+    shift_break_minutes: ownTiming && f.shiftSource === 'custom' ? intOrNull(f.customBreak) : null,
+    flexible_hours: ownTiming && f.shiftSource === 'flexible' && f.flexibleHours.trim() ? Number(f.flexibleHours) : null,
     week_off_config: timingMode !== 'roster' && f.weekOffMode === 'custom' ? f.weekOffConfig : null,
     ...(salary ?? {}),
     payment_mode: f.paymentMode,

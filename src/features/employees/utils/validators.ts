@@ -68,15 +68,23 @@ function job(f: EmployeeFormState, needsSubOrg: boolean, fixedTerm: boolean): Fo
 function schedule(f: EmployeeFormState, effectivePolicyId: number | null, timingMode: string | null): FormErrors {
   const e: FormErrors = {};
   if (!effectivePolicyId) e.policy_id = 'Select a policy';
-  if (timingMode === 'fixed_time' && f.shiftSource === 'template' && !f.shiftTemplateId) e.shift_template_id = 'Pick a shift';
-  if (timingMode === 'fixed_time' && f.shiftSource === 'custom') {
+  const ownTiming = timingMode === 'fixed_time' || timingMode === 'flexible';
+  if (ownTiming && f.shiftSource === 'template' && !f.shiftTemplateId) e.shift_template_id = 'Pick a shift';
+  if (ownTiming && f.shiftSource === 'flexible') {
+    const hours = Number(f.flexibleHours);
+    if (!f.flexibleHours.trim() || !Number.isFinite(hours) || hours < 1 || hours > 24) e.flexible_hours = '1 to 24 hours';
+  }
+  if (ownTiming && f.shiftSource === 'custom') {
     if (!f.customShiftStart) e.shift_start = 'Start time is required';
     if (!f.customShiftEnd) e.shift_end = 'End time is required';
     if (f.customShiftStart && f.customShiftStart === f.customShiftEnd) e.shift_end = 'End must differ from start';
     const brk = Number(f.customBreak || 0);
     if (!Number.isInteger(brk) || brk < 0 || brk > 240) e.shift_break_minutes = '0 to 240 minutes';
   }
-  if (timingMode !== 'roster' && f.weekOffMode === 'custom' && f.weekOffConfig) {
+  if (timingMode !== 'roster' && f.weekOffMode === 'custom' && f.weekOffConfig?.weeklyOffMode === 'flexible') {
+    const n = Number(f.weekOffConfig.flexibleDaysPerMonth);
+    if (!Number.isInteger(n) || n < 1) e.week_off_config = 'Enter the off days per month';
+  } else if (timingMode !== 'roster' && f.weekOffMode === 'custom' && f.weekOffConfig) {
     for (const [day, conf] of Object.entries(f.weekOffConfig)) {
       if (typeof conf !== 'object' || !conf || conf.offType === 'working' || conf.pattern !== 'specific_weeks') continue;
       if (![1, 2, 3, 4, 5].some((n) => conf[`specificWeek${n}` as keyof typeof conf])) e.week_off_config = `Pick at least one week for ${day}`;
