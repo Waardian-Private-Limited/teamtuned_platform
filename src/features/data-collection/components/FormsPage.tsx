@@ -109,7 +109,7 @@ export function FormsPage({ basePath }: { basePath: string }) {
         <Labeled label="Form name" required error={nameError}><input autoFocus className={inputCls(Boolean(nameError))} value={name} maxLength={150} onChange={(e) => { setName(e.target.value); setNameError(''); }} onKeyDown={(e) => e.key === 'Enter' && create()} placeholder="e.g. Daily safety audit" /></Labeled>
         <div className="mt-4">
           {/* Anyone who manages forms may share one org-wide; "Organization-wide" is the default. */}
-          <SubOrgPicker value={subOrgId} onChange={setSubOrgId} allowShared />
+          <SubOrgPicker value={subOrgId} onChange={setSubOrgId} allowShared showWhenEmpty />
         </div>
       </Dialog>
       <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />

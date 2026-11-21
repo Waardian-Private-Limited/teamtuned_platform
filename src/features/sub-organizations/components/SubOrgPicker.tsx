@@ -9,6 +9,9 @@ interface SubOrgPickerProps {
   // When true, offers an "Organization-wide (shared)" option (value null).
   // Typically enabled for OrgAdmin, who may create shared records.
   allowShared?: boolean;
+  // When true (with allowShared), still shows the dropdown when the user has no
+  // sub-orgs, so they see the record will be organization-wide.
+  showWhenEmpty?: boolean;
   disabled?: boolean;
 }
 
@@ -17,7 +20,7 @@ interface SubOrgPickerProps {
 //   - 0 sub-orgs: nothing to pick — renders nothing, value stays null (shared).
 //   - exactly 1 and no shared option: auto-selects it, shows a read-only chip.
 //   - otherwise: a dropdown (with an org-wide/shared option when allowShared).
-export function SubOrgPicker({ value, onChange, allowShared = false, disabled = false }: SubOrgPickerProps) {
+export function SubOrgPicker({ value, onChange, allowShared = false, showWhenEmpty = false, disabled = false }: SubOrgPickerProps) {
   const { subOrgs, loading, error } = useManageableSubOrgs();
 
   const single = subOrgs.length === 1 && !allowShared;
@@ -36,7 +39,7 @@ export function SubOrgPicker({ value, onChange, allowShared = false, disabled = 
   if (error) {
     return <p className="text-[11px] text-[var(--tt-danger)]">{error}</p>;
   }
-  if (subOrgs.length === 0) {
+  if (subOrgs.length === 0 && !(allowShared && showWhenEmpty)) {
     return null; // no sub-orgs configured / assigned — record is org-wide
   }
 
@@ -79,7 +82,9 @@ export function SubOrgPicker({ value, onChange, allowShared = false, disabled = 
         </select>
       </div>
       <p className="mt-1 text-[11px] text-fg-muted">
-        {allowShared
+        {subOrgs.length === 0
+          ? 'No sub-organization is assigned to you, so this is shared across the organization.'
+          : allowShared
           ? 'Leave org-wide to share across every sub-organization, or scope to one.'
           : 'This record belongs to the selected sub-organization.'}
       </p>
