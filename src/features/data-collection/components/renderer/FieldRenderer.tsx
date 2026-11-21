@@ -7,6 +7,7 @@ import { messageOf } from '@/lib/api/errors';
 import { Btn, inputCls } from '../shared/Ui';
 import type { Attachment, Errors, FieldDef, Values } from '../../types/dc.types';
 import { isVisible } from '../../utils/schema';
+import { formatCalc } from '../../utils/calc';
 import { SignaturePad } from './SignaturePad';
 
 export interface RenderEnv {
@@ -174,6 +175,14 @@ export function FieldRenderer(props: FieldProps) {
     case 'location': return <Location {...props} />;
     case 'group': return null;
     case 'list': return <ListItems {...props} />;
+    case 'calculated': return (
+      <div>{labelOf(f)}
+        <div aria-live="polite" className="flex h-10 w-full items-center rounded-lg border border-line bg-bg-subtle px-3 text-sm font-semibold tabular-nums text-fg">
+          {formatCalc(f, value) || <span className="font-normal text-fg-muted">Fills in automatically</span>}
+        </div>
+        {note(f, error)}
+      </div>
+    );
     default: {
       const type = f.type === 'number' || f.type === 'currency' ? 'number' : f.type === 'email' ? 'email' : f.type === 'phone' ? 'tel' : f.type === 'date' ? 'date' : f.type === 'time' ? 'time' : f.type === 'datetime' ? 'datetime-local' : 'text';
       return (
@@ -248,17 +257,22 @@ export function GroupRenderer({ field, rows, onChange, errors, env, path }: { fi
 }
 
 export function FieldList({ fields, values, onChange, errors, env, prefix = '' }: { fields: FieldDef[]; values: Values; onChange: (v: Values) => void; errors: Errors; env: RenderEnv; prefix?: string }) {
+  // A hidden section hides every field under it, up to the next section.
+  let sectionShown = true;
+  const shown = fields.filter((f) => {
+    if (f.type === 'section') sectionShown = isVisible(f, values);
+    return sectionShown && isVisible(f, values);
+  });
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      {fields.map((f) => {
-        if (!isVisible(f, values)) return null;
+      {shown.map((f) => {
         const path = prefix ? `${prefix}.${f.key}` : f.key;
         const wide = f.width !== 'half' || f.type === 'section' || f.type === 'group';
         return (
           <div key={f.key} className={wide ? 'sm:col-span-2' : ''}>
             {f.type === 'group'
               ? <GroupRenderer field={f} rows={(Array.isArray(values[f.key]) ? values[f.key] : []) as Values[]} onChange={(rows) => onChange({ ...values, [f.key]: rows })} errors={errors} env={env} path={path} />
-              : <FieldRenderer field={f} value={values[f.key]} onChange={(v) => onChange({ ...values, [f.key]: v })} error={errors[path]} env={env} />}
+              : <FieldRenderer field={f} value={values[f.key]} onChange={(v) => onChange({ ...values, [f.key]: v })} error={errors[path]} env={f.readOnly ? { ...env, readOnly: true } : env} />}
           </div>
         );
       })}

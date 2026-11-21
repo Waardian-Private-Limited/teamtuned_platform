@@ -41,6 +41,10 @@ export const getDashboard = (p: { from?: string; to?: string; formId?: number | 
 export const listSubmissions = (p: { formId?: number | null; siteId?: number | null; status?: string; from?: string; to?: string; search?: string; page?: number; pageSize?: number }) =>
   apiClient.get<Paged<SubmissionRow> & { range: { from: string; to: string } }>(`${B}/submissions`, clean({ form_id: p.formId ?? undefined, site_id: p.siteId ?? undefined, status: p.status, from: p.from, to: p.to, search: p.search, page: p.page, pageSize: p.pageSize }), auth);
 export const getSubmission = (id: number) => apiClient.get<SubmissionDetail>(`${B}/submissions/${id}`, undefined, auth);
+/** PDFs show only what the person was shown (hidden sections and fields left out). */
+export const submissionPdf = (id: number, mine?: boolean) => apiClient<Blob>(mine ? `${B}/me/submissions/${id}/pdf` : `${B}/submissions/${id}/pdf`, { ...auth, responseType: 'blob' });
+export const submissionsPdf = (p: { formId?: number | null; siteId?: number | null; status?: string; from?: string; to?: string; search?: string }) =>
+  apiClient<Blob>(`${B}/submissions/export.pdf`, { ...auth, responseType: 'blob', params: clean({ form_id: p.formId ?? undefined, site_id: p.siteId ?? undefined, status: p.status, from: p.from, to: p.to, search: p.search }) });
 
 // me
 export const mySummary = () => apiClient.get<MySummary>(`${B}/me/summary`, undefined, auth);

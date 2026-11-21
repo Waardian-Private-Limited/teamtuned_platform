@@ -1,4 +1,4 @@
-import { AlignLeft, AtSign, Barcode, Calendar, CalendarClock, CheckSquare, ChevronDown, CircleDot, Clock, DollarSign, FileText, Hash, Heading, Image as ImageIcon, Layers, ListChecks, MapPin, PenLine, Phone, Star, ToggleLeft, Type, Paperclip, ListOrdered } from 'lucide-react';
+import { AlignLeft, AtSign, Barcode, Calculator, Calendar, CalendarClock, CheckSquare, ChevronDown, CircleDot, Clock, DollarSign, FileText, Hash, Heading, Image as ImageIcon, Layers, ListChecks, MapPin, PenLine, Phone, Star, ToggleLeft, Type, Paperclip, ListOrdered } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { FieldType, RunDisplay } from '../types/dc.types';
 
@@ -7,7 +7,7 @@ export const DC_PERMISSIONS = {
 } as const;
 export const DC_FEATURE = 'DATA_COLLECTION_FEATURE';
 
-export interface FieldTypeInfo { type: FieldType; label: string; icon: LucideIcon; group: 'Input' | 'Choice' | 'Evidence' | 'Layout' }
+export interface FieldTypeInfo { type: FieldType; label: string; icon: LucideIcon; group: 'Input' | 'Choice' | 'Evidence' | 'Calculated' | 'Layout' }
 
 export const FIELD_TYPES: FieldTypeInfo[] = [
   { type: 'text', label: 'Short text', icon: Type, group: 'Input' },
@@ -30,16 +30,19 @@ export const FIELD_TYPES: FieldTypeInfo[] = [
   { type: 'signature', label: 'Signature', icon: PenLine, group: 'Evidence' },
   { type: 'location', label: 'Location', icon: MapPin, group: 'Evidence' },
   { type: 'barcode', label: 'Barcode / QR', icon: Barcode, group: 'Evidence' },
+  { type: 'calculated', label: 'Calculated value', icon: Calculator, group: 'Calculated' },
   { type: 'section', label: 'Section heading', icon: Heading, group: 'Layout' },
   { type: 'group', label: 'Subform (add entries)', icon: Layers, group: 'Layout' },
   { type: 'reference', label: 'Reference file', icon: FileText, group: 'Layout' },
 ];
 
 export const TYPE_INFO: Record<FieldType, FieldTypeInfo> = Object.fromEntries(FIELD_TYPES.map((t) => [t.type, t])) as Record<FieldType, FieldTypeInfo>;
-export const GROUPS: FieldTypeInfo['group'][] = ['Input', 'Choice', 'Evidence', 'Layout'];
+export const GROUPS: FieldTypeInfo['group'][] = ['Input', 'Choice', 'Evidence', 'Calculated', 'Layout'];
 export const HAS_OPTIONS = new Set<FieldType>(['single_choice', 'multi_choice', 'dropdown']);
-export const METRIC_TYPES = new Set<FieldType>(['number', 'currency', 'rating', 'yes_no', 'single_choice', 'dropdown']);
+export const METRIC_TYPES = new Set<FieldType>(['number', 'currency', 'rating', 'yes_no', 'single_choice', 'dropdown', 'calculated']);
 export const NO_VALUE = new Set<FieldType>(['section', 'reference']);
+/** Types whose value an admin can fix (read-only). Matches the server's FormSchema.FIXABLE. */
+export const FIXABLE = new Set<FieldType>(['text', 'textarea', 'number', 'currency', 'email', 'phone', 'barcode', 'date', 'time', 'datetime', 'yes_no', 'single_choice', 'dropdown']);
 export const ListIcon = ListChecks;
 
 export const RUN_LABEL: Record<RunDisplay, string> = {

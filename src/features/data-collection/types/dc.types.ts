@@ -2,12 +2,18 @@ export type FieldType =
   | 'text' | 'textarea' | 'number' | 'currency' | 'email' | 'phone' | 'date' | 'time' | 'datetime' | 'list'
   | 'single_choice' | 'multi_choice' | 'dropdown' | 'yes_no' | 'rating'
   | 'photo' | 'file' | 'signature' | 'location' | 'barcode'
+  | 'calculated'
   | 'section' | 'group' | 'reference';
 
 export interface FieldOption { value: string; label: string; score?: number }
 export type Aggregate = 'sum' | 'avg' | 'min' | 'max' | 'count';
 
-export interface ShowWhen { field: string; op: 'eq' | 'neq' | 'gt' | 'lt' | 'filled' | 'empty' | 'in'; value: unknown }
+/** A calculated field's formula (see utils/calc.ts): {field_key} references, worked out from answers above it. */
+export interface CalcDef { formula: string; result: 'number' | 'text' | 'date'; decimals?: number; unit?: string }
+
+export interface ShowRule { field: string; op: 'eq' | 'neq' | 'gt' | 'lt' | 'filled' | 'empty' | 'in'; value: unknown }
+/** One condition keeps the plain shape (older apps read it); several are matched all or any. */
+export type ShowWhen = ShowRule | { match: 'all' | 'any'; rules: ShowRule[] };
 
 export interface FieldDef {
   /** Builder-only stable id for drag and drop; stripped before saving. */
@@ -18,6 +24,8 @@ export interface FieldDef {
   help?: string;
   placeholder?: string;
   required?: boolean;
+  /** With `default`: a value the admin fixes; people see it and cannot change it. */
+  readOnly?: boolean;
   width?: 'half';
   default?: unknown;
   options?: FieldOption[];
@@ -26,6 +34,7 @@ export interface FieldDef {
   metric?: { agg: Aggregate; unit?: string; target?: number };
   config?: { max?: number; max_files?: number; camera_only?: boolean; accuracy_m?: number; inside_site?: boolean; min_rows?: number; max_rows?: number; multiple?: boolean; entry_label?: string; item_type?: 'text' | 'number'; item_label?: string; min_items?: number; max_items?: number };
   ref?: { url: string; kind: 'pdf' | 'image' | 'dxf' };
+  calc?: CalcDef;
   fields?: FieldDef[];
 }
 

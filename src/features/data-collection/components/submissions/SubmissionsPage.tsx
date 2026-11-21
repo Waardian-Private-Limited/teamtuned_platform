@@ -2,14 +2,36 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { Search } from 'lucide-react';
+import { FileDown, Search } from 'lucide-react';
 import { Drawer } from '@/components/ui/Drawer';
+import { messageOf } from '@/lib/api/errors';
+import { usePermission } from '@/lib/hooks/usePermission';
+import { showError } from '@/lib/toast';
 import * as api from '../../api/dc.api';
-import { SUBMISSION_LABEL } from '../../constants/dc.constants';
+import { DC_PERMISSIONS, SUBMISSION_LABEL } from '../../constants/dc.constants';
 import { useAsync } from '../../hooks/useAsync';
 import type { SubmissionStatus } from '../../types/dc.types';
 import { Btn, Card, PageHeader, Pill, Skeleton, inputCls, statusTone } from '../shared/Ui';
 import { FormRenderer } from '../renderer/FormRenderer';
+
+function saveFile(blob: Blob, name: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Downloads a PDF the server builds; shows the server's message (e.g. "Narrow the filters…") when it refuses. */
+function PdfButton({ label, load, name }: { label: string; load: () => Promise<Blob>; name: string }) {
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    setBusy(true);
+    try { saveFile(await load(), name); } catch (e) { showError(messageOf(e)); } finally { setBusy(false); }
+  };
+  return <Btn icon={<FileDown className="h-4 w-4" />} busy={busy} onClick={run}>{label}</Btn>;
+}
 
 export function SubmissionDrawer({ id, mine, onClose }: { id: number | null; mine?: boolean; onClose: () => void }) {
   const { data, loading, error } = useAsync(() => (mine ? api.mySubmission(id as number) : api.getSubmission(id as number)), [id, mine], id !== null);
@@ -20,7 +42,10 @@ export function SubmissionDrawer({ id, mine, onClose }: { id: number | null; min
         {error && <p className="text-sm text-[var(--tt-danger)]">{error}</p>}
         {data && (<>
           <div className="flex flex-wrap items-center gap-2"><Pill label={SUBMISSION_LABEL[data.status] || data.status} tone={statusTone(data.status)} />{data.is_late ? <Pill label="Late" tone="bad" /> : null}<span className="text-xs text-fg-muted">{data.employee_name}{data.employee_code ? ` (${data.employee_code})` : ''}{data.site_name ? ` · ${data.site_name}` : ''}</span></div>
-          <p className="text-xs text-fg-muted">For {data.work_date} · sent {new Date(data.submitted_at).toLocaleString()}</p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-fg-muted">For {data.work_date} · sent {new Date(data.submitted_at).toLocaleString()}</p>
+            <PdfButton label="Download PDF" load={() => api.submissionPdf(data.id, mine)} name={`submission-${data.id}.pdf`} />
+          </div>
           {data.review_note && <p className="rounded-lg bg-bg-subtle px-3 py-2 text-xs text-fg"><span className="font-semibold">Reviewer: </span>{data.review_note}</p>}
           {data.legacy_review && data.legacy_review.length > 0 && (
             <div className="rounded-lg border border-line p-3"><h4 className="mb-1.5 text-xs font-bold text-fg">Earlier review (old system)</h4><ul className="space-y-1 text-xs text-fg-muted">{data.legacy_review.map((r, i) => <li key={i}>Level {r.level}: {r.status.replace(/_/g, ' ')}{r.comments ? ` — ${r.comments}` : ''}</li>)}</ul></div>
@@ -35,6 +60,7 @@ export function SubmissionDrawer({ id, mine, onClose }: { id: number | null; min
 const STATUSES: SubmissionStatus[] = ['submitted', 'in_review', 'approved', 'returned', 'rejected'];
 
 export function SubmissionsPage() {
+  const { can } = usePermission();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [formId, setFormId] = useState<number | null>(null);
@@ -48,7 +74,11 @@ export function SubmissionsPage() {
 
   return (
     <div className="mx-auto max-w-6xl p-4 sm:p-6">
-      <PageHeader title="Submissions" subtitle="Everything that was filled in, newest first." />
+      <PageHeader title="Submissions" subtitle="Everything that was filled in, newest first."
+        actions={can(DC_PERMISSIONS.EXPORT) && data && data.total > 0 && (
+          <PdfButton label={`PDF of ${data.total} submission${data.total === 1 ? '' : 's'}`} name={`submissions-${data.range.from}-to-${data.range.to}.pdf`}
+            load={() => api.submissionsPdf({ search: search || undefined, status: status || undefined, formId, from: from || undefined, to: to || undefined })} />
+        )} />
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="relative min-w-0 flex-1 basis-52"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" /><input aria-label="Search by person" className={`${inputCls()} pl-9`} placeholder="Search by name or code" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} /></div>
         <select aria-label="Form" className={`${inputCls()} !w-44`} value={formId ?? ''} onChange={(e) => { setFormId(e.target.value ? Number(e.target.value) : null); setPage(1); }}><option value="">All forms</option>{forms.data?.items.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select>

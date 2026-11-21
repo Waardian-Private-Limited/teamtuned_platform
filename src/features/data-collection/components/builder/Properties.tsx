@@ -7,32 +7,18 @@ import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { AutoText } from '../shared/AutoText';
 import { Btn, Checkbox, Labeled, inputCls } from '../shared/Ui';
-import { HAS_OPTIONS, METRIC_TYPES, NO_VALUE, OPS, TYPE_INFO } from '../../constants/dc.constants';
+import { FIXABLE, HAS_OPTIONS, METRIC_TYPES, NO_VALUE, TYPE_INFO } from '../../constants/dc.constants';
 import type { FieldDef } from '../../types/dc.types';
+import { CalcEditor } from './CalcEditor';
+import { Conditions } from './Conditions';
+import { FieldRenderer } from '../renderer/FieldRenderer';
 
-interface Props { field: FieldDef; above: FieldDef[]; onChange: (patch: Partial<FieldDef>) => void }
+/** calcInputs: the fields a calculated field may use (utils/schema calcInputs). */
+interface Props { field: FieldDef; above: FieldDef[]; calcInputs: FieldDef[]; onChange: (patch: Partial<FieldDef>) => void }
 
 const num = (v: string) => (v === '' ? undefined : Number(v));
 
 type Opt = NonNullable<FieldDef['options']>[number];
-
-/** A short list shown in full (each choice wraps to as many lines as it needs), unlike a native select. */
-function ChoiceList<T extends string | boolean>({ label, items, value, onChange }: { label: string; items: { value: T; label: string }[]; value: T | undefined; onChange: (v: T) => void }) {
-  return (
-    <div role="radiogroup" aria-label={label} className="max-h-60 space-y-1 overflow-y-auto rounded-lg border border-line p-1">
-      {items.map((it) => {
-        const on = it.value === value;
-        return (
-          <button key={String(it.value)} type="button" role="radio" aria-checked={on} onClick={() => onChange(it.value)}
-            className={cx('flex w-full items-start gap-2 rounded-md px-2.5 py-2 text-left text-xs transition-colors sm:text-sm', on ? 'bg-fg text-bg' : 'text-fg hover:bg-bg-subtle')}>
-            <span className={cx('mt-1 h-2.5 w-2.5 shrink-0 rounded-full border', on ? 'border-bg bg-bg' : 'border-line-strong')} />
-            <span className="min-w-0 whitespace-pre-wrap break-words">{it.label}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 /** One option row: drag handle, full-text label (wraps), optional score, remove. */
 function OptionRow({ id, o, onLabel, onScore, onRemove }: { id: string; o: Opt; onLabel: (v: string) => void; onScore: (v: number | undefined) => void; onRemove: () => void }) {
@@ -70,7 +56,7 @@ function OptionList({ opts, onChange }: { opts: Opt[]; onChange: (next: Opt[]) =
   );
 }
 
-export function Properties({ field: f, above, onChange }: Props) {
+export function Properties({ field: f, above, calcInputs, onChange }: Props) {
   const set = <K extends keyof FieldDef>(k: K, v: FieldDef[K] | undefined) => onChange({ [k]: v } as Partial<FieldDef>);
   const setV = (patch: NonNullable<FieldDef['validation']>) => {
     const next = { ...(f.validation || {}), ...patch };
@@ -83,7 +69,6 @@ export function Properties({ field: f, above, onChange }: Props) {
   const withValue = !NO_VALUE.has(f.type);
   const numeric = f.type === 'number' || f.type === 'currency';
   const textual = ['text', 'textarea', 'email', 'phone', 'barcode'].includes(f.type);
-  const cond = above.find((a) => a.key === f.showWhen?.field);
 
   return (
     <div className="space-y-4">
@@ -93,7 +78,17 @@ export function Properties({ field: f, above, onChange }: Props) {
       {withValue && f.type !== 'group' && ['text', 'textarea', 'number', 'currency', 'email', 'phone', 'barcode'].includes(f.type) && (
         <Labeled label="Placeholder"><AutoText value={f.placeholder || ''} onChange={(v) => set('placeholder', v || undefined)} /></Labeled>
       )}
-      {withValue && <Checkbox checked={Boolean(f.required)} onChange={(v) => set('required', v || undefined)} label="Required" />}
+      {withValue && f.type !== 'calculated' && !f.readOnly && <Checkbox checked={Boolean(f.required)} onChange={(v) => set('required', v || undefined)} label="Required" />}
+      {FIXABLE.has(f.type) && (
+        <div className="space-y-2 rounded-lg border border-line p-3">
+          <Checkbox checked={Boolean(f.readOnly)} onChange={(v) => onChange(v ? { readOnly: true, required: undefined } : { readOnly: undefined, default: undefined })}
+            label="Read-only (fixed value)" hint="People see the value you set here and cannot change it" />
+          {f.readOnly && (
+            <FieldRenderer field={{ ...f, label: 'Fixed value', help: undefined, required: true, readOnly: undefined, showWhen: undefined, width: undefined }}
+              value={f.default} onChange={(v) => set('default', v === '' ? undefined : v)} env={{}} error={f.default === undefined || f.default === '' ? 'Set the value people will see' : undefined} />
+          )}
+        </div>
+      )}
       {f.type !== 'section' && f.type !== 'group' && <Checkbox checked={f.width === 'half'} onChange={(v) => set('width', v ? 'half' : undefined)} label="Half width" hint="Two half-width fields sit side by side" />}
 
       {HAS_OPTIONS.has(f.type) && (
@@ -158,7 +153,12 @@ export function Properties({ field: f, above, onChange }: Props) {
         </div>
       )}
 
-      {METRIC_TYPES.has(f.type) && (
+      {f.type === 'calculated' && (
+        <CalcEditor key={f.uid} calc={f.calc || { formula: '', result: 'number', decimals: 0 }} inputs={calcInputs}
+          onChange={(calc) => onChange(calc.result === 'number' ? { calc } : { calc, metric: undefined })} />
+      )}
+
+      {METRIC_TYPES.has(f.type) && (f.type !== 'calculated' || (f.calc?.result || 'number') === 'number') && (
         <div className="space-y-2 rounded-lg border border-line p-3">
           <Checkbox checked={Boolean(f.metric)} onChange={(v) => set('metric', v ? { agg: 'sum' } : undefined)} label="Track as metric" hint="Feeds dashboard charts and, later, KPIs" />
           {f.metric && (
@@ -171,29 +171,7 @@ export function Properties({ field: f, above, onChange }: Props) {
         </div>
       )}
 
-      {f.type !== 'section' && (
-        <div className="space-y-2 rounded-lg border border-line p-3">
-          <Checkbox checked={Boolean(f.showWhen)} onChange={(v) => set('showWhen', v && above.length ? { field: above[0].key, op: 'eq', value: '' } : undefined)} label="Show only when…" hint={above.length ? undefined : 'Add a field above this one first'} />
-          {f.showWhen && (
-            <div className="space-y-3">
-              <div><span className="mb-1 block text-[11px] font-semibold text-fg-muted">When this field</span>
-                <ChoiceList label="Field" items={above.map((a) => ({ value: a.key, label: a.label || a.key }))} value={f.showWhen.field} onChange={(v) => set('showWhen', { ...f.showWhen!, field: v, value: '' })} /></div>
-              <div><span className="mb-1 block text-[11px] font-semibold text-fg-muted">Condition</span>
-                <select aria-label="Condition" className={inputCls()} value={f.showWhen.op} onChange={(e) => set('showWhen', { ...f.showWhen!, op: e.target.value as NonNullable<FieldDef['showWhen']>['op'] })}>{OPS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
-              {!['filled', 'empty'].includes(f.showWhen.op) && (
-                <div><span className="mb-1 block text-[11px] font-semibold text-fg-muted">Value</span>
-                  {cond?.options?.length
-                    ? <ChoiceList label="Value" items={cond.options.map((o) => ({ value: o.value, label: o.label }))} value={String(f.showWhen.value ?? '')} onChange={(v) => set('showWhen', { ...f.showWhen!, value: v })} />
-                    : cond?.type === 'yes_no'
-                      ? <ChoiceList label="Value" items={[{ value: true, label: 'Yes' }, { value: false, label: 'No' }]} value={f.showWhen.value === true || f.showWhen.value === 'true'} onChange={(v) => set('showWhen', { ...f.showWhen!, value: v })} />
-                      : <AutoText ariaLabel="Value" value={String(f.showWhen.value ?? '')} onChange={(v) => set('showWhen', { ...f.showWhen!, value: v })} />}
-                </div>
-              )}
-              {cond && <p className="whitespace-pre-wrap break-words rounded-md bg-bg-subtle px-2.5 py-2 text-[11px] text-fg-muted">Shown only when “{cond.label}” {OPS.find((o) => o.value === f.showWhen!.op)?.label.toLowerCase()}{['filled', 'empty'].includes(f.showWhen.op) ? '' : ` “${cond.options?.find((o) => o.value === f.showWhen!.value)?.label ?? (cond.type === 'yes_no' ? (f.showWhen.value === true || f.showWhen.value === 'true' ? 'Yes' : 'No') : String(f.showWhen.value ?? ''))}”`}</p>}
-            </div>
-          )}
-        </div>
-      )}
+      <Conditions value={f.showWhen} above={above} isSection={f.type === 'section'} onChange={(w) => set('showWhen', w)} />
     </div>
   );
 }

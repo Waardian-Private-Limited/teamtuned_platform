@@ -1,5 +1,6 @@
 import { HAS_OPTIONS, NO_VALUE } from '../constants/dc.constants';
-import type { Errors, FieldDef, FieldType, FormSchema, Values } from '../types/dc.types';
+import { computeAll } from './calc';
+import type { Errors, FieldDef, FieldType, FormSchema, ShowRule, ShowWhen, Values } from '../types/dc.types';
 
 let counter = 0;
 export const uid = () => `f${Date.now().toString(36)}${(counter += 1).toString(36)}${Math.random().toString(36).slice(2, 5)}`;
@@ -29,6 +30,7 @@ export function makeField(type: FieldType, all: FieldDef[], label: string): Fiel
   }
   if (type === 'list') f.config = { item_type: 'text', item_label: 'Item', min_items: 0, max_items: 20 };
   if (type === 'reference') f.ref = { url: '', kind: 'pdf' };
+  if (type === 'calculated') f.calc = { formula: '', result: 'number', decimals: 0 };
   return f;
 }
 
@@ -134,11 +136,52 @@ export function fieldsAbove(fields: FieldDef[], id: string): FieldDef[] {
   return s.list.slice(0, s.index).filter((f) => !NO_VALUE.has(f.type) && f.type !== 'group');
 }
 
+/**
+ * Fields a calculated field may use: for a top-level field, the top-level fields above it (subforms too, for
+ * SUM/AVG/MIN/MAX/COUNT of a column); inside a subform, the entry's fields above it plus the top-level fields above
+ * the subform. Matches the server's check in FormSchema.normalize.
+ */
+export function calcInputs(fields: FieldDef[], id: string): FieldDef[] {
+  const s = locate(fields, id);
+  if (!s) return [];
+  const usable = (f: FieldDef) => !NO_VALUE.has(f.type);
+  const own = s.list.slice(0, s.index).filter(usable);
+  if (!s.parent) return own;
+  const parentAt = fields.findIndex((f) => f.uid === s.parent!.uid);
+  return [...fields.slice(0, parentAt).filter(usable), ...own];
+}
+
+/** A copy of `values` with every read-only field (top level and in each subform entry) set to its fixed value. */
+export function applyFixed(fields: FieldDef[], values: Values): Values {
+  const has = (list: FieldDef[]): boolean => list.some((f) => f.readOnly || (f.fields ? has(f.fields) : false));
+  if (!has(fields)) return values;
+  const out: Values = { ...values };
+  for (const f of fields) {
+    if (f.readOnly && f.default !== undefined) out[f.key] = f.default;
+    else if (f.type === 'group' && Array.isArray(out[f.key])) out[f.key] = (out[f.key] as Values[]).map((row) => applyFixed(f.fields || [], row || {}));
+  }
+  return out;
+}
+
+/** Values as people see them: fixed values in place, calculated fields worked out (the server does both again on submit). */
+export const withCalculated = (fields: FieldDef[], values: Values): Values =>
+  computeAll(fields, applyFixed(fields, values), { today: todayIso(), visible: isVisible });
+
 export const isEmpty = (v: unknown) => v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
 
+/** The conditions of a show-when, whichever shape it is stored in. */
+export const showRules = (w: ShowWhen | undefined): ShowRule[] => (!w ? [] : 'rules' in w ? w.rules : [w]);
+export const showMatch = (w: ShowWhen | undefined): 'all' | 'any' => (w && 'rules' in w && w.match === 'any' ? 'any' : 'all');
+
+/** Same rule as the server: one condition, or several matched all / any. */
 export function isVisible(f: FieldDef, values: Values): boolean {
   const w = f.showWhen;
   if (!w) return true;
+  const rules = showRules(w);
+  return showMatch(w) === 'any' ? rules.some((r) => ruleHolds(r, values)) : rules.every((r) => ruleHolds(r, values));
+}
+
+function ruleHolds(w: ShowRule, values: Values): boolean {
   const v = values[w.field];
   switch (w.op) {
     case 'filled': return !isEmpty(v);
@@ -154,8 +197,10 @@ export function isVisible(f: FieldDef, values: Values): boolean {
 /** Quick checks before sending; the server runs the full validation and its messages are shown the same way. */
 export function validate(fields: FieldDef[], values: Values, prefix = ''): Errors {
   const errors: Errors = {};
+  let sectionShown = true;
   for (const f of fields) {
-    if (NO_VALUE.has(f.type) || !isVisible(f, values)) continue;
+    if (f.type === 'section') { sectionShown = isVisible(f, values); continue; }
+    if (!sectionShown || NO_VALUE.has(f.type) || f.type === 'calculated' || f.readOnly || !isVisible(f, values)) continue;
     const path = prefix ? `${prefix}.${f.key}` : f.key;
     const v = values[f.key];
     if (f.type === 'group') {

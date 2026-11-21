@@ -14,7 +14,7 @@ import * as api from '../../api/dc.api';
 import { DC_PERMISSIONS, TYPE_INFO } from '../../constants/dc.constants';
 import { useAsync } from '../../hooks/useAsync';
 import type { Errors, FieldDef, FieldType, FormDetail } from '../../types/dc.types';
-import { clone, errorUids, fieldsAbove, insertAt, locate, makeField, moveField, patchField, removeField, shift, toSchema, uid, withUids } from '../../utils/schema';
+import { calcInputs, clone, errorUids, fieldsAbove, insertAt, locate, makeField, moveField, patchField, removeField, shift, toSchema, uid, withUids } from '../../utils/schema';
 import { Btn, Labeled, Pill, Skeleton, inputCls } from '../shared/Ui';
 import { Canvas } from './Canvas';
 import { Palette } from './Palette';
@@ -210,7 +210,7 @@ export function BuilderPage({ formId, basePath }: { formId: number; basePath: st
           </main>
           <aside className={cx('min-h-0 overflow-y-auto border-l border-line bg-surface p-4', tab === 'settings' ? 'block' : 'hidden', 'lg:block')}>
             {pickedField && canEdit
-              ? <Properties field={pickedField} above={fieldsAbove(fields, pickedField.uid as string)} onChange={(patch) => setFields((c) => patchField(c, pickedField.uid as string, patch))} />
+              ? <Properties field={pickedField} above={fieldsAbove(fields, pickedField.uid as string)} calcInputs={calcInputs(fields, pickedField.uid as string)} onChange={(patch) => setFields((c) => patchField(c, pickedField.uid as string, patch))} />
               : <p className="text-xs text-fg-muted">{canEdit ? 'Select a field to change its settings.' : 'Read only.'}</p>}
           </aside>
         </div>
