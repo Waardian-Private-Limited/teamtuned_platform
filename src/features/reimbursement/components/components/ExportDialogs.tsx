@@ -34,6 +34,14 @@ import { FormError } from './Primitives';
 
 const END_BEFORE_START = 'The end date is before the start date';
 
+/** Claims add a third choice: an Excel of the data plus a PDF of only the bills and payment proofs, two downloads. */
+type ClaimFormat = ExportFormatDto | 'xlsx_pdf';
+const CLAIM_FORMATS: ReadonlyArray<{ value: ClaimFormat; label: string }> = [
+  { value: 'pdf', label: 'PDF' },
+  { value: 'xlsx', label: 'Excel' },
+  { value: 'xlsx_pdf', label: 'Excel + bills PDF' },
+];
+
 // ── Claims ──────────────────────────────────────────────────────────────────
 
 /** Everything the export dialog can filter on. Empty string / null = any. */
@@ -140,13 +148,14 @@ function toExportBody(f: ClaimExportFilters, scope: 'hr' | 'me'): Omit<ClaimsExp
   };
 }
 
-function claimLimit(format: ExportFormatDto, files: boolean) {
-  if (format === 'pdf') return EXPORT_PDF_CLAIM_LIMIT;
+function claimLimit(format: ClaimFormat, files: boolean) {
+  if (format === 'pdf' || format === 'xlsx_pdf') return EXPORT_PDF_CLAIM_LIMIT;
   return files ? EXPORT_XLSX_PHOTO_CLAIM_LIMIT : EXPORT_XLSX_CLAIM_LIMIT;
 }
 
-function claimLimitText(format: ExportFormatDto, files: boolean) {
+function claimLimitText(format: ClaimFormat, files: boolean) {
   const big = EXPORT_XLSX_CLAIM_LIMIT.toLocaleString('en-IN');
+  if (format === 'xlsx_pdf') return `Excel with a bills PDF holds up to ${EXPORT_PDF_CLAIM_LIMIT} expenses. Narrow the filters, or choose Excel alone (up to ${big}).`;
   if (format === 'pdf') return `A PDF holds up to ${EXPORT_PDF_CLAIM_LIMIT} expenses. Narrow the filters, or choose Excel without photos (up to ${big}).`;
   if (files) return `Excel with photos holds up to ${EXPORT_XLSX_PHOTO_CLAIM_LIMIT} expenses. Turn off photos (up to ${big}) or narrow the filters.`;
   return `Excel holds up to ${big} expenses. Narrow the filters.`;
@@ -204,7 +213,7 @@ interface ExportClaimsDialogProps {
   selectedIds?: number[];
   /** One claim: no filters, `ids:[id]`. */
   claim?: { id: number; number?: string };
-  initialFormat?: ExportFormatDto;
+  initialFormat?: ClaimFormat;
   /** Open with the email field showing. */
   startWithEmail?: boolean;
   /** The org (or the employee) has expenses asking for a paper bill: shows the Paper bill filter. */
@@ -221,7 +230,7 @@ export function ExportClaimsDialog({ open, onClose, scope, initial, subOrgId = n
   const [f, setF] = React.useState<ClaimExportFilters>(EMPTY_FILTERS);
   const [onlySelected, setOnlySelected] = React.useState(false);
   const [moreDates, setMoreDates] = React.useState(false);
-  const [format, setFormat] = React.useState<ExportFormatDto>('xlsx');
+  const [format, setFormat] = React.useState<ClaimFormat>('xlsx');
   const [files, setFiles] = React.useState(true);
   const [emailOpen, setEmailOpen] = React.useState(false);
   const [emails, setEmails] = React.useState('');
@@ -293,13 +302,22 @@ export function ExportClaimsDialog({ open, onClose, scope, initial, subOrgId = n
       job.setFields(errs);
       return;
     }
-    const base: ClaimsExportRequestDto = { format, include_files: files, emails: delivery === 'email' ? list : undefined };
-    const body: ClaimsExportRequestDto = claim
-      ? { ...base, ids: [claim.id] }
+    const which: Omit<ClaimsExportRequestDto, 'format'> = claim
+      ? { ids: [claim.id] }
       : !usingFilters
-        ? { ...base, ids: selectedIds }
-        : { ...base, ...toExportBody(f, scope), subOrgId: hr ? subOrgId ?? undefined : undefined };
-    job.run(delivery, () => api.exportClaims(scope, body), list, onClose);
+        ? { ids: selectedIds }
+        : { ...toExportBody(f, scope), subOrgId: hr ? subOrgId ?? undefined : undefined };
+    const mail = delivery === 'email' ? list : undefined;
+    const start =
+      format === 'xlsx_pdf'
+        ? async () => {
+            // The PDF first: it has the tighter limit, so a refusal comes before any Excel is queued.
+            const bills = await api.exportClaims(scope, { ...which, format: 'pdf', attachments_only: true, include_files: true, emails: mail });
+            const data = await api.exportClaims(scope, { ...which, format: 'xlsx', include_files: false, emails: mail });
+            return [data, bills];
+          }
+        : () => api.exportClaims(scope, { ...which, format, include_files: files, emails: mail });
+    job.run(delivery, start, list, onClose);
   };
 
   const title = claim ? `Export expense${claim.number ? ` ${claim.number}` : ''}` : 'Export expenses';
@@ -421,13 +439,22 @@ export function ExportClaimsDialog({ open, onClose, scope, initial, subOrgId = n
         {job.fields.ids && <p role="alert" className="text-xs font-medium text-[var(--tt-danger)]">{job.fields.ids}</p>}
 
         <div className="space-y-3">
-          <FormatField
+          <FormatField<ClaimFormat>
             value={format}
+            options={CLAIM_FORMATS}
             onChange={(v) => { setFormat(v); clearField('format'); }}
             error={job.fields.format}
-            hint={format === 'pdf' ? `Each expense laid out like an invoice. Up to ${EXPORT_PDF_CLAIM_LIMIT}.` : `Sheets of expenses, lines and bill items. Up to ${(files ? EXPORT_XLSX_PHOTO_CLAIM_LIMIT : EXPORT_XLSX_CLAIM_LIMIT).toLocaleString('en-IN')}${files ? ' with photos' : ''}.`}
+            hint={
+              format === 'pdf'
+                ? `Each expense laid out like an invoice. Up to ${EXPORT_PDF_CLAIM_LIMIT}.`
+                : format === 'xlsx_pdf'
+                  ? `Two downloads: an Excel of the expense data, and a PDF of every bill and payment proof with an index. Up to ${EXPORT_PDF_CLAIM_LIMIT}.`
+                  : `Sheets of expenses, lines and bill items. Up to ${(files ? EXPORT_XLSX_PHOTO_CLAIM_LIMIT : EXPORT_XLSX_CLAIM_LIMIT).toLocaleString('en-IN')}${files ? ' with photos' : ''}.`
+            }
           />
-          <ToggleRow title="Include bill photos and payment proofs" description={FILES_HELP[format]} checked={files} onChange={(v) => { setFiles(v); clearField('format'); }} />
+          {format !== 'xlsx_pdf' && (
+            <ToggleRow title="Include bill photos and payment proofs" description={FILES_HELP[format]} checked={files} onChange={(v) => { setFiles(v); clearField('format'); }} />
+          )}
           {emailOpen && <EmailsField value={emails} onChange={(v) => { setEmails(v); clearField('emails'); }} error={job.fields.emails} onHide={() => { setEmailOpen(false); clearField('emails'); }} inputRef={emailRef} />}
         </div>
         <FormError message={job.form} />
@@ -647,7 +674,7 @@ const splitBase =
 export function ClaimExportButton({ scope, claimId, number }: { scope: 'hr' | 'me'; claimId: number; number?: string }) {
   const pdf = useClaimPdf(scope);
   const [menu, setMenu] = React.useState(false);
-  const [dialog, setDialog] = React.useState<{ format: ExportFormatDto; email: boolean } | null>(null);
+  const [dialog, setDialog] = React.useState<{ format: ClaimFormat; email: boolean } | null>(null);
   const root = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -662,9 +689,10 @@ export function ClaimExportButton({ scope, claimId, number }: { scope: 'hr' | 'm
     };
   }, [menu]);
 
-  const items: Array<{ key: string; label: string; icon: React.ReactNode; pick: { format: ExportFormatDto; email: boolean } }> = [
+  const items: Array<{ key: string; label: string; icon: React.ReactNode; pick: { format: ClaimFormat; email: boolean } }> = [
     { key: 'pdf', label: 'PDF…', icon: <FileText className="h-4 w-4" />, pick: { format: 'pdf', email: false } },
     { key: 'xlsx', label: 'Excel…', icon: <FileSpreadsheet className="h-4 w-4" />, pick: { format: 'xlsx', email: false } },
+    { key: 'xlsx_pdf', label: 'Excel + bills PDF…', icon: <FileSpreadsheet className="h-4 w-4" />, pick: { format: 'xlsx_pdf', email: false } },
     { key: 'email', label: 'Email…', icon: <Mail className="h-4 w-4" />, pick: { format: 'pdf', email: true } },
   ];
 
@@ -678,7 +706,7 @@ export function ClaimExportButton({ scope, claimId, number }: { scope: 'hr' | 'm
         <ChevronDown className={cx('h-3.5 w-3.5 transition-transform', menu && 'rotate-180')} />
       </button>
       {menu && (
-        <div role="menu" className="tt-fade-in absolute right-0 top-full z-30 mt-1.5 w-44 overflow-hidden rounded-xl border border-line bg-surface p-1 shadow-[var(--tt-shadow-lg)]">
+        <div role="menu" className="tt-fade-in absolute right-0 top-full z-30 mt-1.5 w-52 overflow-hidden rounded-xl border border-line bg-surface p-1 shadow-[var(--tt-shadow-lg)]">
           {items.map((it) => (
             <button
               key={it.key}

@@ -265,6 +265,8 @@ export interface ClaimsExportRequestDto {
   format: ExportFormatDto;
   /** Both formats: PDF appends receipts and proofs as pages; Excel embeds photos and adds a Files sheet. */
   include_files?: boolean;
+  /** PDF only: just the bills and payment proofs, behind an index (the companion of an Excel export). */
+  attachments_only?: boolean;
   /** Up to 5 addresses; the finished file is mailed to them. */
   emails?: string[];
   /** Picked claims instead of filters. */

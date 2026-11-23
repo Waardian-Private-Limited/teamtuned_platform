@@ -49,7 +49,7 @@ export function parseEmails(raw: string): { emails: string[]; error: string } {
   return { emails, error: '' };
 }
 
-/** Starts one Download Centre job: busy state, field errors from a 400, and `track` so it shows in the panel. */
+/** Starts Download Centre jobs (one, or several from one click): busy state, field errors from a 400, and `track` so they show in the panel. */
 export function useExportJob(placed: ReadonlySet<string>) {
   const { track } = useDownloadCenter();
   const [busy, setBusy] = React.useState<Delivery | null>(null);
@@ -60,11 +60,12 @@ export function useExportJob(placed: ReadonlySet<string>) {
     setForm('');
   }, []);
   const clearField = React.useCallback((...keys: string[]) => setFields((f) => (keys.some((k) => f[k]) ? { ...f, ...Object.fromEntries(keys.map((k) => [k, ''])) } : f)), []);
-  const run = async (delivery: Delivery, start: () => Promise<ExportJobDto>, emails: string[], onDone: () => void) => {
+  const run = async (delivery: Delivery, start: () => Promise<ExportJobDto | ExportJobDto[]>, emails: string[], onDone: () => void) => {
     setBusy(delivery);
     reset();
     try {
-      track(await start());
+      const started = await start();
+      for (const j of Array.isArray(started) ? started : [started]) track(j);
       if (delivery === 'email') showSuccess(`It will be emailed to ${emails.join(', ')} when ready. It also stays in Downloads.`);
       onDone();
     } catch (err) {
@@ -78,12 +79,25 @@ export function useExportJob(placed: ReadonlySet<string>) {
   return { busy, fields, setFields, form, reset, clearField, run };
 }
 
-export function FormatField({ value, onChange, error, hint }: { value: ExportFormatDto; onChange: (v: ExportFormatDto) => void; error?: string; hint?: React.ReactNode }) {
+export function FormatField<T extends string = ExportFormatDto>({
+  value,
+  onChange,
+  error,
+  hint,
+  options,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  error?: string;
+  hint?: React.ReactNode;
+  /** Defaults to PDF / Excel. */
+  options?: ReadonlyArray<{ value: T; label: string }>;
+}) {
   return (
     <div>
       <FieldLabel label="Format" />
       <div className={cx('rounded-lg', error && 'ring-1 ring-[var(--tt-danger)]')}>
-        <SegmentedControl options={FORMATS} value={value} onChange={onChange} />
+        <SegmentedControl<T> options={options ?? (FORMATS as unknown as ReadonlyArray<{ value: T; label: string }>)} value={value} onChange={onChange} />
       </div>
       <FieldMessage error={error} hint={hint} />
     </div>
