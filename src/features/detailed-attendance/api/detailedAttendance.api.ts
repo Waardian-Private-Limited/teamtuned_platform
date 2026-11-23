@@ -79,6 +79,34 @@ export function requestExport(body: ExportRequest) {
   return apiClient.post<ExportJobDto>('/exports/attendance', body, auth);
 }
 
+export interface MissedOverrideScope {
+  month?: string;
+  from?: string;
+  to?: string;
+  subOrgId?: number | null;
+  siteId?: number | null;
+}
+
+export interface MissedOverridePreviewDto {
+  from: string;
+  to: string;
+  affected: number;
+  employees: number;
+  skipped: { locked: number; overridden: number; regularized: number };
+  by_employee: Array<{ name: string; code: string | null; count: number }>;
+  sample: Array<{ employee: string; code: string | null; date: string; current: string }>;
+}
+
+/** Read-only: how many untouched missed check-out days a bulk override would touch, and what it skips. */
+export function previewMissedOverride(body: MissedOverrideScope, signal?: AbortSignal) {
+  return apiClient.post<MissedOverridePreviewDto>(`${BASE}/bulk/missed-checkout/preview`, body, { ...auth, signal });
+}
+
+/** Queues the async job that forces every untouched missed check-out day to full / half day and writes a summary. */
+export function applyMissedOverride(body: MissedOverrideScope & { type: 'full_day' | 'half_day'; reason: string }) {
+  return apiClient.post<ExportJobDto>('/exports/attendance-missed-override', body, auth);
+}
+
 /** A short-lived link to the selfie taken at a check-in or check-out. */
 export function getPunchImage(punchId: number, signal?: AbortSignal) {
   return apiClient.get<{ url: string }>(`/attendance/punches/${punchId}/image`, undefined, { ...auth, signal });

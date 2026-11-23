@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Download, RefreshCw } from 'lucide-react';
+import { CalendarClock, Download, RefreshCw } from 'lucide-react';
 import { Alert } from '@/components/ui/Alert';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pagination } from '@/components/ui/Pagination';
@@ -11,6 +11,7 @@ import { useAttendanceList } from '../hooks/useAttendanceList';
 import { longDayText, monthOf } from '../utils/format';
 import { DayPopup } from './DayPopup';
 import { EmployeeCards, EmployeeTable, ListSkeleton } from './components/EmployeeRows';
+import { BulkOverrideDialog } from './components/BulkOverrideDialog';
 import { ExportDialog } from './components/ExportDialog';
 import { FilterBar } from './components/FilterBar';
 
@@ -24,6 +25,7 @@ export function DetailedAttendancePage() {
   const l = useAttendanceList();
   const [day, setDay] = React.useState<{ employeeId: number; date: string } | null>(null);
   const [exporting, setExporting] = React.useState(false);
+  const [bulkOpen, setBulkOpen] = React.useState(false);
   // Bumped after an override so the open day and the list read the new figures.
   const [version, setVersion] = React.useState(0);
   const router = useRouter();
@@ -43,6 +45,10 @@ export function DetailedAttendancePage() {
         </div>
         <div className="flex items-center gap-2">
           {l.isToday && <span className="hidden items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs font-semibold text-fg-muted sm:inline-flex"><RefreshCw className={cx('h-3.5 w-3.5', l.refreshing && 'animate-spin')} /> Updates every minute</span>}
+          <button type="button" onClick={() => setBulkOpen(true)} disabled={!today}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-surface px-4 text-xs font-semibold text-fg transition-colors hover:bg-bg-subtle disabled:opacity-40 sm:text-sm">
+            <CalendarClock className="h-4 w-4" /> Fix missed check-outs
+          </button>
           <button type="button" onClick={() => setExporting(true)} disabled={!today}
             className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--tt-primary)] px-4 text-xs font-semibold text-[var(--tt-on-primary)] transition-colors hover:bg-[var(--tt-primary-hover)] disabled:opacity-40 sm:text-sm">
             <Download className="h-4 w-4" /> Export
@@ -77,6 +83,7 @@ export function DetailedAttendancePage() {
 
       <DayPopup employeeId={day ? day.employeeId : null} date={day ? day.date : null} reloadKey={version}
         onClose={() => setDay(null)} onMonth={(employeeId, m) => { setDay(null); openMonth(employeeId, m); }} onChanged={() => { setVersion((v) => v + 1); l.reload(); }} />
+      <BulkOverrideDialog open={bulkOpen} today={today} filters={l.filters} options={l.options} onClose={() => setBulkOpen(false)} />
       <ExportDialog open={exporting} today={today} date={l.filters.date} filters={l.filters} options={l.options} onClose={() => setExporting(false)} />
     </div>
   );
