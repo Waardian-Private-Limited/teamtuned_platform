@@ -633,6 +633,31 @@ export interface RejectedPunch {
   } | null;
   imageUrl: string | null;
 }
+/** Our AI server vs AWS on one real punch (recorded while labour matching runs on AWS). */
+export type FaceComparisonOutcome = 'disagree' | 'different_person' | 'aws_only' | 'ai_only' | 'agree' | 'unjudged' | 'all';
+export interface FaceComparisonPerson { id: number; code: string; name: string }
+export interface FaceComparisonRow {
+  id: number;
+  at: string;
+  /** identify: the server was asked who it is; confirm: the machine named a labourer (machine). */
+  kind: 'identify' | 'confirm';
+  site: { id: number | null; name: string | null };
+  deviceName: string | null;
+  machine: FaceComparisonPerson | null;
+  aws: { verdict: 'match' | 'no_match' | 'error'; similarity: number | null; labourer: FaceComparisonPerson | null };
+  ai: { status: string; confidence: number | null; similarity: number | null; labourer: FaceComparisonPerson | null };
+  agree: boolean | null;
+  punchId: number | null;
+  imageUrl: string | null;
+}
+export interface FaceComparisonPage extends Paged<FaceComparisonRow> {
+  mode: 'aws' | 'ai' | 'both';
+  from: string;
+  to: string;
+  outcome: FaceComparisonOutcome;
+  summary: { total: number; judged: number; agreed: number; bothSame: number; bothNone: number; awsOnly: number; differentPerson: number; aiOnly: number; aiMs: number | null };
+  sites: Array<{ siteId: number | null; siteName: string | null; judged: number; agreed: number }>;
+}
 export interface RejectedPunchPage extends Paged<RejectedPunch> {
   from: string;
   to: string;

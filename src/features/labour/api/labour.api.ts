@@ -5,7 +5,7 @@ import type {
   Officer,
   CompliancePack, CompliancePreset, FormCatalogue, FormTemplate, PackDetail, TemplateSummary,
   Adjustment, AttendanceDay, BillingUsage, Category, Contractor, ContractorRate, Dashboard, Device, DeviceDetail, DeviceEvent,
-  ImportBody, ImportCandidate, RejectedPunchPage, ImportManyBody, ImportManyResult, Invoice, LabourSettings, Labourer, LabourerBody, LabourerDetail, LookupPerson, MergePreview, Paged, PlanVersion, Punch, RegAction,
+  FaceComparisonOutcome, FaceComparisonPage, ImportBody, ImportCandidate, RejectedPunchPage, ImportManyBody, ImportManyResult, Invoice, LabourSettings, Labourer, LabourerBody, LabourerDetail, LookupPerson, MergePreview, Paged, PlanVersion, Punch, RegAction,
   RegularizationLog, SettingsResponse,
   BulkApproveResult, Measurement, MeasurementBody, MeasurementDetail, MeasurementPage, Payable, PaySuggestion, PersonalRateBody,
   PersonalRatesResponse, WorkItem, WorkItemBody, WorkItemDetail, WorkItemOverride, WorkItemRate,
@@ -229,5 +229,7 @@ export function asList<T>(raw: unknown, ...keys: string[]): T[] {
 export const planList = (raw: unknown) => asList<PlanVersion>(raw, 'plans', 'versions');
 
 /** Refused machine punches with the photo (org admins only). Dates are the organization's days, at most 31. */
+export const faceComparison = (q: { from?: string; to?: string; siteId?: number | null; outcome?: FaceComparisonOutcome; page?: number; pageSize?: number }) =>
+  get<FaceComparisonPage>('/face-comparison', q);
 export const listRejectedPunches = (q: { from?: string; to?: string; reason?: string; siteId?: number | null; search?: string; page?: number; pageSize?: number }) =>
   get<RejectedPunchPage>('/rejected-punches', q);
