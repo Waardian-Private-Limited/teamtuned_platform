@@ -19,6 +19,7 @@ import { DateFilter, FilterBar, FilterGrid, FilterSelect, Gate, ListShell, PageH
 const REASONS: Array<{ value: RejectReason; label: string; tone: 'bad' | 'warn' | 'neutral'; todo: string }> = [
   { value: 'other_site', label: 'Registered at another site', tone: 'warn', todo: 'Import them to this site, or they punch at their own site' },
   { value: 'not_recognized', label: 'Face not recognised', tone: 'neutral', todo: 'Register the face again; add the attendance if they worked' },
+  { value: 'face_mismatch', label: 'Face did not match', tone: 'bad', todo: 'The machine named someone the face server did not confirm. Check the photo; register the face again if it is them' },
   { value: 'contractor_inactive', label: 'Contractor inactive', tone: 'bad', todo: 'Activate the contractor' },
   { value: 'labour_inactive', label: 'Labourer inactive', tone: 'bad', todo: 'Activate the labourer' },
 ];
@@ -123,7 +124,7 @@ function RejectedPunches() {
       </PageHeader>
 
       {summary && (
-        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
           {REASONS.map((r) => (
             <button key={r.value} type="button" onClick={() => list.update({ reason: f.reason === r.value ? '' : r.value })}
               className={cx('rounded-xl border bg-surface p-3 text-left transition-colors hover:bg-bg-subtle', f.reason === r.value ? 'border-fg' : 'border-line')}>

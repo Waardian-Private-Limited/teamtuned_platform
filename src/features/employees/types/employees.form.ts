@@ -41,6 +41,10 @@ export interface EmployeeFormState {
   hideInAttendance: boolean;
   /** Not in payroll at all (paid outside the system). */
   hideInPayroll: boolean;
+  /** Force into payroll even when status would exclude (e.g. Invited). */
+  includeInPayroll: boolean;
+  /** Pay the full cycle every run regardless of attendance. */
+  fullPayableDays: boolean;
   shiftSource: ShiftSource;
   shiftTemplateId: number | null;
   customShiftStart: string;
@@ -101,6 +105,8 @@ export function emptyForm(): EmployeeFormState {
     locationAccess: 'assigned',
     hideInAttendance: false,
     hideInPayroll: false,
+    includeInPayroll: false,
+    fullPayableDays: false,
     shiftSource: 'policy',
     shiftTemplateId: null,
     customShiftStart: '09:00',
@@ -163,6 +169,8 @@ export function formFromDetail(d: EmployeeDetailDto): EmployeeFormState {
     locationAccess: d.location_access || 'assigned',
     hideInAttendance: !!d.hide_in_attendance,
     hideInPayroll: !!d.hide_in_payroll,
+    includeInPayroll: !!d.include_in_payroll,
+    fullPayableDays: !!d.full_payable_days,
     shiftSource: d.shift_source || 'policy',
     shiftTemplateId: d.shift_template_id,
     customShiftStart: d.shift_source === 'custom' && d.shift_start ? d.shift_start : '09:00',
@@ -239,6 +247,8 @@ export function toPayload(f: EmployeeFormState, timingMode: string | null, salar
     location_access: f.locationAccess,
     hide_in_attendance: f.hideInAttendance,
     hide_in_payroll: f.hideInPayroll,
+    include_in_payroll: f.includeInPayroll,
+    full_payable_days: f.fullPayableDays,
     shift_source: ownTiming ? f.shiftSource : 'policy',
     shift_template_id: ownTiming && f.shiftSource === 'template' ? f.shiftTemplateId : null,
     shift_start: ownTiming && f.shiftSource === 'custom' ? f.customShiftStart : null,

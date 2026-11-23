@@ -225,6 +225,8 @@ export interface EmployeeDetailDto {
   location_access: string;
   hide_in_attendance?: boolean;
   hide_in_payroll?: boolean;
+  include_in_payroll?: boolean;
+  full_payable_days?: boolean;
   ctc: number | null;
   monthly_gross: number | null;
   salary_breakdown: { component_id: number; name: string; amount: number }[];

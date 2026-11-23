@@ -215,6 +215,8 @@ export function StepJob({ c, employeeId }: { c: EmployeeFormController; employee
           {([
             ['hideInAttendance', 'Hide in attendance', 'Left out of attendance lists, the dashboard and attendance reports. Attendance is still recorded, and the employee still sees their own.'],
             ['hideInPayroll', 'Hide in payroll', 'Not included in payroll at all: no pay run, payslip, register or bank sheet. For people paid outside the system.'],
+            ['includeInPayroll', 'Include in payroll', 'Force into payroll even before the employee is active (e.g. still Invited). Overrides status. Turn on Hide in attendance too if they should not appear on attendance screens.'],
+            ['fullPayableDays', 'Pay full days always', 'Pay the full cycle every run regardless of attendance: payable days = full cycle, no LOP, no proration.'],
           ] as const).map(([key, title, help]) => (
             <div key={key} className="flex items-start justify-between gap-4 rounded-lg border border-line px-3 py-2.5">
               <div className="min-w-0">

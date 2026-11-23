@@ -613,7 +613,7 @@ export interface Payable {
 }
 
 /** Why a machine refused a punch (labour_device_events type punch_rejected). */
-export type RejectReason = 'other_site' | 'labour_inactive' | 'contractor_inactive' | 'not_recognized';
+export type RejectReason = 'other_site' | 'labour_inactive' | 'contractor_inactive' | 'not_recognized' | 'face_mismatch';
 /** A refused machine punch: who, where, why, with the photo (org admins). siteGuessed: backfilled, site read from the face server. */
 /** One visit: tries of one person, reason and site close together (newest try's details; `firstAt` and `tries` cover all). */
 export interface RejectedPunch {
