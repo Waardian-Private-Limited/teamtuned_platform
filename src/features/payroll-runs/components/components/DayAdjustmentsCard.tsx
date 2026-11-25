@@ -25,7 +25,8 @@ const STAGE: Record<api.AdjustablePeriodDto['status'], string> = { draft: 'Draft
 
 /**
  * Payable-day adjustments of one employee: corrections of +/- days to a pay period with a reason (LOP reversal or
- * extra LOP). A draft period recalculates at once; a finalized or paid one is settled as arrears in the next payroll.
+ * extra LOP). A draft period recalculates at once; a finalized or paid one is settled as arrears in the next payroll, or,
+ * with "edit finalized payroll" on, corrected in place (imported periods only that way).
  * Nothing is edited in place: entries are added or cancelled, each with who and when.
  */
 export function DayAdjustmentsCard({ employeeId, currentPeriod, canEdit, onChanged }: {
@@ -110,6 +111,12 @@ function AddDialog({ mode, employeeId, periods, defaultPeriod, onClose, onDone }
   const n = Number(isAmount ? amountText : days);
   const value = direction === 'add' ? n : -n;
   const after = !isAmount && period && period.payable_days !== null && Number.isFinite(n) ? Math.round((period.payable_days + value) * 100) / 100 : null;
+  // An imported (old system) period's days cannot be settled as arrears: only "edit finalized payroll" can correct them.
+  const blocked = !isAmount && !!period?.imported && !period.in_place;
+  const stageNote = !period || period.status === 'draft' ? null
+    : blocked ? 'This month was imported from the old system, so a change of its days cannot be paid as arrears. Turn on "Edit finalized payroll" in payroll settings to correct its payslip.'
+    : !isAmount && period.in_place ? `This period is ${STAGE[period.status].toLowerCase()}. Its payslip is corrected now: payable days, LOP and earnings change; deductions (PF, ESI, ...) stay as they were.`
+    : `This period is ${STAGE[period.status].toLowerCase()}. Its payslip stays as it is; the difference is paid or recovered ${isAmount ? '' : 'as arrears '}in the next payroll.`;
 
   const submit = async () => {
     if (!period) return;
@@ -127,12 +134,12 @@ function AddDialog({ mode, employeeId, periods, defaultPeriod, onClose, onDone }
 
   return (
     <Dialog open onClose={onClose} title={isAmount ? 'Adjust payable amount' : 'Adjust payable days'}
-      footer={<><button type="button" className={secondary} onClick={onClose}>Cancel</button><button type="button" className={primary} disabled={busy || !period || !(n > 0) || reason.trim().length < 3} onClick={submit}>{busy ? 'Saving…' : 'Save adjustment'}</button></>}>
+      footer={<><button type="button" className={secondary} onClick={onClose}>Cancel</button><button type="button" className={primary} disabled={busy || !period || blocked || !(n > 0) || reason.trim().length < 3} onClick={submit}>{busy ? 'Saving…' : 'Save adjustment'}</button></>}>
       <div className="space-y-4">
         <SelectField<string> label="Pay period" value={periodKey} onChange={setPeriodKey} error={errors.period_start}
-          options={periods.map((p) => ({ value: keyOf(p), label: `${periodLabel(p)} · ${STAGE[p.status]}${p.payable_days !== null ? ` · ${p.payable_days} payable` : ''}` }))} />
-        {period && period.status !== 'draft' && (
-          <p className="rounded-lg border border-line bg-bg-subtle px-3 py-2 text-xs text-fg-muted">This period is {STAGE[period.status].toLowerCase()}. Its payslip stays as it is; the difference is paid or recovered {isAmount ? '' : 'as arrears '}in the next payroll.</p>
+          options={periods.map((p) => ({ value: keyOf(p), label: `${periodLabel(p)} · ${p.imported ? 'Imported' : STAGE[p.status]}${p.payable_days !== null ? ` · ${p.payable_days} payable` : ''}` }))} />
+        {stageNote && (
+          <p className={cx('rounded-lg border px-3 py-2 text-xs', blocked ? 'border-[var(--tt-danger)] text-[var(--tt-danger)]' : 'border-line bg-bg-subtle text-fg-muted')}>{stageNote}</p>
         )}
         <div className="flex gap-2">
           <Chip active={direction === 'add'} onClick={() => setDirection('add')}>{isAmount ? 'Add to pay' : 'Add payable days (LOP reversal)'}</Chip>

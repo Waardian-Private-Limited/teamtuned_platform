@@ -6,13 +6,14 @@ import { showSuccess } from '@/lib/toast';
 import * as api from '../api/payrollRuns.api';
 import type { PayrollSettingsDto, PayrollSettingsPatchDto } from '../types/payrollRuns.dto';
 
-const DEFAULTS: PayrollSettingsDto = { finalizeApproval: false, payrollBySubOrg: true, documentName: 'assigned' };
+const DEFAULTS: PayrollSettingsDto = { finalizeApproval: false, payrollBySubOrg: true, documentName: 'assigned', editFinalized: false };
 
 function fromDto(s: Partial<PayrollSettingsDto> | null | undefined): PayrollSettingsDto {
   return {
     finalizeApproval: Boolean(s?.finalizeApproval),
     payrollBySubOrg: s?.payrollBySubOrg !== false,
     documentName: s?.documentName ?? DEFAULTS.documentName,
+    editFinalized: Boolean(s?.editFinalized),
   };
 }
 

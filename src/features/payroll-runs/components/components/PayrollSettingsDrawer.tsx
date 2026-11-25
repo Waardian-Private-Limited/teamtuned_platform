@@ -136,6 +136,23 @@ export function PayrollSettingsDrawer({
               />
             )}
           </SettingRow>
+          <div className="mt-4 border-t border-line pt-4">
+            <SettingRow
+              title="Edit finalized payroll"
+              hint="When on, adjusting the payable days of a finalized, paid or imported (old system) month corrects that month's payslip itself: days, LOP and earnings are re-priced; deductions stay as they were. When off, the difference is paid or recovered as arrears in the next payroll."
+            >
+              {s.loading ? (
+                <Skeleton className="h-5 w-10 rounded-full" />
+              ) : (
+                <Switch
+                  checked={s.editFinalized}
+                  onChange={(next) => s.save({ edit_finalized: next }, { editFinalized: next })}
+                  disabled={s.saving}
+                  label="Edit finalized payroll"
+                />
+              )}
+            </SettingRow>
+          </div>
           {s.error && <p className="mt-3 text-xs font-medium text-[var(--tt-danger)]">{s.error}</p>}
         </div>
       </div>

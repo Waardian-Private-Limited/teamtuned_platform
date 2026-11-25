@@ -262,6 +262,8 @@ export interface PayrollSettingsDto {
   /** Organization-wide: false runs one payroll for the whole organization instead of one per sub-organization. */
   payrollBySubOrg: boolean;
   documentName: DocumentNameDto;
+  /** A day adjustment to a finalized, paid or imported period corrects that payslip in place (no arrears). */
+  editFinalized: boolean;
   /** On save: draft payrolls of the other mode that were dropped so the month is planned again. */
   discardedDrafts?: number;
 }
@@ -270,4 +272,5 @@ export interface PayrollSettingsPatchDto {
   finalize_approval?: boolean;
   payroll_by_sub_org?: boolean;
   document_name?: DocumentNameDto;
+  edit_finalized?: boolean;
 }

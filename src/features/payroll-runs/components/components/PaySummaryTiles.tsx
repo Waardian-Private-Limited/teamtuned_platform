@@ -111,7 +111,7 @@ export function PaySummaryTiles({ item }: { item: PayDetail }) {
         label="LOP days"
         value={days(item.lopDays)}
         danger={item.lopDays > 0}
-        sub={shown.length ? shown.slice(0, 2).map((p) => `${p.label} ${days(p.days)}`).join(' · ') + (shown.length > 2 ? ` · +${shown.length - 2}` : '') : 'No loss of pay'}
+        sub={shown.length ? shown.slice(0, 2).map((p) => `${p.label} ${days(p.days)}`).join(' · ') + (shown.length > 2 ? ` · +${shown.length - 2}` : '') : item.lopDays > 0 ? 'Days not paid' : 'No loss of pay'}
       >
         {shown.length > 0 && (
           <BreakdownInfo label="Loss of pay breakdown">

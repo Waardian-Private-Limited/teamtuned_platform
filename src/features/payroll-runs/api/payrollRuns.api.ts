@@ -155,9 +155,13 @@ export interface AdjustablePeriodDto {
   payable_days: number | null; period_days: number | null; attendance_payable_days: number | null;
   /** The policy's payable-day cap for the period; null = no cap (days may go past the period). */
   payable_cap?: number | null;
+  /** Imported from the old system. */
+  imported?: boolean;
+  /** "Edit finalized payroll" is on: a day change corrects this finalized / paid period's payslip in place. */
+  in_place?: boolean;
 }
 export interface DayAdjustmentListDto { employee: { id: number; code: string | null; name: string }; periods: AdjustablePeriodDto[]; adjustments: DayAdjustmentDto[] }
-export interface DayAdjustmentResultDto { adjustment: DayAdjustmentDto; effect: 'recalculated' | 'arrears' | 'next_payroll'; month_key: string | null; message: string }
+export interface DayAdjustmentResultDto { adjustment: DayAdjustmentDto; effect: 'recalculated' | 'arrears' | 'next_payroll' | 'corrected'; month_key: string | null; message: string }
 
 export function listDayAdjustments(employeeId: number) {
   return apiClient.get<DayAdjustmentListDto>('/payroll-runs/day-adjustments', { employee_id: employeeId }, auth);
