@@ -118,8 +118,21 @@ function AddDialog({ mode, employeeId, periods, defaultPeriod, onClose, onDone }
     : !isAmount && period.in_place ? `This period is ${STAGE[period.status].toLowerCase()}. Its payslip is corrected now: payable days, LOP and earnings change; deductions (PF, ESI, ...) stay as they were.`
     : `This period is ${STAGE[period.status].toLowerCase()}. Its payslip stays as it is; the difference is paid or recovered ${isAmount ? '' : 'as arrears '}in the next payroll.`;
 
+  const cap = period ? (period.payable_cap === null ? null : (period.payable_cap ?? period.period_days)) : null;
+  // Say what is missing instead of a silently disabled button.
+  const missing = (): Record<string, string> => {
+    const out: Record<string, string> = {};
+    if (!(n > 0)) out[isAmount ? 'amount' : 'days'] = isAmount ? 'Enter an amount more than 0' : 'Enter days more than 0 (whole or half days)';
+    else if (!isAmount && after !== null && cap !== null && after > cap && period?.payable_days !== null) out.days = `Only ${Math.max(cap - Number(period?.payable_days), 0)} day(s) can be added: payable days are capped at ${cap}`;
+    else if (!isAmount && after !== null && after < 0) out.days = `Only ${period?.payable_days} payable day(s) can be removed`;
+    if (reason.trim().length < 3) out.reason = 'Add a reason (at least 3 characters): it shows in the payroll and the audit trail';
+    return out;
+  };
+
   const submit = async () => {
     if (!period) return;
+    const local = missing();
+    if (Object.keys(local).length) { setErrors(local); return; }
     setBusy(true);
     setErrors({});
     try {
@@ -134,7 +147,7 @@ function AddDialog({ mode, employeeId, periods, defaultPeriod, onClose, onDone }
 
   return (
     <Dialog open onClose={onClose} title={isAmount ? 'Adjust payable amount' : 'Adjust payable days'}
-      footer={<><button type="button" className={secondary} onClick={onClose}>Cancel</button><button type="button" className={primary} disabled={busy || !period || blocked || !(n > 0) || reason.trim().length < 3} onClick={submit}>{busy ? 'Saving…' : 'Save adjustment'}</button></>}>
+      footer={<><button type="button" className={secondary} onClick={onClose}>Cancel</button><button type="button" className={primary} disabled={busy || !period || blocked} onClick={submit}>{busy ? 'Saving…' : 'Save adjustment'}</button></>}>
       <div className="space-y-4">
         <SelectField<string> label="Pay period" value={periodKey} onChange={setPeriodKey} error={errors.period_start}
           options={periods.map((p) => ({ value: keyOf(p), label: `${periodLabel(p)} · ${p.imported ? 'Imported' : STAGE[p.status]}${p.payable_days !== null ? ` · ${p.payable_days} payable` : ''}` }))} />
@@ -152,7 +165,7 @@ function AddDialog({ mode, employeeId, periods, defaultPeriod, onClose, onDone }
           <TextField label="Days" type="number" min={0.5} step={0.5} value={days} onChange={setDays} error={errors.days}
             hint={after !== null && period ? `Payable days ${period.payable_days} → ${after}${period.payable_cap === null ? ' (no cap in policy)' : ` of ${period.payable_cap ?? period.period_days}`}` : 'Whole or half days'} />
         )}
-        <TextField label="Reason" value={reason} onChange={setReason} error={errors.reason} placeholder="e.g. Leave approved after payroll, wrong absent on 12 Oct" />
+        <TextField label="Reason (required)" value={reason} onChange={setReason} error={errors.reason} placeholder="e.g. Leave approved after payroll, wrong absent on 12 Oct" />
         {errors.form && <p className="text-xs text-[var(--tt-danger)]">{errors.form}</p>}
       </div>
     </Dialog>
