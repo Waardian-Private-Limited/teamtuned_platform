@@ -42,6 +42,8 @@ export const FLAG_TEXT: Record<string, string> = {
   MARK_WAIVED: 'A late or early mark was waived',
   LATE_WAIVED: 'Late mark waived',
   EARLY_WAIVED: 'Early-exit mark waived',
+  LATE_MARK_NOT_COUNTED: 'Already a half day: late mark not counted toward the free marks',
+  EARLY_MARK_NOT_COUNTED: 'Already a half day: early-exit mark not counted toward the free marks',
   WORKED_ON_OFF_DAY: 'Worked on a week off or holiday',
   UNSCHEDULED_WORK: 'Worked without a scheduled shift',
   PUNCHED_ON_LEAVE: 'Came in on an approved leave day',
