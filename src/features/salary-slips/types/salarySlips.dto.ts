@@ -69,3 +69,8 @@ export interface GenerateResponseDto {
   generated: number;
   run: PayRunDto;
 }
+
+export interface WithdrawResponseDto {
+  withdrawn: number;
+  run: PayRunDto;
+}

@@ -8,7 +8,7 @@ import * as api from '../api/salarySlips.api';
 import type { PayRunDto } from '../types/salarySlips.dto';
 import type { PayRun, PayslipLayout, SalarySlipRow } from '../types/salarySlips.model';
 
-export type RowActionKind = 'generate' | 'release' | 'download';
+export type RowActionKind = 'generate' | 'withdraw' | 'release' | 'download';
 
 export interface HoldProgress {
   done: number;
@@ -33,6 +33,7 @@ export function useSalarySlipActions(onRun: (dto: PayRunDto) => void, onChanged:
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
   const [generating, setGenerating] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
   const [holding, setHolding] = useState(false);
   const [holdProgress, setHoldProgress] = useState<HoldProgress | null>(null);
 
@@ -62,6 +63,17 @@ export function useSalarySlipActions(onRun: (dto: PayRunDto) => void, onChanged:
         const res = await api.generatePayslips(run.id, [row.employeeId]);
         onRun(res.run);
         showSuccess(res.generated > 0 ? `Payslip generated for ${row.name}` : generatedMessage(0));
+        onChanged();
+      }),
+    [runRow, onRun, onChanged]
+  );
+
+  const withdrawOne = useCallback(
+    (run: PayRun, row: SalarySlipRow) =>
+      runRow(row.employeeId, 'withdraw', async () => {
+        const res = await api.withdrawPayslips(run.id, [row.employeeId]);
+        onRun(res.run);
+        showSuccess(res.withdrawn > 0 ? `Payslip of ${row.name} withdrawn: hidden from the app until generated again` : 'This payslip was not generated');
         onChanged();
       }),
     [runRow, onRun, onChanged]
@@ -97,6 +109,28 @@ export function useSalarySlipActions(onRun: (dto: PayRunDto) => void, onChanged:
         return messageOf(err);
       } finally {
         setGenerating(false);
+      }
+    },
+    [onRun, onChanged]
+  );
+
+  const withdraw = useCallback(
+    async (run: PayRun) => {
+      setWithdrawing(true);
+      try {
+        const res = await api.withdrawPayslips(run.id);
+        onRun(res.run);
+        showSuccess(
+          res.withdrawn > 0
+            ? `${res.withdrawn} payslip${res.withdrawn === 1 ? '' : 's'} withdrawn. Generate them again one by one or all at once.`
+            : 'No payslip was generated. They now appear only when you generate them.'
+        );
+        onChanged();
+        return null;
+      } catch (err) {
+        return messageOf(err);
+      } finally {
+        setWithdrawing(false);
       }
     },
     [onRun, onChanged]
@@ -157,9 +191,12 @@ export function useSalarySlipActions(onRun: (dto: PayRunDto) => void, onChanged:
     clearRowError: () => setRowError(''),
     downloadOne,
     generateOne,
+    withdrawOne,
     releaseHold,
     generating,
     generate,
+    withdrawing,
+    withdraw,
     holding,
     holdProgress,
     holdMany,

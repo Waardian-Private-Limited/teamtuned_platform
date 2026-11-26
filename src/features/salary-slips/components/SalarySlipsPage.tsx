@@ -31,7 +31,7 @@ import { HoldPayslipDialog } from './components/HoldPayslipDialog';
 import type { SlipRowPolicy } from './components/SlipRowActions';
 
 type ExportScope = { kind: 'all' } | { kind: 'selected'; ids: number[] };
-type ConfirmState = { kind: 'generate-all' } | { kind: 'generate-selected'; ids: number[] } | { kind: 'release'; row: SalarySlipRow };
+type ConfirmState = { kind: 'generate-all' } | { kind: 'withdraw-all' } | { kind: 'generate-selected'; ids: number[] } | { kind: 'release'; row: SalarySlipRow };
 type HoldState = { ids: number[]; target: string; skipped: number };
 
 function countRows(rows: SalarySlipRow[]): PayslipCounts {
@@ -79,6 +79,7 @@ export function SalarySlipsPage() {
   const allGenerated = Boolean(run?.isReleased && summary.summary?.counts && summary.summary.counts.notGenerated === 0);
   const generateAllBlockedReason = generateBlockedReason ?? (allGenerated ? 'Every payslip is already generated' : null);
   const holdBlockedReason = pending ? PENDING_BLOCK_REASON : null;
+  const canWithdraw = canEdit && !isDraft && !pending && (Boolean(run?.isReleased) || (summary.summary?.counts?.generated ?? 0) > 0);
   const rowPolicy: SlipRowPolicy = { canEdit, canHold: !isPaid, blockedReason: holdBlockedReason };
   const pageCounts = React.useMemo(() => countRows(items.rows), [items.rows]);
   const busyFor = (employeeId: number) => (actions.rowBusy?.id === employeeId ? actions.rowBusy.kind : null);
@@ -113,6 +114,7 @@ export function SalarySlipsPage() {
     if (!run || !confirm) return;
     let err: string | null = null;
     if (confirm.kind === 'release') err = await actions.releaseHold(run, confirm.row);
+    else if (confirm.kind === 'withdraw-all') err = await actions.withdraw(run);
     else {
       err = await actions.generate(run, confirm.kind === 'generate-selected' ? confirm.ids : null);
       if (!err && confirm.kind === 'generate-selected') items.clearSelection();
@@ -176,7 +178,9 @@ export function SalarySlipsPage() {
           canGenerate={canEdit}
           generateBlockedReason={generateAllBlockedReason}
           canDownloadAll={run.employees > 0 || items.total > 0}
+          canWithdraw={canWithdraw}
           onGenerateAll={() => openConfirm({ kind: 'generate-all' })}
+          onWithdrawAll={() => openConfirm({ kind: 'withdraw-all' })}
           onDownloadAll={() => setExportScope({ kind: 'all' })}
         />
       )}
@@ -233,6 +237,7 @@ export function SalarySlipsPage() {
                 policy={rowPolicy}
                 busyFor={busyFor}
                 onGenerate={(row) => actions.generateOne(run, row)}
+                onWithdraw={(row) => actions.withdrawOne(run, row)}
                 onHold={(row) => openHold([row.employeeId])}
                 onReleaseHold={(row) => openConfirm({ kind: 'release', row })}
                 onDownload={(row) => actions.downloadOne(run, row)}
@@ -246,6 +251,7 @@ export function SalarySlipsPage() {
                 policy={rowPolicy}
                 busyFor={busyFor}
                 onGenerate={(row) => actions.generateOne(run, row)}
+                onWithdraw={(row) => actions.withdrawOne(run, row)}
                 onHold={(row) => openHold([row.employeeId])}
                 onReleaseHold={(row) => openConfirm({ kind: 'release', row })}
                 onDownload={(row) => actions.downloadOne(run, row)}
@@ -281,12 +287,17 @@ export function SalarySlipsPage() {
 
       <ConfirmPayslipDialog
         open={Boolean(confirm)}
-        title={confirm?.kind === 'release' ? 'Release hold' : confirm?.kind === 'generate-selected' ? 'Generate selected payslips' : 'Generate all payslips'}
+        title={confirm?.kind === 'release' ? 'Release hold' : confirm?.kind === 'withdraw-all' ? 'Withdraw all payslips' : confirm?.kind === 'generate-selected' ? 'Generate selected payslips' : 'Generate all payslips'}
         message={
           confirm?.kind === 'release' ? (
             <>
               The hold on <span className="font-semibold text-fg">{confirm.row.name}</span> is lifted and the salary is paid with this payroll. If the
               payslip was generated, it becomes visible in the app again.
+            </>
+          ) : confirm?.kind === 'withdraw-all' ? (
+            <>
+              Every generated payslip of <span className="font-semibold text-fg">{run?.companyName}</span>, {run?.periodLabel} is hidden from the app again.
+              Pay is not changed. From now on this payroll shows a payslip only when you generate it, one by one or all at once.
             </>
           ) : confirm?.kind === 'generate-selected' ? (
             <>
@@ -299,8 +310,8 @@ export function SalarySlipsPage() {
             </>
           )
         }
-        confirmLabel={confirm?.kind === 'release' ? 'Release hold' : 'Generate'}
-        busy={confirm?.kind === 'release' ? actions.rowBusy?.kind === 'release' : actions.generating}
+        confirmLabel={confirm?.kind === 'release' ? 'Release hold' : confirm?.kind === 'withdraw-all' ? 'Withdraw all' : 'Generate'}
+        busy={confirm?.kind === 'release' ? actions.rowBusy?.kind === 'release' : confirm?.kind === 'withdraw-all' ? actions.withdrawing : actions.generating}
         error={confirmError}
         onClose={closeConfirm}
         onConfirm={submitConfirm}

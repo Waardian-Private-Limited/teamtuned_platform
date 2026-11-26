@@ -7,6 +7,7 @@ import type {
   PayslipExportRequestDto,
   RunItemDto,
   RunItemPageDto,
+  WithdrawResponseDto,
 } from '../types/salarySlips.dto';
 
 const auth = { withAuth: true };
@@ -43,6 +44,11 @@ export function listRunItems(runId: number, params: ItemParams) {
 
 export function generatePayslips(runId: number, employeeIds?: number[]) {
   return apiClient.post<GenerateResponseDto>(`/payroll-runs/${runId}/generate`, employeeIds ? { employee_ids: employeeIds } : {}, auth);
+}
+
+/** Takes back generated payslips (all when no ids); the payroll then shows a payslip only when HR generates it. */
+export function withdrawPayslips(runId: number, employeeIds?: number[]) {
+  return apiClient.post<WithdrawResponseDto>(`/payroll-runs/${runId}/withdraw`, employeeIds ? { employee_ids: employeeIds } : {}, auth);
 }
 
 export function holdPayslip(runId: number, employeeId: number, reason: string) {

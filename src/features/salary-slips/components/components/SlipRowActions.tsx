@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Download, Lock, LockOpen, Send } from 'lucide-react';
+import { Download, Lock, LockOpen, Send, Undo2 } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { Tooltip } from '@/components/ui/Tooltip';
 import type { RowActionKind } from '../../hooks/useSalarySlipActions';
@@ -15,6 +15,7 @@ export interface SlipRowPolicy {
 
 export interface SlipRowHandlers {
   onGenerate: (row: SalarySlipRow) => void;
+  onWithdraw: (row: SalarySlipRow) => void;
   onHold: (row: SalarySlipRow) => void;
   onReleaseHold: (row: SalarySlipRow) => void;
   onDownload: (row: SalarySlipRow) => void;
@@ -65,7 +66,7 @@ function RowBtn({
   );
 }
 
-export function SlipRowActions({ row, policy, busy, showLabels = 'always', onGenerate, onHold, onReleaseHold, onDownload }: SlipRowActionsProps) {
+export function SlipRowActions({ row, policy, busy, showLabels = 'always', onGenerate, onWithdraw, onHold, onReleaseHold, onDownload }: SlipRowActionsProps) {
   const locked = busy !== null;
   const blocked = policy.blockedReason;
   return (
@@ -80,6 +81,17 @@ export function SlipRowActions({ row, policy, busy, showLabels = 'always', onGen
           tip={blocked}
           showLabel={showLabels}
           onClick={() => onGenerate(row)}
+        />
+      )}
+      {policy.canEdit && row.status === 'visible' && (
+        <RowBtn
+          label="Withdraw"
+          icon={<Undo2 className="h-3.5 w-3.5" />}
+          busy={busy === 'withdraw'}
+          disabled={locked || Boolean(blocked)}
+          tip={blocked ?? 'Hide this payslip from the app until it is generated again'}
+          showLabel={showLabels}
+          onClick={() => onWithdraw(row)}
         />
       )}
       {policy.canEdit && policy.canHold && row.status !== 'held' && (

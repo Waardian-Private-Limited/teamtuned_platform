@@ -1,6 +1,6 @@
 'use client';
 
-import { Download, Send } from 'lucide-react';
+import { Download, Send, Undo2 } from 'lucide-react';
 import { cx } from '@/theme/tokens';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { Btn } from '@/features/compensation/components/shared/Buttons';
@@ -16,7 +16,9 @@ interface RunSummaryBarProps {
   canGenerate: boolean;
   generateBlockedReason: string | null;
   canDownloadAll: boolean;
+  canWithdraw: boolean;
   onGenerateAll: () => void;
+  onWithdrawAll: () => void;
   onDownloadAll: () => void;
 }
 
@@ -72,7 +74,9 @@ export function RunSummaryBar({
   canGenerate,
   generateBlockedReason,
   canDownloadAll,
+  canWithdraw,
   onGenerateAll,
+  onWithdrawAll,
   onDownloadAll,
 }: RunSummaryBarProps) {
   const isDraft = run.status === 'draft';
@@ -103,6 +107,11 @@ export function RunSummaryBar({
         {canDownloadAll && (
           <Btn icon={<Download className="h-3.5 w-3.5" />} onClick={onDownloadAll}>
             Download all
+          </Btn>
+        )}
+        {canWithdraw && (
+          <Btn icon={<Undo2 className="h-3.5 w-3.5" />} onClick={onWithdrawAll}>
+            Withdraw all
           </Btn>
         )}
         {canGenerate && (
