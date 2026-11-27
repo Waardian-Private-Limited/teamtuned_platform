@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { messageOf } from '@/lib/api/errors';
 import { usePolling } from '@/lib/hooks/usePolling';
 import type { FilterOptionsDto } from '@/features/attendance-dashboard/types/dashboard.dto';
@@ -20,17 +21,32 @@ export interface Filters {
 
 const EMPTY: Filters = { date: '', subOrgId: null, siteId: null, departmentId: null, roleId: null, status: null };
 
+interface Kept { filters: Filters; search: string; page: number }
+
+/**
+ * What the list showed when a month page was opened from it, per list path, so coming back (the back link or the
+ * browser's back) shows the same filters, search and page. Taken once on return; a fresh visit starts clean.
+ */
+const kept = new Map<string, Kept>();
+const takeKept = (path: string) => {
+  const k = kept.get(path) || null;
+  kept.delete(path);
+  return k;
+};
+
 /**
  * The list screen's state: the filters and what they offer, the page of employees, and a refresh
  * every minute while looking at today. Choices that stop being offered (another sub-organisation
  * has other sites) are dropped, and every change goes back to page one.
  */
 export function useAttendanceList() {
-  const [filters, setFilters] = useState<Filters>(EMPTY);
+  const path = usePathname().replace(/\/$/, '');
+  const [restored] = useState(() => takeKept(path));
+  const [filters, setFilters] = useState<Filters>(restored?.filters ?? EMPTY);
   const [options, setOptions] = useState<FilterOptionsDto | null>(null);
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
+  const [searchInput, setSearchInput] = useState(restored?.search ?? '');
+  const [search, setSearch] = useState(restored?.search ?? '');
+  const [page, setPage] = useState(restored?.page ?? 1);
   const [list, setList] = useState<AttendanceList | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,8 +70,12 @@ export function useAttendanceList() {
   }, [filters.subOrgId, filters.departmentId]);
 
   useEffect(() => {
-    const t = setTimeout(() => { setSearch(searchInput.trim()); setPage(1); }, SEARCH_DEBOUNCE_MS);
+    const next = searchInput.trim();
+    // Only a changed search goes back to page one (a restored page stays where it was).
+    if (next === search) return undefined;
+    const t = setTimeout(() => { setSearch(next); setPage(1); }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchInput]);
 
   const ready = !!filters.date;
@@ -96,10 +116,13 @@ export function useAttendanceList() {
 
   const reload = useCallback(() => setNonce((n) => n + 1), []);
 
+  /** Remembers the filters, search and page for when the person comes back from a month page. */
+  const keep = useCallback(() => { kept.set(path, { filters, search: searchInput, page }); }, [path, filters, searchInput, page]);
+
   const narrowed = useMemo(() => !!(filters.subOrgId || filters.siteId || filters.departmentId || filters.roleId || filters.status || search), [filters, search]);
 
   return {
-    filters, options, update, reset, reload, narrowed, isToday,
+    filters, options, update, reset, reload, keep, narrowed, isToday,
     searchInput, setSearchInput, page, setPage, pageSize: PAGE_SIZE,
     list, loading: loading && !list, refreshing: loading, error,
   };

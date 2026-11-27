@@ -31,7 +31,8 @@ export function DetailedAttendancePage() {
   const router = useRouter();
   const pathname = usePathname().replace(/\/$/, '');
   // The month is a page of its own, one level below this one.
-  const openMonth = (employeeId: number, m: string) => router.push(`${pathname}/${employeeId}?month=${m}`);
+  // The filters are kept so coming back from the month shows the same list.
+  const openMonth = (employeeId: number, m: string) => { l.keep(); router.push(`${pathname}/${employeeId}?month=${m}`); };
 
   const list = l.list;
   const today = l.options?.today ?? '';
