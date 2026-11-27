@@ -115,6 +115,13 @@ export function BlockEditor({ block, onChange, ctx, index }: { block: TemplateBl
           </button>
         </div>
       );
+    case 'salary_structure':
+      return (
+        <div className="space-y-2">
+          <Line label="Heading (optional)" value={block.heading} onChange={(v) => onChange({ ...block, heading: v })} error={err('heading')} />
+          <p className="text-xs text-fg-muted">Rows are filled when the letter is generated: each salary component assigned to the employee in payroll, then gross and CTC.</p>
+        </div>
+      );
     case 'signatures':
       return (
         <div className="space-y-3">

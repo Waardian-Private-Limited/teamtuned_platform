@@ -18,7 +18,7 @@ export interface DocTypeDto {
 
 export interface TypesDto { types: DocTypeDto[]; planned: string[] }
 
-export type BlockType = 'letterhead' | 'title' | 'meta' | 'text' | 'table' | 'signatures' | 'acceptance' | 'spacer' | 'page_break' | 'footer_note';
+export type BlockType = 'letterhead' | 'title' | 'meta' | 'text' | 'table' | 'salary_structure' | 'signatures' | 'acceptance' | 'spacer' | 'page_break' | 'footer_note';
 
 export interface SignatureSlot { label: string; signatoryId: number | null; showStamp: boolean }
 
@@ -29,6 +29,7 @@ export type TemplateBlock =
   | { id: string; type: 'text'; text: string }
   | { id: string; type: 'footer_note'; text: string }
   | { id: string; type: 'table'; heading: string; rows: { label: string; value: string }[] }
+  | { id: string; type: 'salary_structure'; heading: string }
   | { id: string; type: 'signatures'; closing: string; slots: SignatureSlot[] }
   | { id: string; type: 'acceptance'; text: string }
   | { id: string; type: 'spacer'; size: 'sm' | 'md' | 'lg' }

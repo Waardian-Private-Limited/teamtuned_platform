@@ -16,7 +16,7 @@ import { BLOCK_HINT, BLOCK_LABEL, newBlock, summary } from './blocks';
 import { BlockEditor } from './BlockEditor';
 import { InputsEditor } from './InputsEditor';
 
-const ADDABLE: BlockType[] = ['text', 'table', 'title', 'meta', 'letterhead', 'signatures', 'acceptance', 'footer_note', 'spacer', 'page_break'];
+const ADDABLE: BlockType[] = ['text', 'table', 'salary_structure', 'title', 'meta', 'letterhead', 'signatures', 'acceptance', 'footer_note', 'spacer', 'page_break'];
 const fieldCls = 'h-9 w-full rounded-lg border border-line bg-surface px-3 text-sm text-fg outline-none focus:border-[var(--tt-primary)]';
 
 function bodyOf(t: TemplateDto): TemplateBody {

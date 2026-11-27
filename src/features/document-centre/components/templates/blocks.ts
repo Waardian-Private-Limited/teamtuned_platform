@@ -6,6 +6,7 @@ export const BLOCK_LABEL: Record<BlockType, string> = {
   meta: 'Reference & date',
   text: 'Text',
   table: 'Table',
+  salary_structure: 'Salary structure',
   signatures: 'Signatures',
   acceptance: 'Acceptance',
   spacer: 'Space',
@@ -19,6 +20,7 @@ export const BLOCK_HINT: Record<BlockType, string> = {
   meta: 'Reference number on the left, letter date on the right.',
   text: 'Paragraphs with **bold**, *italic*, "- " bullets and "1. " numbered points.',
   table: 'Label and value rows, e.g. the terms of the offer.',
+  salary_structure: 'The employee’s salary components, gross and CTC as assigned in payroll (candidates: offered CTC).',
   signatures: 'Up to three signatures, with the company stamp.',
   acceptance: 'Lines for the candidate to sign and date.',
   spacer: 'Empty space.',
@@ -36,6 +38,7 @@ export function newBlock(type: BlockType): TemplateBlock {
     case 'text': return { id: id(), type, text: 'Dear {{candidate.first_name}},' };
     case 'footer_note': return { id: id(), type, text: 'This is a computer-generated letter.' };
     case 'table': return { id: id(), type, heading: '', rows: [{ label: 'Designation', value: '{{offer.designation}}' }] };
+    case 'salary_structure': return { id: id(), type, heading: '' };
     case 'signatures': return { id: id(), type, closing: 'For **{{company.name}}**', slots: [{ label: 'Authorised signatory', signatoryId: null, showStamp: true }] };
     case 'acceptance': return { id: id(), type, text: '' };
     case 'spacer': return { id: id(), type, size: 'md' };
@@ -50,6 +53,7 @@ export function summary(b: TemplateBlock): string {
     case 'title': return b.text;
     case 'text': case 'footer_note': return b.text.replace(/\s+/g, ' ').slice(0, 80);
     case 'table': return `${b.rows.length} row${b.rows.length === 1 ? '' : 's'}${b.heading ? ` · ${b.heading}` : ''}`;
+    case 'salary_structure': return b.heading || 'From payroll';
     case 'signatures': return `${b.slots.length} signature${b.slots.length === 1 ? '' : 's'}`;
     case 'spacer': return { sm: 'Small', md: 'Medium', lg: 'Large' }[b.size];
     default: return '';
